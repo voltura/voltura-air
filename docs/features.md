@@ -68,20 +68,44 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 
 - Devices shows name, platform/browser metadata, connection/activity state, and
   per-device settings. Users can rename/remove one device or remove all.
-- Global defaults combine with per-device overrides for pointer speed,
-  permissions, mode-button visibility, and the optional 3D control effect.
+- Pointer speed, mode-button visibility, the protected-file filter, and the
+  optional 3D control effect retain their global-plus-device settings.
+- Profile-managed product permissions use **My device**, **Remote controls**, or
+  an explicit per-device **Custom** matrix. My device allows every current product
+  permission. Remote controls explicitly allows pointer/keyboard, volume,
+  Presentation, application launch, PC lock, Blackout, and screen saver only.
+  Preferences selects My device or Remote controls for newly paired devices;
+  changing it never recalculates existing devices. Devices shows effective values
+  and materializes a complete Custom matrix before an individual edit.
+- Existing paired devices are migrated to Custom using their previous effective
+  global-plus-device values. Unknown or incomplete profile data remains paired
+  and blocks all profile-managed permissions. Pairing links, QR data, tokens,
+  authentication messages, and protocol shapes are unchanged.
 - The Windows host's 3D control effect is a separate appearance preference and
   defaults off. The mobile/device default is on; each paired device can inherit,
   enable, or disable it.
-- Host permissions, network selection, and Awake state each persist as one
+- The new-pairing profile default, legacy permission input, network selection,
+  and Awake state each persist as one
   bounded exact-shape registry JSON value. A failed write leaves the last cached
   state unchanged. Missing values use defaults; malformed permissions deny
   remote capabilities, malformed network state returns to automatic Direct,
   and malformed Awake state is Off. Superseded individual registry fields are
   not read.
-- Host permissions cover sleep, volume, Screen viewing, Phone webcam, Presentation, file browsing/opening, file changes, application launch, web
+- Profile-managed permissions cover sleep, volume, Screen viewing, Phone webcam,
+  Presentation, file browsing/opening, file changes, application launch, web
   addresses, PC clipboard reads, Lock, Blackout, display off, screen saver,
-  sign out, restart, shutdown, Keep awake, and interaction with the host UI.
+  sign out, restart, shutdown, Keep awake, and pointer/keyboard input. Control of
+  the Voltura Air Windows application is a separate setting that remains disabled
+  by default. When enabled, it applies only to My device and Custom devices;
+  Remote controls devices are always blocked from the application so they cannot
+  operate its access settings.
+- A newly paired device's first authenticated connection shows one mandatory
+  profile notification and opens that device's access selector when clicked.
+  Its pending marker remains durable until the tray can present it. The tray
+  presents one notification at a time, prioritizes pending profile notices, and
+  retains the latest ordinary notification while one is visible.
+  Later optional single-device notifications include the current profile; the
+  existing multiple-device summary is unchanged.
 - Unsupported actions are omitted; host-disabled actions explain the relevant
   permission. Manually sent unauthorized commands are rejected.
 - Custom screens and Presentation are supported capabilities and remain
@@ -111,8 +135,7 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   messages over certificate-validated TLS/TCP 443, including the stream framing
   and ChannelData padding required by RFC 8656. The PC therefore needs no
   outbound UDP for relay screen viewing; Direct LAN behavior is unchanged.
-- Screen viewing is denied by default through its global permission and has an
-  inheritable per-device override.
+- Screen viewing follows the paired device's profile or explicit Custom value.
 - One authorized device can view one selected display at a time. Multiple
   displays are selectable before or during viewing; another device receives a
   busy result. Leaving the workspace stops viewing.
@@ -193,8 +216,8 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   or unchecking through the existing install/repair/removal transaction. The optional
   installer component owns those changes through an explicit UAC boundary; the
   per-user host never elevates its LocalAppData executable.
-- The global **Allow paired devices to use Phone webcam** permission defaults off
-  and combines with an inheritable per-device **Use phone as webcam** override.
+- **Use phone as webcam** follows the paired device's profile or explicit Custom
+  value. Remote controls blocks it; My device allows it.
   Removing a pairing, revoking permission, stopping from the tray, host shutdown,
   capture loss, or transport loss terminates the owned session and returns the
   virtual camera to its waiting frame.
@@ -637,7 +660,7 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   are serialized and journaled across artifact and atomic-manifest replacement;
   recovery touches only recorded paths. Unknown files are never imported, shown,
   or deleted, and an unrecognized recovery state leaves the archive unavailable.
-  Effective global and per-device Presentation permission gates control,
+  The effective profile-managed Presentation permission gates control,
   session tracking, saved-file launch, and report saves.
 
 ### Files
@@ -650,7 +673,12 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 - Cut, Copy, and Paste use the real Windows Shell file clipboard and interoperate with Explorer. **Open** delegates to the Windows default application and stays in Files; opening a folder launches Explorer. **View** is available for files when both effective Browse/open and PC Screen authorization permit it: the host first confirms the Shell open, then mobile enters the independently authorized encrypted PC Screen mirror. A failed Shell open or unavailable/denied Screen permission leaves Files active with guidance. With one display the mirror starts automatically; multiple displays retain the Screen chooser. Back returns to Files. Delete is confirmed on mobile and uses only the Recycle Bin; the host rejects the whole request before queueing when any item cannot be recycled.
 - Copy, Move, Paste, Rename, and Delete return a host job immediately. One mutation runs host-wide while the rest queue within a bounded, fully inspectable operation window. Direct Copy/Move binds both rendered panel revisions before queueing, so later navigation cannot redirect an operation. Jobs expose preparing, running, pause/resume/cancel, conflict attention with Replace/Skip/Cancel and apply-to-all, byte/item progress, rate, ETA, completion/failure, and restart interruption. Every completed, failed, or canceled tracked operation refreshes each panel that may already have changed; refreshed revisions reset their selections, while a failed Copy can preserve the unchanged source selection. Jobs continue across mobile mode changes and reconnects and are visible and controllable only to their originating paired device. The newest completed, failed, canceled, and interrupted history remains available and can be removed individually or cleared together; dismissing history never discards the host's private recovery responsibility. Partial-copy and replacement paths are created only after their recovery records are durably saved. Restart recovery removes journaled partial destinations, restores an original destination interrupted during replacement, retains temporarily unavailable cleanup for a later retry, and does not automatically resume work.
 - Files keeps the app header and compact mode selector fixed and hides the large mode rows. File lists own ordinary native touch scrolling, including two-finger scrolling, without feature-specific magnification or transformed layout state.
-- Separate default-off **Browse and open files** and **Change files** permissions have global defaults and per-device overrides. The default-on protected-operating-system-item filter uses the same global plus per-device policy model. A supported but denied device keeps Files visible with permission guidance. Revocation closes opaque navigation sessions and cancels that device's active mutation work.
+- Separate **Browse and open files** and **Change files** permissions follow the
+  device profile or explicit Custom values. The default-on
+  protected-operating-system-item filter remains outside profiles and retains its
+  global plus per-device policy model. A supported but denied device keeps Files
+  visible with permission guidance. Revocation closes opaque navigation sessions
+  and cancels that device's active mutation work.
 
 ### Dictation and text transfer
 
@@ -674,7 +702,7 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   case-insensitive names and can be loaded, reordered, renamed, updated, or
   deleted. Loading never sends automatically.
 - **Get text from PC** requests at most 4,096 clipboard characters only after
-  explicit activation and requires the default-off host permission. **Get PC
+  explicit activation and requires the effective device permission. **Get PC
   clipboard text into this box** updates the visible field; copy selected text,
   select, cut, clear, and local snippets operate on that field. On a supporting
   HTTPS controller, **Get PC clipboard text into this device's clipboard**

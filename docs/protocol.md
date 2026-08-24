@@ -640,7 +640,7 @@ and Relay. Standard Local HTTP does not request camera capture. The capability i
 always present on a supporting host:
 
 - `enabled` reports an installed current native virtual camera;
-- `permissionGranted` is the effective global plus per-device Phone webcam policy;
+- `permissionGranted` is the resolved device-profile Phone webcam policy;
 - `canUse` additionally requires the current pinned host identity;
 - `requiresRepair` reports a missing current host-identity pin;
 - `microphoneAvailable` reports whether the host has resolved an active base VB-CABLE render endpoint; and
@@ -1167,7 +1167,7 @@ denial performs no read.
 { "canBrowse": false, "canModify": false, "hidesProtectedSystemItems": true, "maxPageSize": 100 }
 ```
 
-The capability remains present when permission is denied so mobile can show recovery guidance. `canBrowse` reflects **Browse and open files**. `canModify` additionally requires **Change files**. Both permissions default off and resolve global plus per-device policy. `hidesProtectedSystemItems` reports the effective default-on global/per-device **Hide protected operating system files and folders** policy. When true, the host removes entries carrying both Windows Hidden and System attributes before it creates panel revisions, counts, pages, selections, or operation references.
+The capability remains present when permission is denied so mobile can show recovery guidance. `canBrowse` reflects **Browse and open files**. `canModify` additionally requires **Change files**. Both resolve from the authenticated device's built-in profile or explicit Custom matrix. `hidesProtectedSystemItems` reports the separate effective default-on global/per-device **Hide protected operating system files and folders** policy. When true, the host removes entries carrying both Windows Hidden and System attributes before it creates panel revisions, counts, pages, selections, or operation references. Access profiles change no pairing, authentication, or command message shape.
 
 Clients never send a path. The host issues opaque `sessionId`, drive/shortcut/entry IDs, panel `revision`, `continuation`, and `jobId` values. Each authenticated request has an `operationId` and only the fields listed here:
 
@@ -1191,7 +1191,7 @@ Every file message remains within the existing 64 KiB frame limit. Paths, filena
 
 ## Presentation
 
-Authenticated status advertises `presentation`. Effective global and per-device
+Authenticated status advertises `presentation`. The resolved device-profile
 Presentation permission controls
 `canControl`, PowerPoint detail, commands, saved-file launch, session tracking,
 and report saves. Older hosts may omit the optional capability; mobile then

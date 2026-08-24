@@ -72,6 +72,15 @@ internal sealed class HostStatusPayloadFactory(
 
     public bool CanSleepPc(string clientId) => GetEffectivePermissions(clientId).AllowPcSleep;
     public bool CanUseRemoteInput(string clientId) => GetEffectivePermissions(clientId).AllowRemoteInput;
+    public (bool CanUseRemoteInput, bool CanControlHostApplication) GetInputAccess(string clientId)
+    {
+        var access = pairingManager.GetInputAccess(clientId, AppPermissionSettings.Load());
+        return (
+            access.AllowRemoteInput,
+            AppClientControlSettings.AllowsDevice(access.AccessProfile));
+    }
+    public bool CanControlHostApplication(string clientId) =>
+        AppClientControlSettings.AllowsDevice(pairingManager.GetDeviceAccessProfile(clientId));
     public bool CanControlVolume(string clientId) => GetEffectivePermissions(clientId).AllowVolumeControl;
     public bool CanControlPresentations(string clientId) => GetEffectivePermissions(clientId).AllowPresentationControl;
     public bool CanUseCustomScreen(string clientId, string screenId) =>

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Collections.Concurrent;
 
 namespace VolturaAir.Host;
 
@@ -14,6 +15,7 @@ public sealed class PairingManager
     private readonly PairingTokenAuthority _tokens = new();
     private readonly PairedDeviceRegistry _devices;
     private readonly Dictionary<string, long> _pairingEpochs = new(StringComparer.Ordinal);
+    private readonly ConcurrentQueue<InitialDeviceConnectionNotice> _initialDeviceConnectionNotices = new();
 
     public PairingManager(PairingStore store)
         : this(store, ScreenViewHostIdentity.OpenCurrentUser(), ownsHostIdentity: true)
@@ -22,7 +24,7 @@ public sealed class PairingManager
 
     internal PairingManager(PairingStore store, ScreenViewHostIdentity hostIdentity, bool ownsHostIdentity = false)
     {
-        _devices = new PairedDeviceRegistry(store);
+        _devices = new PairedDeviceRegistry(store, AppPermissionSettings.Load());
         _hostIdentity = hostIdentity;
         _ownsHostIdentity = ownsHostIdentity;
     }
@@ -30,6 +32,7 @@ public sealed class PairingManager
     public event EventHandler? ConnectionChanged;
     public event EventHandler? PermissionsChanged;
     public event EventHandler? DeviceProfileChanged;
+    public event EventHandler<InitialDeviceConnectionEventArgs>? InitialDeviceConnected;
     public event EventHandler<PairingRevokedEventArgs>? PairingRevoked;
     internal event EventHandler? PairingCodeInvalidated;
     internal ScreenViewHostIdentity HostIdentity => _hostIdentity;
@@ -63,6 +66,17 @@ public sealed class PairingManager
             lock (_gate)
             {
                 return _devices.PairedDeviceCount;
+            }
+        }
+    }
+
+    internal bool HasActivePendingInitialDeviceConnectionNotice
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _devices.HasActivePendingInitialAccessNotice;
             }
         }
     }
@@ -168,7 +182,7 @@ public sealed class PairingManager
                 "challenge",
                 new PairingBootstrapPending(
                     clientId,
-                    PairedDeviceRegistry.NormalizeDeviceName(deviceName),
+                    PairingRecordNormalization.NormalizeDeviceName(deviceName),
                     token,
                     clientNonce,
                     serverNonce,
@@ -177,9 +191,9 @@ public sealed class PairingManager
                     _hostIdentity.Fingerprint,
                     hostProof,
                     clientProof,
-                    PairedDeviceRegistry.NormalizeMetadata(platform),
-                    PairedDeviceRegistry.NormalizeMetadata(browser),
-                    PairedDeviceRegistry.NormalizeMetadata(displayMode)));
+                    PairingRecordNormalization.NormalizeMetadata(platform),
+                    PairingRecordNormalization.NormalizeMetadata(browser),
+                    PairingRecordNormalization.NormalizeMetadata(displayMode)));
         }
     }
 
@@ -223,10 +237,10 @@ public sealed class PairingManager
         string? displayMode = null)
     {
         var acceptedAt = now ?? DateTimeOffset.UtcNow;
-        var normalizedDeviceName = PairedDeviceRegistry.NormalizeDeviceName(deviceName);
-        var normalizedPlatform = PairedDeviceRegistry.NormalizeMetadata(platform);
-        var normalizedBrowser = PairedDeviceRegistry.NormalizeMetadata(browser);
-        var normalizedDisplayMode = PairedDeviceRegistry.NormalizeMetadata(displayMode);
+        var normalizedDeviceName = PairingRecordNormalization.NormalizeDeviceName(deviceName);
+        var normalizedPlatform = PairingRecordNormalization.NormalizeMetadata(platform);
+        var normalizedBrowser = PairingRecordNormalization.NormalizeMetadata(browser);
+        var normalizedDisplayMode = PairingRecordNormalization.NormalizeMetadata(displayMode);
         string? revokedClientId = null;
         bool pairingCodeInvalidated;
         bool connectionChanged;
@@ -255,7 +269,9 @@ public sealed class PairingManager
                 Platform: normalizedPlatform,
                 Browser: normalizedBrowser,
                 DisplayMode: normalizedDisplayMode,
-                HostIdentityFingerprint: _hostIdentity.Fingerprint));
+                HostIdentityFingerprint: _hostIdentity.Fingerprint,
+                AccessProfile: AppPermissionSettings.LoadDefaultAccessProfile(),
+                InitialAccessNoticePending: true));
             _tokens.Invalidate();
             pairingCodeInvalidated = true;
             connectionChanged = true;
@@ -306,10 +322,10 @@ public sealed class PairingManager
         DateTimeOffset? now = null)
     {
         var acceptedAt = now ?? DateTimeOffset.UtcNow;
-        var normalizedDeviceName = PairedDeviceRegistry.NormalizeDeviceName(deviceName);
-        var normalizedPlatform = PairedDeviceRegistry.NormalizeMetadata(platform);
-        var normalizedBrowser = PairedDeviceRegistry.NormalizeMetadata(browser);
-        var normalizedDisplayMode = PairedDeviceRegistry.NormalizeMetadata(displayMode);
+        var normalizedDeviceName = PairingRecordNormalization.NormalizeDeviceName(deviceName);
+        var normalizedPlatform = PairingRecordNormalization.NormalizeMetadata(platform);
+        var normalizedBrowser = PairingRecordNormalization.NormalizeMetadata(browser);
+        var normalizedDisplayMode = PairingRecordNormalization.NormalizeMetadata(displayMode);
         bool connectionChanged;
 
         lock (_gate)
@@ -348,7 +364,7 @@ public sealed class PairingManager
         {
             renamed = _devices.UpdateDeviceDetails(
                 clientId,
-                PairedDeviceRegistry.NormalizeDeviceName(deviceName),
+                PairingRecordNormalization.NormalizeDeviceName(deviceName),
                 null,
                 null,
                 null,
@@ -382,11 +398,13 @@ public sealed class PairingManager
 
     public IDisposable TrackConnection(string clientId, DateTimeOffset? now = null)
     {
+        InitialDeviceConnectionNotice? initialNotice;
         lock (_gate)
         {
-            _devices.AddConnection(clientId, now ?? DateTimeOffset.UtcNow);
+            initialNotice = _devices.AddConnection(clientId, now ?? DateTimeOffset.UtcNow);
         }
 
+        PublishInitialDeviceConnection(initialNotice);
         ConnectionChanged?.Invoke(this, EventArgs.Empty);
         return new ConnectionScope(this, clientId);
     }
@@ -398,6 +416,7 @@ public sealed class PairingManager
         out long pairingEpoch,
         DateTimeOffset? now = null)
     {
+        InitialDeviceConnectionNotice? initialNotice;
         lock (_gate)
         {
             if (_devices.Find(clientId) is null)
@@ -409,12 +428,41 @@ public sealed class PairingManager
 
             pairingEpoch = GetPairingEpochLocked(clientId);
             registerTransport();
-            _devices.AddConnection(clientId, now ?? DateTimeOffset.UtcNow);
+            initialNotice = _devices.AddConnection(clientId, now ?? DateTimeOffset.UtcNow);
             connection = new ConnectionScope(this, clientId);
         }
 
+        PublishInitialDeviceConnection(initialNotice);
         ConnectionChanged?.Invoke(this, EventArgs.Empty);
         return true;
+    }
+
+    private void PublishInitialDeviceConnection(InitialDeviceConnectionNotice? notice)
+    {
+        if (notice is not null)
+        {
+            _initialDeviceConnectionNotices.Enqueue(notice);
+        }
+    }
+
+    internal bool TryTakeInitialDeviceConnectionNotice(out InitialDeviceConnectionNotice? notice)
+    {
+        notice = null;
+        while (_initialDeviceConnectionNotices.TryDequeue(out var candidate))
+        {
+            lock (_gate)
+            {
+                notice = _devices.TryClaimInitialConnectionNotice(candidate.ClientId);
+            }
+
+            if (notice is not null)
+            {
+                InitialDeviceConnected?.Invoke(this, new InitialDeviceConnectionEventArgs(notice));
+                return true;
+            }
+        }
+
+        return false;
     }
 
     internal bool IsCurrentPairing(string clientId, long pairingEpoch)
@@ -462,6 +510,24 @@ public sealed class PairingManager
         lock (_gate)
         {
             return _devices.GetEffectivePermissions(clientId, globalPermissions);
+        }
+    }
+
+    public DeviceAccessProfile GetDeviceAccessProfile(string clientId)
+    {
+        lock (_gate)
+        {
+            return _devices.GetAccessProfile(clientId);
+        }
+    }
+
+    internal (bool AllowRemoteInput, DeviceAccessProfile AccessProfile) GetInputAccess(
+        string clientId,
+        HostPermissionSet globalPermissions)
+    {
+        lock (_gate)
+        {
+            return _devices.GetInputAccess(clientId, globalPermissions);
         }
     }
 
@@ -561,6 +627,31 @@ public sealed class PairingManager
         lock (_gate)
         {
             changed = _devices.SetPermissionOverrides(clientId, permissionOverrides);
+        }
+
+        if (changed)
+        {
+            PermissionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        return changed;
+    }
+
+    public bool SetDeviceAccessProfile(string clientId, DeviceAccessProfile profile) =>
+        UpdatePermissions(() => _devices.SetAccessProfile(clientId, profile));
+
+    public bool SetDevicePermission(string clientId, DevicePermissionKind kind, bool allowed) =>
+        UpdatePermissions(() => _devices.SetPermission(clientId, kind, allowed));
+
+    public bool SetDeviceProtectedFileFilterOverride(string clientId, bool? hideProtected) =>
+        UpdatePermissions(() => _devices.SetProtectedFileFilterOverride(clientId, hideProtected));
+
+    private bool UpdatePermissions(Func<bool> update)
+    {
+        bool changed;
+        lock (_gate)
+        {
+            changed = update();
         }
 
         if (changed)

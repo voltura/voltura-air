@@ -6,6 +6,7 @@ using VolturaAir.Host.Ui;
 using WpfListBox = System.Windows.Controls.ListBox;
 using WpfUserControl = System.Windows.Controls.UserControl;
 using WpfButton = System.Windows.Controls.Button;
+using WpfComboBox = System.Windows.Controls.ComboBox;
 
 namespace VolturaAir.Host.Features.Devices;
 
@@ -19,7 +20,9 @@ public partial class DevicesPageView : WpfUserControl
         Func<string, bool?, (bool? Override, bool Effective)?> setControlDepth,
         Func<string, int, bool> savePointerSpeed,
         Func<string, int?> useGlobalPointerSpeed,
-        Func<string, DevicePermissionKind, bool?, bool> setPermission,
+        Func<string, DeviceAccessProfile, DeviceAccessViewState?> setAccessProfile,
+        Func<string, DevicePermissionKind, bool, DeviceAccessViewState?> setPermission,
+        Func<string, bool?, (bool? Override, bool Effective)?> setProtectedFileFilter,
         Action<string> removeDevice,
         Action cleanUpDuplicates,
         Action removeAll)
@@ -32,7 +35,9 @@ public partial class DevicesPageView : WpfUserControl
         _setControlDepth = setControlDepth;
         _savePointerSpeed = savePointerSpeed;
         _useGlobalPointerSpeed = useGlobalPointerSpeed;
+        _setAccessProfile = setAccessProfile;
         _setPermission = setPermission;
+        _setProtectedFileFilter = setProtectedFileFilter;
         _removeDevice = removeDevice;
         CleanUpDuplicatesButton.Click += (_, _) => cleanUpDuplicates();
         RemoveAllButton.Click += (_, _) => removeAll();
@@ -46,8 +51,39 @@ public partial class DevicesPageView : WpfUserControl
     private readonly Func<string, bool?, (bool? Override, bool Effective)?> _setControlDepth;
     private readonly Func<string, int, bool> _savePointerSpeed;
     private readonly Func<string, int?> _useGlobalPointerSpeed;
-    private readonly Func<string, DevicePermissionKind, bool?, bool> _setPermission;
+    private readonly Func<string, DeviceAccessProfile, DeviceAccessViewState?> _setAccessProfile;
+    private readonly Func<string, DevicePermissionKind, bool, DeviceAccessViewState?> _setPermission;
+    private readonly Func<string, bool?, (bool? Override, bool Effective)?> _setProtectedFileFilter;
     private readonly Action<string> _removeDevice;
+
+    internal void FocusAccessProfile(string clientId, Action<bool> completed)
+    {
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            if (DeviceList.Items.OfType<DeviceListItem>().FirstOrDefault(item =>
+                string.Equals(item.ClientId, clientId, StringComparison.Ordinal)) is not { } device)
+            {
+                completed(false);
+                return;
+            }
+
+            device.IsExpanded = true;
+            device.OpenPermissions();
+            DeviceList.SelectedItem = device;
+            DeviceList.ScrollIntoView(device);
+            UpdateLayout();
+            if (DeviceList.ItemContainerGenerator.ContainerFromItem(device) is not ListBoxItem row)
+            {
+                completed(false);
+                return;
+            }
+
+            var selector = FindVisualDescendants<WpfComboBox>(row)
+                .FirstOrDefault(control => control.Name == "AccessProfileSelector");
+            selector?.BringIntoView();
+            completed(selector?.Focus() == true && selector.IsKeyboardFocusWithin);
+        }, DispatcherPriority.ApplicationIdle);
+    }
 
     private void OnDeviceExpanded(object sender, RoutedEventArgs eventArgs)
     {
@@ -177,22 +213,59 @@ public partial class DevicesPageView : WpfUserControl
         }
     }
 
-    private void OnUseGlobalPermission(object sender, RoutedEventArgs eventArgs) => SetPermission(sender, null);
-
     private void OnAllowPermission(object sender, RoutedEventArgs eventArgs) => SetPermission(sender, true);
 
     private void OnBlockPermission(object sender, RoutedEventArgs eventArgs) => SetPermission(sender, false);
 
-    private void SetPermission(object sender, bool? value)
+    private void OnUseGlobalProtectedFileFilter(object sender, RoutedEventArgs eventArgs) => SetProtectedFileFilter(sender, null);
+
+    private void OnHideProtectedFiles(object sender, RoutedEventArgs eventArgs) => SetProtectedFileFilter(sender, true);
+
+    private void OnShowProtectedFiles(object sender, RoutedEventArgs eventArgs) => SetProtectedFileFilter(sender, false);
+
+    private void SetPermission(object sender, bool value)
     {
         if (sender is not WpfButton { DataContext: DevicePermissionItem permission })
         {
             return;
         }
 
-        if (_setPermission(permission.ClientId, permission.Kind, value))
+        if (_setPermission(permission.ClientId, permission.Kind, value) is { } state &&
+            DeviceList.Items.OfType<DeviceListItem>().FirstOrDefault(item =>
+                string.Equals(item.ClientId, permission.ClientId, StringComparison.Ordinal)) is { } device)
         {
-            permission.SetOverrideValue(value);
+            device.ApplyAccessProfile(state.Profile, state.Permissions);
+        }
+    }
+
+    private void SetProtectedFileFilter(object sender, bool? value)
+    {
+        if (sender is not WpfButton { DataContext: ProtectedFileFilterItem filter })
+        {
+            return;
+        }
+
+        if (_setProtectedFileFilter(filter.ClientId, value) is { } state)
+        {
+            filter.Apply(state.Override, state.Effective);
+        }
+    }
+
+    private void OnAccessProfileChanged(object sender, SelectionChangedEventArgs eventArgs)
+    {
+        if (sender is not WpfComboBox
+            {
+                DataContext: DeviceListItem device,
+                SelectedValue: DeviceAccessProfile profile
+            } ||
+            profile == device.AccessProfile)
+        {
+            return;
+        }
+
+        if (_setAccessProfile(device.ClientId, profile) is { } state)
+        {
+            device.ApplyAccessProfile(state.Profile, state.Permissions);
         }
     }
 
@@ -216,6 +289,24 @@ public partial class DevicesPageView : WpfUserControl
         }
 
         return null;
+    }
+
+    private static IEnumerable<T> FindVisualDescendants<T>(System.Windows.DependencyObject parent)
+        where T : System.Windows.DependencyObject
+    {
+        for (var index = 0; index < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); index++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, index);
+            if (child is T match)
+            {
+                yield return match;
+            }
+
+            foreach (var descendant in FindVisualDescendants<T>(child))
+            {
+                yield return descendant;
+            }
+        }
     }
 
     private void OnDeviceListKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs eventArgs)

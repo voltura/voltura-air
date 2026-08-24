@@ -7,9 +7,9 @@ public sealed class UpdateOutcomeTests
     [Fact]
     public void StartupOutcomeArgumentsAreRecognizedAndReplacedOnceOnRelaunch()
     {
-        Assert.Equal(UpdateStartupOutcome.Updated, UpdateService.GetStartupOutcome(["--updated"]));
-        Assert.Equal(UpdateStartupOutcome.Failed, UpdateService.GetStartupOutcome(["--update-failed"]));
-        Assert.Equal(UpdateStartupOutcome.None, UpdateService.GetStartupOutcome([]));
+        Assert.Equal(UpdateStartupOutcome.Updated, UpdatePolicy.GetStartupOutcome(["--updated"]));
+        Assert.Equal(UpdateStartupOutcome.Failed, UpdatePolicy.GetStartupOutcome(["--update-failed"]));
+        Assert.Equal(UpdateStartupOutcome.None, UpdatePolicy.GetStartupOutcome([]));
 
         Assert.Equal(
             ["--minimized", "--update-failed"],

@@ -139,7 +139,10 @@ internal sealed class PresentationCommandHandler(
         try
         {
             PresentationCommandResult result =
-                inputDispatcher.DispatchShortcut(shortcut.Key, shortcut.Modifiers) switch
+                inputDispatcher.DispatchShortcut(
+                    shortcut.Key,
+                    shortcut.Modifiers,
+                    statusFactory.CanControlHostApplication(clientId)) switch
                 {
                     InputDispatchOutcome.Executed => new(true, null, shortcut.ResultMessage),
                     InputDispatchOutcome.Blocked => new(

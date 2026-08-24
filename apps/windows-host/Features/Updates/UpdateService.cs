@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace VolturaAir.Host.Features.Updates;
 
 /// <summary>Owns installed-host update discovery, staging, restore, and apply.</summary>
-internal sealed partial class UpdateService : IAsyncDisposable
+internal sealed class UpdateService : IAsyncDisposable
 {
     private const string ReleaseUrl = "https://api.github.com/repos/voltura/voltura-air/releases/latest";
     private const long MaxMetadataBytes = 256 * 1024;
@@ -48,16 +48,16 @@ internal sealed partial class UpdateService : IAsyncDisposable
     {
         _pairingManager = pairingManager;
         _requestApply = requestApply;
-        _eligible = eligibleOverride ?? IsEligible(args, Environment.ProcessPath, out modifyInstallerOverride);
+        _eligible = eligibleOverride ?? UpdatePolicy.IsEligible(args, Environment.ProcessPath, out modifyInstallerOverride);
         _modifyInstaller = modifyInstallerOverride;
         _pendingDirectory = pendingDirectoryOverride ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Voltura Air",
             "Updates",
             "pending");
-        _currentVersion = currentVersionOverride ?? CurrentVersion();
-        _clientFactory = clientFactory ?? CreateClient;
-        _verifyManifest = manifestVerifier ?? VerifyManifest;
+        _currentVersion = currentVersionOverride ?? UpdatePolicy.CurrentVersion();
+        _clientFactory = clientFactory ?? UpdatePolicy.CreateClient;
+        _verifyManifest = manifestVerifier ?? UpdatePolicy.VerifyManifest;
         _scheduleAutomaticWork = scheduleAutomaticWork ?? ScheduleAsync;
         _connectionChanged = OnConnectionChanged;
 
@@ -123,11 +123,11 @@ internal sealed partial class UpdateService : IAsyncDisposable
             string installer;
             try
             {
-                installer = await ValidateReadyForApplyAsync(ready, cancellationToken).ConfigureAwait(false);
+                installer = await UpdatePolicy.ValidateReadyForApplyAsync(_pendingDirectory, ready, SelectInstallerName, _verifyManifest, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is IOException or JsonException or CryptographicException or InvalidOperationException)
             {
-                DeletePendingDirectory();
+                UpdatePolicy.DeletePendingDirectory(_pendingDirectory);
                 _ready = null;
                 SetState(UpdateState.Idle, null);
                 Notify(UpdateNotificationKind.InvalidStagedUpdate);
@@ -151,7 +151,7 @@ internal sealed partial class UpdateService : IAsyncDisposable
     {
         ShowWorkingState(UpdateState.Checking, null);
         AppUpdateSettings.SetLastUpdateCheckAttemptUtc(DateTimeOffset.UtcNow);
-        using var response = await GetClient().GetAsync(
+        using var response = await (_client ??= _clientFactory()).GetAsync(
             ReleaseUrl,
             System.Net.Http.HttpCompletionOption.ResponseHeadersRead,
             cancellationToken).ConfigureAwait(false);
@@ -166,7 +166,7 @@ internal sealed partial class UpdateService : IAsyncDisposable
         var metadata = await UpdatePackageStager.ReadCappedAsync(stream, MaxMetadataBytes, cancellationToken).ConfigureAwait(false);
         using var document = JsonDocument.Parse(metadata);
         var root = document.RootElement;
-        if (!TryReadLatestRelease(root, out var candidate, out var assets))
+        if (!UpdatePolicy.TryReadLatestRelease(root, out var candidate, out var assets))
         {
             RestorePresentation();
             ReportManualResult(manual, UpdateNotificationKind.CheckFailed);
@@ -205,7 +205,7 @@ internal sealed partial class UpdateService : IAsyncDisposable
         _deferred = null;
         EnsurePairingSubscription();
         ShowWorkingState(UpdateState.Downloading, candidate.Version.ToString(3));
-        var installerName = SelectInstallerName(candidate.Version);
+        var installerName = UpdatePolicy.SelectInstallerNameFromModifyInstaller(candidate.Version, _modifyInstaller);
         using var candidateCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
             GetShutdownToken());
@@ -214,7 +214,7 @@ internal sealed partial class UpdateService : IAsyncDisposable
         try
         {
             var stager = new UpdatePackageStager(
-                GetClient(),
+                _client ??= _clientFactory(),
                 _pairingManager,
                 installerName,
                 _verifyManifest,
@@ -422,7 +422,7 @@ internal sealed partial class UpdateService : IAsyncDisposable
 
     private void RestoreReadyState()
     {
-        if (!TryRestoreReadyPackage(_pendingDirectory, SelectInstallerName, _verifyManifest, out var ready) ||
+        if (!UpdatePolicy.TryRestoreReadyPackage(_pendingDirectory, SelectInstallerName, _verifyManifest, out var ready) ||
             ready.Version <= _currentVersion)
         {
             return;
@@ -430,6 +430,8 @@ internal sealed partial class UpdateService : IAsyncDisposable
         _ready = ready;
         SetState(UpdateState.Ready, ready.Version.ToString(3));
     }
+
+    private string SelectInstallerName(Version version) => UpdatePolicy.SelectInstallerNameFromModifyInstaller(version, _modifyInstaller);
 
     private void ShowWorkingState(UpdateState state, string? version)
     {

@@ -63,11 +63,15 @@ public sealed class WebHostRemoteActionTests : WebHostServiceTestBase
                 pairToken = token,
                 reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
             });
+            Assert.True(fixture.Manager.SetDevicePermission(clientId, DevicePermissionKind.RemoteAppLaunch, false));
+            using (var permissions = JsonDocument.Parse(await ReceiveTextAsync(socket)))
+            {
+                Assert.False(permissions.RootElement.GetProperty("capabilities").GetProperty("remoteLaunch").GetBoolean());
+            }
             await SendAsync(socket, new { type = "remote.launch", action = "openYoutube" });
             var status = await SendAndReceiveAsync(socket, new { type = "status.get" });
 
             Assert.Equal("pair.accepted", paired.GetProperty("type").GetString());
-            Assert.False(paired.GetProperty("capabilities").GetProperty("remoteLaunch").GetBoolean());
             Assert.Equal("status", status.GetProperty("type").GetString());
             Assert.Empty(remoteActions.Actions);
         }

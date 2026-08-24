@@ -3,6 +3,8 @@ using Forms = System.Windows.Forms;
 
 namespace VolturaAir.Host;
 
+internal sealed record DeviceConnectionNotification(string Title, string Message, string? ClientId);
+
 internal sealed class TrayConnectionFeedbackController : IDisposable
 {
     private static readonly TimeSpan DisconnectNotificationDelay = TimeSpan.FromMilliseconds(1800);
@@ -13,13 +15,17 @@ internal sealed class TrayConnectionFeedbackController : IDisposable
     private readonly PairingManager _pairingManager;
     private readonly WebHostService _webHost;
     private readonly Action<TrayConnectionState> _applyState;
-    private readonly Action<string, string, Forms.ToolTipIcon> _showNotification;
+    private readonly Action<string, string, Forms.ToolTipIcon, Action?> _showNotification;
+    private readonly Func<bool> _canShowNotification;
+    private readonly Func<string, string, Forms.ToolTipIcon, Action?, bool> _tryShowNotification;
     private readonly Action _showConnectPage;
+    private readonly Action<string> _showDeviceAccess;
     private readonly TrayConnectionIndicator _indicator;
     private readonly OwnedDispatcherAction _connectionChangedAction;
     private readonly OwnedDispatcherAction _remoteInputBlockedAction;
     private OwnedDispatcherTimer? _pendingDisconnectNotification;
     private OwnedDispatcherTimer? _pendingStartupConnectionGrace;
+    private bool _initialNoticeDisplayActive;
     private bool _hadActiveController;
     private bool _started;
     private bool _disposed;
@@ -29,15 +35,21 @@ internal sealed class TrayConnectionFeedbackController : IDisposable
         PairingManager pairingManager,
         WebHostService webHost,
         Action<TrayConnectionState> applyState,
-        Action<string, string, Forms.ToolTipIcon> showNotification,
-        Action showConnectPage)
+        Action<string, string, Forms.ToolTipIcon, Action?> showNotification,
+        Func<bool> canShowNotification,
+        Func<string, string, Forms.ToolTipIcon, Action?, bool> tryShowNotification,
+        Action showConnectPage,
+        Action<string> showDeviceAccess)
     {
         _dispatcher = dispatcher;
         _pairingManager = pairingManager;
         _webHost = webHost;
         _applyState = applyState;
         _showNotification = showNotification;
+        _canShowNotification = canShowNotification;
+        _tryShowNotification = tryShowNotification;
         _showConnectPage = showConnectPage;
+        _showDeviceAccess = showDeviceAccess;
         _hadActiveController = pairingManager.HasActiveController;
         _indicator = new TrayConnectionIndicator(
             pairingManager.IsPaired,
@@ -66,6 +78,8 @@ internal sealed class TrayConnectionFeedbackController : IDisposable
         {
             ReportRemoteInputBlocked();
         }
+
+        _connectionChangedAction.Queue();
     }
 
     public void Dispose()
@@ -98,6 +112,8 @@ internal sealed class TrayConnectionFeedbackController : IDisposable
         }
 
         var hasActiveController = _pairingManager.HasActiveController;
+        var showedMandatoryNotice = ShowPendingInitialNotice() ||
+            _pairingManager.HasActivePendingInitialDeviceConnectionNotice;
         if (hasActiveController)
         {
             CancelStartupConnectionGrace();
@@ -107,12 +123,12 @@ internal sealed class TrayConnectionFeedbackController : IDisposable
         {
             var cancelledTransientDisconnect = CancelPendingDisconnectNotification();
             ApplyCurrentState();
-            if (!cancelledTransientDisconnect)
+            if (ShouldShowOptionalConnectedNotification(
+                becameActive: true,
+                cancelledTransientDisconnect,
+                showedMandatoryNotice))
             {
-                ShowConnectionNotification(
-                    "Voltura Air paired",
-                    $"{_pairingManager.ActiveDeviceSummary} connected.",
-                    Forms.ToolTipIcon.Info);
+                ShowOptionalConnectedNotification();
             }
         }
         else if (_hadActiveController && !hasActiveController)
@@ -127,6 +143,98 @@ internal sealed class TrayConnectionFeedbackController : IDisposable
 
         _hadActiveController = hasActiveController;
     }
+
+    private bool ShowPendingInitialNotice()
+    {
+        if (_initialNoticeDisplayActive)
+        {
+            return true;
+        }
+
+        if (!_canShowNotification())
+        {
+            return _pairingManager.HasActivePendingInitialDeviceConnectionNotice;
+        }
+
+        if (!_pairingManager.TryTakeInitialDeviceConnectionNotice(out var notice) || notice is null)
+        {
+            return false;
+        }
+
+        _initialNoticeDisplayActive = true;
+        var notification = CreateDeviceNotification(
+            notice.ClientId,
+            notice.DeviceName,
+            notice.AccessProfile);
+        if (!_tryShowNotification(
+            notification.Title,
+            notification.Message,
+            Forms.ToolTipIcon.Info,
+            () => _showDeviceAccess(notice.ClientId)))
+        {
+            throw new InvalidOperationException("The available tray notification slot rejected a mandatory notice.");
+        }
+        return true;
+    }
+
+    internal void OnNotificationSlotAvailable()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _initialNoticeDisplayActive = false;
+        ShowPendingInitialNotice();
+    }
+
+    private void ShowOptionalConnectedNotification()
+    {
+        var activeDevices = _pairingManager.GetDevices().Where(device => device.IsActive).ToArray();
+        var notification = CreateOptionalConnectedNotification(
+            activeDevices,
+            _pairingManager.ActiveDeviceSummary);
+        ShowConnectionNotification(
+            notification.Title,
+            notification.Message,
+            Forms.ToolTipIcon.Info,
+            notification.ClientId is { } clientId
+                ? () => _showDeviceAccess(clientId)
+                : null);
+    }
+
+    internal static DeviceConnectionNotification CreateOptionalConnectedNotification(
+        IReadOnlyList<PairedDeviceStatus> activeDevices,
+        string activeDeviceSummary)
+    {
+        if (activeDevices.Count == 1)
+        {
+            var device = activeDevices[0];
+            return CreateDeviceNotification(
+                device.ClientId,
+                device.DeviceName,
+                device.AccessProfile);
+        }
+
+        return new DeviceConnectionNotification(
+            "Voltura Air paired",
+            $"{activeDeviceSummary} connected.",
+            null);
+    }
+
+    internal static bool ShouldShowOptionalConnectedNotification(
+        bool becameActive,
+        bool cancelledTransientDisconnect,
+        bool showedMandatoryNotice) =>
+        becameActive && !cancelledTransientDisconnect && !showedMandatoryNotice;
+
+    internal static DeviceConnectionNotification CreateDeviceNotification(
+        string clientId,
+        string deviceName,
+        DeviceAccessProfile profile) => new(
+            "Device connected",
+            $"{deviceName} uses {DeviceAccessProfiles.GetDisplayName(profile)} access. Click to change.",
+            clientId);
 
     private void ApplyCurrentState(bool holdConnectedDuringReconnect = false)
     {
@@ -233,7 +341,8 @@ internal sealed class TrayConnectionFeedbackController : IDisposable
         ShowConnectionNotification(
             "Voltura Air disconnected",
             "No connected devices.",
-            Forms.ToolTipIcon.Info);
+            Forms.ToolTipIcon.Info,
+            action: null);
     }
 
     private void OnControllerSocketClosed(object? sender, ControllerSocketClosedEventArgs e)
@@ -245,7 +354,8 @@ internal sealed class TrayConnectionFeedbackController : IDisposable
                 ShowConnectionNotification(
                     "Voltura Air connection closed",
                     $"A controller connection was closed: {e.Reason}. The phone will reconnect automatically.",
-                    Forms.ToolTipIcon.Warning);
+                    Forms.ToolTipIcon.Warning,
+                    action: null);
             }
         });
     }
@@ -273,15 +383,20 @@ internal sealed class TrayConnectionFeedbackController : IDisposable
             _showNotification(
                 RemoteInputBlockedTrayNotification.Title,
                 RemoteInputBlockedTrayNotification.Message,
-                Forms.ToolTipIcon.Warning);
+                Forms.ToolTipIcon.Warning,
+                null);
         }
     }
 
-    private void ShowConnectionNotification(string title, string message, Forms.ToolTipIcon icon)
+    private void ShowConnectionNotification(
+        string title,
+        string message,
+        Forms.ToolTipIcon icon,
+        Action? action = null)
     {
         if (AppNotificationSettings.ShowConnectionStatusNotifications())
         {
-            _showNotification(title, message, icon);
+            _showNotification(title, message, icon, action);
         }
     }
 }

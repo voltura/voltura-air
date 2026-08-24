@@ -338,7 +338,10 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             Code: $"{current.Width}x{current.Height}@{current.FramesPerSecond}"));
     }
 
-    public ScreenPointerDispatchResult DispatchPointer(string clientId, ValidatedInputCommand command)
+    public ScreenPointerDispatchResult DispatchPointer(
+        string clientId,
+        ValidatedInputCommand command,
+        bool allowHostApplicationControl)
     {
         if (_inputDispatcher is null)
             return new(false, "VAIR-SCREEN-POINTER-UNAVAILABLE", "Direct mouse control is unavailable on this PC.");
@@ -363,6 +366,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                     position.DesktopY,
                     position.AbsoluteX,
                     position.AbsoluteY,
+                    allowHostApplicationControl,
                     out var outcome))
                 {
                     return new(false, "VAIR-INPUT-UNSUPPORTED", "Unsupported direct mouse command.");

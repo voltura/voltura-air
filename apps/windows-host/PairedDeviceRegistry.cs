@@ -1,10 +1,39 @@
+using System.Security;
+
 namespace VolturaAir.Host;
 
-internal sealed class PairedDeviceRegistry(PairingStore store)
+internal sealed class PairedDeviceRegistry
 {
-    private readonly PairingStore _store = store;
-    private readonly List<PairingRecord> _records = [.. store.Load().Select(NormalizeRecord)];
+    private readonly PairingStore _store;
+    private readonly List<PairingRecord> _records;
     private readonly Dictionary<string, int> _activeConnections = new(StringComparer.Ordinal);
+
+    public PairedDeviceRegistry(PairingStore store, HostPermissionSet legacyGlobalPermissions)
+    {
+        _store = store;
+        var loaded = store.Load();
+        _records = [.. loaded.Select(record => PairingRecordNormalization.Normalize(record, legacyGlobalPermissions))];
+        var persistedProfileNormalization = loaded.Zip(
+            _records,
+            static (original, normalized) => original with
+            {
+                AccessProfile = normalized.AccessProfile,
+                PermissionOverrides = normalized.PermissionOverrides,
+                InitialAccessNoticePending = normalized.InitialAccessNoticePending
+            }).ToList();
+        if (!loaded.SequenceEqual(persistedProfileNormalization))
+        {
+            try
+            {
+                store.Save(persistedProfileNormalization);
+            }
+            catch (Exception exception) when (IsRecoverablePersistenceFailure(exception))
+            {
+                // The normalized snapshot remains authoritative for this run. The unchanged
+                // legacy data on disk is retried on the next launch.
+            }
+        }
+    }
 
     public bool IsPaired => _records.Count > 0;
     public bool HasActiveController => _activeConnections.Count > 0;
@@ -15,6 +44,8 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
         .Select(record => record.DeviceName)];
     public string PairedDeviceSummary => SummarizeDevices(_records.Select(record => record.DeviceName));
     public string ActiveDeviceSummary => SummarizeDevices(ActiveDeviceNames);
+    public bool HasActivePendingInitialAccessNotice => _records.Any(record =>
+        record.InitialAccessNoticePending == true && _activeConnections.ContainsKey(record.ClientId));
 
     public PairingRecord? Find(string clientId) =>
         _records.FirstOrDefault(record => string.Equals(record.ClientId, clientId, StringComparison.Ordinal));
@@ -25,11 +56,35 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
 
     public IReadOnlyList<PairedDeviceStatus> GetDuplicateCleanupCandidates() => GetDuplicateCleanupCandidatesCore();
 
-    public DevicePermissionOverrides GetDevicePermissionOverrides(string clientId) =>
-        Find(clientId)?.PermissionOverrides ?? new DevicePermissionOverrides();
+    public DevicePermissionOverrides GetDevicePermissionOverrides(string clientId)
+    {
+        var record = Find(clientId);
+        return record is null
+            ? new DevicePermissionOverrides()
+            : record.PermissionOverrides ?? new DevicePermissionOverrides();
+    }
 
     public HostPermissionSet GetEffectivePermissions(string clientId, HostPermissionSet globalPermissions) =>
-        HostPermissions.Resolve(globalPermissions, Find(clientId)?.PermissionOverrides);
+        Find(clientId) is { } record
+            ? GetEffectivePermissions(record, globalPermissions)
+            : DeviceAccessProfiles.AllBlocked with
+            {
+                HideProtectedFileSystemItems = globalPermissions.HideProtectedFileSystemItems
+            };
+
+    public DeviceAccessProfile GetAccessProfile(string clientId) =>
+        Find(clientId)?.AccessProfile ?? DeviceAccessProfile.Invalid;
+
+    public (bool AllowRemoteInput, DeviceAccessProfile AccessProfile) GetInputAccess(
+        string clientId,
+        HostPermissionSet globalPermissions)
+    {
+        var record = Find(clientId);
+        return record is null
+            ? (false, DeviceAccessProfile.Invalid)
+            : (GetEffectivePermissions(record, globalPermissions).AllowRemoteInput,
+                record.AccessProfile ?? DeviceAccessProfile.Custom);
+    }
 
     public int GetDevicePointerSpeed(string clientId) => GetEffectivePointerSpeed(Find(clientId));
 
@@ -42,7 +97,7 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
     public void UpsertAndSave(PairingRecord record)
     {
         var next = Snapshot();
-        Upsert(next, record);
+        PairingRecordNormalization.Upsert(next, record);
         PersistAndPublish(next);
     }
 
@@ -85,10 +140,66 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
         return true;
     }
 
-    public void AddConnection(string clientId, DateTimeOffset connectedAt)
+    public InitialDeviceConnectionNotice? AddConnection(string clientId, DateTimeOffset connectedAt)
     {
-        UpdateConnectionTimestamp(clientId, connectedAt);
+        var index = FindIndex(clientId);
+        if (index < 0)
+        {
+            return null;
+        }
+
+        var existing = _records[index];
+        var pendingInitialNotice = existing.InitialAccessNoticePending == true;
+        var next = Snapshot();
+        next[index] = existing with
+        {
+            LastConnectedAt = connectedAt
+        };
+        try
+        {
+            PersistAndPublish(next);
+        }
+        catch (Exception exception) when (
+            pendingInitialNotice &&
+            IsRecoverablePersistenceFailure(exception))
+        {
+            // Authentication succeeds. The pending marker remains durable so a
+            // later authenticated connection can retry notification delivery.
+        }
+
         _activeConnections[clientId] = _activeConnections.GetValueOrDefault(clientId) + 1;
+        return pendingInitialNotice
+            ? new InitialDeviceConnectionNotice(
+                existing.ClientId,
+                existing.DeviceName,
+                existing.AccessProfile ?? DeviceAccessProfile.Custom)
+            : null;
+    }
+
+    public InitialDeviceConnectionNotice? TryClaimInitialConnectionNotice(string clientId)
+    {
+        var index = FindIndex(clientId);
+        if (index < 0 || _records[index].InitialAccessNoticePending != true)
+        {
+            return null;
+        }
+
+        var existing = _records[index];
+        var next = Snapshot();
+        next[index] = existing with { InitialAccessNoticePending = null };
+        try
+        {
+            PersistAndPublish(next);
+        }
+        catch (Exception exception) when (IsRecoverablePersistenceFailure(exception))
+        {
+            return null;
+        }
+
+        return new InitialDeviceConnectionNotice(
+            existing.ClientId,
+            existing.DeviceName,
+            existing.AccessProfile ?? DeviceAccessProfile.Custom);
     }
 
     public void RemoveConnection(string clientId, DateTimeOffset disconnectedAt)
@@ -191,26 +302,37 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
         return true;
     }
 
-    public bool SetPermissionOverrides(string clientId, DevicePermissionOverrides permissionOverrides)
-    {
-        var index = FindIndex(clientId);
-        if (index < 0)
-        {
-            return false;
-        }
+    public bool SetPermissionOverrides(string clientId, DevicePermissionOverrides permissionOverrides) =>
+        UpdateRecord(
+            clientId,
+            existing => DeviceAccessProfilePersistence.ApplyPermissionOverrides(
+                existing,
+                permissionOverrides,
+                AppPermissionSettings.Load()));
 
-        var normalized = NormalizePermissionOverrides(permissionOverrides);
-        var existing = _records[index];
-        if (existing.PermissionOverrides == normalized)
-        {
-            return false;
-        }
+    public bool SetAccessProfile(string clientId, DeviceAccessProfile profile) =>
+        UpdateRecord(
+            clientId,
+            existing => DeviceAccessProfilePersistence.ApplyProfile(
+                existing,
+                profile,
+                AppPermissionSettings.Load()));
 
-        var next = Snapshot();
-        next[index] = existing with { PermissionOverrides = normalized };
-        PersistAndPublish(next);
-        return true;
-    }
+    public bool SetPermission(string clientId, DevicePermissionKind kind, bool allowed) =>
+        UpdateRecord(
+            clientId,
+            existing => DeviceAccessProfilePersistence.ApplyPermission(
+                existing,
+                kind,
+                allowed,
+                AppPermissionSettings.Load()));
+
+    public bool SetProtectedFileFilterOverride(string clientId, bool? hideProtected) =>
+        UpdateRecord(
+            clientId,
+            existing => DeviceAccessProfilePersistence.ApplyProtectedFileFilter(
+                existing,
+                hideProtected));
 
     public string[] CleanUpDuplicateDevices()
     {
@@ -246,39 +368,6 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
         return true;
     }
 
-    public static string NormalizeDeviceName(string deviceName)
-    {
-        var trimmed = deviceName.Trim();
-        return trimmed.Length > 0 ? trimmed : "Mobile device";
-    }
-
-    public static string NormalizeMetadata(string? value)
-    {
-        var trimmed = value?.Trim();
-        return string.IsNullOrWhiteSpace(trimmed) ? string.Empty : trimmed.Length > 80 ? trimmed[..80] : trimmed;
-    }
-
-    private static PairingRecord NormalizeRecord(PairingRecord record) =>
-        (record.AddedAt == default ? record with { AddedAt = DateTimeOffset.UtcNow } : record) with
-        {
-            Platform = NormalizeMetadata(record.Platform),
-            Browser = NormalizeMetadata(record.Browser),
-            DisplayMode = NormalizeMetadata(record.DisplayMode),
-            PermissionOverrides = NormalizePermissionOverrides(record.PermissionOverrides),
-            PointerSpeedOverride = NormalizePointerSpeedOverride(record.PointerSpeedOverride),
-            CustomScreenViewport = NormalizeCustomScreenViewport(record.CustomScreenViewport)
-        };
-
-    private static CustomScreenViewport? NormalizeCustomScreenViewport(CustomScreenViewport? viewport)
-    {
-        return viewport is not null &&
-            viewport.Width is >= CustomScreenLimits.MinViewportWidth and <= CustomScreenLimits.MaxViewportWidth &&
-            viewport.Height is >= CustomScreenLimits.MinViewportHeight and <= CustomScreenLimits.MaxViewportHeight &&
-            viewport.Orientation is "portrait" or "landscape"
-                ? viewport
-                : null;
-    }
-
     private PairedDeviceStatus[] BuildDeviceStatuses() => [.. _records.Select(record =>
     {
         var activeConnections = _activeConnections.GetValueOrDefault(record.ClientId);
@@ -295,6 +384,7 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             record.Browser,
             record.DisplayMode,
             record.HostIdentityFingerprint,
+            record.AccessProfile ?? DeviceAccessProfile.Custom,
             record.PermissionOverrides ?? new DevicePermissionOverrides(),
             record.PointerSpeedOverride,
             GetEffectivePointerSpeed(record),
@@ -321,48 +411,6 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
         })
         .OrderByDescending(device => device.LatestActivityAt)];
 
-    private static void Upsert(List<PairingRecord> records, PairingRecord record)
-    {
-        var index = records.FindIndex(existing =>
-            string.Equals(existing.ClientId, record.ClientId, StringComparison.Ordinal));
-        if (index < 0)
-        {
-            records.Add(record);
-            return;
-        }
-
-        var existing = records[index];
-        records[index] = record with
-        {
-            AddedAt = existing.AddedAt == default ? record.AddedAt : existing.AddedAt,
-            LastConnectedAt = existing.LastConnectedAt,
-            LastDisconnectedAt = existing.LastDisconnectedAt,
-            LastRenamedAt = existing.LastRenamedAt,
-            Platform = string.IsNullOrWhiteSpace(record.Platform) ? existing.Platform : record.Platform,
-            Browser = string.IsNullOrWhiteSpace(record.Browser) ? existing.Browser : record.Browser,
-            DisplayMode = string.IsNullOrWhiteSpace(record.DisplayMode) ? existing.DisplayMode : record.DisplayMode,
-            HostIdentityFingerprint = record.HostIdentityFingerprint,
-            PermissionOverrides = existing.PermissionOverrides,
-            PointerSpeedOverride = existing.PointerSpeedOverride,
-            ShowModeButtonsOverride = existing.ShowModeButtonsOverride,
-            ControlDepthOverride = existing.ControlDepthOverride,
-            CustomScreenViewport = existing.CustomScreenViewport
-        };
-    }
-
-    private void UpdateConnectionTimestamp(string clientId, DateTimeOffset connectedAt)
-    {
-        var index = FindIndex(clientId);
-        if (index < 0)
-        {
-            return;
-        }
-
-        var next = Snapshot();
-        next[index] = next[index] with { LastConnectedAt = connectedAt };
-        PersistAndPublish(next);
-    }
-
     private void UpdateDisconnectionTimestamp(string clientId, DateTimeOffset disconnectedAt)
     {
         var index = FindIndex(clientId);
@@ -377,6 +425,20 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
     }
 
     private List<PairingRecord> Snapshot() => [.. _records];
+
+    private bool UpdateRecord(string clientId, Func<PairingRecord, PairingRecord?> update)
+    {
+        var index = FindIndex(clientId);
+        if (index < 0 || update(_records[index]) is not { } updated || updated == _records[index])
+        {
+            return false;
+        }
+
+        var next = Snapshot();
+        next[index] = updated;
+        PersistAndPublish(next);
+        return true;
+    }
 
     private void PersistAndPublish(List<PairingRecord> next)
     {
@@ -396,31 +458,14 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
     private int FindIndex(string clientId) =>
         _records.FindIndex(record => string.Equals(record.ClientId, clientId, StringComparison.Ordinal));
 
-    private static DevicePermissionOverrides NormalizePermissionOverrides(DevicePermissionOverrides? permissionOverrides) => new(
-        AllowRemoteInput: permissionOverrides?.AllowRemoteInput,
-        AllowPcSleep: permissionOverrides?.AllowPcSleep,
-        AllowVolumeControl: permissionOverrides?.AllowVolumeControl,
-        AllowPresentationControl: permissionOverrides?.AllowPresentationControl,
-        AllowRemoteAppLaunch: permissionOverrides?.AllowRemoteAppLaunch,
-        AllowUrlOpen: permissionOverrides?.AllowUrlOpen,
-        AllowPcLock: permissionOverrides?.AllowPcLock,
-        AllowBlackoutDisplay: permissionOverrides?.AllowBlackoutDisplay,
-        AllowDisplayControl: permissionOverrides?.AllowDisplayControl,
-        AllowScreenSaver: permissionOverrides?.AllowScreenSaver,
-        AllowAwakeControl: permissionOverrides?.AllowAwakeControl,
-        AllowClipboardRead: permissionOverrides?.AllowClipboardRead,
-        AllowScreenViewing: permissionOverrides?.AllowScreenViewing,
-        AllowPhoneWebcam: permissionOverrides?.AllowPhoneWebcam,
-        AllowSignOut: permissionOverrides?.AllowSignOut,
-        AllowRestart: permissionOverrides?.AllowRestart,
-        AllowShutdown: permissionOverrides?.AllowShutdown,
-        AllowFileBrowsing: permissionOverrides?.AllowFileBrowsing,
-        AllowFileChanges: permissionOverrides?.AllowFileChanges,
-        HideProtectedFileSystemItems: permissionOverrides?.HideProtectedFileSystemItems);
+    private static HostPermissionSet GetEffectivePermissions(PairingRecord record, HostPermissionSet globalPermissions) =>
+        HostPermissions.Resolve(
+            record.AccessProfile ?? DeviceAccessProfile.Custom,
+            record.PermissionOverrides,
+            globalPermissions);
 
-    private static int? NormalizePointerSpeedOverride(int? pointerSpeedOverride) => pointerSpeedOverride is not null
-        ? DevicePointerProfile.NormalizePointerSpeed(pointerSpeedOverride.Value)
-        : null;
+    private static bool IsRecoverablePersistenceFailure(Exception exception) =>
+        exception is IOException or InvalidDataException or UnauthorizedAccessException or SecurityException;
 
     private static int GetEffectivePointerSpeed(PairingRecord? record) =>
         record?.PointerSpeedOverride ?? AppPointerSettings.GetDefaultPointerSpeed();

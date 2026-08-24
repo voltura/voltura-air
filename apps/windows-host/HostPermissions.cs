@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace VolturaAir.Host;
 
 public sealed record HostPermissionSet(
@@ -22,6 +24,7 @@ public sealed record HostPermissionSet(
     bool AllowFileChanges = false,
     bool HideProtectedFileSystemItems = true);
 
+[JsonConverter(typeof(DevicePermissionOverridesJsonConverter))]
 public sealed record DevicePermissionOverrides(
     bool? AllowRemoteInput = null,
     bool? AllowPcSleep = null,
@@ -68,7 +71,27 @@ public static class HostPermissions
         AllowFileChanges: false,
         HideProtectedFileSystemItems: true);
 
-    public static HostPermissionSet Resolve(HostPermissionSet global, DevicePermissionOverrides? deviceOverrides)
+    public static HostPermissionSet Resolve(
+        DeviceAccessProfile profile,
+        DevicePermissionOverrides? deviceOverrides,
+        HostPermissionSet global)
+    {
+        var hideProtected = deviceOverrides?.HideProtectedFileSystemItems ?? global.HideProtectedFileSystemItems;
+        if (DeviceAccessProfiles.IsBuiltIn(profile))
+        {
+            var matrix = DeviceAccessProfiles.GetBuiltInMatrix(profile);
+            return matrix.HideProtectedFileSystemItems == hideProtected
+                ? matrix
+                : matrix with { HideProtectedFileSystemItems = hideProtected };
+        }
+
+        return profile == DeviceAccessProfile.Custom &&
+            DeviceAccessProfiles.TryResolveCustom(deviceOverrides, hideProtected, out var custom)
+                ? custom
+                : DeviceAccessProfiles.AllBlocked with { HideProtectedFileSystemItems = hideProtected };
+    }
+
+    public static HostPermissionSet ResolveLegacy(HostPermissionSet global, DevicePermissionOverrides? deviceOverrides)
     {
         return new HostPermissionSet(
             AllowRemoteInput: deviceOverrides?.AllowRemoteInput ?? global.AllowRemoteInput,

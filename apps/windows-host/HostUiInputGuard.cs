@@ -31,8 +31,11 @@ internal static partial class HostUiInputGuard
 
     public static bool ShouldBlockTextTransfer()
     {
-        return !AppClientControlSettings.IsEnabled() && IsForegroundVolturaHostWindow();
+        return ShouldBlockTextTransfer(AppClientControlSettings.IsEnabled());
     }
+
+    internal static bool ShouldBlockTextTransfer(bool allowHostApplicationControl) =>
+        !allowHostApplicationControl && IsForegroundVolturaHostWindow();
 
     public static bool ShouldBlockClientInput(string? messageType, JsonElement message, out bool protectedCommandExecuted)
     {
@@ -47,8 +50,19 @@ internal static partial class HostUiInputGuard
 
     internal static bool ShouldBlockClientInput(ValidatedInputCommand command, out bool protectedCommandExecuted)
     {
+        return ShouldBlockClientInput(
+            command,
+            AppClientControlSettings.IsEnabled(),
+            out protectedCommandExecuted);
+    }
+
+    internal static bool ShouldBlockClientInput(
+        ValidatedInputCommand command,
+        bool allowHostApplicationControl,
+        out bool protectedCommandExecuted)
+    {
         protectedCommandExecuted = false;
-        if (AppClientControlSettings.IsEnabled())
+        if (allowHostApplicationControl)
         {
             return false;
         }
@@ -63,9 +77,13 @@ internal static partial class HostUiInputGuard
         };
     }
 
-    internal static bool ShouldBlockAbsolutePointer(ValidatedInputCommand command, int desktopX, int desktopY)
+    internal static bool ShouldBlockAbsolutePointer(
+        ValidatedInputCommand command,
+        int desktopX,
+        int desktopY,
+        bool allowHostApplicationControl)
     {
-        if (AppClientControlSettings.IsEnabled() || command.Kind == InputCommandKind.ScreenPointerMove)
+        if (allowHostApplicationControl || command.Kind == InputCommandKind.ScreenPointerMove)
         {
             return false;
         }
@@ -235,11 +253,6 @@ internal static partial class HostUiInputGuard
 
     public static bool IsRecentProtectedClientInput()
     {
-        if (AppClientControlSettings.IsEnabled())
-        {
-            return false;
-        }
-
         var lastInputTicks = Interlocked.Read(ref _lastClientPointerInputTicks);
         return lastInputTicks > 0 &&
             DateTimeOffset.UtcNow - new DateTimeOffset(lastInputTicks, TimeSpan.Zero) <= RecentClientInputWindow;
@@ -369,7 +382,7 @@ internal static partial class HostUiInputGuard
         return string.IsNullOrWhiteSpace(command.Button) || string.Equals(command.Button, "left", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsVolturaHostWindow(nint windowHandle)
+    internal static bool IsVolturaHostWindow(nint windowHandle)
     {
         var rootWindow = GetRootWindow(windowHandle);
         if (rootWindow == nint.Zero)

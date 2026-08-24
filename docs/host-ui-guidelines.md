@@ -72,8 +72,8 @@ readability floor. Changes apply to newly started views without a host restart.
 
 Phone webcam shows one compact Windows-camera state surface and one fixed-height
 camera-output area. The state surface reports optional VB-CABLE readiness without
-implying that third-party software is bundled. Permission and remove actions share
-one stable action row.
+implying that third-party software is bundled, and directs per-device Phone webcam
+access changes to Devices rather than presenting an obsolete global permission.
 When no phone is streaming, the output area shows concise start guidance and
 does not open the virtual camera merely to display its waiting frame. While
 streaming, it consumes the registered virtual camera exactly like another
@@ -112,7 +112,7 @@ color is not the sole meaning.
 ## Devices
 
 Devices is a full-width virtualized accordion list with one open device.
-Collapsed headers retain name, connection status, and recent activity. Metadata
+Collapsed headers retain name, connection status, access profile, and recent activity. Metadata
 follows the header; Appearance, Trackpad profile, and Permissions form a
 single-open nested group and start collapsed. Collapsing a device collapses its
 children. Disclosure state lasts only for the current page visit.
@@ -122,11 +122,13 @@ keeps content taller than the viewport reachable. Up/Down selects a device,
 Enter/Space toggles it, and Tab enters its controls; accessibility help states
 those keys.
 
-Permissions use wrapping compact cards. Each is a three-state choice:
-**Use global** fills with accent and outlines the effective **Allow** or
-**Block**; an explicit choice is accent-filled. Equal-width buttons reserve
-checkmark space and do not stretch. Applying a choice updates in place without
-collapsing the permission/device disclosures.
+Permissions begin with the per-device **My device**, **Remote controls**, or
+**Custom** selector. Profile-managed permission cards show explicit **Allow** and
+**Block** choices; editing a built-in profile materializes Custom and updates in
+place without collapsing the permission/device disclosures. The separate
+protected-file card retains **Use global**, **Hide**, and **Show**. Equal-width
+buttons reserve checkmark space and do not stretch. Notification navigation can
+open one device by stable ID, reveal Permissions, and focus the profile selector.
 
 Trackpad **Save speed** and **Use global** preserve both open disclosures.
 Appearance offers **Use global**, **Show**, and **Hide** for the mobile mode

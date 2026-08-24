@@ -60,7 +60,9 @@ public sealed partial class HostUiLayoutTests
             Assert.Equal("Start from your phone", view.PreviewEmptyTitle.Text);
             Assert.Contains("Settings → Tools → Phone webcam", view.PreviewEmptyMessage.Text, StringComparison.Ordinal);
             Assert.Equal(Visibility.Collapsed, view.PreviewImage.Visibility);
-            Assert.Equal("Allow paired devices", view.AllowPairedDevicesCheckBox.Content);
+            Assert.Equal(
+                "Choose each device's Phone webcam permission in Devices.",
+                view.AccessProfileHintText.Text);
             Assert.Equal(Visibility.Collapsed, view.SessionStatusText.Visibility);
         });
     }

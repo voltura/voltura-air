@@ -434,7 +434,7 @@ public sealed class WebHostPowerTests : IsolatedHostSettingsTest
                 reconnectPublicKey
             });
             JsonElement identity = challenge.GetProperty("hostIdentity");
-            return await SendAndReceiveAsync(socket, new
+            var accepted = await SendAndReceiveAsync(socket, new
             {
                 type = "pair.bootstrap.proof",
                 clientId,
@@ -447,6 +447,10 @@ public sealed class WebHostPowerTests : IsolatedHostSettingsTest
                     identity.GetProperty("publicKey").GetString()!,
                     identity.GetProperty("fingerprint").GetString()!)
             });
+            Manager.SetDevicePermissionOverrides(
+                clientId,
+                DeviceAccessProfiles.ToCompleteOverrides(AppPermissionSettings.Load()));
+            return await ReceiveTypeAsync(socket, "status");
         }
 
         public async ValueTask DisposeAsync()

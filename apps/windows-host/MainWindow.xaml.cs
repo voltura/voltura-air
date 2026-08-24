@@ -204,6 +204,7 @@ public partial class MainWindow : Window
             RefreshUpdateButton();
         }
         _pairingManager.DeviceProfileChanged += OnDeviceProfileChanged;
+        _pairingManager.PermissionsChanged += OnDeviceProfileChanged;
         _pairingManager.PairingCodeInvalidated += OnPairingCodeInvalidated;
         AppThemeSettings.Changed += OnThemeChanged;
         AppAppearanceSettings.HostControlDepthChanged += OnThemeChanged;
@@ -227,6 +228,12 @@ public partial class MainWindow : Window
         WindowState = WindowState.Normal;
         Activate();
         WindowFocusReset.AfterShow(this);
+    }
+
+    public void ShowDeviceAccess(string clientId)
+    {
+        _devicesPage.OpenDeviceAccess(clientId);
+        ShowPage(HostPage.Devices);
     }
 
     public void ShowPreferencesSectionForScreenshot(string sectionTitle)
@@ -320,6 +327,7 @@ public partial class MainWindow : Window
         _pairingManager.ConnectionChanged -= OnConnectionChanged;
         _updates?.StateChanged -= OnUpdateStateChanged;
         _pairingManager.DeviceProfileChanged -= OnDeviceProfileChanged;
+        _pairingManager.PermissionsChanged -= OnDeviceProfileChanged;
         _pairingManager.PairingCodeInvalidated -= OnPairingCodeInvalidated;
         AppThemeSettings.Changed -= OnThemeChanged;
         AppAppearanceSettings.HostControlDepthChanged -= OnThemeChanged;

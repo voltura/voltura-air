@@ -12,6 +12,7 @@ public interface ITextDestinationPlatform
     Task<nint?> WaitForWindowAsync(string executable, TimeSpan timeout, CancellationToken cancellationToken);
     bool TryActivate(nint window);
     bool IsForeground(nint window);
+    bool IsHostApplicationWindow(nint window);
     bool IsElevatedAboveHost(nint window);
     bool TrySetClipboardText(string text);
 }
@@ -97,6 +98,7 @@ internal sealed partial class WindowsTextDestinationPlatform : ITextDestinationP
     }
 
     public bool IsForeground(nint window) => GetForegroundWindow() == window;
+    public bool IsHostApplicationWindow(nint window) => HostUiInputGuard.IsVolturaHostWindow(window);
     public bool IsElevatedAboveHost(nint window) => WindowsProcessIntegrity.TryGetCurrentProcessIntegrityLevel(out var host) && WindowsProcessIntegrity.TryGetWindowIntegrityLevel(window, out var target) && WindowsProcessIntegrity.IsHigherIntegrity(host, target);
 
     internal static bool MatchesExecutableName(string processName, string executablePathOrName) => string.Equals(processName, Path.GetFileNameWithoutExtension(executablePathOrName), StringComparison.OrdinalIgnoreCase);

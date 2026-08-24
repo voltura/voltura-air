@@ -169,8 +169,10 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
             await using var fixture = await WebHostFixture.StartAsync(powerPointAutomation: automation);
             using var firstSocket = await ConnectAsync(fixture.WebHost);
             using var queuedSocket = await ConnectAsync(fixture.WebHost);
-            _ = await PairAsync(firstSocket, fixture, $"client-{Guid.NewGuid():N}");
-            _ = await PairAsync(queuedSocket, fixture, $"client-{Guid.NewGuid():N}");
+            var firstClientId = $"client-{Guid.NewGuid():N}";
+            var queuedClientId = $"client-{Guid.NewGuid():N}";
+            _ = await PairAsync(firstSocket, fixture, firstClientId);
+            _ = await PairAsync(queuedSocket, fixture, queuedClientId);
 
             var first = SendPresentationResultAsync(firstSocket, new
             {
@@ -192,7 +194,10 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
             await Task.Delay(100);
             Assert.Single(automation.Commands);
 
-            AppPermissionSettings.Save(originalPermissions with { AllowPresentationControl = false });
+            fixture.Manager.SetDevicePermission(
+                queuedClientId,
+                DevicePermissionKind.PresentationControl,
+                false);
             releaseFirst.TrySetResult();
 
             Assert.True((await first).GetProperty("succeeded").GetBoolean());
@@ -896,6 +901,7 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
             var clientId = $"client-{Guid.NewGuid():N}";
             using var socket = await ConnectAsync(fixture.WebHost);
             var paired = await PairAsync(socket, fixture, clientId);
+            var permissions = await SendAndReceiveAsync(socket, new { type = "status.get" });
 
             var denied = await SendAndReceiveAsync(socket, new
             {
@@ -905,7 +911,7 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
                 action = "next"
             });
 
-            Assert.False(paired.GetProperty("capabilities").GetProperty("presentation").GetProperty("canControl").GetBoolean());
+            Assert.False(permissions.GetProperty("capabilities").GetProperty("presentation").GetProperty("canControl").GetBoolean());
             Assert.False(denied.GetProperty("succeeded").GetBoolean());
             Assert.Equal("permission-denied", denied.GetProperty("code").GetString());
             Assert.Empty(fixture.InputInjector.Events);
@@ -1020,7 +1026,10 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
                 enabled = true
             });
 
-            AppPermissionSettings.Save(originalPermissions with { AllowPresentationControl = false });
+            fixture.Manager.SetDevicePermission(
+                clientId,
+                DevicePermissionKind.PresentationControl,
+                false);
             using var statusTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
             JsonDocument? revokedStatus = null;
             for (var attempt = 0; attempt < 3 && revokedStatus is null; attempt++)
@@ -1064,7 +1073,7 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     private static async Task<JsonElement> PairAsync(WebSocket socket, WebHostFixture fixture, string clientId)
     {
         var token = fixture.Manager.CreatePairingToken();
-        return await SendAndReceiveAsync(socket, new
+        var accepted = await SendAndReceiveAsync(socket, new
         {
             type = "pair.hello",
             clientId,
@@ -1072,6 +1081,12 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
             pairToken = token,
             reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
         });
+        fixture.Manager.SetDevicePermissionOverrides(
+            clientId,
+            DeviceAccessProfiles.ToCompleteOverrides(AppPermissionSettings.Load()));
+        using var status = JsonDocument.Parse(await ReceiveTextAsync(socket));
+        Assert.Equal("status", status.RootElement.GetProperty("type").GetString());
+        return accepted;
     }
 
     private static FakePowerPointAutomationService CreatePresentingPowerPoint() =>

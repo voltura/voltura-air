@@ -28,9 +28,13 @@ internal sealed class ScreenViewCommandHandler(
         WebSocket socket,
         string clientId,
         ValidatedInputCommand command,
+        bool allowHostApplicationControl,
         CancellationToken cancellationToken)
     {
-        ScreenPointerDispatchResult result = coordinator.DispatchPointer(clientId, command);
+        ScreenPointerDispatchResult result = coordinator.DispatchPointer(
+            clientId,
+            command,
+            allowHostApplicationControl);
         if (result.Succeeded)
         {
             return command.Sequence.HasValue

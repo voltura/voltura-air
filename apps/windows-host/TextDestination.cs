@@ -96,27 +96,34 @@ public sealed record TextDestinationProfile(
 public interface ITextDestinationService
 {
     TextDestinationMetadata GetMetadata();
-    Task<TextDeliveryResult> DeliverAsync(string text, bool sendEnter, CancellationToken cancellationToken);
+    Task<TextDeliveryResult> DeliverAsync(
+        string text,
+        bool sendEnter,
+        bool allowHostApplicationControl,
+        CancellationToken cancellationToken);
 }
 
 internal sealed class FocusedTextDestinationService(InputDispatcher inputDispatcher) : ITextDestinationService
 {
     public TextDestinationMetadata GetMetadata() => new("focused", "Currently focused application", true);
-    public Task<TextDeliveryResult> DeliverAsync(string text, bool sendEnter, CancellationToken cancellationToken)
+    public Task<TextDeliveryResult> DeliverAsync(
+        string text,
+        bool sendEnter,
+        bool allowHostApplicationControl,
+        CancellationToken cancellationToken)
     {
-        var outcome = inputDispatcher.TransferText(text, sendEnter);
+        var outcome = inputDispatcher.TransferText(text, sendEnter, allowHostApplicationControl);
         return Task.FromResult(outcome == InputDispatchOutcome.Blocked
             ? new TextDeliveryResult(false, "typed", "VAIR-TEXT-HOST-FOCUSED", "Text was not sent because the Voltura Air host window has focus. Select the destination application and try again.")
             : new TextDeliveryResult(true, "typed", null, "Text sent successfully."));
     }
 }
 
-public sealed class TextDestinationService(InputDispatcher inputDispatcher, IInputInjector inputInjector, ITextDestinationPlatform? platform = null, Func<TextDestinationSettings>? loadSettings = null) : ITextDestinationService
+public sealed class TextDestinationService(InputDispatcher inputDispatcher, ITextDestinationPlatform? platform = null, Func<TextDestinationSettings>? loadSettings = null) : ITextDestinationService
 {
     private static readonly TimeSpan ActivationTimeout = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(8);
     private readonly InputDispatcher _inputDispatcher = inputDispatcher;
-    private readonly IInputInjector _inputInjector = inputInjector;
     private readonly ITextDestinationPlatform _platform = platform ?? new WindowsTextDestinationPlatform();
     private readonly Func<TextDestinationSettings> _loadSettings = loadSettings ?? AppTextDestinationSettings.Load;
 
@@ -133,12 +140,16 @@ public sealed class TextDestinationService(InputDispatcher inputDispatcher, IInp
         };
     }
 
-    public async Task<TextDeliveryResult> DeliverAsync(string text, bool sendEnter, CancellationToken cancellationToken)
+    public async Task<TextDeliveryResult> DeliverAsync(
+        string text,
+        bool sendEnter,
+        bool allowHostApplicationControl,
+        CancellationToken cancellationToken)
     {
         var settings = _loadSettings();
         if (settings.Mode == TextDestinationMode.Focused)
         {
-            var outcome = _inputDispatcher.TransferText(text, sendEnter);
+            var outcome = _inputDispatcher.TransferText(text, sendEnter, allowHostApplicationControl);
             return outcome == InputDispatchOutcome.Blocked
                 ? new(false, "typed", "VAIR-TEXT-HOST-FOCUSED", "Text was not sent because the Voltura Air host window has focus. Select the destination application and try again.")
                 : new(true, "typed", null, "Text sent successfully.");
@@ -221,6 +232,8 @@ public sealed class TextDestinationService(InputDispatcher inputDispatcher, IInp
         var foregroundReady = window is not null && (_platform.IsForeground(window.Value) || _platform.TryActivate(window.Value));
         if (window is null || !foregroundReady || !_platform.IsForeground(window.Value) || _platform.IsElevatedAboveHost(window.Value))
             return ClipboardFallback(text, $"Text was copied to the Windows clipboard. Paste it into {profile.DisplayName} manually.");
+        if (!allowHostApplicationControl && _platform.IsHostApplicationWindow(window.Value))
+            return ManagedHostApplicationBlocked();
 
         if (!useNewItemShortcut && !startedWithPreparedDraft && !profile.SupportsStartedCompose)
             return ClipboardFallback(text, $"{profile.DisplayName} was started. Text was copied to the Windows clipboard; create a new document, then paste manually.");
@@ -248,13 +261,19 @@ public sealed class TextDestinationService(InputDispatcher inputDispatcher, IInp
                 if (!_platform.IsForeground(window.Value) || _platform.IsElevatedAboveHost(window.Value))
                     return ClipboardFallback(text, $"Text was copied to the Windows clipboard. Paste it into {profile.DisplayName} manually.");
             }
-            _inputInjector.SpecialKey(useNewItemShortcut ? profile.NewItemKey : profile.StartupNewItemKey ?? profile.NewItemKey, useNewItemShortcut ? profile.NewItemModifiers : []);
+            if (_inputDispatcher.DispatchShortcut(
+                    useNewItemShortcut ? profile.NewItemKey : profile.StartupNewItemKey ?? profile.NewItemKey,
+                    useNewItemShortcut ? profile.NewItemModifiers : [],
+                    allowHostApplicationControl) == InputDispatchOutcome.Blocked)
+                return ManagedHostApplicationBlocked();
             await Task.Delay(100, cancellationToken);
         }
         if (!_platform.IsForeground(window.Value) || _platform.IsElevatedAboveHost(window.Value))
             return ClipboardFallback(text, $"Text was copied to the Windows clipboard. Paste it into {profile.DisplayName} manually.");
-        _inputInjector.SpecialKey("V", ["Control"]);
-        if (sendEnter) _inputInjector.SpecialKey("Enter", []);
+        if (_inputDispatcher.DispatchShortcut("V", ["Control"], allowHostApplicationControl) == InputDispatchOutcome.Blocked)
+            return ManagedHostApplicationBlocked();
+        if (sendEnter && _inputDispatcher.DispatchShortcut("Enter", [], allowHostApplicationControl) == InputDispatchOutcome.Blocked)
+            return ManagedHostApplicationBlocked();
         return new(true, "pasted", null, $"Text pasted into {profile.DisplayName}.");
     }
 
@@ -263,6 +282,12 @@ public sealed class TextDestinationService(InputDispatcher inputDispatcher, IInp
         : ClipboardFailure();
 
     private static TextDeliveryResult ClipboardFailure() => new(false, "clipboard", "VAIR-TEXT-CLIPBOARD-FAILED", "Windows could not copy the text to the clipboard. Try again.");
+
+    private static TextDeliveryResult ManagedHostApplicationBlocked() => new(
+        false,
+        "pasted",
+        "VAIR-TEXT-HOST-MANAGED",
+        "Text was not sent because the configured destination is Voltura Air. Choose another destination and try again.");
 
     private static string QuoteArgument(string value) => $"\"{value.Replace("\"", string.Empty, StringComparison.Ordinal)}\"";
 }

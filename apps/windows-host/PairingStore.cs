@@ -11,6 +11,8 @@ public sealed class PairingStore
     private const int MaxDeviceNameLength = 120;
     private readonly string _filePath;
 
+    internal Action? BeforeReplaceForTests { get; set; }
+
     public PairingStore(string? rootFolder = null)
     {
         var folder = Path.Combine(rootFolder ?? Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Voltura Air");
@@ -93,6 +95,7 @@ public sealed class PairingStore
                 stream.Flush(flushToDisk: true);
             }
 
+            BeforeReplaceForTests?.Invoke();
             File.Move(temporaryPath, _filePath, overwrite: true);
         }
         finally

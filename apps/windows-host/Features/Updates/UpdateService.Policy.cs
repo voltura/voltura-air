@@ -15,10 +15,10 @@ internal sealed class UpdateNotificationEventArgs(UpdateNotificationKind kind, s
     internal string? Version { get; } = version;
 }
 
-internal sealed partial class UpdateService
-{
-    private sealed record DeferredCandidate(Version Version, JsonElement Assets);
+internal sealed record DeferredCandidate(Version Version, JsonElement Assets);
 
+internal static class UpdatePolicy
+{
     internal static UpdateStartupOutcome GetStartupOutcome(string[] args) =>
         args.Contains("--updated", StringComparer.OrdinalIgnoreCase)
             ? UpdateStartupOutcome.Updated
@@ -119,14 +119,19 @@ internal sealed partial class UpdateService
         }
     }
 
-    private async Task<string> ValidateReadyForApplyAsync(UpdateReadyPackage expected, CancellationToken cancellationToken)
+    internal static async Task<string> ValidateReadyForApplyAsync(
+        string pendingDirectory,
+        UpdateReadyPackage expected,
+        Func<Version, string> selectInstallerName,
+        Func<byte[], byte[], bool> verifyManifest,
+        CancellationToken cancellationToken)
     {
-        if (!TryRestoreReadyPackage(_pendingDirectory, SelectInstallerName, _verifyManifest, out var restored) ||
+        if (!TryRestoreReadyPackage(pendingDirectory, selectInstallerName, verifyManifest, out var restored) ||
             restored != expected)
         {
             throw new IOException("The staged update could not be verified.");
         }
-        var installerPath = Path.Combine(_pendingDirectory, restored.InstallerName);
+        var installerPath = Path.Combine(pendingDirectory, restored.InstallerName);
         await using var installer = File.OpenRead(installerPath);
         var hash = Convert.ToHexString(await SHA256.HashDataAsync(installer, cancellationToken).ConfigureAwait(false)).ToLowerInvariant();
         if (!string.Equals(hash, restored.Hash, StringComparison.Ordinal))
@@ -136,11 +141,11 @@ internal sealed partial class UpdateService
         return installerPath;
     }
 
-    private void DeletePendingDirectory()
+    internal static void DeletePendingDirectory(string pendingDirectory)
     {
         try
         {
-            var pending = Path.GetFullPath(_pendingDirectory);
+            var pending = Path.GetFullPath(pendingDirectory);
             var updates = Path.GetFullPath(Path.GetDirectoryName(pending) ?? string.Empty);
             if (!pending.StartsWith(updates.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             {
@@ -151,20 +156,18 @@ internal sealed partial class UpdateService
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
 
-    private string SelectInstallerName(Version version)
+    internal static string SelectInstallerNameFromModifyInstaller(Version version, string? modifyInstaller)
     {
-        var originalFilename = string.IsNullOrWhiteSpace(_modifyInstaller)
+        var originalFilename = string.IsNullOrWhiteSpace(modifyInstaller)
             ? null
-            : FileVersionInfo.GetVersionInfo(_modifyInstaller).OriginalFilename;
+            : FileVersionInfo.GetVersionInfo(modifyInstaller).OriginalFilename;
         return SelectInstallerName(version, originalFilename);
     }
 
     internal static string SelectInstallerName(Version version, string? originalFilename) =>
         $"VolturaAir-Setup-{version.ToString(3)}-win-x64{(originalFilename?.Contains("-full", StringComparison.OrdinalIgnoreCase) == true ? "-full" : string.Empty)}.exe";
 
-    private System.Net.Http.HttpClient GetClient() => _client ??= _clientFactory();
-
-    private static System.Net.Http.HttpClient CreateClient()
+    internal static System.Net.Http.HttpClient CreateClient()
     {
 #pragma warning disable CA2000 // HttpClient owns and disposes the handler.
         var client = new System.Net.Http.HttpClient(new System.Net.Http.HttpClientHandler
@@ -180,7 +183,7 @@ internal sealed partial class UpdateService
         return client;
     }
 
-    private static bool TryReadLatestRelease(JsonElement root, out Version version, out JsonElement assets)
+    internal static bool TryReadLatestRelease(JsonElement root, out Version version, out JsonElement assets)
     {
         version = new();
         assets = default;
@@ -200,10 +203,10 @@ internal sealed partial class UpdateService
             TryParseVersion(element.GetString(), requireVPrefix: false, out version);
     }
 
-    private static bool VerifyManifest(byte[] manifest, byte[] signature)
+    internal static bool VerifyManifest(byte[] manifest, byte[] signature)
     {
         using var rsa = RSA.Create();
-        using var stream = typeof(UpdateService).Assembly.GetManifestResourceStream(
+        using var stream = typeof(UpdatePolicy).Assembly.GetManifestResourceStream(
             "VolturaAir.Host.Features.Updates.update-signing-public.pem");
         if (stream is null) return false;
         using var reader = new StreamReader(stream);
@@ -239,8 +242,8 @@ internal sealed partial class UpdateService
         return trimmed.Contains('"') ? null : trimmed;
     }
 
-    private static Version CurrentVersion() =>
-        Version.TryParse(typeof(UpdateService).Assembly.GetName().Version?.ToString(), out var version)
+    internal static Version CurrentVersion() =>
+        Version.TryParse(typeof(UpdatePolicy).Assembly.GetName().Version?.ToString(), out var version)
             ? new Version(version.Major, version.Minor, Math.Max(version.Build, 0))
             : new Version();
 }

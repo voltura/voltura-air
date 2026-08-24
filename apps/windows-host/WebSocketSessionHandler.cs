@@ -794,7 +794,8 @@ internal sealed class WebSocketSessionHandler(
 
         if (inputCommand is { } command)
         {
-            if (!statusFactory.CanUseRemoteInput(clientId))
+            var inputAccess = statusFactory.GetInputAccess(clientId);
+            if (!inputAccess.CanUseRemoteInput)
             {
                 await transport.SendAsync(socket, new { type = "input.error", seq = command.Sequence, code = "VAIR-INPUT-DENIED", message = "Remote input is disabled for this device on the PC." }, cancellationToken);
                 commandLog.Outcome(clientId, command.Type, HostCommandLog.GetAction(command.Type, command), "permission_denied");
@@ -804,12 +805,22 @@ internal sealed class WebSocketSessionHandler(
             if (command.Kind is InputCommandKind.ScreenPointerMove or InputCommandKind.ScreenPointerButton or InputCommandKind.ScreenPointerWheel)
             {
                 usageSession.RecordInputCommand(command.Kind, command.Context, recordingToken);
-                await screenViewCommands.HandlePointerAsync(socket, clientId, command, cancellationToken);
+                await screenViewCommands.HandlePointerAsync(
+                    socket,
+                    clientId,
+                    command,
+                    inputAccess.CanControlHostApplication,
+                    cancellationToken);
                 return true;
             }
 
             usageSession.RecordInputCommand(command.Kind, command.Context, recordingToken);
-            if (await inputCommands.HandleAsync(socket, command, clientId, cancellationToken))
+            if (await inputCommands.HandleAsync(
+                socket,
+                command,
+                clientId,
+                inputAccess.CanControlHostApplication,
+                cancellationToken))
             {
                 return true;
             }

@@ -51,6 +51,21 @@ export function parseSemver(version) {
   };
 }
 
+export function validateStableReleaseVersion(version) {
+  const parsed = parseSemver(version);
+  if (parsed.prerelease.length === 0 && parsed.core[0] > 65535) {
+    throw new Error(
+      `Stable release '${version}' must use a major component between 0 and 65535.`
+    );
+  }
+  if (parsed.prerelease.length === 0 && (parsed.core[1] > 9 || parsed.core[2] > 9)) {
+    throw new Error(
+      `Stable release '${version}' must use single-digit minor and patch components.`
+    );
+  }
+  return version;
+}
+
 function comparePrereleaseIdentifier(left, right) {
   const leftNumeric = /^\d+$/u.test(left);
   const rightNumeric = /^\d+$/u.test(right);
@@ -138,13 +153,7 @@ export function resolveReleaseVersion({
     targetVersion = currentVersion;
   }
 
-  const targetSemver = parseSemver(targetVersion);
-  if (targetSemver.prerelease.length === 0 &&
-      (targetSemver.core[1] > 9 || targetSemver.core[2] > 9)) {
-    throw new Error(
-      `Stable release '${targetVersion}' must use single-digit minor and patch components.`
-    );
-  }
+  validateStableReleaseVersion(targetVersion);
 
   if (compareSemver(targetVersion, latestReleasedVersion) <= 0) {
     const label = explicitVersion ? "Explicit version" : "Resolved version";

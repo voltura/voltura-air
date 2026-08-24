@@ -13,7 +13,7 @@ public sealed class UpdatePackageStagerTests
         var release = UpdateTestSupport.CreateRelease("1.0.10");
         UpdateTestSupport.WriteReadyPackage(pending, release);
 
-        Assert.True(UpdateService.TryRestoreReadyPackage(
+        Assert.True(UpdatePolicy.TryRestoreReadyPackage(
             pending,
             _ => release.InstallerName,
             static (_, _) => true,
@@ -21,14 +21,14 @@ public sealed class UpdatePackageStagerTests
         Assert.Equal(release.Installer.LongLength, ready.Size);
 
         File.Delete(Path.Combine(pending, release.InstallerName));
-        Assert.False(UpdateService.TryRestoreReadyPackage(
+        Assert.False(UpdatePolicy.TryRestoreReadyPackage(
             pending,
             _ => release.InstallerName,
             static (_, _) => true,
             out _));
 
         File.WriteAllBytes(Path.Combine(pending, release.InstallerName), [1]);
-        Assert.False(UpdateService.TryRestoreReadyPackage(
+        Assert.False(UpdatePolicy.TryRestoreReadyPackage(
             pending,
             _ => release.InstallerName,
             static (_, _) => true,
@@ -109,7 +109,7 @@ public sealed class UpdatePackageStagerTests
     [InlineData("v1.0.9-beta", false)]
     public void LatestVersionRequiresExactThreePartVSemver(string value, bool expected)
     {
-        Assert.Equal(expected, UpdateService.TryParseVersion(value, requireVPrefix: true, out _));
+        Assert.Equal(expected, UpdatePolicy.TryParseVersion(value, requireVPrefix: true, out _));
     }
 
     [Fact]

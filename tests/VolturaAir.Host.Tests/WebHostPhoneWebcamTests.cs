@@ -254,7 +254,7 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
                 clientSignature = reconnectKey.SignPayload(PhoneWebcamCoordinator.AnswerTranscript("client-webcam", operationId, offerHash, HashSdp(FakePhoneWebcamPeer.Answer)))
             }, "phone.webcam.answer.result");
 
-            AppPermissionSettings.Save(originalPermissions with { AllowPhoneWebcam = false });
+            fixture.Manager.SetDevicePermission("client-webcam", DevicePermissionKind.PhoneWebcam, false);
             JsonElement ended = await ReceiveUntilTypeAsync(control, "phone.webcam.ended");
             Assert.Equal("permission-revoked", ended.GetProperty("reason").GetString());
             Assert.True(peer.Disposed);
@@ -453,7 +453,7 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
             }, "phone.webcam.answer.result");
             Assert.True(applyEntered.Wait(TimeSpan.FromSeconds(2)));
 
-            AppPermissionSettings.Save(originalPermissions with { AllowPhoneWebcam = false });
+            fixture.Manager.SetDevicePermission("client-webcam", DevicePermissionKind.PhoneWebcam, false);
             await Task.Delay(100);
             Assert.False(peer.Disposed);
             continueApply.Set();
@@ -587,6 +587,11 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
             reconnectPublicKey = key.PublicKey
         });
         Assert.Equal("pair.accepted", accepted.GetProperty("type").GetString());
+        manager.SetDevicePermissionOverrides(
+            "client-webcam",
+            DeviceAccessProfiles.ToCompleteOverrides(AppPermissionSettings.Load()));
+        using var status = JsonDocument.Parse(await ReceiveTextAsync(control));
+        Assert.Equal("status", status.RootElement.GetProperty("type").GetString());
     }
 
     private static async Task ReconnectAsync(WebSocket control, PairingTestKey key)

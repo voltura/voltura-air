@@ -7,7 +7,7 @@ using VolturaAir.Host.Features.Updates;
 
 namespace VolturaAir.Host;
 
-internal sealed partial class WpfTrayApplicationContext : IDisposable
+internal sealed class WpfTrayApplicationContext : IDisposable
 {
     private const int MaxTrayTooltipLength = 63;
     private const string DefaultTrayIconFileName = "VolturaAirTray.ico";
@@ -26,7 +26,8 @@ internal sealed partial class WpfTrayApplicationContext : IDisposable
     private readonly TrayAwakeMenuController _awakeMenuController;
     private readonly TrayConnectionFeedbackController _connectionFeedbackController;
     private readonly OwnedDispatcherAction _connectionChangedAction;
-    private readonly Action<string, string, Forms.ToolTipIcon>? _notificationSink;
+    private readonly TrayNotificationPresenter _notificationPresenter;
+    private readonly TrayUpdateController? _updateController;
     private readonly UpdateService? _updates;
     private Forms.ToolStripMenuItem? _updateItem;
     private bool _hadActiveController;
@@ -53,7 +54,6 @@ internal sealed partial class WpfTrayApplicationContext : IDisposable
         _pairingManager = pairingManager;
         _webHost = webHost;
         _requestShutdown = requestShutdown;
-        _notificationSink = notificationSink;
         _updates = updates;
         _hadActiveController = pairingManager.HasActiveController;
         _connectionChangedAction = new OwnedDispatcherAction(_dispatcher, HandleConnectionChanged);
@@ -76,7 +76,10 @@ internal sealed partial class WpfTrayApplicationContext : IDisposable
             webHost,
             ApplyTrayConnectionState,
             ShowNotification,
-            () => _mainWindow.ShowPage(HostPage.Connect));
+            CanShowNotification,
+            TryShowNotification,
+            () => _mainWindow.ShowPage(HostPage.Connect),
+            _mainWindow.ShowDeviceAccess);
         _trayIcon = new Forms.NotifyIcon
         {
             ContextMenuStrip = _trayMenu,
@@ -84,7 +87,14 @@ internal sealed partial class WpfTrayApplicationContext : IDisposable
             Text = BuildTrayTooltip(_connectionFeedbackController.DisplayedState),
             Visible = true
         };
+        _notificationPresenter = new TrayNotificationPresenter(
+            _dispatcher,
+            _trayIcon,
+            notificationSink);
+        _notificationPresenter.Available += _connectionFeedbackController.OnNotificationSlotAvailable;
         _trayIcon.DoubleClick += (_, _) => _mainWindow.ShowPage(HostPage.Connect);
+        _trayIcon.BalloonTipClicked += OnNotificationClicked;
+        _trayIcon.BalloonTipClosed += OnNotificationClosed;
         _mainWindow.HiddenToTray += OnMainWindowHiddenToTray;
         _pairingManager.ConnectionChanged += OnConnectionChanged;
         _webHost.ScreenViewActivityChanged += OnScreenViewActivityChanged;
@@ -94,13 +104,10 @@ internal sealed partial class WpfTrayApplicationContext : IDisposable
         ApplyMenuTheme();
         AppThemeSettings.Changed += OnAppThemeChanged;
         _connectionFeedbackController.Start();
-        if (_updates is not null)
-        {
-            _updates.StateChanged += OnUpdateStateChanged;
-            _updates.NotificationRequested += OnUpdateNotificationRequested;
-            ApplyUpdateState();
-        }
-        ShowStartupOutcome(updateStartupOutcome);
+        _updateController = _updates is not null && _updateItem is not null
+            ? new TrayUpdateController(_dispatcher, _updates, _updateItem, ShowNotification)
+            : null;
+        _updateController?.Start(updateStartupOutcome);
     }
 
     internal void RequestExit()
@@ -130,9 +137,12 @@ internal sealed partial class WpfTrayApplicationContext : IDisposable
         _webHost.PhoneWebcamActivityChanged -= OnPhoneWebcamActivityChanged;
         _mainWindow.HiddenToTray -= OnMainWindowHiddenToTray;
         _connectionChangedAction.Dispose();
+        _notificationPresenter.Available -= _connectionFeedbackController.OnNotificationSlotAvailable;
         _connectionFeedbackController.Dispose();
-        _updates?.StateChanged -= OnUpdateStateChanged;
-        _updates?.NotificationRequested -= OnUpdateNotificationRequested;
+        _notificationPresenter.Dispose();
+        _trayIcon.BalloonTipClicked -= OnNotificationClicked;
+        _trayIcon.BalloonTipClosed -= OnNotificationClosed;
+        _updateController?.Dispose();
         _awakeMenuController.Dispose();
         _trayIcon.Visible = false;
         _components.Dispose();
@@ -368,16 +378,27 @@ internal sealed partial class WpfTrayApplicationContext : IDisposable
         _hadActiveController = hasActiveController;
     }
 
-    private void ShowNotification(string title, string message, Forms.ToolTipIcon icon)
-    {
-        if (_notificationSink is not null)
-        {
-            _notificationSink(title, message, icon);
-            return;
-        }
+    private void ShowNotification(
+        string title,
+        string message,
+        Forms.ToolTipIcon icon,
+        Action? action = null) =>
+        _notificationPresenter.Enqueue(title, message, icon, action);
 
-        _trayIcon.ShowBalloonTip(3000, title, message, icon);
-    }
+    private bool CanShowNotification() => _notificationPresenter.IsAvailable;
+
+    private bool TryShowNotification(
+        string title,
+        string message,
+        Forms.ToolTipIcon icon,
+        Action? action) =>
+        _notificationPresenter.TryShowNow(title, message, icon, action);
+
+    private void OnNotificationClicked(object? sender, EventArgs eventArgs) =>
+        _notificationPresenter.OnClicked();
+
+    private void OnNotificationClosed(object? sender, EventArgs eventArgs) =>
+        _notificationPresenter.OnClosed();
 
     internal void ShowPresentationBreakReminder()
     {

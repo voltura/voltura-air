@@ -159,7 +159,7 @@ internal sealed class UpdatePackageStager(
         using var document = JsonDocument.Parse(manifest);
         var root = document.RootElement;
         if (!root.TryGetProperty("version", out var versionElement) ||
-            !UpdateService.TryParseVersion(versionElement.GetString(), requireVPrefix: false, out var version))
+            !UpdatePolicy.TryParseVersion(versionElement.GetString(), requireVPrefix: false, out var version))
         {
             return false;
         }

@@ -12,21 +12,21 @@ public sealed class UpdateServiceTests : IsolatedHostSettingsTest
         var modifyInstaller = Path.Combine(maintenance.Path, "VolturaAir-Modify.exe");
         File.WriteAllBytes(modifyInstaller, []);
 
-        Assert.True(UpdateService.IsInstalledHost(
+        Assert.True(UpdatePolicy.IsInstalledHost(
             install.Path,
             install.Path,
             $"\"{modifyInstaller}\"",
             out var selected));
         Assert.Equal(modifyInstaller, selected);
-        Assert.False(UpdateService.IsInstalledHost(null, install.Path, modifyInstaller, out _));
-        Assert.False(UpdateService.IsInstalledHost(install.Path, maintenance.Path, modifyInstaller, out _));
-        Assert.False(UpdateService.IsInstalledHost(install.Path, install.Path, Path.Combine(maintenance.Path, "missing.exe"), out _));
+        Assert.False(UpdatePolicy.IsInstalledHost(null, install.Path, modifyInstaller, out _));
+        Assert.False(UpdatePolicy.IsInstalledHost(install.Path, maintenance.Path, modifyInstaller, out _));
+        Assert.False(UpdatePolicy.IsInstalledHost(install.Path, install.Path, Path.Combine(maintenance.Path, "missing.exe"), out _));
         Assert.Equal(
             "VolturaAir-Setup-1.0.10-win-x64.exe",
-            UpdateService.SelectInstallerName(new Version(1, 0, 10), "VolturaAir-Setup.exe"));
+            UpdatePolicy.SelectInstallerName(new Version(1, 0, 10), "VolturaAir-Setup.exe"));
         Assert.Equal(
             "VolturaAir-Setup-1.0.10-win-x64-full.exe",
-            UpdateService.SelectInstallerName(new Version(1, 0, 10), "VolturaAir-Setup-full.exe"));
+            UpdatePolicy.SelectInstallerName(new Version(1, 0, 10), "VolturaAir-Setup-full.exe"));
     }
 
     [Theory]
@@ -35,8 +35,8 @@ public sealed class UpdateServiceTests : IsolatedHostSettingsTest
     [InlineData("--installer-health-check")]
     public void SpecialModesAreIneligible(string argument)
     {
-        Assert.True(UpdateService.IsSpecialExecution([argument], developmentSupervisor: false));
-        Assert.True(UpdateService.IsSpecialExecution([], developmentSupervisor: true));
+        Assert.True(UpdatePolicy.IsSpecialExecution([argument], developmentSupervisor: false));
+        Assert.True(UpdatePolicy.IsSpecialExecution([], developmentSupervisor: true));
     }
 
     [Fact]

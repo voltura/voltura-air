@@ -296,11 +296,15 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
 
     protected sealed class FakeTextDestinationService(TextDestinationMetadata metadata, TextDeliveryResult result) : ITextDestinationService
     {
-        public List<(string Text, bool SendEnter)> Deliveries { get; } = [];
+        public List<(string Text, bool SendEnter, bool AllowHostApplicationControl)> Deliveries { get; } = [];
         public TextDestinationMetadata GetMetadata() => metadata;
-        public Task<TextDeliveryResult> DeliverAsync(string text, bool sendEnter, CancellationToken cancellationToken)
+        public Task<TextDeliveryResult> DeliverAsync(
+            string text,
+            bool sendEnter,
+            bool allowHostApplicationControl,
+            CancellationToken cancellationToken)
         {
-            Deliveries.Add((text, sendEnter));
+            Deliveries.Add((text, sendEnter, allowHostApplicationControl));
             return Task.FromResult(result);
         }
     }

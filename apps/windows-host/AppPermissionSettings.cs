@@ -3,6 +3,7 @@ namespace VolturaAir.Host;
 public static class AppPermissionSettings
 {
     internal const string ValueName = "PermissionsJson";
+    internal const string DefaultAccessProfileValueName = "DefaultAccessProfileJson";
     private static HostPermissionSet MalformedPermissions { get; } = new(
         AllowRemoteInput: false,
         AllowPcSleep: false,
@@ -25,6 +26,7 @@ public static class AppPermissionSettings
         AllowFileChanges: false,
         HideProtectedFileSystemItems: true);
     private static HostPermissionSet _cachedPermissions = HostPermissions.DefaultGlobal;
+    private static int _cachedDefaultAccessProfile = (int)DeviceAccessProfile.MyDevice;
 
     static AppPermissionSettings()
     {
@@ -37,6 +39,22 @@ public static class AppPermissionSettings
     public static HostPermissionSet Load()
     {
         return Volatile.Read(ref _cachedPermissions);
+    }
+
+    public static DeviceAccessProfile LoadDefaultAccessProfile() =>
+        (DeviceAccessProfile)Volatile.Read(ref _cachedDefaultAccessProfile);
+
+    public static void SaveDefaultAccessProfile(DeviceAccessProfile profile)
+    {
+        if (!DeviceAccessProfiles.IsBuiltIn(profile))
+        {
+            throw new ArgumentOutOfRangeException(nameof(profile));
+        }
+
+        HostSettingsJsonValue.Save(
+            DefaultAccessProfileValueName,
+            new DefaultDeviceAccessSettings(profile));
+        Volatile.Write(ref _cachedDefaultAccessProfile, (int)profile);
     }
 
     public static void Save(HostPermissionSet permissions)
@@ -57,6 +75,12 @@ public static class AppPermissionSettings
     private static void RefreshCachedPermissions()
     {
         Volatile.Write(ref _cachedPermissions, ReadPermissions());
+        var defaultAccess = HostSettingsJsonValue.Load(
+            DefaultAccessProfileValueName,
+            new DefaultDeviceAccessSettings(DeviceAccessProfile.MyDevice),
+            new DefaultDeviceAccessSettings(DeviceAccessProfile.MyDevice),
+            settings => DeviceAccessProfiles.IsBuiltIn(settings.Profile));
+        Volatile.Write(ref _cachedDefaultAccessProfile, (int)defaultAccess.Profile);
     }
 
     internal static void RefreshForTests() => RefreshCachedPermissions();
@@ -81,3 +105,5 @@ public static class AppPermissionSettings
     private static bool IsFatal(Exception exception) =>
         exception is OutOfMemoryException or StackOverflowException or AccessViolationException;
 }
+
+internal sealed record DefaultDeviceAccessSettings(DeviceAccessProfile Profile);

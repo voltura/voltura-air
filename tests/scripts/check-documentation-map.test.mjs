@@ -67,6 +67,56 @@ test("reports broken local documentation links", async () => {
   );
 });
 
+test("rejects a new stable release-note heading outside the one-digit minor and patch sequence", async () => {
+  for (const version of ["1.0.10", "11.10.0"]) {
+    await withFixture(
+      {
+        "README.md": "Root\n",
+        "docs/README.md": "[Root](../README.md)\n[Release notes](release-notes.md)\n",
+        "docs/release-notes.md": `## v${version}\n\n- Changed.\n\n## v0.8.10\n\n- Historical release.\n`
+      },
+      async (root) => {
+        const result = await checkDocumentationMap({ root, publicSurfaces: [] });
+        assert.ok(result.errors.includes(
+          `docs/release-notes.md: Stable release '${version}' must use single-digit minor and patch components.`
+        ));
+      }
+    );
+  }
+});
+
+test("rejects a new stable release-note heading above the Windows major-version limit", async () => {
+  await withFixture(
+    {
+      "README.md": "Root\n",
+      "docs/README.md": "[Root](../README.md)\n[Release notes](release-notes.md)\n",
+      "docs/release-notes.md": "## v10000000000.1.0\n\n- Changed.\n"
+    },
+    async (root) => {
+      const result = await checkDocumentationMap({ root, publicSurfaces: [] });
+      assert.ok(result.errors.includes(
+        "docs/release-notes.md: Stable release '10000000000.1.0' must use a major component between 0 and 65535."
+      ));
+    }
+  );
+});
+
+test("rejects a malformed new release-note version heading", async () => {
+  await withFixture(
+    {
+      "README.md": "Root\n",
+      "docs/README.md": "[Root](../README.md)\n[Release notes](release-notes.md)\n",
+      "docs/release-notes.md": "## v65535. .0\n\n- Changed.\n"
+    },
+    async (root) => {
+      const result = await checkDocumentationMap({ root, publicSurfaces: [] });
+      assert.ok(result.errors.includes(
+        "docs/release-notes.md: Version '65535. .0' is not supported semantic versioning."
+      ));
+    }
+  );
+});
+
 test("discovers public documentation surfaces and requires them in the catalog", async () => {
   await withFixture(
     {

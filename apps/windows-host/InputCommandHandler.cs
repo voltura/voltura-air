@@ -12,6 +12,7 @@ internal sealed class InputCommandHandler(
         WebSocket socket,
         ValidatedInputCommand command,
         string clientId,
+        bool allowHostApplicationControl,
         CancellationToken cancellationToken)
     {
         var sequence = command.Sequence;
@@ -20,7 +21,10 @@ internal sealed class InputCommandHandler(
         try
         {
             _ = powerController.DismissBlackoutIfActive();
-            if (!inputDispatcher.Dispatch(command, out var dispatchOutcome))
+            if (!inputDispatcher.Dispatch(
+                command,
+                allowHostApplicationControl,
+                out var dispatchOutcome))
             {
                 await SendErrorAsync(socket, sequence, "VAIR-INPUT-UNSUPPORTED", "Unsupported input message.", cancellationToken);
                 return false;

@@ -36,7 +36,6 @@ internal sealed class CustomScreenDraftValidator(
             service.GetKnownAppProfiles(),
             service.GetApprovedAppActions(),
             layoutIssues,
-            layoutFailure,
-            AppPermissionSettings.Load());
+            layoutFailure);
     }
 }

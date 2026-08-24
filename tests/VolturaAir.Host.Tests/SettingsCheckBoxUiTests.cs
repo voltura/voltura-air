@@ -117,9 +117,8 @@ public sealed partial class HostUiLayoutTests
                 var settings = FindWpfDescendants<SettingsCheckBox>(window).ToArray();
                 var startup = Assert.Single(settings, setting => setting.Label == "Start Voltura Air when I sign in to Windows");
                 var logging = Assert.Single(settings, setting => setting.Label == "Write application log");
-                var url = Assert.Single(settings, setting => setting.Label == "Allow paired devices to open web addresses");
-                var displays = Assert.Single(settings, setting => setting.Label == "Allow paired devices to turn off displays and change multi-monitor mode.");
-                var shutdown = Assert.Single(settings, setting => setting.Label == "Allow paired devices to shut down the PC");
+                var hostControl = Assert.Single(settings, setting => setting.Label == "Allow trusted devices to control the Voltura Air application");
+                var protectedFiles = Assert.Single(settings, setting => setting.Label == "Hide protected operating system files and folders (recommended)");
                 var presetLabels = AppLaunchSettings.GetPresets()
                     .Select(preset => $"Show {AppLaunchSettings.GetPresetName(preset.Kind)}")
                     .ToHashSet(StringComparer.Ordinal);
@@ -128,9 +127,8 @@ public sealed partial class HostUiLayoutTests
                 var applicationGroup = Assert.IsType<SpacingWrapPanel>(WpfVisualTreeHelper.GetParent(startup));
                 Assert.Same(window.Resources["WindowBrush"], applicationGroup.Background);
                 Assert.IsNotType<SpacingWrapPanel>(WpfVisualTreeHelper.GetParent(logging));
-                Assert.IsType<SpacingWrapPanel>(WpfVisualTreeHelper.GetParent(url));
-                Assert.IsType<SpacingWrapPanel>(WpfVisualTreeHelper.GetParent(displays));
-                Assert.IsNotType<SpacingWrapPanel>(WpfVisualTreeHelper.GetParent(shutdown));
+                var accessGroup = Assert.IsType<SpacingWrapPanel>(WpfVisualTreeHelper.GetParent(hostControl));
+                Assert.Same(accessGroup, WpfVisualTreeHelper.GetParent(protectedFiles));
                 Assert.Equal(HorizontalAlignment.Left, logging.HorizontalAlignment);
                 Assert.Equal(presetLabels.Count, presetSettings.Length);
                 Assert.All(presetSettings, setting => Assert.Equal(180d, setting.MinWidth));

@@ -60,6 +60,23 @@ public sealed class HostSettingsRegistryTests : IsolatedHostSettingsTest
     }
 
     [Fact]
+    public void RemoteControlsProfileCannotControlTheHostApplication()
+    {
+        AppClientControlSettings.SetEnabled(true);
+
+        Assert.True(AppClientControlSettings.AllowsDevice(DeviceAccessProfile.MyDevice));
+        Assert.True(AppClientControlSettings.AllowsDevice(DeviceAccessProfile.Custom));
+        Assert.False(AppClientControlSettings.AllowsDevice(DeviceAccessProfile.RemoteControls));
+        Assert.False(AppClientControlSettings.AllowsDevice(DeviceAccessProfile.Invalid));
+        Assert.False(AppClientControlSettings.AllowsDevice((DeviceAccessProfile)999));
+
+        using var store = new TempPairingStore();
+        var manager = new PairingManager(store.Store);
+        Assert.Equal(DeviceAccessProfile.Invalid, manager.GetDeviceAccessProfile("missing"));
+        Assert.False(AppClientControlSettings.AllowsDevice(manager.GetDeviceAccessProfile("missing")));
+    }
+
+    [Fact]
     public void PermissionHotPathUsesWriteThroughCache()
     {
         var blocked = HostPermissions.DefaultGlobal with { AllowRemoteInput = false };
@@ -102,6 +119,32 @@ public sealed class HostSettingsRegistryTests : IsolatedHostSettingsTest
         Assert.False(permissions.AllowRemoteInput);
         Assert.False(permissions.AllowPhoneWebcam);
         Assert.True(permissions.HideProtectedFileSystemItems);
+    }
+
+    [Fact]
+    public void DefaultDeviceAccessIsMyDeviceAndMalformedOrCustomValuesFallBack()
+    {
+        Assert.Equal(DeviceAccessProfile.MyDevice, AppPermissionSettings.LoadDefaultAccessProfile());
+
+        AppPermissionSettings.SaveDefaultAccessProfile(DeviceAccessProfile.RemoteControls);
+        AppPermissionSettings.RefreshForTests();
+        Assert.Equal(DeviceAccessProfile.RemoteControls, AppPermissionSettings.LoadDefaultAccessProfile());
+
+        using var key = Registry.CurrentUser.OpenSubKey(HostSettingsRegistry.SettingsKeyPath, writable: true);
+        Assert.NotNull(key);
+        key.SetValue(
+            AppPermissionSettings.DefaultAccessProfileValueName,
+            "{\"profile\":\"custom\"}",
+            RegistryValueKind.String);
+        AppPermissionSettings.RefreshForTests();
+        Assert.Equal(DeviceAccessProfile.MyDevice, AppPermissionSettings.LoadDefaultAccessProfile());
+
+        key.SetValue(
+            AppPermissionSettings.DefaultAccessProfileValueName,
+            "{\"profile\":\"unknown\"}",
+            RegistryValueKind.String);
+        AppPermissionSettings.RefreshForTests();
+        Assert.Equal(DeviceAccessProfile.MyDevice, AppPermissionSettings.LoadDefaultAccessProfile());
     }
 
     [Fact]

@@ -66,9 +66,13 @@ public sealed class WebHostTextTransferTests : WebHostServiceTestBase
             await using var fixture = await WebHostFixture.StartAsync(clipboardTextReader: clipboard);
             using var socket = await ConnectAsync(fixture.WebHost);
             var paired = await SendAndReceiveAsync(socket, new { type = "pair.hello", clientId = $"client-{Guid.NewGuid():N}", deviceName = "Phone", pairToken = fixture.Manager.CreatePairingToken(), reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing });
+            var clientId = paired.GetProperty("clientId").GetString()!;
+            fixture.Manager.SetDevicePermission(clientId, DevicePermissionKind.ClipboardRead, false);
+            using var permissionsDocument = JsonDocument.Parse(await ReceiveTextAsync(socket));
+            var permissions = permissionsDocument.RootElement;
             var result = await SendAndReceiveAsync(socket, new { type = "clipboard.get", operationId = "clipboard-blocked" });
 
-            Assert.False(paired.GetProperty("capabilities").GetProperty("clipboardRead").GetBoolean());
+            Assert.False(permissions.GetProperty("capabilities").GetProperty("clipboardRead").GetBoolean());
             Assert.False(result.GetProperty("succeeded").GetBoolean());
             Assert.Equal("VAIR-CLIPBOARD-PERMISSION-DENIED", result.GetProperty("code").GetString());
             Assert.Equal(0, clipboard.ReadCount);
@@ -106,6 +110,37 @@ public sealed class WebHostTextTransferTests : WebHostServiceTestBase
         {
             AppPermissionSettings.Save(originalPermissions);
         }
+    }
+
+    [Fact]
+    public async Task RemoteControlsDeviceCannotTargetTheHostApplicationWhenGlobalControlIsEnabled()
+    {
+        var service = new FakeTextDestinationService(
+            new TextDestinationMetadata("focused", "Currently focused application", true),
+            new TextDeliveryResult(true, "typed", null, "Text sent successfully."));
+        AppPermissionSettings.SaveDefaultAccessProfile(DeviceAccessProfile.RemoteControls);
+        AppClientControlSettings.SetEnabled(true);
+        await using var fixture = await WebHostFixture.StartAsync(textDestinationService: service);
+        using var socket = await ConnectAsync(fixture.WebHost);
+
+        _ = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.hello",
+            clientId = $"client-{Guid.NewGuid():N}",
+            deviceName = "Remote",
+            pairToken = fixture.Manager.CreatePairingToken(),
+            reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
+        });
+        _ = await SendAndReceiveAsync(socket, new
+        {
+            type = "text.send",
+            operationId = "remote-controls-host-application",
+            text = "Blocked when Voltura Air is focused",
+            sendEnter = false
+        });
+
+        var delivery = Assert.Single(service.Deliveries);
+        Assert.False(delivery.AllowHostApplicationControl);
     }
 
     [Fact]

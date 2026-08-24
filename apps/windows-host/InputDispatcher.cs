@@ -26,6 +26,14 @@ public sealed class InputDispatcher(IInputInjector inputInjector)
 
     internal bool Dispatch(ValidatedInputCommand command, out InputDispatchOutcome outcome)
     {
+        return Dispatch(command, AppClientControlSettings.IsEnabled(), out outcome);
+    }
+
+    internal bool Dispatch(
+        ValidatedInputCommand command,
+        bool allowHostApplicationControl,
+        out InputDispatchOutcome outcome)
+    {
         outcome = InputDispatchOutcome.Executed;
         if (command.Kind == InputCommandKind.KeyboardSpecial && HostUiInputGuard.IsShowDesktopShortcut(command))
         {
@@ -43,7 +51,10 @@ public sealed class InputDispatcher(IInputInjector inputInjector)
             return true;
         }
 
-        if (HostUiInputGuard.ShouldBlockClientInput(command, out var protectedCommandExecuted))
+        if (HostUiInputGuard.ShouldBlockClientInput(
+            command,
+            allowHostApplicationControl,
+            out var protectedCommandExecuted))
         {
             outcome = protectedCommandExecuted ? InputDispatchOutcome.Executed : InputDispatchOutcome.Blocked;
             return true;
@@ -87,10 +98,15 @@ public sealed class InputDispatcher(IInputInjector inputInjector)
         int desktopY,
         int absoluteX,
         int absoluteY,
+        bool allowHostApplicationControl,
         out InputDispatchOutcome outcome)
     {
         outcome = InputDispatchOutcome.Executed;
-        if (HostUiInputGuard.ShouldBlockAbsolutePointer(command, desktopX, desktopY))
+        if (HostUiInputGuard.ShouldBlockAbsolutePointer(
+            command,
+            desktopX,
+            desktopY,
+            allowHostApplicationControl))
         {
             outcome = InputDispatchOutcome.Blocked;
             return true;
@@ -122,7 +138,15 @@ public sealed class InputDispatcher(IInputInjector inputInjector)
 
     public InputDispatchOutcome TransferText(string text, bool sendEnter)
     {
-        if (HostUiInputGuard.ShouldBlockTextTransfer())
+        return TransferText(text, sendEnter, AppClientControlSettings.IsEnabled());
+    }
+
+    internal InputDispatchOutcome TransferText(
+        string text,
+        bool sendEnter,
+        bool allowHostApplicationControl)
+    {
+        if (HostUiInputGuard.ShouldBlockTextTransfer(allowHostApplicationControl))
         {
             return InputDispatchOutcome.Blocked;
         }
@@ -138,7 +162,15 @@ public sealed class InputDispatcher(IInputInjector inputInjector)
 
     public InputDispatchOutcome DispatchShortcut(string key, IReadOnlyList<string> modifiers)
     {
-        if (HostUiInputGuard.ShouldBlockTextTransfer())
+        return DispatchShortcut(key, modifiers, AppClientControlSettings.IsEnabled());
+    }
+
+    internal InputDispatchOutcome DispatchShortcut(
+        string key,
+        IReadOnlyList<string> modifiers,
+        bool allowHostApplicationControl)
+    {
+        if (HostUiInputGuard.ShouldBlockTextTransfer(allowHostApplicationControl))
         {
             return InputDispatchOutcome.Blocked;
         }

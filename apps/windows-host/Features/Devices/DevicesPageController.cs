@@ -3,6 +3,10 @@ using System.Windows;
 
 namespace VolturaAir.Host.Features.Devices;
 
+internal sealed record DeviceAccessViewState(
+    DeviceAccessProfile Profile,
+    HostPermissionSet Permissions);
+
 internal sealed class DevicesPageController(
     Window owner,
     PairingManager pairingManager,
@@ -10,22 +14,46 @@ internal sealed class DevicesPageController(
     Action requestViewRefresh)
 {
     private string? _expandedClientId;
+    private string? _focusAccessClientId;
     private DevicesPageView? _currentView;
 
     public DevicesPageView CreateView()
     {
+        var devices = GetDeviceItems();
         _currentView = new DevicesPageView(
-            GetDeviceItems(),
+            devices,
             ExpandDevice,
             CollapseDevice,
             SetDeviceShowModeButtonsOverride,
             SetDeviceControlDepthOverride,
             SetDevicePointerSpeedOverride,
             UseGlobalPointerSpeed,
+            SetDeviceAccessProfile,
             SetDevicePermission,
+            SetProtectedFileFilter,
             RemoveDevice,
             CleanUpDuplicates,
             RemoveAllDevices);
+        if (_focusAccessClientId is { } focusClientId)
+        {
+            if (devices.All(device => !string.Equals(device.ClientId, focusClientId, StringComparison.Ordinal)))
+            {
+                _focusAccessClientId = null;
+            }
+            else
+            {
+                var focusView = _currentView;
+                focusView.FocusAccessProfile(focusClientId, focused =>
+                {
+                    if (focused &&
+                        ReferenceEquals(_currentView, focusView) &&
+                        string.Equals(_focusAccessClientId, focusClientId, StringComparison.Ordinal))
+                    {
+                        _focusAccessClientId = null;
+                    }
+                });
+            }
+        }
         return _currentView;
     }
 
@@ -44,6 +72,13 @@ internal sealed class DevicesPageController(
                 item.ApplyPointerSpeed(profile.PointerSpeed, profile.PointerSpeedOverride is not null);
                 item.ApplyShowModeButtons(profile.ShowModeButtonsOverride, profile.ShowModeButtons);
                 item.ApplyControlDepth(profile.ControlDepthOverride, profile.ControlDepth);
+                var effectivePermissions = pairingManager.GetEffectivePermissions(
+                    profile.ClientId,
+                    AppPermissionSettings.Load());
+                item.ApplyAccessProfile(profile.AccessProfile, effectivePermissions);
+                item.ProtectedFileFilter.Apply(
+                    pairingManager.GetDevicePermissionOverrides(profile.ClientId).HideProtectedFileSystemItems,
+                    effectivePermissions.HideProtectedFileSystemItems);
             }
         }
     }
@@ -51,7 +86,16 @@ internal sealed class DevicesPageController(
     public void ResetDisclosureState()
     {
         _expandedClientId = null;
+        _focusAccessClientId = null;
         _currentView = null;
+    }
+
+    public void OpenDeviceAccess(string clientId)
+    {
+        var exists = pairingManager.GetDevices().Any(device =>
+            string.Equals(device.ClientId, clientId, StringComparison.Ordinal));
+        _expandedClientId = exists ? clientId : null;
+        _focusAccessClientId = exists ? clientId : null;
     }
 
     private void ExpandDevice(string clientId)
@@ -94,34 +138,42 @@ internal sealed class DevicesPageController(
             ?.PointerSpeed;
     }
 
-    private bool SetDevicePermission(string clientId, DevicePermissionKind kind, bool? value)
+    private DeviceAccessViewState? SetDeviceAccessProfile(string clientId, DeviceAccessProfile profile)
     {
-        var current = pairingManager.GetDevicePermissionOverrides(clientId);
-        var updated = kind switch
+        pairingManager.SetDeviceAccessProfile(clientId, profile);
+        return GetDeviceAccessState(clientId);
+    }
+
+    private DeviceAccessViewState? SetDevicePermission(
+        string clientId,
+        DevicePermissionKind kind,
+        bool value)
+    {
+        pairingManager.SetDevicePermission(clientId, kind, value);
+        return GetDeviceAccessState(clientId);
+    }
+
+    private DeviceAccessViewState? GetDeviceAccessState(string clientId)
+    {
+        var device = pairingManager.GetDevices().FirstOrDefault(item => item.ClientId == clientId);
+        return device is null
+            ? null
+            : new DeviceAccessViewState(
+                device.AccessProfile,
+                pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()));
+    }
+
+    private (bool? Override, bool Effective)? SetProtectedFileFilter(string clientId, bool? hideProtected)
+    {
+        pairingManager.SetDeviceProtectedFileFilterOverride(clientId, hideProtected);
+        if (pairingManager.GetDevices().All(device => device.ClientId != clientId))
         {
-            DevicePermissionKind.RemoteInput => current with { AllowRemoteInput = value },
-            DevicePermissionKind.PcSleep => current with { AllowPcSleep = value },
-            DevicePermissionKind.VolumeControl => current with { AllowVolumeControl = value },
-            DevicePermissionKind.PresentationControl => current with { AllowPresentationControl = value },
-            DevicePermissionKind.RemoteAppLaunch => current with { AllowRemoteAppLaunch = value },
-            DevicePermissionKind.UrlOpen => current with { AllowUrlOpen = value },
-            DevicePermissionKind.PcLock => current with { AllowPcLock = value },
-            DevicePermissionKind.BlackoutDisplay => current with { AllowBlackoutDisplay = value },
-            DevicePermissionKind.DisplayControl => current with { AllowDisplayControl = value },
-            DevicePermissionKind.ScreenSaver => current with { AllowScreenSaver = value },
-            DevicePermissionKind.AwakeControl => current with { AllowAwakeControl = value },
-            DevicePermissionKind.ClipboardRead => current with { AllowClipboardRead = value },
-            DevicePermissionKind.ScreenViewing => current with { AllowScreenViewing = value },
-            DevicePermissionKind.PhoneWebcam => current with { AllowPhoneWebcam = value },
-            DevicePermissionKind.FileBrowsing => current with { AllowFileBrowsing = value },
-            DevicePermissionKind.FileChanges => current with { AllowFileChanges = value },
-            DevicePermissionKind.HideProtectedFileSystemItems => current with { HideProtectedFileSystemItems = value },
-            DevicePermissionKind.SignOut => current with { AllowSignOut = value },
-            DevicePermissionKind.Restart => current with { AllowRestart = value },
-            DevicePermissionKind.Shutdown => current with { AllowShutdown = value },
-            _ => current
-        };
-        return pairingManager.SetDevicePermissionOverrides(clientId, updated);
+            return null;
+        }
+
+        return (
+            pairingManager.GetDevicePermissionOverrides(clientId).HideProtectedFileSystemItems,
+            pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).HideProtectedFileSystemItems);
     }
 
     private void RemoveDevice(string clientId)
@@ -211,48 +263,27 @@ internal sealed class DevicesPageController(
                 device.ShowModeButtons,
                 device.ControlDepthOverride,
                 device.ControlDepth,
-                GetPermissionItems(device, globalPermissions),
+                device.AccessProfile,
+                GetPermissionItems(device, pairingManager.GetEffectivePermissions(device.ClientId, globalPermissions)),
+                new ProtectedFileFilterItem(
+                    device.ClientId,
+                    device.PermissionOverrides.HideProtectedFileSystemItems,
+                    pairingManager.GetEffectivePermissions(device.ClientId, globalPermissions).HideProtectedFileSystemItems),
                 device.ClientId == _expandedClientId))];
     }
 
-    private List<DevicePermissionItem> GetPermissionItems(PairedDeviceStatus device, HostPermissionSet global)
+    private List<DevicePermissionItem> GetPermissionItems(PairedDeviceStatus device, HostPermissionSet effective)
     {
-        var permissions = new List<DevicePermissionItem>
-        {
-            CreatePermission(device.ClientId, DevicePermissionKind.RemoteInput, "Pointer and keyboard", device.PermissionOverrides.AllowRemoteInput, global.AllowRemoteInput),
-            CreatePermission(device.ClientId, DevicePermissionKind.PcSleep, "PC sleep", device.PermissionOverrides.AllowPcSleep, global.AllowPcSleep),
-            CreatePermission(device.ClientId, DevicePermissionKind.VolumeControl, "Volume control", device.PermissionOverrides.AllowVolumeControl, global.AllowVolumeControl),
-            CreatePermission(device.ClientId, DevicePermissionKind.PresentationControl, "Presentation control", device.PermissionOverrides.AllowPresentationControl, global.AllowPresentationControl)
-        };
-        permissions.AddRange([
-            CreatePermission(device.ClientId, DevicePermissionKind.RemoteAppLaunch, "Application launch", device.PermissionOverrides.AllowRemoteAppLaunch, global.AllowRemoteAppLaunch),
-            CreatePermission(device.ClientId, DevicePermissionKind.UrlOpen, "Open web addresses", device.PermissionOverrides.AllowUrlOpen, global.AllowUrlOpen),
-            CreatePermission(device.ClientId, DevicePermissionKind.PcLock, "Lock PC", device.PermissionOverrides.AllowPcLock, global.AllowPcLock),
-            CreatePermission(device.ClientId, DevicePermissionKind.BlackoutDisplay, "Blackout display", device.PermissionOverrides.AllowBlackoutDisplay, global.AllowBlackoutDisplay),
-            CreatePermission(device.ClientId, DevicePermissionKind.DisplayControl, "Control displays", device.PermissionOverrides.AllowDisplayControl, global.AllowDisplayControl),
-            CreatePermission(device.ClientId, DevicePermissionKind.AwakeControl, "Keep awake", device.PermissionOverrides.AllowAwakeControl, global.AllowAwakeControl),
-            CreatePermission(device.ClientId, DevicePermissionKind.ClipboardRead, "Read PC clipboard", device.PermissionOverrides.AllowClipboardRead, global.AllowClipboardRead),
-            CreatePermission(device.ClientId, DevicePermissionKind.ScreenViewing, "View PC screen", device.PermissionOverrides.AllowScreenViewing, global.AllowScreenViewing),
-            CreatePermission(device.ClientId, DevicePermissionKind.PhoneWebcam, "Use phone as webcam", device.PermissionOverrides.AllowPhoneWebcam, global.AllowPhoneWebcam),
-            CreatePermission(device.ClientId, DevicePermissionKind.FileBrowsing, "Browse and open files", device.PermissionOverrides.AllowFileBrowsing, global.AllowFileBrowsing),
-            CreatePermission(device.ClientId, DevicePermissionKind.FileChanges, "Change files", device.PermissionOverrides.AllowFileChanges, global.AllowFileChanges),
-            CreatePermission(device.ClientId, DevicePermissionKind.HideProtectedFileSystemItems, "Protected operating system items", device.PermissionOverrides.HideProtectedFileSystemItems, global.HideProtectedFileSystemItems, "Hide", "Show")
-        ]);
-        if (powerController.IsActionAvailable(SystemPowerActions.ScreenSaver))
-        {
-            permissions.Add(CreatePermission(device.ClientId, DevicePermissionKind.ScreenSaver, "Screen saver", device.PermissionOverrides.AllowScreenSaver, global.AllowScreenSaver));
-        }
-
-        permissions.AddRange([
-            CreatePermission(device.ClientId, DevicePermissionKind.SignOut, "Sign out", device.PermissionOverrides.AllowSignOut, global.AllowSignOut),
-            CreatePermission(device.ClientId, DevicePermissionKind.Restart, "Restart PC", device.PermissionOverrides.AllowRestart, global.AllowRestart),
-            CreatePermission(device.ClientId, DevicePermissionKind.Shutdown, "Shut down PC", device.PermissionOverrides.AllowShutdown, global.AllowShutdown)
-        ]);
-        return permissions;
+        return [.. DeviceAccessProfiles.Permissions
+            .Where(permission =>
+                permission.Kind != DevicePermissionKind.ScreenSaver ||
+                powerController.IsActionAvailable(SystemPowerActions.ScreenSaver))
+            .Select(permission => new DevicePermissionItem(
+                device.ClientId,
+                permission.Kind,
+                permission.DisplayName,
+                permission.Read(effective)))];
     }
-
-    private static DevicePermissionItem CreatePermission(string clientId, DevicePermissionKind kind, string title, bool? overrideValue, bool inheritedAllow, string positiveLabel = "Allow", string negativeLabel = "Block") =>
-        new(clientId, kind, title, overrideValue, inheritedAllow, positiveLabel, negativeLabel);
 
     private static string GetDeviceActivityText(PairedDeviceStatus device)
     {

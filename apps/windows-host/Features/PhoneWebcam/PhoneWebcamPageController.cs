@@ -56,15 +56,6 @@ internal sealed class PhoneWebcamPageController : IDisposable
         view.SessionStatusText.Visibility = string.IsNullOrWhiteSpace(sessionStatus)
             ? Visibility.Collapsed
             : Visibility.Visible;
-        view.AllowPairedDevicesCheckBox.IsChecked = AppPermissionSettings.Load().AllowPhoneWebcam;
-        view.AllowPairedDevicesCheckBox.Click += (_, _) =>
-        {
-            HostPermissionSet current = AppPermissionSettings.Load();
-            AppPermissionSettings.Save(current with
-            {
-                AllowPhoneWebcam = view.AllowPairedDevicesCheckBox.IsChecked == true
-            });
-        };
         RenderMicrophoneSetup(view);
         view.GetVbCableButton.Click += (_, _) =>
         {

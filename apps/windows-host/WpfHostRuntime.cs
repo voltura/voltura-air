@@ -5,7 +5,7 @@ using VolturaAir.Host.Features.Updates;
 
 namespace VolturaAir.Host;
 
-internal sealed partial class WpfHostRuntime : IAsyncDisposable
+internal sealed class WpfHostRuntime : IAsyncDisposable
 {
     private readonly SendInputInjector _inputInjector;
     private readonly IActivitySimulationService _activitySimulationService;
@@ -64,17 +64,17 @@ internal sealed partial class WpfHostRuntime : IAsyncDisposable
 
     public static async Task<WpfHostRuntime> StartAsync(string[] args, Action requestShutdown, Action requestRestart, Action<string>? requestUpdate = null)
     {
-        var isolatedTestMode = HasOption(args, "--isolated-test-mode");
+        var isolatedTestMode = HostCommandLine.HasOption(args, "--isolated-test-mode");
 #if DEBUG
-        var requestedPairingStoreRoot = GetOption(args, "--pairing-store-root");
+        var requestedPairingStoreRoot = HostCommandLine.GetOption(args, "--pairing-store-root");
         var pairingStoreRoot = string.IsNullOrWhiteSpace(requestedPairingStoreRoot)
             ? null
-            : ResolveIsolatedAutomationPath(
+            : HostCommandLine.ResolveIsolatedAutomationPath(
                 args,
                 requestedPairingStoreRoot,
                 "appdata");
-        var clientUrl = GetOption(args, "--client-url") ?? Environment.GetEnvironmentVariable("VOLTURA_AIR_CLIENT_URL");
-        var usePublicScreenshotPairingUrl = HasOption(args, "--site-screenshot-mode");
+        var clientUrl = HostCommandLine.GetOption(args, "--client-url") ?? Environment.GetEnvironmentVariable("VOLTURA_AIR_CLIENT_URL");
+        var usePublicScreenshotPairingUrl = HostCommandLine.HasOption(args, "--site-screenshot-mode");
         var useDevelopmentHostedApp = string.Equals(
             Environment.GetEnvironmentVariable("VOLTURA_AIR_DEV_HOST"),
             "1",
@@ -157,7 +157,7 @@ internal sealed partial class WpfHostRuntime : IAsyncDisposable
                 appLaunchService: null,
                 customScreenService: null,
                 urlOpenService: null,
-                textDestinationService: new TextDestinationService(inputDispatcher, inputInjector),
+                textDestinationService: new TextDestinationService(inputDispatcher),
                 clipboardTextReader: null,
                 applyCustomPointer: cursorOverrides.ApplyCustomPointer,
                 applyPresentationLaserPointer: cursorOverrides.SetPresentationLaserPointer,
@@ -188,19 +188,19 @@ internal sealed partial class WpfHostRuntime : IAsyncDisposable
             }
 #if DEBUG
             if (isolatedTestMode &&
-                HasOption(args, "--presentation-demo-data") &&
+                HostCommandLine.HasOption(args, "--presentation-demo-data") &&
                 webHost.PresentationReportStore is InMemoryPresentationReportStore demoReportStore)
             {
                 Features.Presentations.PresentationReportDemoData.AddTo(demoReportStore);
             }
-            if (isolatedTestMode && HasOption(args, "--site-screenshot-custom-screens"))
+            if (isolatedTestMode && HostCommandLine.HasOption(args, "--site-screenshot-custom-screens"))
             {
                 Features.CustomScreens.CustomScreenDemoData.AddTo(
                     webHost.CustomScreenService);
             }
 #endif
 #if DEBUG
-            if (HasOption(args, "--print-host-client-url"))
+            if (HostCommandLine.HasOption(args, "--print-host-client-url"))
             {
                 Console.WriteLine($"Voltura Air phone client: Windows host URL ({webHost.ServerUrl})");
             }
@@ -222,7 +222,7 @@ internal sealed partial class WpfHostRuntime : IAsyncDisposable
                 requestRestart: requestRestart,
                 updates: updates);
 #if DEBUG
-            WritePairingUrlIfRequested(args, mainWindow.PairingUrl);
+            HostCommandLine.WritePairingUrlIfRequested(args, mainWindow.PairingUrl);
 #endif
             trayContext = new WpfTrayApplicationContext(
                 mainWindow,
@@ -232,7 +232,7 @@ internal sealed partial class WpfHostRuntime : IAsyncDisposable
                 requestShutdown,
                 activitySimulationService: activitySimulationService,
                 updates: updates,
-                updateStartupOutcome: UpdateService.GetStartupOutcome(args));
+                updateStartupOutcome: UpdatePolicy.GetStartupOutcome(args));
             return new WpfHostRuntime(
                 inputInjector,
                 activitySimulationService,

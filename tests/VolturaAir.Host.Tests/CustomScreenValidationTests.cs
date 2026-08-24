@@ -105,7 +105,7 @@ public sealed class CustomScreenValidationTests
     }
 
     [Fact]
-    public void DisabledPermissionIsADeviceResolvableWarning()
+    public void ValidationIsIndependentOfDeviceSpecificPermissions()
     {
         var draft = CustomScreenService.CreateDraft();
 
@@ -113,15 +113,11 @@ public sealed class CustomScreenValidationTests
             draft,
             AvailableKnownApplications(),
             [],
-            [],
-            permissions: HostPermissions.DefaultGlobal with
-            {
-                AllowRemoteInput = false
-            });
+            []);
 
-        var finding = Assert.Single(report.Findings);
-        Assert.Equal(CustomScreenValidationSeverity.Warning, finding.Severity);
-        Assert.Contains("paired device", finding.Resolution, StringComparison.Ordinal);
+        Assert.Empty(report.Findings);
+        Assert.Contains(report.PassedChecks, check =>
+            check.Contains("save contract", StringComparison.Ordinal));
     }
 
     [Fact]

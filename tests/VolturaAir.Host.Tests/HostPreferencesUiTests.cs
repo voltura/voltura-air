@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -128,7 +129,7 @@ public sealed partial class HostUiLayoutTests
 
                 var sections = FindWpfDescendants<Expander>(window).ToArray();
                 Assert.Equal(
-                    "Application|More about application logs|Appearance|Trackpad defaults|Remote defaults|Presentation|Keep awake|Global permissions|More about global permissions|Screen viewing|Text destination|More about text destinations|Application launch buttons|More about app-launch buttons|Custom pointer|Developer tools|Windows locking",
+                    "Application|More about application logs|Appearance|Trackpad defaults|Remote defaults|Presentation|Keep awake|Device access|More about device access|Screen viewing|Text destination|More about text destinations|Application launch buttons|More about app-launch buttons|Custom pointer|Developer tools|Windows locking",
                     string.Join('|', sections.Select(section => section.Header)));
                 var presentation = Assert.Single(
                     sections,
@@ -136,10 +137,8 @@ public sealed partial class HostUiLayoutTests
                 Assert.Equal(Visibility.Visible, presentation.Visibility);
                 Assert.Single(FindWpfDescendants<ModernDatePicker>(window));
                 Assert.Empty(FindWpfDescendants<DatePicker>(window));
-                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkbox =>
-                    string.Equals(checkbox.Content?.ToString(), "Allow paired devices to open web addresses", StringComparison.Ordinal));
-                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkbox =>
-                    string.Equals(checkbox.Content?.ToString(), "Allow paired devices to control presentations", StringComparison.Ordinal));
+                Assert.Contains(FindWpfDescendants<ComboBox>(window), comboBox =>
+                    string.Equals(comboBox.GetValue(AutomationProperties.NameProperty) as string, "Default access for newly paired devices", StringComparison.Ordinal));
                 Assert.DoesNotContain(FindWpfDescendants<CheckBox>(window), checkbox =>
                     string.Equals(checkbox.Content?.ToString(), "Enable alpha features", StringComparison.Ordinal));
                 Assert.DoesNotContain(FindWpfDescendants<CheckBox>(window), checkbox =>
@@ -178,12 +177,12 @@ public sealed partial class HostUiLayoutTests
             try
             {
                 window.Show();
-                window.ShowPreferencesSectionForScreenshot("Global permissions");
+                window.ShowPreferencesSectionForScreenshot("Device access");
                 window.UpdateLayout();
 
                 var selectedSection = Assert.Single(
                     FindWpfDescendants<Expander>(window),
-                    section => string.Equals(section.Header as string, "Global permissions", StringComparison.Ordinal));
+                    section => string.Equals(section.Header as string, "Device access", StringComparison.Ordinal));
                 Assert.True(selectedSection.IsExpanded);
             }
             finally
@@ -378,10 +377,9 @@ public sealed partial class HostUiLayoutTests
                     ["Appearance > Theme", "Appearance > Device"],
                     duplicates.Select(result => result.Breadcrumb));
 
-                var orderedPermissions = Search(view, "Allow paired devices to");
-                Assert.True(orderedPermissions.Length > 3);
-                Assert.Equal("Allow paired devices to control Voltura Air host", orderedPermissions[0].Label);
-                Assert.Equal("Allow paired devices to control pointer and keyboard", orderedPermissions[1].Label);
+                var accessSettings = Search(view, "access");
+                Assert.Contains(accessSettings, result => result.Label == "Default access for newly paired devices");
+                Assert.Single(Search(view, "Allow trusted devices to control the Voltura Air application"));
 
                 Assert.Empty(Search(view, "Save URL"));
                 Assert.Empty(Search(view, "Off by default"));
@@ -539,7 +537,7 @@ public sealed partial class HostUiLayoutTests
     }
 
     [Fact]
-    public void PreferencesSearchRebuildsConditionalRegistryAndRetainsQuery()
+    public void PreferencesSearchRebuildsRegistryAndRetainsQuery()
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -551,14 +549,9 @@ public sealed partial class HostUiLayoutTests
             using var appScope = new WpfApplicationScope();
             using var store = new TempPairingStore();
             using var injector = new SendInputInjector();
-            var powerController = new SearchPowerController { ScreenSaverAvailable = false };
             var manager = new PairingManager(store.Store);
             var webHost = new WebHostService(manager, new InputDispatcher(injector), isolatedTestMode: true);
-            var window = new MainWindow(
-                manager,
-                webHost,
-                clientUrl: null,
-                powerController: powerController);
+            var window = new MainWindow(manager, webHost, clientUrl: null);
             try
             {
                 window.Show();
@@ -566,16 +559,15 @@ public sealed partial class HostUiLayoutTests
                 window.UpdateLayout();
                 var initial = Assert.Single(FindWpfDescendants<PreferencesPageView>(window));
                 var initialPermissions = initial.PermissionsSection;
-                Assert.Empty(Search(initial, "screen saver"));
+                var initialResult = Assert.Single(Search(initial, "Default access for newly paired devices"));
 
-                powerController.ScreenSaverAvailable = true;
                 window.ShowPage(HostPage.Preferences);
                 window.UpdateLayout();
                 var rebuilt = Assert.Single(FindWpfDescendants<PreferencesPageView>(window));
 
-                Assert.Equal("screen saver", rebuilt.SearchQuery);
+                Assert.Equal("Default access for newly paired devices", rebuilt.SearchQuery);
                 var result = Assert.Single(rebuilt.SearchResults.Items.Cast<PreferenceSearchResult>());
-                Assert.Equal("Allow paired devices to start the screen saver", result.Label);
+                Assert.Equal(initialResult.Label, result.Label);
                 Assert.NotSame(initial, rebuilt);
                 Assert.NotSame(initialPermissions, rebuilt.PermissionsSection);
                 Assert.Same(

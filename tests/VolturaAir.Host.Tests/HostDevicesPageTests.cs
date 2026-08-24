@@ -330,7 +330,9 @@ public sealed partial class HostUiLayoutTests
         static (_, value) => (value, value ?? true),
         static (_, _) => true,
         static _ => DevicePointerProfile.DefaultPointerSpeed,
-        static (_, _, _) => true,
+        static (_, profile) => new DeviceAccessViewState(profile, DeviceAccessProfiles.GetBuiltInMatrix(profile)),
+        static (_, _, _) => new DeviceAccessViewState(DeviceAccessProfile.Custom, DeviceAccessProfiles.AllBlocked),
+        static (_, value) => (value, value ?? true),
         static _ => { },
         static () => { },
         static () => { });
@@ -348,6 +350,8 @@ public sealed partial class HostUiLayoutTests
         true,
         null,
         true,
+        DeviceAccessProfile.MyDevice,
         [],
+        new ProtectedFileFilterItem("client-a", null, true),
         false);
 }

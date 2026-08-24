@@ -233,7 +233,10 @@ internal sealed class CustomScreenCommandHandler(
         try
         {
             _ = powerController.DismissBlackoutIfActive();
-            if (!inputDispatcher.Dispatch(command.Value, out var outcome))
+            if (!inputDispatcher.Dispatch(
+                command.Value,
+                statusFactory.CanControlHostApplication(clientId),
+                out var outcome))
             {
                 return new(false, "action-unavailable", "This button action is unavailable.");
             }

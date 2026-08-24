@@ -19,6 +19,9 @@ public static class AppClientControlSettings
         return Volatile.Read(ref _enabled) != 0;
     }
 
+    public static bool AllowsDevice(DeviceAccessProfile accessProfile) =>
+        IsEnabled() && accessProfile is DeviceAccessProfile.MyDevice or DeviceAccessProfile.Custom;
+
     public static void SetEnabled(bool enabled)
     {
         var current = IsEnabled();

@@ -69,6 +69,14 @@ public sealed class WebHostPresentationLaunchTests : WebHostServiceTestBase
                 pairToken = token,
                 reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
             });
+            fixture.Manager.SetDevicePermission(
+                "client-launch-permission",
+                DevicePermissionKind.PresentationControl,
+                false);
+            using (var status = JsonDocument.Parse(await ReceiveTextAsync(socket)))
+            {
+                Assert.Equal("status", status.RootElement.GetProperty("type").GetString());
+            }
 
             var result = await SendAndReceiveAsync(socket, new
             {

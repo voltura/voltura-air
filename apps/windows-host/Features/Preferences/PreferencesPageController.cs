@@ -63,7 +63,7 @@ internal sealed class PreferencesPageController
         _customPointer = new CustomPointerSettingsSection(cursorOverrides, appLog, visuals, _preferenceVisuals, toasts, () => _isLoading);
         _presentation = new PresentationSettingsSection(cursorOverrides, appLog, visuals, _preferenceVisuals, toasts, () => _isLoading);
         _application = new ApplicationSettingsSection(appLog, visuals, _preferenceVisuals, () => _isLoading);
-        _permissions = new GlobalPermissionsSettingsSection(powerController, owner, visuals, _preferenceVisuals, () => _isLoading);
+        _permissions = new GlobalPermissionsSettingsSection(owner, visuals, _preferenceVisuals, () => _isLoading);
         _screenView = new ScreenViewSettingsSection(visuals, _preferenceVisuals, () => _isLoading);
         _developer = new DeveloperSettingsSection(owner, powerController, workstationLockPolicy, appLog, visuals, _preferenceVisuals, toasts, RefreshPreservingState);
     }

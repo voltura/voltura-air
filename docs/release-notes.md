@@ -6,6 +6,11 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.1.0
+
+- Added simpler device access profiles. Choose **My device** or **Remote controls** for new pairings, then customize any paired device from Devices. Existing devices keep their previous effective access as Custom, while application control and protected-file filtering remain separate. Remote controls devices cannot operate the Voltura Air application or change access settings through its UI.
+- The first authenticated connection now shows the device's access profile and opens that device's access controls when clicked. Later single-device connection notifications also include the current profile.
+
 ## v1.0.9
 
 - Fixed installed Voltura Air hosts so **Check for updates** appears in the tray menu before **Open product page**. If you use v1.0.8, install v1.0.9 manually once because v1.0.8 could not activate its updater.

@@ -1,8 +1,10 @@
 import { access, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { validateStableReleaseVersion } from "./release-tools.mjs";
 
 const catalogRelativePath = "docs/README.md";
+const releaseNotesRelativePath = "docs/release-notes.md";
 const ignoredDirectories = new Set([
   ".git",
   ".vs",
@@ -72,6 +74,16 @@ export async function checkDocumentationMap({
   const markdownFileSet = new Set(markdownFiles);
   for (const sourceFile of documentationFiles) {
     const contents = await readFile(path.join(root, sourceFile), "utf8");
+    if (sourceFile === releaseNotesRelativePath) {
+      const newestVersionHeading = /^##[ \t]+v(?<version>[^\r\n]*)$/mu.exec(contents);
+      if (newestVersionHeading) {
+        try {
+          validateStableReleaseVersion(newestVersionHeading.groups.version.trim());
+        } catch (error) {
+          errors.push(`${releaseNotesRelativePath}: ${error.message}`);
+        }
+      }
+    }
     if (markdownFileSet.has(sourceFile)) {
       for (const target of extractLocalLinkTargets(contents)) {
         const resolved = resolveTarget(root, sourceFile, target);

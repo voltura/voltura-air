@@ -179,7 +179,7 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 Assert.Equal(ScrollBarVisibility.Disabled, scroller.HorizontalScrollBarVisibility);
                 Assert.All(sections, section => Assert.False(section.IsExpanded));
                 var nestedSections = sections
-                    .Where(section => section.Header is "More about application logs" or "More about global permissions" or "More about text destinations" or "More about app-launch buttons" or "Windows locking")
+                    .Where(section => section.Header is "More about application logs" or "More about device access" or "More about text destinations" or "More about app-launch buttons" or "Windows locking")
                     .ToArray();
                 Assert.Equal(5, nestedSections.Length);
                 Assert.All(
@@ -722,7 +722,10 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
             var token = manager.CreatePairingToken();
             using var key = new PairingTestKey();
             Assert.True(manager.AcceptPairing("client-a", "Phone", token, reconnectPublicKey: key.PublicKey).Accepted);
-            Assert.True(manager.SetDevicePermissionOverrides("client-a", new DevicePermissionOverrides(AllowBlackoutDisplay: true, AllowUrlOpen: true)));
+            Assert.True(manager.SetDevicePermissionOverrides("client-a", new DevicePermissionOverrides(
+                AllowBlackoutDisplay: true,
+                AllowClipboardRead: false,
+                AllowUrlOpen: true)));
 
             var webHost = new WebHostService(
                 manager,
@@ -733,40 +736,59 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
             try
             {
                 window.Show();
+                window.ShowDeviceAccess("client-a");
                 window.ShowPage(HostPage.Devices);
                 window.UpdateLayout();
+                window.Dispatcher.Invoke(() => { }, DispatcherPriority.SystemIdle);
+
+                WaitForWpf(
+                    () => FindVisualDescendants<ComboBox>(window).Any(comboBox =>
+                        string.Equals(AutomationProperties.GetName(comboBox), "Access profile", StringComparison.Ordinal) &&
+                        comboBox.IsKeyboardFocusWithin),
+                    "device access profile focus");
+
+                var accessProfileSelector = FindVisualDescendants<ComboBox>(window)
+                    .Single(comboBox => string.Equals(
+                        AutomationProperties.GetName(comboBox),
+                        "Access profile",
+                        StringComparison.Ordinal));
+                Assert.True(accessProfileSelector.IsKeyboardFocusWithin);
+                Assert.Contains(
+                    FindVisualDescendants<TextBlock>(accessProfileSelector),
+                    text => text.Text == "Custom");
 
                 ExpandDevicePermissions(window);
                 WaitForWpf(() => FindPermissionButton(window, "Blackout display", "✓ Allow") is not null, "blackout display effective state");
 
                 var blackoutAllow = Assert.IsType<Button>(FindPermissionButton(window, "Blackout display", "✓ Allow"));
-                var clipboardUseGlobal = Assert.IsType<Button>(FindPermissionButton(window, "Read PC clipboard", "✓ Use global"));
                 var clipboardAllow = Assert.IsType<Button>(FindPermissionButton(window, "Read PC clipboard", "Allow"));
                 var clipboardBlock = Assert.IsType<Button>(FindPermissionButton(window, "Read PC clipboard", "✓ Block"));
                 Assert.Equal("✓ Allow", blackoutAllow.Content);
                 Assert.Equal("✓ Block", clipboardBlock.Content);
                 var choiceStyle = Assert.IsType<Style>(window.Resources["ChoiceStateButtonStyle"]);
-                Assert.Same(choiceStyle, clipboardUseGlobal.Style);
+                Assert.Same(choiceStyle, clipboardAllow.Style);
                 Assert.Same(window.Resources["StandardButtonStyle"], choiceStyle.BasedOn);
-                Assert.Equal(new Thickness(14, 6, 14, 6), clipboardUseGlobal.Padding);
-                Assert.Equal(112, clipboardUseGlobal.Width);
+                Assert.Equal(new Thickness(14, 6, 14, 6), clipboardAllow.Padding);
                 Assert.Equal(112, clipboardAllow.Width);
                 Assert.Equal(112, clipboardBlock.Width);
-                var permissionButtonY = clipboardUseGlobal.TranslatePoint(new Point(), window).Y;
-                Assert.InRange(Math.Abs(clipboardAllow.TranslatePoint(new Point(), window).Y - permissionButtonY), 0, 0.1);
+                var permissionButtonY = clipboardAllow.TranslatePoint(new Point(), window).Y;
                 Assert.InRange(Math.Abs(clipboardBlock.TranslatePoint(new Point(), window).Y - permissionButtonY), 0, 0.1);
                 Assert.Same(window.Resources["AccentBrush"], blackoutAllow.Background);
-                Assert.Same(window.Resources["AccentBrush"], clipboardUseGlobal.Background);
                 Assert.Same(window.Resources["AccentBrush"], clipboardBlock.BorderBrush);
-                Assert.Equal(new Thickness(2), clipboardBlock.BorderThickness);
+                Assert.Same(window.Resources["AccentBrush"], clipboardBlock.Background);
                 var urlAllow = Assert.IsType<Button>(FindPermissionButton(window, "Open web addresses", "✓ Allow"));
                 Assert.Equal("✓ Allow", urlAllow.Content);
+                Assert.IsType<Button>(FindPermissionButton(window, "Protected operating system items", "✓ Use global"));
+                Assert.IsType<Button>(FindPermissionButton(window, "Protected operating system items", "✓ Hide"));
 
                 var blackoutBlock = Assert.IsType<Button>(FindPermissionButton(window, "Blackout display", "Block"));
                 blackoutBlock.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 WaitForWpf(
                     () => manager.GetDevicePermissionOverrides("client-a").AllowBlackoutDisplay == false,
                     "blackout display block override");
+                WaitForWpf(
+                    () => FindPermissionButton(window, "Blackout display", "✓ Block") is not null,
+                    "blackout display selected block state");
                 var selectedBlackoutBlock = Assert.IsType<Button>(FindPermissionButton(window, "Blackout display", "✓ Block"));
                 Assert.Equal(112, selectedBlackoutBlock.Width);
                 Assert.Same(window.Resources["AccentBrush"], selectedBlackoutBlock.Background);
@@ -779,10 +801,99 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 WaitForWpf(
                     () => FindVisualDescendants<TextBlock>(window).Any(text => text.Text == "Presentation control"),
                     "graduated Presentation permission");
+                var refreshedAccessProfileSelector = FindVisualDescendants<ComboBox>(window)
+                    .Single(comboBox => string.Equals(
+                        AutomationProperties.GetName(comboBox),
+                        "Access profile",
+                        StringComparison.Ordinal));
+
+                Assert.True(manager.SetDeviceAccessProfile("client-a", DeviceAccessProfile.MyDevice));
+                WaitForWpf(
+                    () => Equals(refreshedAccessProfileSelector.SelectedValue, DeviceAccessProfile.MyDevice),
+                    "external built-in profile refresh");
+                Assert.True(manager.SetDevicePermissionOverrides(
+                    "client-a",
+                    manager.GetDevicePermissionOverrides("client-a") with { AllowScreenViewing = false }));
+                WaitForWpf(
+                    () => Equals(refreshedAccessProfileSelector.SelectedValue, DeviceAccessProfile.Custom) &&
+                        FindPermissionButton(window, "View PC screen", "✓ Block") is not null,
+                    "external permission materialization refresh");
             }
             finally
             {
                 window.Close();
+                DisposeWebHost(webHost);
+            }
+        });
+    }
+
+    [Fact]
+    public void ConcurrentInitialDeviceNoticesArePresentedSeriallyWithTheirOwnActions()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var firstKey = new PairingTestKey();
+            using var secondKey = new PairingTestKey();
+            using var inputInjector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            Assert.True(manager.AcceptPairing(
+                "first",
+                "First",
+                manager.CreatePairingToken(),
+                reconnectPublicKey: firstKey.PublicKey).Accepted);
+            Assert.True(manager.AcceptPairing(
+                "second",
+                "Second",
+                manager.CreatePairingToken(),
+                reconnectPublicKey: secondKey.PublicKey).Accepted);
+            var webHost = new WebHostService(
+                manager,
+                new InputDispatcher(inputInjector),
+                isolatedTestMode: true,
+                configureWebHost: builder => builder.UseTestServer());
+            using var first = manager.TrackConnection("first");
+            using var second = manager.TrackConnection("second");
+            var notifications = new List<(string Message, Action? Action)>();
+            var openedClientIds = new List<string>();
+            using var controller = new TrayConnectionFeedbackController(
+                Dispatcher.CurrentDispatcher,
+                manager,
+                webHost,
+                static _ => { },
+                static (_, _, _, _) => { },
+                static () => true,
+                (_, message, _, action) =>
+                {
+                    notifications.Add((message, action));
+                    return true;
+                },
+                static () => { },
+                openedClientIds.Add);
+            try
+            {
+                controller.Start();
+
+                WaitForWpf(() => notifications.Count == 1, "first initial device notice");
+                Assert.Contains("First uses", notifications[0].Message, StringComparison.Ordinal);
+                notifications[0].Action!();
+                Assert.Equal(["first"], openedClientIds);
+                controller.OnNotificationSlotAvailable();
+
+                WaitForWpf(() => notifications.Count == 2, "second initial device notice");
+                Assert.Contains("Second uses", notifications[1].Message, StringComparison.Ordinal);
+                notifications[1].Action!();
+                Assert.Equal(["first", "second"], openedClientIds);
+            }
+            finally
+            {
+                controller.Dispose();
                 DisposeWebHost(webHost);
             }
         });
@@ -1153,7 +1264,7 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
     {
         foreach (var card in FindVisualDescendants<Border>(root))
         {
-            if (card.DataContext is not DevicePermissionItem)
+            if (card.DataContext is not (DevicePermissionItem or ProtectedFileFilterItem))
             {
                 continue;
             }

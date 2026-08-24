@@ -4,6 +4,8 @@ using VolturaAir.Host.Ui;
 
 namespace VolturaAir.Host.Features.Devices;
 
+internal sealed record DeviceAccessProfileChoice(DeviceAccessProfile Profile, string DisplayName);
+
 internal sealed class DeviceListItem(
     string clientId,
     string name,
@@ -17,15 +19,25 @@ internal sealed class DeviceListItem(
     bool showModeButtons,
     bool? controlDepthOverride,
     bool controlDepth,
+    DeviceAccessProfile accessProfile,
     IReadOnlyList<DevicePermissionItem> permissions,
+    ProtectedFileFilterItem protectedFileFilter,
     bool isExpanded) : INotifyPropertyChanged
 {
+    private IReadOnlyList<DeviceAccessProfileChoice> ProfileChoices { get; } =
+    [
+        new(DeviceAccessProfile.MyDevice, DeviceAccessProfiles.GetDisplayName(DeviceAccessProfile.MyDevice)),
+        new(DeviceAccessProfile.RemoteControls, DeviceAccessProfiles.GetDisplayName(DeviceAccessProfile.RemoteControls)),
+        new(DeviceAccessProfile.Custom, DeviceAccessProfiles.GetDisplayName(DeviceAccessProfile.Custom))
+    ];
+
     private int _pointerSpeed = pointerSpeed;
     private bool _hasPointerSpeedOverride = hasPointerSpeedOverride;
     private bool? _showModeButtonsOverride = showModeButtonsOverride;
     private bool _showModeButtons = showModeButtons;
     private bool? _controlDepthOverride = controlDepthOverride;
     private bool _controlDepth = controlDepth;
+    private DeviceAccessProfile _accessProfile = accessProfile;
     private bool _isExpanded = isExpanded;
     private bool _isAppearanceExpanded;
     private bool _isTrackpadExpanded;
@@ -39,16 +51,18 @@ internal sealed class DeviceListItem(
     public bool IsConnected { get; } = isConnected;
     public string Activity { get; } = activity;
     public string Metadata { get; } = metadata;
+    public IReadOnlyList<DeviceAccessProfileChoice> AccessProfileChoices => ProfileChoices;
+    public DeviceAccessProfile AccessProfile => _accessProfile;
+    public string AccessProfileDisplayName => DeviceAccessProfiles.GetDisplayName(AccessProfile);
+    public IReadOnlyList<DevicePermissionItem> Permissions { get; } = permissions;
+    public ProtectedFileFilterItem ProtectedFileFilter { get; } = protectedFileFilter;
+
     public int PointerSpeed
     {
         get => _pointerSpeed;
         set
         {
-            if (_pointerSpeed == value)
-            {
-                return;
-            }
-
+            if (_pointerSpeed == value) return;
             _pointerSpeed = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(PointerSpeedHint));
@@ -59,7 +73,6 @@ internal sealed class DeviceListItem(
     public string PointerSpeedHint => HasPointerSpeedOverride
         ? $"Override active. Effective speed: {PointerSpeed}%."
         : $"Using global default: {PointerSpeed}%.";
-    public IReadOnlyList<DevicePermissionItem> Permissions { get; } = permissions;
     public bool? ShowModeButtonsOverride => _showModeButtonsOverride;
     public bool ShowModeButtons => _showModeButtons;
     public bool IsModeButtonsInherited => ShowModeButtonsOverride is null;
@@ -88,16 +101,13 @@ internal sealed class DeviceListItem(
     public string UseGlobalControlDepthLabel => IsControlDepthInherited ? "\u2713 Use global" : "Use global";
     public string EnableControlDepthLabel => IsControlDepthExplicitlyEnabled || (IsControlDepthInherited && ControlDepth) ? "\u2713 Enable" : "Enable";
     public string DisableControlDepthLabel => IsControlDepthExplicitlyDisabled || (IsControlDepthInherited && !ControlDepth) ? "\u2713 Disable" : "Disable";
+
     public bool IsExpanded
     {
         get => _isExpanded;
         set
         {
-            if (_isExpanded == value)
-            {
-                return;
-            }
-
+            if (_isExpanded == value) return;
             _isExpanded = value;
             OnPropertyChanged();
         }
@@ -108,11 +118,7 @@ internal sealed class DeviceListItem(
         get => _isTrackpadExpanded;
         set
         {
-            if (_isTrackpadExpanded == value)
-            {
-                return;
-            }
-
+            if (_isTrackpadExpanded == value) return;
             _isTrackpadExpanded = value;
             OnPropertyChanged();
         }
@@ -123,11 +129,7 @@ internal sealed class DeviceListItem(
         get => _isAppearanceExpanded;
         set
         {
-            if (_isAppearanceExpanded == value)
-            {
-                return;
-            }
-
+            if (_isAppearanceExpanded == value) return;
             _isAppearanceExpanded = value;
             OnPropertyChanged();
         }
@@ -138,11 +140,7 @@ internal sealed class DeviceListItem(
         get => _isPermissionsExpanded;
         set
         {
-            if (_isPermissionsExpanded == value)
-            {
-                return;
-            }
-
+            if (_isPermissionsExpanded == value) return;
             _isPermissionsExpanded = value;
             OnPropertyChanged();
         }
@@ -150,14 +148,25 @@ internal sealed class DeviceListItem(
 
     public PillBadgeTone StatusTone => IsConnected ? PillBadgeTone.Success : PillBadgeTone.Danger;
 
+    public void ApplyAccessProfile(DeviceAccessProfile profile, HostPermissionSet effectivePermissions)
+    {
+        if (_accessProfile != profile)
+        {
+            _accessProfile = profile;
+            OnPropertyChanged(nameof(AccessProfile));
+            OnPropertyChanged(nameof(AccessProfileDisplayName));
+        }
+
+        foreach (var permission in Permissions)
+        {
+            permission.SetAllowed(DeviceAccessProfiles.Read(effectivePermissions, permission.Kind));
+        }
+    }
+
     public void ApplyPointerSpeed(int pointerSpeedValue, bool hasOverride)
     {
         PointerSpeed = pointerSpeedValue;
-        if (_hasPointerSpeedOverride == hasOverride)
-        {
-            return;
-        }
-
+        if (_hasPointerSpeedOverride == hasOverride) return;
         _hasPointerSpeedOverride = hasOverride;
         OnPropertyChanged(nameof(HasPointerSpeedOverride));
         OnPropertyChanged(nameof(PointerSpeedHint));
@@ -165,48 +174,26 @@ internal sealed class DeviceListItem(
 
     public void ApplyShowModeButtons(bool? overrideValue, bool effectiveValue)
     {
-        if (_showModeButtonsOverride == overrideValue && _showModeButtons == effectiveValue)
-        {
-            return;
-        }
-
+        if (_showModeButtonsOverride == overrideValue && _showModeButtons == effectiveValue) return;
         _showModeButtonsOverride = overrideValue;
         _showModeButtons = effectiveValue;
-        OnPropertyChanged(nameof(ShowModeButtonsOverride));
-        OnPropertyChanged(nameof(ShowModeButtons));
-        OnPropertyChanged(nameof(IsModeButtonsInherited));
-        OnPropertyChanged(nameof(IsModeButtonsExplicitlyShown));
-        OnPropertyChanged(nameof(IsModeButtonsExplicitlyHidden));
-        OnPropertyChanged(nameof(ModeButtonsHint));
-        OnPropertyChanged(nameof(UseGlobalModeButtonsVisualState));
-        OnPropertyChanged(nameof(ShowModeButtonsVisualState));
-        OnPropertyChanged(nameof(HideModeButtonsVisualState));
-        OnPropertyChanged(nameof(UseGlobalModeButtonsLabel));
-        OnPropertyChanged(nameof(ShowModeButtonsLabel));
-        OnPropertyChanged(nameof(HideModeButtonsLabel));
+        NotifyProperties(
+            nameof(ShowModeButtonsOverride), nameof(ShowModeButtons), nameof(IsModeButtonsInherited),
+            nameof(IsModeButtonsExplicitlyShown), nameof(IsModeButtonsExplicitlyHidden), nameof(ModeButtonsHint),
+            nameof(UseGlobalModeButtonsVisualState), nameof(ShowModeButtonsVisualState), nameof(HideModeButtonsVisualState),
+            nameof(UseGlobalModeButtonsLabel), nameof(ShowModeButtonsLabel), nameof(HideModeButtonsLabel));
     }
 
     public void ApplyControlDepth(bool? overrideValue, bool effectiveValue)
     {
-        if (_controlDepthOverride == overrideValue && _controlDepth == effectiveValue)
-        {
-            return;
-        }
-
+        if (_controlDepthOverride == overrideValue && _controlDepth == effectiveValue) return;
         _controlDepthOverride = overrideValue;
         _controlDepth = effectiveValue;
-        OnPropertyChanged(nameof(ControlDepthOverride));
-        OnPropertyChanged(nameof(ControlDepth));
-        OnPropertyChanged(nameof(IsControlDepthInherited));
-        OnPropertyChanged(nameof(IsControlDepthExplicitlyEnabled));
-        OnPropertyChanged(nameof(IsControlDepthExplicitlyDisabled));
-        OnPropertyChanged(nameof(ControlDepthHint));
-        OnPropertyChanged(nameof(UseGlobalControlDepthVisualState));
-        OnPropertyChanged(nameof(EnableControlDepthVisualState));
-        OnPropertyChanged(nameof(DisableControlDepthVisualState));
-        OnPropertyChanged(nameof(UseGlobalControlDepthLabel));
-        OnPropertyChanged(nameof(EnableControlDepthLabel));
-        OnPropertyChanged(nameof(DisableControlDepthLabel));
+        NotifyProperties(
+            nameof(ControlDepthOverride), nameof(ControlDepth), nameof(IsControlDepthInherited),
+            nameof(IsControlDepthExplicitlyEnabled), nameof(IsControlDepthExplicitlyDisabled), nameof(ControlDepthHint),
+            nameof(UseGlobalControlDepthVisualState), nameof(EnableControlDepthVisualState), nameof(DisableControlDepthVisualState),
+            nameof(UseGlobalControlDepthLabel), nameof(EnableControlDepthLabel), nameof(DisableControlDepthLabel));
     }
 
     public void OpenAppearance()
@@ -237,90 +224,87 @@ internal sealed class DeviceListItem(
         IsPermissionsExpanded = false;
     }
 
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    private void NotifyProperties(params string[] propertyNames)
     {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        foreach (var propertyName in propertyNames) OnPropertyChanged(propertyName);
     }
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
 
 internal sealed class DevicePermissionItem(
     string clientId,
     DevicePermissionKind kind,
     string title,
-    bool? overrideValue,
-    bool inheritedAllow,
-    string positiveLabel = "Allow",
-    string negativeLabel = "Block") : INotifyPropertyChanged
+    bool allowed) : INotifyPropertyChanged
 {
-    private bool? _overrideValue = overrideValue;
+    private bool _allowed = allowed;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public string ClientId { get; } = clientId;
     public DevicePermissionKind Kind { get; } = kind;
     public string Title { get; } = title;
-    public bool? OverrideValue => _overrideValue;
-    public bool InheritedAllow { get; } = inheritedAllow;
-    public bool IsInherited => OverrideValue is null;
-    public bool IsExplicitAllow => OverrideValue == true;
-    public bool IsExplicitBlock => OverrideValue == false;
-    public bool IsInheritedAllow => IsInherited && InheritedAllow;
-    public bool IsInheritedBlock => IsInherited && !InheritedAllow;
-    public string UseGlobalVisualState => IsInherited ? "Selected" : "Default";
-    public string AllowVisualState => IsExplicitAllow ? "Selected" : IsInheritedAllow ? "Effective" : "Default";
-    public string BlockVisualState => IsExplicitBlock ? "Selected" : IsInheritedBlock ? "Effective" : "Default";
-    public string UseGlobalLabel => OverrideValue is null ? "✓ Use global" : "Use global";
-    public string AllowLabel => OverrideValue == true || (OverrideValue is null && InheritedAllow) ? $"✓ {positiveLabel}" : positiveLabel;
-    public string BlockLabel => OverrideValue == false || (OverrideValue is null && !InheritedAllow) ? $"✓ {negativeLabel}" : negativeLabel;
+    public bool Allowed => _allowed;
+    public string AllowVisualState => Allowed ? "Selected" : "Default";
+    public string BlockVisualState => Allowed ? "Default" : "Selected";
+    public string AllowLabel => Allowed ? "\u2713 Allow" : "Allow";
+    public string BlockLabel => Allowed ? "Block" : "\u2713 Block";
 
-    public void SetOverrideValue(bool? value)
+    public void SetAllowed(bool allowedValue)
     {
-        if (_overrideValue == value)
+        if (_allowed == allowedValue) return;
+        _allowed = allowedValue;
+        foreach (var propertyName in new[]
+        {
+            nameof(Allowed), nameof(AllowVisualState), nameof(BlockVisualState),
+            nameof(AllowLabel), nameof(BlockLabel)
+        })
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+    }
+}
+
+internal sealed class ProtectedFileFilterItem(
+    string clientId,
+    bool? overrideValue,
+    bool effectiveValue) : INotifyPropertyChanged
+{
+    private bool? _overrideValue = overrideValue;
+    private bool _effectiveValue = effectiveValue;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public string ClientId { get; } = clientId;
+    public bool? OverrideValue => _overrideValue;
+    public bool EffectiveValue => _effectiveValue;
+    public bool IsInherited => OverrideValue is null;
+    public string UseGlobalVisualState => IsInherited ? "Selected" : "Default";
+    public string HideVisualState => OverrideValue == true ? "Selected" : IsInherited && EffectiveValue ? "Effective" : "Default";
+    public string ShowVisualState => OverrideValue == false ? "Selected" : IsInherited && !EffectiveValue ? "Effective" : "Default";
+    public string UseGlobalLabel => IsInherited ? "\u2713 Use global" : "Use global";
+    public string HideLabel => OverrideValue == true || IsInherited && EffectiveValue ? "\u2713 Hide" : "Hide";
+    public string ShowLabel => OverrideValue == false || IsInherited && !EffectiveValue ? "\u2713 Show" : "Show";
+
+    public void Apply(bool? nextOverride, bool nextEffective)
+    {
+        if (_overrideValue == nextOverride && _effectiveValue == nextEffective)
         {
             return;
         }
 
-        _overrideValue = value;
-        OnPropertyChanged(nameof(OverrideValue));
-        OnPropertyChanged(nameof(IsInherited));
-        OnPropertyChanged(nameof(IsExplicitAllow));
-        OnPropertyChanged(nameof(IsExplicitBlock));
-        OnPropertyChanged(nameof(IsInheritedAllow));
-        OnPropertyChanged(nameof(IsInheritedBlock));
-        OnPropertyChanged(nameof(UseGlobalVisualState));
-        OnPropertyChanged(nameof(AllowVisualState));
-        OnPropertyChanged(nameof(BlockVisualState));
-        OnPropertyChanged(nameof(UseGlobalLabel));
-        OnPropertyChanged(nameof(AllowLabel));
-        OnPropertyChanged(nameof(BlockLabel));
+        _overrideValue = nextOverride;
+        _effectiveValue = nextEffective;
+        foreach (var propertyName in new[]
+        {
+            nameof(OverrideValue), nameof(EffectiveValue), nameof(IsInherited),
+            nameof(UseGlobalVisualState), nameof(HideVisualState), nameof(ShowVisualState),
+            nameof(UseGlobalLabel), nameof(HideLabel), nameof(ShowLabel)
+        })
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
-
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
-}
-
-internal enum DevicePermissionKind
-{
-    RemoteInput,
-    PcSleep,
-    VolumeControl,
-    PresentationControl,
-    RemoteAppLaunch,
-    UrlOpen,
-    PcLock,
-    BlackoutDisplay,
-    DisplayControl,
-    ScreenSaver,
-    AwakeControl,
-    ClipboardRead,
-    ScreenViewing,
-    PhoneWebcam,
-    FileBrowsing,
-    FileChanges,
-    HideProtectedFileSystemItems,
-    SignOut,
-    Restart,
-    Shutdown
 }

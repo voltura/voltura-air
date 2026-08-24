@@ -74,8 +74,10 @@
                             <ColumnDefinition Width="{DynamicResource GridSpaceMd}" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <CheckBox x:Name="AllowPairedDevicesCheckBox"
-                                  Content="Allow paired devices" />
+                        <TextBlock x:Name="AccessProfileHintText"
+                                   Text="Choose each device's Phone webcam permission in Devices."
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource MutedTextBrush}" />
                         <Button x:Name="RetryPreviewButton"
                                 Grid.Column="2"
                                 Content="Retry preview"

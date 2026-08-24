@@ -148,7 +148,7 @@ public sealed class WebHostPresentationReportTests : WebHostServiceTestBase
         string deviceName)
     {
         var token = fixture.Manager.CreatePairingToken();
-        return await SendAndReceiveAsync(socket, new
+        var accepted = await SendAndReceiveAsync(socket, new
         {
             type = "pair.hello",
             clientId,
@@ -156,5 +156,11 @@ public sealed class WebHostPresentationReportTests : WebHostServiceTestBase
             pairToken = token,
             reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
         });
+        fixture.Manager.SetDevicePermissionOverrides(
+            clientId,
+            DeviceAccessProfiles.ToCompleteOverrides(AppPermissionSettings.Load()));
+        using var status = JsonDocument.Parse(await ReceiveTextAsync(socket));
+        Assert.Equal("status", status.RootElement.GetProperty("type").GetString());
+        return accepted;
     }
 }

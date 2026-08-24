@@ -21,8 +21,8 @@ flowchart LR
   WebcamStream --> VirtualCamera["authenticated local frame pipe\nVoltura Air Webcam"]
   WebcamStream -->|"explicit audio only"| Cable["verified local VB-CABLE endpoint\nbounded decode and output"]
   Session --> Pairing["PairingManager\nshort-lived QR tokens\npaired-device records"]
-  Pairing --> Store[("pairing.json\nreconnect public keys\npermission overrides")]
-  Session --> Policy["HostStatusPayloadFactory\nhost + per-device permissions"]
+  Pairing --> Store[("pairing.json\nreconnect public keys\naccess profile + Custom matrix")]
+  Session --> Policy["HostStatusPayloadFactory\nresolved device permissions"]
   Session --> Handlers["Focused command handlers\ninput, text, clipboard,\nlaunch, URL, power, awake"]
   Session --> CustomHandler["CustomScreenCommandHandler\nassignment + revision + permission"]
   Session --> FileHandler["FileManagerCommandHandler\nbrowse/change permission + opaque references"]
@@ -125,7 +125,7 @@ flowchart TD
   FileRevision -- "true" --> FileAction["Windows Shell/file-system action\nunder signed-in user authority"]
 
   Dispatch --> Privileged["launch / URL / clipboard / power / awake / presentation / audio"]
-  Privileged --> SpecificPerm{"Specific host + per-device permission"}
+  Privileged --> SpecificPerm{"Specific resolved device permission"}
   SpecificPerm -- "false" --> RecoverableDeny["Recoverable denied result"]
   SpecificPerm -- "true" --> WindowsAction["Focused Windows API or allowlisted process action"]
 ```

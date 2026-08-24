@@ -1,9 +1,9 @@
 namespace VolturaAir.Host;
 
-internal sealed partial class WpfHostRuntime
+internal static class HostCommandLine
 {
 #if DEBUG
-    private static string? GetOption(string[] args, string name)
+    public static string? GetOption(string[] args, string name)
     {
         for (var index = 0; index < args.Length; index += 1)
         {
@@ -14,11 +14,11 @@ internal sealed partial class WpfHostRuntime
     }
 #endif
 
-    private static bool HasOption(string[] args, string name) =>
+    public static bool HasOption(string[] args, string name) =>
         args.Contains(name, StringComparer.OrdinalIgnoreCase);
 
 #if DEBUG
-    private static string ResolveIsolatedAutomationPath(
+    public static string ResolveIsolatedAutomationPath(
         string[] args,
         string requestedPath,
         string leafName)
@@ -46,7 +46,7 @@ internal sealed partial class WpfHostRuntime
         return expectedPath;
     }
 
-    private static void WritePairingUrlIfRequested(string[] args, string pairingUrl)
+    public static void WritePairingUrlIfRequested(string[] args, string pairingUrl)
     {
         var requestedPairingUrlFile = GetOption(args, "--pairing-url-file");
         if (string.IsNullOrWhiteSpace(requestedPairingUrlFile)) return;

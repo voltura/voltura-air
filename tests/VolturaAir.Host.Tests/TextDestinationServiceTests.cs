@@ -9,9 +9,9 @@ public sealed class TextDestinationServiceTests
         var approvedExecutable = @"C:\Tools\Writer.exe";
         var platform = new FakeTextDestinationPlatform(approvedExecutable);
         var settings = new TextDestinationSettings(TextDestinationMode.Managed, TextDestinationPreset.Custom, new() { [TextDestinationPreset.Custom] = approvedExecutable });
-        var service = new TextDestinationService(new InputDispatcher(injector), injector, platform, () => settings);
+        var service = new TextDestinationService(new InputDispatcher(injector), platform, () => settings);
 
-        var result = await service.DeliverAsync("Hello", sendEnter: false, CancellationToken.None);
+        var result = await service.DeliverAsync("Hello", sendEnter: false, allowHostApplicationControl: true, CancellationToken.None);
 
         Assert.True(result.Succeeded);
         Assert.Equal([approvedExecutable], platform.FindRunningWindowExecutables);
@@ -21,16 +21,43 @@ public sealed class TextDestinationServiceTests
     }
 
     [Fact]
+    public async Task ManagedDestinationCannotInjectIntoTheHostApplicationWhenDeviceControlIsBlocked()
+    {
+        using var injector = new FakeInputInjector();
+        var approvedExecutable = @"C:\Tools\VolturaAir.exe";
+        var platform = new FakeTextDestinationPlatform(approvedExecutable)
+        {
+            HostApplicationWindow = true,
+            RunningWindow = (nint)1
+        };
+        var settings = new TextDestinationSettings(
+            TextDestinationMode.Managed,
+            TextDestinationPreset.Custom,
+            new() { [TextDestinationPreset.Custom] = approvedExecutable });
+        var service = new TextDestinationService(new InputDispatcher(injector), platform, () => settings);
+
+        var result = await service.DeliverAsync(
+            "Do not inject",
+            sendEnter: true,
+            allowHostApplicationControl: false,
+            CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("VAIR-TEXT-HOST-MANAGED", result.Code);
+        Assert.Empty(injector.Events);
+    }
+
+    [Fact]
     public async Task StartedWordDraftDoesNotRequireClipboardAccess()
     {
         using var injector = new FakeInputInjector();
         var platform = new FakeTextDestinationPlatform(@"C:\Office\WINWORD.EXE") { ClipboardAvailable = false };
         var settings = new TextDestinationSettings(TextDestinationMode.Managed, TextDestinationPreset.Word, null);
-        var service = new TextDestinationService(new InputDispatcher(injector), injector, platform, () => settings);
+        var service = new TextDestinationService(new InputDispatcher(injector), platform, () => settings);
         string? draftPath = null;
         try
         {
-            var result = await service.DeliverAsync("Important number", sendEnter: false, CancellationToken.None);
+            var result = await service.DeliverAsync("Important number", sendEnter: false, allowHostApplicationControl: true, CancellationToken.None);
 
             Assert.True(result.Succeeded);
             Assert.Empty(platform.ClipboardWrites);
@@ -49,11 +76,11 @@ public sealed class TextDestinationServiceTests
         using var injector = new FakeInputInjector();
         var platform = new FakeTextDestinationPlatform(@"C:\Tools\notepad++.exe") { ClipboardAvailable = false, RunningWindow = (nint)42 };
         var settings = new TextDestinationSettings(TextDestinationMode.Managed, TextDestinationPreset.NotepadPlusPlus, null);
-        var service = new TextDestinationService(new InputDispatcher(injector), injector, platform, () => settings);
+        var service = new TextDestinationService(new InputDispatcher(injector), platform, () => settings);
         string? draftPath = null;
         try
         {
-            var result = await service.DeliverAsync("Important number", sendEnter: false, CancellationToken.None);
+            var result = await service.DeliverAsync("Important number", sendEnter: false, allowHostApplicationControl: true, CancellationToken.None);
 
             Assert.True(result.Succeeded);
             Assert.Equal("pasted", result.Kind);
@@ -75,11 +102,11 @@ public sealed class TextDestinationServiceTests
         using var injector = new FakeInputInjector();
         var platform = new FakeTextDestinationPlatform("notepad.exe") { ClipboardAvailable = false, RunningWindow = (nint)42 };
         var settings = new TextDestinationSettings(TextDestinationMode.Managed, TextDestinationPreset.Notepad, null);
-        var service = new TextDestinationService(new InputDispatcher(injector), injector, platform, () => settings);
+        var service = new TextDestinationService(new InputDispatcher(injector), platform, () => settings);
         string? draftPath = null;
         try
         {
-            var result = await service.DeliverAsync("Important number", sendEnter: false, CancellationToken.None);
+            var result = await service.DeliverAsync("Important number", sendEnter: false, allowHostApplicationControl: true, CancellationToken.None);
 
             Assert.True(result.Succeeded);
             Assert.Equal("Text was added to a new Notepad document.", result.Message);
@@ -101,9 +128,9 @@ public sealed class TextDestinationServiceTests
         using var injector = new FakeInputInjector();
         var platform = new FakeTextDestinationPlatform(@"C:\Tools\Writer.exe");
         var settings = new TextDestinationSettings(TextDestinationMode.Clipboard, TextDestinationPreset.Notepad, null);
-        var service = new TextDestinationService(new InputDispatcher(injector), injector, platform, () => settings);
+        var service = new TextDestinationService(new InputDispatcher(injector), platform, () => settings);
 
-        var result = await service.DeliverAsync("Clipboard only", sendEnter: false, CancellationToken.None);
+        var result = await service.DeliverAsync("Clipboard only", sendEnter: false, allowHostApplicationControl: true, CancellationToken.None);
 
         Assert.True(result.Succeeded);
         Assert.Equal("clipboard", result.Kind);
@@ -118,9 +145,9 @@ public sealed class TextDestinationServiceTests
         using var injector = new FakeInputInjector();
         var platform = new FakeTextDestinationPlatform(@"C:\Tools\Writer.exe") { IsForegroundResult = false };
         var settings = new TextDestinationSettings(TextDestinationMode.Managed, TextDestinationPreset.Custom, new() { [TextDestinationPreset.Custom] = @"C:\Tools\Writer.exe" });
-        var service = new TextDestinationService(new InputDispatcher(injector), injector, platform, () => settings);
+        var service = new TextDestinationService(new InputDispatcher(injector), platform, () => settings);
 
-        var result = await service.DeliverAsync("Clipboard fallback", sendEnter: false, CancellationToken.None);
+        var result = await service.DeliverAsync("Clipboard fallback", sendEnter: false, allowHostApplicationControl: true, CancellationToken.None);
 
         Assert.True(result.Succeeded);
         Assert.Equal("clipboard", result.Kind);
@@ -158,6 +185,7 @@ public sealed class TextDestinationServiceTests
     {
         public bool ClipboardAvailable { get; init; } = true;
         public bool IsForegroundResult { get; init; } = true;
+        public bool HostApplicationWindow { get; init; }
         public nint? RunningWindow { get; init; }
         public List<string> ClipboardWrites { get; } = [];
         public List<string> FindRunningWindowExecutables { get; } = [];
@@ -173,6 +201,7 @@ public sealed class TextDestinationServiceTests
         public Task<nint?> WaitForWindowAsync(string executable, TimeSpan timeout, CancellationToken cancellationToken) => Task.FromResult<nint?>((nint)1);
         public bool TryActivate(nint window) => true;
         public bool IsForeground(nint window) => IsForegroundResult;
+        public bool IsHostApplicationWindow(nint window) => HostApplicationWindow;
         public bool IsElevatedAboveHost(nint window) => false;
         public bool TrySetClipboardText(string text)
         {

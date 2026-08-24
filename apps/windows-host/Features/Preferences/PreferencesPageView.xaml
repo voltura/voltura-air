@@ -212,7 +212,7 @@
                                       Spacing="{DynamicResource SpaceMd}" />
             </Expander>
             <Expander x:Name="PermissionsSection"
-                      Header="Global permissions"
+                      Header="Device access"
                       IsExpanded="False"
                       Style="{DynamicResource PreferencesAccordionStyle}">
                 <ui:SpacingStackPanel x:Name="PermissionsContent"

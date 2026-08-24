@@ -36,10 +36,10 @@ public sealed partial class HostUiLayoutTests
                     .Single(section => string.Equals(section.Header as string, "Application", StringComparison.Ordinal));
                 var applicationLogDetails = FindWpfDescendants<Expander>(application)
                     .Single(section => string.Equals(section.Header as string, "More about application logs", StringComparison.Ordinal));
-                var globalPermissions = FindWpfDescendants<Expander>(window)
-                    .Single(section => string.Equals(section.Header as string, "Global permissions", StringComparison.Ordinal));
-                var globalPermissionDetails = FindWpfDescendants<Expander>(globalPermissions)
-                    .Single(section => string.Equals(section.Header as string, "More about global permissions", StringComparison.Ordinal));
+                var deviceAccess = FindWpfDescendants<Expander>(window)
+                    .Single(section => string.Equals(section.Header as string, "Device access", StringComparison.Ordinal));
+                var deviceAccessDetails = FindWpfDescendants<Expander>(deviceAccess)
+                    .Single(section => string.Equals(section.Header as string, "More about device access", StringComparison.Ordinal));
                 var textDestination = FindWpfDescendants<Expander>(window)
                     .Single(section => string.Equals(section.Header as string, "Text destination", StringComparison.Ordinal));
                 textDestination.IsExpanded = true;
@@ -63,8 +63,8 @@ public sealed partial class HostUiLayoutTests
 
                 Assert.False(applicationLogDetails.IsExpanded);
                 Assert.Same(nestedStyle, applicationLogDetails.Style);
-                Assert.False(globalPermissionDetails.IsExpanded);
-                Assert.Same(nestedStyle, globalPermissionDetails.Style);
+                Assert.False(deviceAccessDetails.IsExpanded);
+                Assert.Same(nestedStyle, deviceAccessDetails.Style);
                 Assert.False(details.IsExpanded);
                 Assert.Same(nestedStyle, details.Style);
                 Assert.Same(nestedStyle, appLaunchDetails.Style);
@@ -74,9 +74,9 @@ public sealed partial class HostUiLayoutTests
                 application.IsExpanded = true;
                 SettleLayout(window);
                 Assert.Equal(expectedGap, GetGapBefore(applicationLogDetails), 5);
-                globalPermissions.IsExpanded = true;
+                deviceAccess.IsExpanded = true;
                 SettleLayout(window);
-                Assert.Equal(expectedGap, GetGapBefore(globalPermissionDetails), 5);
+                Assert.Equal(expectedGap, GetGapBefore(deviceAccessDetails), 5);
                 appLaunch.IsExpanded = true;
                 SettleLayout(window);
                 Assert.Equal(expectedGap, GetGapBefore(appLaunchDetails), 5);
@@ -93,8 +93,8 @@ public sealed partial class HostUiLayoutTests
                     FindWpfDescendants<Button>(appLaunch),
                     button => string.Equals(button.Content?.ToString(), "More about app-launch buttons", StringComparison.Ordinal));
                 Assert.DoesNotContain(
-                    FindWpfDescendants<Button>(globalPermissions),
-                    button => string.Equals(button.Content?.ToString(), "More about global permissions", StringComparison.Ordinal));
+                    FindWpfDescendants<Button>(deviceAccess),
+                    button => string.Equals(button.Content?.ToString(), "More about device access", StringComparison.Ordinal));
             }
             finally
             {

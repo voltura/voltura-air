@@ -159,13 +159,19 @@ removal work the same way as Direct LAN. Initial Direct connections use a
 network inspection can add latency without causing an early failure.
 
 Paired devices are remembered until removed or their browser data is cleared.
+New pairings receive the **My device** or **Remote controls** access profile selected
+in Preferences. Existing devices retain their effective access as **Custom**, and
+each device can be changed or customized from Devices. Access profiles do not
+change pairing links, QR data, tokens, authentication, or protocol messages. The
+disabled-by-default permission to control the Voltura Air window or tray and the
+protected-file filter remain separate from profiles.
 The optional **View PC screen** tool requires Screen viewing permission on the
 PC before a paired phone, tablet, or browser can use it. Direct physical mouse
 and keyboard control from another computer also requires Pointer and keyboard
 permission. **Files on PC** separately requires Browse and open files permission;
 file-changing actions also require Change files permission.
 **Phone webcam** requires Enhanced Direct or Relay, an enabled virtual camera, and
-the separate default-off Phone webcam permission for the paired device.
+the effective Phone webcam permission for the paired device.
 
 ## Trust, privacy, and distribution
 

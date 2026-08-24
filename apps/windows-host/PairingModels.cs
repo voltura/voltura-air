@@ -14,7 +14,11 @@ public sealed record PairingRecord(
     string Browser = "",
     string DisplayMode = "",
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? HostIdentityFingerprint = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [property: JsonConverter(typeof(NullableDeviceAccessProfileJsonConverter))]
+    DeviceAccessProfile? AccessProfile = null,
     DevicePermissionOverrides? PermissionOverrides = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? InitialAccessNoticePending = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? PointerSpeedOverride = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ShowModeButtonsOverride = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ControlDepthOverride = null,
@@ -33,6 +37,7 @@ public sealed record PairedDeviceStatus(
     string Browser,
     string DisplayMode,
     string? HostIdentityFingerprint,
+    DeviceAccessProfile AccessProfile,
     DevicePermissionOverrides PermissionOverrides,
     int? PointerSpeedOverride,
     int PointerSpeed,
@@ -64,6 +69,16 @@ public static class DevicePointerProfile
 public sealed class PairingRevokedEventArgs(string? clientId) : EventArgs
 {
     public string? ClientId { get; } = clientId;
+}
+
+public sealed record InitialDeviceConnectionNotice(
+    string ClientId,
+    string DeviceName,
+    DeviceAccessProfile AccessProfile);
+
+public sealed class InitialDeviceConnectionEventArgs(InitialDeviceConnectionNotice notice) : EventArgs
+{
+    public InitialDeviceConnectionNotice Notice { get; } = notice;
 }
 
 public sealed record PairingResult(bool Accepted, string Reason);

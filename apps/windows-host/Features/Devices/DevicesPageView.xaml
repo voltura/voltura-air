@@ -40,6 +40,9 @@
                                     <ui:PillBadge x:Name="ConnectionStatusPill"
                                                   Content="{Binding Status}"
                                                   Tone="{Binding StatusTone}" />
+                                    <TextBlock Text="{Binding AccessProfileDisplayName, StringFormat=Access: {0}}"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource MutedTextBrush}" />
                                     <TextBlock Text="{Binding Activity}"
                                                FontSize="12"
                                                Foreground="{DynamicResource MutedTextBrush}"
@@ -150,7 +153,26 @@
                                       IsExpanded="{Binding IsPermissionsExpanded, Mode=TwoWay}"
                                       Expanded="OnPermissionsExpanded"
                                       Style="{DynamicResource PreferencesNestedAccordionStyle}">
-                                <ItemsControl ItemsSource="{Binding Permissions}">
+                                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceMd}">
+                                    <TextBlock Text="Access profile"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextBrush}" />
+                                    <ComboBox x:Name="AccessProfileSelector"
+                                              Width="240"
+                                              HorizontalAlignment="Left"
+                                              ItemsSource="{Binding AccessProfileChoices}"
+                                              SelectedValuePath="Profile"
+                                              SelectedValue="{Binding AccessProfile, Mode=OneWay}"
+                                              SelectionChanged="OnAccessProfileChanged"
+                                              Style="{DynamicResource ModernComboBoxStyle}"
+                                              AutomationProperties.Name="Access profile">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding DisplayName}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <ItemsControl ItemsSource="{Binding Permissions}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <ui:SpacingWrapPanel HorizontalSpacing="{DynamicResource SpaceSm}"
@@ -172,11 +194,6 @@
                                                                TextWrapping="Wrap" />
                                                     <ui:SpacingWrapPanel HorizontalSpacing="{DynamicResource SpaceXs}"
                                                                          VerticalSpacing="{DynamicResource SpaceXs}">
-                                                        <Button Content="{Binding UseGlobalLabel}"
-                                                                Width="{StaticResource PermissionChoiceButtonWidth}"
-                                                                Tag="{Binding UseGlobalVisualState}"
-                                                                Style="{DynamicResource ChoiceStateButtonStyle}"
-                                                                Click="OnUseGlobalPermission" />
                                                         <Button Content="{Binding AllowLabel}"
                                                                 Width="{StaticResource PermissionChoiceButtonWidth}"
                                                                 Tag="{Binding AllowVisualState}"
@@ -192,7 +209,40 @@
                                             </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                                    </ItemsControl>
+                                    <Border Width="390"
+                                            Padding="14"
+                                            Background="{DynamicResource SurfaceBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="{DynamicResource RadiusMedium}"
+                                            DataContext="{Binding ProtectedFileFilter}">
+                                        <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
+                                            <TextBlock Text="Protected operating system items"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextBrush}"
+                                                       TextWrapping="Wrap" />
+                                            <ui:SpacingWrapPanel HorizontalSpacing="{DynamicResource SpaceXs}"
+                                                                 VerticalSpacing="{DynamicResource SpaceXs}">
+                                                <Button Content="{Binding UseGlobalLabel}"
+                                                        Width="{StaticResource PermissionChoiceButtonWidth}"
+                                                        Tag="{Binding UseGlobalVisualState}"
+                                                        Style="{DynamicResource ChoiceStateButtonStyle}"
+                                                        Click="OnUseGlobalProtectedFileFilter" />
+                                                <Button Content="{Binding HideLabel}"
+                                                        Width="{StaticResource PermissionChoiceButtonWidth}"
+                                                        Tag="{Binding HideVisualState}"
+                                                        Style="{DynamicResource ChoiceStateButtonStyle}"
+                                                        Click="OnHideProtectedFiles" />
+                                                <Button Content="{Binding ShowLabel}"
+                                                        Width="{StaticResource PermissionChoiceButtonWidth}"
+                                                        Tag="{Binding ShowVisualState}"
+                                                        Style="{DynamicResource ChoiceStateButtonStyle}"
+                                                        Click="OnShowProtectedFiles" />
+                                            </ui:SpacingWrapPanel>
+                                        </ui:SpacingStackPanel>
+                                    </Border>
+                                </ui:SpacingStackPanel>
                             </Expander>
                         </ui:SpacingStackPanel>
                     </Expander>

@@ -268,6 +268,11 @@ public sealed class WebHostCustomScreenTests : WebHostServiceTestBase
             pairToken = fixture.Manager.CreatePairingToken(),
             reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
         });
+        fixture.Manager.SetDevicePermissionOverrides(
+            clientId,
+            DeviceAccessProfiles.ToCompleteOverrides(AppPermissionSettings.Load()));
+        using var status = System.Text.Json.JsonDocument.Parse(await ReceiveTextAsync(socket));
+        Assert.Equal("status", status.RootElement.GetProperty("type").GetString());
         var payload = new System.Text.Json.Nodes.JsonObject
         {
             ["type"] = "custom.screen.invoke",

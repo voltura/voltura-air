@@ -35,8 +35,7 @@ internal static class CustomScreenValidationAnalyzer
         IReadOnlyList<KnownAppProfileSummary> knownApplications,
         IReadOnlyList<AppLaunchActionSummary> approvedAppActions,
         IReadOnlyList<CustomScreenLayoutIssue>? layoutIssues,
-        string? layoutFailure = null,
-        HostPermissionSet? permissions = null)
+        string? layoutFailure = null)
     {
         var findings = new List<CustomScreenValidationFinding>();
         var passed = new List<string>();
@@ -49,7 +48,6 @@ internal static class CustomScreenValidationAnalyzer
         var approvedActions = approvedAppActions
             .Select(action => action.Id)
             .ToHashSet(StringComparer.Ordinal);
-        var currentPermissions = permissions ?? HostPermissions.DefaultGlobal;
         var reportedApplications = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var section in draft.Sections)
@@ -133,11 +131,6 @@ internal static class CustomScreenValidationAnalyzer
                 }
             }
         }
-
-        CustomScreenPermissionValidation.AddWarnings(
-            draft,
-            currentPermissions,
-            findings);
 
         if (!CustomScreenValidator.TryValidate(draft, out var saveError) &&
             !specificSaveIssue)

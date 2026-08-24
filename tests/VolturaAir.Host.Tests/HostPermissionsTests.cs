@@ -5,259 +5,161 @@ namespace VolturaAir.Host.Tests;
 public sealed class HostPermissionsTests
 {
     [Fact]
-    public void GlobalDefaultBlocksSleep()
+    public void MyDeviceAllowsEveryCatalogPermission()
     {
-        Assert.True(HostPermissions.DefaultGlobal.AllowRemoteInput);
-        Assert.False(HostPermissions.DefaultGlobal.AllowPcSleep);
-        Assert.True(HostPermissions.DefaultGlobal.AllowVolumeControl);
-        Assert.True(HostPermissions.DefaultGlobal.AllowPresentationControl);
-        Assert.True(HostPermissions.DefaultGlobal.AllowRemoteAppLaunch);
-        Assert.False(HostPermissions.DefaultGlobal.AllowUrlOpen);
-        Assert.True(HostPermissions.DefaultGlobal.AllowPcLock);
-        Assert.True(HostPermissions.DefaultGlobal.AllowBlackoutDisplay);
-        Assert.False(HostPermissions.DefaultGlobal.AllowDisplayControl);
-        Assert.True(HostPermissions.DefaultGlobal.AllowScreenSaver);
-        Assert.False(HostPermissions.DefaultGlobal.AllowAwakeControl);
-        Assert.False(HostPermissions.DefaultGlobal.AllowPhoneWebcam);
-        Assert.False(HostPermissions.DefaultGlobal.AllowSignOut);
-        Assert.False(HostPermissions.DefaultGlobal.AllowRestart);
-        Assert.False(HostPermissions.DefaultGlobal.AllowShutdown);
-        Assert.False(HostPermissions.DefaultGlobal.AllowFileBrowsing);
-        Assert.False(HostPermissions.DefaultGlobal.AllowFileChanges);
-        Assert.True(HostPermissions.DefaultGlobal.HideProtectedFileSystemItems);
+        Assert.Equal(19, DeviceAccessProfiles.Permissions.Count);
+        Assert.All(
+            DeviceAccessProfiles.Permissions,
+            permission => Assert.True(permission.Read(DeviceAccessProfiles.MyDevice), permission.PersistedKey));
     }
 
     [Fact]
-    public void DevicePhoneWebcamOverrideWinsOverGlobal()
+    public void RemoteControlsUsesExactWhitelistAndBlocksComplement()
     {
-        var allowed = HostPermissions.Resolve(
-            new HostPermissionSet(AllowPhoneWebcam: false),
-            new DevicePermissionOverrides(AllowPhoneWebcam: true));
-        var blocked = HostPermissions.Resolve(
-            new HostPermissionSet(AllowPhoneWebcam: true),
-            new DevicePermissionOverrides(AllowPhoneWebcam: false));
+        var expected = new HashSet<DevicePermissionKind>
+        {
+            DevicePermissionKind.RemoteInput,
+            DevicePermissionKind.VolumeControl,
+            DevicePermissionKind.PresentationControl,
+            DevicePermissionKind.RemoteAppLaunch,
+            DevicePermissionKind.PcLock,
+            DevicePermissionKind.BlackoutDisplay,
+            DevicePermissionKind.ScreenSaver
+        };
 
-        Assert.True(allowed.AllowPhoneWebcam);
-        Assert.False(blocked.AllowPhoneWebcam);
+        foreach (var permission in DeviceAccessProfiles.Permissions)
+        {
+            Assert.Equal(
+                expected.Contains(permission.Kind),
+                permission.Read(DeviceAccessProfiles.RemoteControls));
+        }
+
+        Assert.Equal(expected.Count, DeviceAccessProfiles.Permissions.Count(permission => permission.RemoteControlsAllowed));
     }
 
     [Fact]
-    public void DeviceFilePermissionsOverrideTheirSeparateGlobalDefaults()
+    public void ProtectedFileFilteringIsOutsideProfiles()
+    {
+        Assert.DoesNotContain(
+            DeviceAccessProfiles.Permissions,
+            permission => permission.PersistedKey == "hideProtectedFileSystemItems");
+        Assert.True(DeviceAccessProfiles.MyDevice.HideProtectedFileSystemItems);
+        Assert.True(DeviceAccessProfiles.RemoteControls.HideProtectedFileSystemItems);
+
+        var effective = HostPermissions.Resolve(
+            DeviceAccessProfile.RemoteControls,
+            new DevicePermissionOverrides(HideProtectedFileSystemItems: false),
+            HostPermissions.DefaultGlobal);
+
+        Assert.False(effective.HideProtectedFileSystemItems);
+        Assert.True(effective.AllowRemoteInput);
+    }
+
+    [Fact]
+    public void HostWindowAndTrayControlIsNotAProfilePermission()
+    {
+        Assert.Null(typeof(HostPermissionSet).GetProperty("AllowClientControl"));
+        Assert.Null(typeof(DevicePermissionOverrides).GetProperty("AllowClientControl"));
+        Assert.DoesNotContain(
+            DeviceAccessProfiles.Permissions,
+            permission => permission.PersistedKey.Contains("clientControl", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void MissingCustomValueFailsEntireMatrixClosed()
     {
         var effective = HostPermissions.Resolve(
-            new HostPermissionSet(AllowFileBrowsing: false, AllowFileChanges: true, HideProtectedFileSystemItems: true),
-            new DevicePermissionOverrides(AllowFileBrowsing: true, AllowFileChanges: false, HideProtectedFileSystemItems: false));
+            DeviceAccessProfile.Custom,
+            new DevicePermissionOverrides(AllowRemoteInput: true),
+            HostPermissions.DefaultGlobal);
 
-        Assert.True(effective.AllowFileBrowsing);
-        Assert.False(effective.AllowFileChanges);
+        Assert.All(
+            DeviceAccessProfiles.Permissions,
+            permission => Assert.False(permission.Read(effective), permission.PersistedKey));
+    }
+
+    [Fact]
+    public void UnknownProfileAndPermissionFailClosed()
+    {
+        var effective = HostPermissions.Resolve(
+            DeviceAccessProfile.Invalid,
+            DeviceAccessProfiles.ToCompleteOverrides(DeviceAccessProfiles.MyDevice),
+            HostPermissions.DefaultGlobal);
+
+        Assert.All(
+            DeviceAccessProfiles.Permissions,
+            permission => Assert.False(permission.Read(effective), permission.PersistedKey));
+        Assert.False(DeviceAccessProfiles.Read(effective, (DevicePermissionKind)int.MaxValue));
+    }
+
+    [Fact]
+    public void LegacyResolverPreservesGlobalAndPerDevicePrecedence()
+    {
+        var global = HostPermissions.DefaultGlobal with
+        {
+            AllowRemoteInput = false,
+            AllowPcSleep = true,
+            HideProtectedFileSystemItems = true
+        };
+        var effective = HostPermissions.ResolveLegacy(
+            global,
+            new DevicePermissionOverrides(
+                AllowRemoteInput: true,
+                AllowPcSleep: false,
+                HideProtectedFileSystemItems: false));
+
+        Assert.True(effective.AllowRemoteInput);
+        Assert.False(effective.AllowPcSleep);
         Assert.False(effective.HideProtectedFileSystemItems);
     }
 
     [Fact]
-    public void DeviceInheritsGlobalByDefault()
-    {
-        var globallyAllowed = HostPermissions.Resolve(new HostPermissionSet(AllowPcSleep: true), new DevicePermissionOverrides());
-        var globallyBlocked = HostPermissions.Resolve(new HostPermissionSet(AllowPcSleep: false), new DevicePermissionOverrides());
-
-        Assert.True(globallyAllowed.AllowPcSleep);
-        Assert.False(globallyBlocked.AllowPcSleep);
-    }
-
-    [Fact]
-    public void DeviceInheritsGlobalRemoteAppLaunchByDefault()
-    {
-        var globallyAllowed = HostPermissions.Resolve(new HostPermissionSet(AllowRemoteAppLaunch: true), new DevicePermissionOverrides());
-        var globallyBlocked = HostPermissions.Resolve(new HostPermissionSet(AllowRemoteAppLaunch: false), new DevicePermissionOverrides());
-
-        Assert.True(globallyAllowed.AllowRemoteAppLaunch);
-        Assert.False(globallyBlocked.AllowRemoteAppLaunch);
-    }
-
-    [Fact]
-    public void DevicePresentationOverrideWinsOverGlobal()
-    {
-        var allowed = HostPermissions.Resolve(
-            new HostPermissionSet(AllowPresentationControl: false),
-            new DevicePermissionOverrides(AllowPresentationControl: true));
-        var blocked = HostPermissions.Resolve(
-            new HostPermissionSet(AllowPresentationControl: true),
-            new DevicePermissionOverrides(AllowPresentationControl: false));
-
-        Assert.True(allowed.AllowPresentationControl);
-        Assert.False(blocked.AllowPresentationControl);
-    }
-
-    [Fact]
-    public void DeviceRemoteAppLaunchOverrideWinsOverGlobal()
-    {
-        var allowed = HostPermissions.Resolve(
-            new HostPermissionSet(AllowRemoteAppLaunch: false),
-            new DevicePermissionOverrides(AllowRemoteAppLaunch: true));
-        var blocked = HostPermissions.Resolve(
-            new HostPermissionSet(AllowRemoteAppLaunch: true),
-            new DevicePermissionOverrides(AllowRemoteAppLaunch: false));
-
-        Assert.True(allowed.AllowRemoteAppLaunch);
-        Assert.False(blocked.AllowRemoteAppLaunch);
-    }
-
-    [Fact]
-    public void DeviceUrlOpenOverrideWinsOverGlobal()
-    {
-        var allowed = HostPermissions.Resolve(
-            new HostPermissionSet(AllowUrlOpen: false),
-            new DevicePermissionOverrides(AllowUrlOpen: true));
-        var blocked = HostPermissions.Resolve(
-            new HostPermissionSet(AllowUrlOpen: true),
-            new DevicePermissionOverrides(AllowUrlOpen: false));
-
-        Assert.True(allowed.AllowUrlOpen);
-        Assert.False(blocked.AllowUrlOpen);
-    }
-
-    [Fact]
-    public void DeviceInheritsGlobalVolumeControlByDefault()
-    {
-        var globallyAllowed = HostPermissions.Resolve(new HostPermissionSet(AllowVolumeControl: true), new DevicePermissionOverrides());
-        var globallyBlocked = HostPermissions.Resolve(new HostPermissionSet(AllowVolumeControl: false), new DevicePermissionOverrides());
-
-        Assert.True(globallyAllowed.AllowVolumeControl);
-        Assert.False(globallyBlocked.AllowVolumeControl);
-    }
-
-    [Fact]
-    public void DeviceAllowOverridesGlobalBlock()
-    {
-        var effective = HostPermissions.Resolve(
-            new HostPermissionSet(AllowPcSleep: false),
-            new DevicePermissionOverrides(AllowPcSleep: true));
-
-        Assert.True(effective.AllowPcSleep);
-    }
-
-    [Fact]
-    public void DeviceBlockOverridesGlobalAllow()
-    {
-        var effective = HostPermissions.Resolve(
-            new HostPermissionSet(AllowPcSleep: true),
-            new DevicePermissionOverrides(AllowPcSleep: false));
-
-        Assert.False(effective.AllowPcSleep);
-    }
-
-    [Fact]
-    public void DeviceVolumeOverrideWinsOverGlobal()
-    {
-        var allowed = HostPermissions.Resolve(
-            new HostPermissionSet(AllowVolumeControl: false),
-            new DevicePermissionOverrides(AllowVolumeControl: true));
-        var blocked = HostPermissions.Resolve(
-            new HostPermissionSet(AllowVolumeControl: true),
-            new DevicePermissionOverrides(AllowVolumeControl: false));
-
-        Assert.True(allowed.AllowVolumeControl);
-        Assert.False(blocked.AllowVolumeControl);
-    }
-
-    [Fact]
-    public void DeviceAwakeOverrideWinsOverGlobal()
-    {
-        var allowed = HostPermissions.Resolve(
-            new HostPermissionSet(AllowAwakeControl: false),
-            new DevicePermissionOverrides(AllowAwakeControl: true));
-        var blocked = HostPermissions.Resolve(
-            new HostPermissionSet(AllowAwakeControl: true),
-            new DevicePermissionOverrides(AllowAwakeControl: false));
-
-        Assert.True(allowed.AllowAwakeControl);
-        Assert.False(blocked.AllowAwakeControl);
-    }
-
-    [Fact]
-    public void DevicePowerOverridesWinOverEachGlobalPermission()
-    {
-        var global = new HostPermissionSet(
-            AllowPcLock: false,
-            AllowBlackoutDisplay: false,
-            AllowDisplayControl: true,
-            AllowScreenSaver: false,
-            AllowSignOut: false,
-            AllowRestart: true,
-            AllowShutdown: false);
-        var overrides = new DevicePermissionOverrides(
-            AllowPcLock: true,
-            AllowBlackoutDisplay: true,
-            AllowDisplayControl: false,
-            AllowScreenSaver: true,
-            AllowAwakeControl: true,
-            AllowSignOut: true,
-            AllowRestart: false,
-            AllowShutdown: true);
-
-        var effective = HostPermissions.Resolve(global, overrides);
-
-        Assert.True(effective.AllowPcLock);
-        Assert.True(effective.AllowBlackoutDisplay);
-        Assert.False(effective.AllowDisplayControl);
-        Assert.True(effective.AllowScreenSaver);
-        Assert.True(effective.AllowSignOut);
-        Assert.False(effective.AllowRestart);
-        Assert.True(effective.AllowShutdown);
-    }
-
-    [Fact]
-    public void RemovedDeviceLosesPermissionOverridesWithPairingRecord()
+    public void EditingBuiltInMaterializesCustomAndApplyingBuiltInClearsValues()
     {
         using var store = new TempPairingStore();
         using var key = new PairingTestKey();
         var manager = new PairingManager(store.Store);
-        var now = DateTimeOffset.UtcNow;
-        var token = manager.CreatePairingToken(now);
-        manager.AcceptPairing("client-a", "Phone", token, now, reconnectPublicKey: key.PublicKey);
+        Assert.True(manager.AcceptPairing(
+            "client-a",
+            "Phone",
+            manager.CreatePairingToken(),
+            reconnectPublicKey: key.PublicKey).Accepted);
 
-        var saved = manager.SetDevicePermissionOverrides("client-a", new DevicePermissionOverrides(
-            AllowPcSleep: true,
-            AllowVolumeControl: true,
-            AllowPresentationControl: true,
-            AllowRemoteAppLaunch: true,
-            AllowUrlOpen: true,
-            AllowPcLock: true,
-            AllowBlackoutDisplay: true,
-            AllowDisplayControl: true,
-            AllowScreenSaver: true,
-            AllowAwakeControl: true,
-            AllowSignOut: true,
-            AllowRestart: true,
-            AllowShutdown: true));
-        var reloaded = new PairingManager(store.Store).GetDevicePermissionOverrides("client-a");
-        var removed = manager.DisconnectDevice("client-a");
+        Assert.True(manager.SetDevicePermission("client-a", DevicePermissionKind.FileBrowsing, false));
+        Assert.True(manager.SetDeviceProtectedFileFilterOverride("client-a", false));
+        Assert.Equal(DeviceAccessProfile.Custom, manager.GetDeviceAccessProfile("client-a"));
+        var custom = Assert.Single(store.Store.Load());
+        Assert.Equal(DeviceAccessProfile.Custom, custom.AccessProfile);
+        Assert.All(
+            DeviceAccessProfiles.Permissions,
+            permission => Assert.NotNull(permission.ReadOverride(custom.PermissionOverrides!)));
 
-        Assert.True(saved);
-        Assert.True(reloaded.AllowRemoteAppLaunch);
-        Assert.True(reloaded.AllowPresentationControl);
-        Assert.True(reloaded.AllowUrlOpen);
-        Assert.True(reloaded.AllowPcLock);
-        Assert.True(reloaded.AllowBlackoutDisplay);
-        Assert.True(reloaded.AllowDisplayControl);
-        Assert.True(reloaded.AllowScreenSaver);
-        Assert.True(reloaded.AllowAwakeControl);
-        Assert.True(reloaded.AllowSignOut);
-        Assert.True(reloaded.AllowRestart);
-        Assert.True(reloaded.AllowShutdown);
-        Assert.True(removed);
-        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowPcSleep);
-        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowVolumeControl);
-        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowRemoteAppLaunch);
-        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowPresentationControl);
-        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowUrlOpen);
-        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowPcLock);
-        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowBlackoutDisplay);
-        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowDisplayControl);
-        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowScreenSaver);
-        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowAwakeControl);
-        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowSignOut);
-        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowRestart);
-        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowShutdown);
-        Assert.Empty(store.Store.Load());
+        Assert.True(manager.SetDeviceAccessProfile("client-a", DeviceAccessProfile.RemoteControls));
+        var builtIn = Assert.Single(store.Store.Load());
+        Assert.Equal(DeviceAccessProfile.RemoteControls, builtIn.AccessProfile);
+        Assert.All(
+            DeviceAccessProfiles.Permissions,
+            permission => Assert.Null(permission.ReadOverride(builtIn.PermissionOverrides!)));
+        Assert.False(builtIn.PermissionOverrides!.HideProtectedFileSystemItems);
+    }
+
+    [Fact]
+    public void SelectingCustomFromBuiltInKeepsEffectiveMatrix()
+    {
+        using var store = new TempPairingStore();
+        using var key = new PairingTestKey();
+        var manager = new PairingManager(store.Store);
+        manager.AcceptPairing(
+            "client-a",
+            "Phone",
+            manager.CreatePairingToken(),
+            reconnectPublicKey: key.PublicKey);
+        manager.SetDeviceAccessProfile("client-a", DeviceAccessProfile.RemoteControls);
+        var before = manager.GetEffectivePermissions("client-a", AppPermissionSettings.Load());
+
+        Assert.True(manager.SetDeviceAccessProfile("client-a", DeviceAccessProfile.Custom));
+
+        Assert.Equal(before, manager.GetEffectivePermissions("client-a", AppPermissionSettings.Load()));
+        Assert.Equal(DeviceAccessProfile.Custom, manager.GetDeviceAccessProfile("client-a"));
     }
 }

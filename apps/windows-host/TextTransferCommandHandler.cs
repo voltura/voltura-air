@@ -37,6 +37,7 @@ internal sealed class TextTransferCommandHandler(
             var outcome = await textDestinationService.DeliverAsync(
                 ProtocolMessageFields.GetString(root, "text"),
                 root.GetProperty("sendEnter").GetBoolean(),
+                statusFactory.CanControlHostApplication(clientId),
                 cancellationToken);
 
             commandLog.Outcome(clientId, "text.send", "text_transfer", outcome.Succeeded ? outcome.Kind : "failed");

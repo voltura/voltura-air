@@ -38,6 +38,18 @@ internal static partial class WpfTheme
         resources["AccentBrush"] = ToBrush(theme.Accent);
         resources["AccentStrongBrush"] = ToBrush(theme.AccentStrong);
         resources["AccentTextBrush"] = ToBrush(theme.AccentText);
+        resources["UpdateGlowPinkColor"] = ToMediaColor(theme.IsDark
+            ? System.Drawing.Color.FromArgb(252, 121, 190)
+            : System.Drawing.Color.FromArgb(195, 50, 160));
+        resources["UpdateGlowVioletColor"] = ToMediaColor(theme.IsDark
+            ? System.Drawing.Color.FromArgb(197, 123, 245)
+            : System.Drawing.Color.FromArgb(128, 74, 198));
+        resources["UpdateGlowBlueColor"] = ToMediaColor(theme.IsDark
+            ? System.Drawing.Color.FromArgb(103, 151, 252)
+            : System.Drawing.Color.FromArgb(56, 84, 189));
+        resources["UpdateGlowCyanColor"] = ToMediaColor(theme.IsDark
+            ? System.Drawing.Color.FromArgb(110, 246, 255)
+            : System.Drawing.Color.FromArgb(15, 131, 218));
         resources["FocusBrush"] = ToBrush(theme.Focus);
         resources["SuccessStrongBrush"] = ToBrush(theme.SuccessStrong);
         resources["DangerBrush"] = ToBrush(theme.Danger);
@@ -102,6 +114,10 @@ internal static partial class WpfTheme
         resources["AccentBrush"] = WpfSystemColors.HighlightBrush;
         resources["AccentStrongBrush"] = WpfSystemColors.HighlightBrush;
         resources["AccentTextBrush"] = WpfSystemColors.HighlightTextBrush;
+        resources["UpdateGlowPinkColor"] = WpfSystemColors.HighlightColor;
+        resources["UpdateGlowVioletColor"] = WpfSystemColors.HighlightColor;
+        resources["UpdateGlowBlueColor"] = WpfSystemColors.HighlightColor;
+        resources["UpdateGlowCyanColor"] = WpfSystemColors.HighlightColor;
         resources["FocusBrush"] = WpfSystemColors.WindowTextBrush;
         resources["SuccessStrongBrush"] = WpfSystemColors.HighlightBrush;
         resources["DangerBrush"] = WpfSystemColors.WindowTextBrush;

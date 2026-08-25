@@ -9,13 +9,17 @@ internal static class WindowFocusReset
 {
     private static readonly WindowsWindowActivator WindowActivator = new();
 
-    public static void AfterShow(Window window)
+    public static void AfterShow(Window window, IInputElement? focusTarget = null)
     {
         _ = window.Dispatcher.BeginInvoke(() =>
         {
             WindowActivator.TryBringWindowForwardPreservingState(new WindowInteropHelper(window).Handle);
             Keyboard.ClearFocus();
             FocusManager.SetFocusedElement(window, null);
+            if (focusTarget is not null)
+            {
+                Keyboard.Focus(focusTarget);
+            }
         }, DispatcherPriority.ContextIdle);
     }
 }

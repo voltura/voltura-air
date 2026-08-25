@@ -15,6 +15,20 @@
                 <ResourceDictionary Source="MainWindow.Styles.xaml" />
                 <ResourceDictionary Source="PreferencesAccordion.Styles.xaml" />
             </ResourceDictionary.MergedDictionaries>
+            <Storyboard x:Key="UpdateEdgeGlowStoryboard" RepeatBehavior="Forever">
+                <DoubleAnimation Storyboard.TargetName="UpdateGlowSoftRotation"
+                                 Storyboard.TargetProperty="Angle"
+                                 From="0" To="360"
+                                 Duration="0:0:3" />
+                <DoubleAnimation Storyboard.TargetName="UpdateGlowNearRotation"
+                                 Storyboard.TargetProperty="Angle"
+                                 From="0" To="360"
+                                 Duration="0:0:3" />
+                <DoubleAnimation Storyboard.TargetName="UpdateGlowEdgeRotation"
+                                 Storyboard.TargetProperty="Angle"
+                                 From="0" To="360"
+                                 Duration="0:0:3" />
+            </Storyboard>
         </ResourceDictionary>
     </Window.Resources>
 
@@ -69,7 +83,85 @@
                 </ui:SpacingStackPanel>
 
                 <ui:SpacingStackPanel Grid.Row="2" Spacing="{DynamicResource SpaceSm}">
-                    <Button x:Name="UpdateButton" Content="Update" Style="{StaticResource PrimaryButtonStyle}" Visibility="Collapsed" Click="OnUpdateClicked" />
+                    <Grid Visibility="{Binding Visibility, ElementName=UpdateButton}">
+                        <Grid Opacity="{Binding Opacity, ElementName=UpdateEdgeGlow}"
+                              IsHitTestVisible="False">
+                            <Rectangle RadiusX="8"
+                                       RadiusY="8"
+                                       StrokeThickness="7"
+                                       Opacity="0.72">
+                                <Rectangle.Stroke>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <LinearGradientBrush.RelativeTransform>
+                                            <RotateTransform x:Name="UpdateGlowSoftRotation"
+                                                             CenterX="0.5"
+                                                             CenterY="0.5" />
+                                        </LinearGradientBrush.RelativeTransform>
+                                        <GradientStop Color="{DynamicResource UpdateGlowPinkColor}" Offset="0" />
+                                        <GradientStop Color="{DynamicResource UpdateGlowVioletColor}" Offset="0.27" />
+                                        <GradientStop Color="{DynamicResource UpdateGlowCyanColor}" Offset="0.55" />
+                                        <GradientStop Color="{DynamicResource UpdateGlowBlueColor}" Offset="0.78" />
+                                        <GradientStop Color="{DynamicResource UpdateGlowPinkColor}" Offset="1" />
+                                    </LinearGradientBrush>
+                                </Rectangle.Stroke>
+                                <Rectangle.Effect>
+                                    <BlurEffect Radius="16" KernelType="Gaussian" />
+                                </Rectangle.Effect>
+                            </Rectangle>
+                            <Rectangle RadiusX="8"
+                                       RadiusY="8"
+                                       StrokeThickness="4"
+                                       Opacity="0.82">
+                                <Rectangle.Stroke>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <LinearGradientBrush.RelativeTransform>
+                                            <RotateTransform x:Name="UpdateGlowNearRotation"
+                                                             CenterX="0.5"
+                                                             CenterY="0.5" />
+                                        </LinearGradientBrush.RelativeTransform>
+                                        <GradientStop Color="{DynamicResource UpdateGlowPinkColor}" Offset="0" />
+                                        <GradientStop Color="{DynamicResource UpdateGlowVioletColor}" Offset="0.27" />
+                                        <GradientStop Color="{DynamicResource UpdateGlowCyanColor}" Offset="0.55" />
+                                        <GradientStop Color="{DynamicResource UpdateGlowBlueColor}" Offset="0.78" />
+                                        <GradientStop Color="{DynamicResource UpdateGlowPinkColor}" Offset="1" />
+                                    </LinearGradientBrush>
+                                </Rectangle.Stroke>
+                                <Rectangle.Effect>
+                                    <BlurEffect Radius="7" KernelType="Gaussian" />
+                                </Rectangle.Effect>
+                            </Rectangle>
+                        </Grid>
+                        <Button x:Name="UpdateButton"
+                                Content="Install update"
+                                Style="{StaticResource UpdateActionButtonStyle}"
+                                Visibility="Collapsed"
+                                IsVisibleChanged="OnUpdateButtonAnimationStateChanged"
+                                IsEnabledChanged="OnUpdateButtonAnimationStateChanged"
+                                Click="OnUpdateClicked" />
+                        <Grid x:Name="UpdateEdgeGlow"
+                              IsHitTestVisible="False"
+                              Opacity="0">
+                            <Rectangle RadiusX="8"
+                                       RadiusY="8"
+                                       StrokeThickness="2"
+                                       Opacity="0.95">
+                                <Rectangle.Stroke>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <LinearGradientBrush.RelativeTransform>
+                                            <RotateTransform x:Name="UpdateGlowEdgeRotation"
+                                                             CenterX="0.5"
+                                                             CenterY="0.5" />
+                                        </LinearGradientBrush.RelativeTransform>
+                                        <GradientStop Color="{DynamicResource UpdateGlowPinkColor}" Offset="0" />
+                                        <GradientStop Color="{DynamicResource UpdateGlowVioletColor}" Offset="0.27" />
+                                        <GradientStop Color="{DynamicResource UpdateGlowCyanColor}" Offset="0.55" />
+                                        <GradientStop Color="{DynamicResource UpdateGlowBlueColor}" Offset="0.78" />
+                                        <GradientStop Color="{DynamicResource UpdateGlowPinkColor}" Offset="1" />
+                                    </LinearGradientBrush>
+                                </Rectangle.Stroke>
+                            </Rectangle>
+                        </Grid>
+                    </Grid>
                     <Button x:Name="ConnectNavButton" Content="Connect" Style="{StaticResource MenuButtonStyle}" Click="OnConnectNavClicked" />
                     <Button x:Name="DevicesNavButton" Content="Devices" Style="{StaticResource MenuButtonStyle}" Click="OnDevicesNavClicked" />
                     <Button x:Name="CustomScreensNavButton" Content="Custom screens" Style="{StaticResource MenuButtonStyle}" Click="OnCustomScreensNavClicked" />

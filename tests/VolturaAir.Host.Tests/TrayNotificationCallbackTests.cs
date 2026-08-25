@@ -1,11 +1,24 @@
 using System.Windows.Threading;
 using VolturaAir.Host;
+using VolturaAir.Host.Features.Updates;
 using Forms = System.Windows.Forms;
 
 namespace VolturaAir.Host.Tests;
 
 public sealed class TrayNotificationPresenterTests
 {
+    [Fact]
+    public void ReadyUpdateNotificationProvidesTheHostOpeningAction()
+    {
+        var opens = 0;
+        var action = TrayUpdateController.NotificationAction(UpdateNotificationKind.Ready, () => opens++);
+
+        action?.Invoke();
+
+        Assert.Equal(1, opens);
+        Assert.Null(TrayUpdateController.NotificationAction(UpdateNotificationKind.UpToDate, () => opens++));
+    }
+
     [Fact]
     public void ClickRunsTheCurrentActionThenShowsTheDeferredNotification()
     {

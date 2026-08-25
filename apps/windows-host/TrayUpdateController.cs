@@ -8,7 +8,8 @@ internal sealed class TrayUpdateController(
     Dispatcher dispatcher,
     UpdateService updates,
     Forms.ToolStripMenuItem updateItem,
-    Action<string, string, Forms.ToolTipIcon, Action?> showNotification) : IDisposable
+    Action<string, string, Forms.ToolTipIcon, Action?> showNotification,
+    Action showReadyUpdate) : IDisposable
 {
     private bool _disposed;
 
@@ -54,8 +55,15 @@ internal sealed class TrayUpdateController(
             UpdateNotificationKind.InstallFailed => ("Update failed", "Couldn't start the update installer. Voltura Air is still running. Try again.", Forms.ToolTipIcon.Warning),
             _ => ("Updates", "Couldn't check for updates. Try again later.", Forms.ToolTipIcon.Warning)
         };
-        showNotification(title, message, icon, null);
+        showNotification(
+            title,
+            message,
+            icon,
+            NotificationAction(notification.Kind, showReadyUpdate));
     }
+
+    internal static Action? NotificationAction(UpdateNotificationKind kind, Action showReadyUpdate) =>
+        kind == UpdateNotificationKind.Ready ? showReadyUpdate : null;
 
     private void ShowStartupOutcome(UpdateStartupOutcome outcome)
     {

@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media.Animation;
 using VolturaAir.Host.Features.Connect;
 using VolturaAir.Host.Features.Connection;
 using VolturaAir.Host.Features.CustomScreens;
@@ -23,6 +24,7 @@ public partial class MainWindow : Window
 {
     private readonly PairingManager _pairingManager;
     private readonly IAwakeService _awakeService;
+    private bool _updateEdgeGlowRunning;
     private readonly HostVisualFactory _visuals;
     private readonly HostToastPresenter _toasts;
     private readonly ConnectPageController _connectPage;
@@ -222,12 +224,47 @@ public partial class MainWindow : Window
     internal event EventHandler? HiddenToTray;
 
     public void ShowPage(HostPage page)
+        => ShowPage(page, null);
+
+    private void ShowPage(HostPage page, IInputElement? focusTarget)
     {
         SelectPage(page);
         Show();
         WindowState = WindowState.Normal;
         Activate();
-        WindowFocusReset.AfterShow(this);
+        WindowFocusReset.AfterShow(this, focusTarget);
+    }
+
+    internal void ShowReadyUpdate() => ShowPage(_navigation.ActivePage, UpdateButton);
+
+#if DEBUG
+    internal void ShowUpdateButtonForPreview()
+    {
+        ShowPage(HostPage.Connect);
+        UpdateButton.Visibility = Visibility.Visible;
+        UpdateButton.IsEnabled = true;
+    }
+#endif
+
+    private void OnUpdateButtonAnimationStateChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        var shouldRun = UpdateButton.IsVisible && UpdateButton.IsEnabled;
+        if (_updateEdgeGlowRunning == shouldRun)
+        {
+            return;
+        }
+
+        _updateEdgeGlowRunning = shouldRun;
+        UpdateEdgeGlow.Opacity = shouldRun ? 1 : 0;
+        var storyboard = (Storyboard)FindResource("UpdateEdgeGlowStoryboard");
+        if (shouldRun)
+        {
+            storyboard.Begin(this, HandoffBehavior.SnapshotAndReplace, isControllable: true);
+        }
+        else
+        {
+            storyboard.Remove(this);
+        }
     }
 
     public void ShowDeviceAccess(string clientId)
@@ -453,7 +490,7 @@ public partial class MainWindow : Window
         var version = _updates?.TargetVersion;
         var ready = _updates?.State == UpdateState.Ready && !string.IsNullOrWhiteSpace(version);
         UpdateButton.Visibility = ready ? Visibility.Visible : Visibility.Collapsed;
-        UpdateButton.ToolTip = ready ? $"Install version {version} and restart Voltura Air. Windows may request administrator approval." : null;
+        UpdateButton.ToolTip = ready ? $"Install version {version}. Voltura Air closes during installation and opens again afterward. Windows may request administrator approval." : null;
     }
 
     private async void OnUpdateClicked(object sender, RoutedEventArgs e)

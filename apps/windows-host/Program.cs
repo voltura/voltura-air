@@ -173,9 +173,11 @@ internal static class Program
         {
             var isolatedTestMode = args.Contains("--isolated-test-mode", StringComparer.OrdinalIgnoreCase);
 #if DEBUG
-            if (args.Contains("--site-screenshot-mode", StringComparer.OrdinalIgnoreCase) && !isolatedTestMode)
+            if ((args.Contains("--site-screenshot-mode", StringComparer.OrdinalIgnoreCase) ||
+                 args.Contains("--preview-update-button", StringComparer.OrdinalIgnoreCase)) &&
+                !isolatedTestMode)
             {
-                throw new InvalidOperationException("Site screenshot mode requires --isolated-test-mode.");
+                throw new InvalidOperationException("Debug preview modes require --isolated-test-mode.");
             }
 #endif
 
@@ -216,6 +218,10 @@ internal static class Program
             else if (args.Contains("--presentation-demo-data", StringComparer.OrdinalIgnoreCase))
             {
                 s_runtime.MainWindow.ShowPage(HostPage.Presentations);
+            }
+            else if (args.Contains("--preview-update-button", StringComparer.OrdinalIgnoreCase))
+            {
+                s_runtime.MainWindow.ShowUpdateButtonForPreview();
             }
             else if (!string.IsNullOrWhiteSpace(screenshotPreferencesSection))
             {

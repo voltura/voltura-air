@@ -105,7 +105,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         AppThemeSettings.Changed += OnAppThemeChanged;
         _connectionFeedbackController.Start();
         _updateController = _updates is not null && _updateItem is not null
-            ? new TrayUpdateController(_dispatcher, _updates, _updateItem, ShowNotification)
+            ? new TrayUpdateController(_dispatcher, _updates, _updateItem, ShowNotification, _mainWindow.ShowReadyUpdate)
             : null;
         _updateController?.Start(updateStartupOutcome);
     }

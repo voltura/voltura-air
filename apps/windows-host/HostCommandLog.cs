@@ -63,6 +63,9 @@ internal static class ProtocolMessageFields
     public static string GetString(JsonElement root, string propertyName) =>
         root.TryGetProperty(propertyName, out var value) ? value.GetString() ?? string.Empty : string.Empty;
 
+    public static string? GetOptionalString(JsonElement root, string propertyName) =>
+        root.TryGetProperty(propertyName, out var value) ? value.GetString() : null;
+
     public static int GetInt(JsonElement root, string propertyName) =>
         root.TryGetProperty(propertyName, out var value) &&
         value.ValueKind == JsonValueKind.Number &&

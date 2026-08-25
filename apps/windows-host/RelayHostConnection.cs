@@ -93,13 +93,22 @@ internal sealed class RelayHostConnection : IAsyncDisposable
 
     public async Task<RelayTurnConfiguration?> GetTurnConfigurationAsync(
         RelayScreenQuality requestedQuality,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? purpose = null)
     {
+        if (purpose is not null and not "file-transfer") throw new ArgumentOutOfRangeException(nameof(purpose));
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
         var nonce = ScreenViewHostIdentity.Base64Url(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+        var requestBody = new Dictionary<string, string>
+        {
+            ["timestamp"] = timestamp,
+            ["nonce"] = nonce,
+            ["signature"] = _identity.SignTurnRequest(timestamp, nonce, purpose)
+        };
+        if (purpose is not null) requestBody["purpose"] = purpose;
         using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(_endpoint.HttpsBase, $"/v1/turn/{_identity.RouteId}"))
         {
-            Content = JsonContent.Create(new { timestamp, nonce, signature = _identity.SignTurnRequest(timestamp, nonce) })
+            Content = JsonContent.Create(requestBody)
         };
         try
         {

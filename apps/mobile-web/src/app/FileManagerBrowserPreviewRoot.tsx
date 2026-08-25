@@ -64,7 +64,8 @@ export function FileManagerBrowserPreviewRoot() {
           onToggleModeSelector={() => undefined} refreshInstalledApp={() => undefined} state="paired" tab="files"
         />
         <FileManagerWorkspace
-          capability={{ canBrowse: true, canModify: true, hidesProtectedSystemItems: true, maxPageSize: 100 }} canMirrorView
+          activePc={{ customName: false, id: "preview-pc", name: "STUDIO-PC", url: "https://preview.invalid", hostIdentityPublicKey: "A".repeat(87), transportMode: "secure-direct" }}
+          capability={{ canBrowse: true, canModify: true, canTransfer: true, hidesProtectedSystemItems: true, maxPageSize: 100 }} canMirrorView clientId="preview-client"
           connectionEpoch={1} mirrorViewUnavailableMessage="PC Screen unavailable." onMirrorView={() => undefined} send={send} state="paired"
         />
       </main>

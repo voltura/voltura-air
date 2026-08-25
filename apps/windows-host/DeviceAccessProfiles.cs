@@ -30,6 +30,7 @@ public enum DevicePermissionKind
     PhoneWebcam,
     FileBrowsing,
     FileChanges,
+    FileTransfer,
     SignOut,
     Restart,
     Shutdown
@@ -97,6 +98,9 @@ public static class DeviceAccessProfiles
         Define(DevicePermissionKind.FileChanges, "allowFileChanges", "Change files", false,
             value => value.AllowFileChanges, (value, allowed) => value with { AllowFileChanges = allowed },
             value => value.AllowFileChanges, (value, allowed) => value with { AllowFileChanges = allowed }),
+        Define(DevicePermissionKind.FileTransfer, "allowFileTransfer", "Transfer files", false,
+            value => value.AllowFileTransfer, (value, allowed) => value with { AllowFileTransfer = allowed },
+            value => value.AllowFileTransfer, (value, allowed) => value with { AllowFileTransfer = allowed }),
         Define(DevicePermissionKind.SignOut, "allowSignOut", "Sign out", false,
             value => value.AllowSignOut, (value, allowed) => value with { AllowSignOut = allowed },
             value => value.AllowSignOut, (value, allowed) => value with { AllowSignOut = allowed }),
@@ -184,6 +188,7 @@ public static class DeviceAccessProfiles
             AllowShutdown: values.AllowShutdown!.Value,
             AllowFileBrowsing: values.AllowFileBrowsing!.Value,
             AllowFileChanges: values.AllowFileChanges!.Value,
+            AllowFileTransfer: values.AllowFileTransfer!.Value,
             HideProtectedFileSystemItems: hideProtected);
 
         return true;
@@ -234,6 +239,7 @@ public static class DeviceAccessProfiles
             AllowShutdown: false,
             AllowFileBrowsing: false,
             AllowFileChanges: false,
+            AllowFileTransfer: false,
             HideProtectedFileSystemItems: true);
         foreach (var permission in Permissions)
         {

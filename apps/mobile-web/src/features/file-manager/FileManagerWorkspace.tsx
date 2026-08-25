@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import {
   ArrowDown, ArrowUp, CheckCheck, CircleCheck, Clipboard, ClipboardPaste, Copy, Eye, File, FileArchive, FileQuestion, Files,
   Folder, FolderInput, FolderOpen, FolderOutput, HardDrive, Info, Pause, Play, RefreshCw,
   Scissors, SkipForward, Trash2, TriangleAlert, Type, X
 } from "lucide-react";
 import type { ConnectionState } from "../../foundation/connection/connectionTypes";
+import type { PcProfile } from "../../foundation/connection/pcProfiles";
 import { subscribeFileManagerResults } from "../../foundation/connection/fileManagerResultBus";
 import type {
   ClientMessage, FileJobSnapshot, FileManagerCapability, FileManagerEntry, FileManagerPanelPage,
@@ -14,18 +15,21 @@ import type {
 import { ModalDialog } from "../../ui/overlays/ModalDialog";
 import { ConfirmationDialog } from "../../ui/overlays/ConfirmationDialog";
 import { createLocalId } from "../../foundation/identity/localId";
+import { FileTransferMenu } from "./FileTransferMenu";
 import "./file-manager.css";
 
 type PanelName = "left" | "right";
 interface SelectionState { all: boolean; ids: Set<string>; excluded: Set<string>; }
 interface PanelView { page: FileManagerPanelPage; entries: FileManagerEntry[]; loadingMore: boolean; pageError: string; }
-interface PendingPanelRequest { panel: PanelName; kind: "page" | "replace"; revision: string; }
+interface PendingPanelRequest { panel: PanelName; kind: "page" | "replace"; revision: string; selectName?: string; selectionPagesRemaining?: number; selectionGeneration?: number; }
 interface TrackedJob { operation: "copy" | "move" | "paste" | "rename" | "delete"; sourcePanel: PanelName; destinationPanel?: PanelName; }
 interface ConfirmedSelection { sessionId: string; panel: PanelName; revision: string; fields: FileSelectionMessageFields; count: number; }
 interface RenameTarget extends ConfirmedSelection { entryId: string; originalName: string; name: string; }
 
 interface Props {
+  activePc?: PcProfile;
   capability: FileManagerCapability;
+  clientId?: string;
   canMirrorView: boolean;
   connectionEpoch: number;
   mirrorViewUnavailableMessage: string;
@@ -35,8 +39,9 @@ interface Props {
 }
 
 const emptySelection = (): SelectionState => ({ all: false, ids: new Set(), excluded: new Set() });
+const maximumUploadSelectionContinuationPages = 4;
 
-export default function FileManagerWorkspace({ capability, canMirrorView, connectionEpoch, mirrorViewUnavailableMessage, onMirrorView, send, state }: Props) {
+export default function FileManagerWorkspace({ activePc, capability, canMirrorView, clientId, connectionEpoch, mirrorViewUnavailableMessage, onMirrorView, send, state }: Props) {
   const [session, setSession] = useState<FileManagerSession | null>(null);
   const [panels, setPanels] = useState<Record<PanelName, PanelView> | null>(null);
   const [activePanel, setActivePanel] = useState<PanelName>("left");
@@ -48,6 +53,7 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
   const [operationsOpen, setOperationsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [clipboardOpen, setClipboardOpen] = useState(false);
+  const [transferPresented, setTransferPresented] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ConfirmedSelection | null>(null);
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [dualPanel, setDualPanel] = useState(false);
@@ -57,6 +63,7 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
   const panelsRef = useRef<Record<PanelName, PanelView> | null>(null);
   const pendingPanelRequests = useRef(new Map<string, PendingPanelRequest>());
   const latestReplacementRequest = useRef<Record<PanelName, string>>({ left: "", right: "" });
+  const selectionLookupGeneration = useRef<Record<PanelName, number>>({ left: 0, right: 0 });
   const pendingJobRequests = useRef(new Map<string, TrackedJob>());
   const pendingMirrorOpenRef = useRef("");
   const pendingPropertiesRef = useRef("");
@@ -66,6 +73,27 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
 
   useEffect(() => { sessionRef.current = session; }, [session]);
   useEffect(() => { panelsRef.current = panels; }, [panels]);
+  const refreshPanel = useCallback((panel: PanelName, selectName?: string) => {
+    const currentSession = sessionRef.current;
+    const currentPanels = panelsRef.current;
+    if (!currentSession || !currentPanels) {return;}
+    const operationId = createLocalId();
+    latestReplacementRequest.current[panel] = operationId;
+    const selectionGeneration = ++selectionLookupGeneration.current[panel];
+    pendingPanelRequests.current.set(operationId, {
+      panel, kind: "replace", revision: currentPanels[panel].page.revision,
+      ...(selectName ? { selectName, selectionPagesRemaining: maximumUploadSelectionContinuationPages, selectionGeneration } : {})
+    });
+    send({ type: "file.refresh", operationId, sessionId: currentSession.sessionId, panel });
+  }, [send]);
+  const handleTransferNotice = useCallback((message: string, tone: "success" | "error" | "neutral") => {
+    setStatus(message);
+    setStatusTone(tone);
+  }, []);
+  const handleUploadCompleted = useCallback((panel: PanelName, fileName: string) => {
+    setActivePanel(panel);
+    refreshPanel(panel, fileName);
+  }, [refreshPanel]);
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) {return;}
@@ -112,15 +140,6 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
   }, [capability.canBrowse, connectionEpoch, send, state]);
 
   useEffect(() => {
-    const refreshPanel = (panel: PanelName) => {
-      const currentSession = sessionRef.current;
-      const currentPanels = panelsRef.current;
-      if (!currentSession || !currentPanels) {return;}
-      const operationId = createLocalId();
-      latestReplacementRequest.current[panel] = operationId;
-      pendingPanelRequests.current.set(operationId, { panel, kind: "replace", revision: currentPanels[panel].page.revision });
-      send({ type: "file.refresh", operationId, sessionId: currentSession.sessionId, panel });
-    };
     const applyTerminalJobEffects = (job: FileJobSnapshot) => {
       const tracked = trackedJobs.current.get(job.jobId);
       if (!tracked || !isTerminalJob(job.state) || terminalJobEffects.current.has(job.jobId)) {return;}
@@ -165,6 +184,7 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
       const pending = pendingPanelRequests.current.get(message.operationId);
       if (!pending) {return;}
       pendingPanelRequests.current.delete(message.operationId);
+      if (pending.selectName && pending.selectionGeneration !== selectionLookupGeneration.current[pending.panel]) {return;}
       if (pending.kind === "replace" && latestReplacementRequest.current[pending.panel] !== message.operationId) {return;}
       if (!message.succeeded || !message.page) {
         setStatus(message.message);
@@ -178,7 +198,14 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
           if (currentSession) {
             const refreshId = createLocalId();
             latestReplacementRequest.current[pending.panel] = refreshId;
-            pendingPanelRequests.current.set(refreshId, { panel: pending.panel, kind: "replace", revision: "" });
+            pendingPanelRequests.current.set(refreshId, {
+              panel: pending.panel, kind: "replace", revision: "",
+              ...(pending.selectName ? {
+                selectName: pending.selectName,
+                selectionPagesRemaining: pending.selectionPagesRemaining ?? maximumUploadSelectionContinuationPages,
+                selectionGeneration: pending.selectionGeneration
+              } : {})
+            });
             send({ type: "file.refresh", operationId: refreshId, sessionId: currentSession.sessionId, panel: pending.panel });
           }
         }
@@ -202,16 +229,34 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
         const existing = current[page.panel];
         const append = pending.kind === "page" && pending.revision === existing.page.revision && existing.page.revision === page.revision;
         if (pending.kind === "page" && !append) {return current;}
-        return {
+        const next = {
           ...current,
           [page.panel]: { page, entries: append ? [...existing.entries, ...page.entries] : page.entries, loadingMore: false, pageError: "" }
         };
+        panelsRef.current = next;
+        return next;
       });
-      if (pending.kind === "replace") {
-        setSelections((current) => ({ ...current, [page.panel]: emptySelection() }));
+      const selected = pending.selectName ? page.entries.find((entry) => entry.name === pending.selectName) : undefined;
+      if (selected || pending.kind === "replace") {
+        setSelections((current) => ({
+          ...current,
+          [page.panel]: selected ? { all: false, ids: new Set([selected.id]), excluded: new Set() } : emptySelection()
+        }));
       }
-      setStatus(message.message);
-      setStatusTone("neutral");
+      const currentSession = sessionRef.current;
+      const selectionPagesRemaining = pending.selectionPagesRemaining ?? 0;
+      if (currentSession && pending.selectName && !selected && page.continuation && selectionPagesRemaining > 0) {
+        const nextPageId = createLocalId();
+        pendingPanelRequests.current.set(nextPageId, {
+          panel: page.panel, kind: "page", revision: page.revision, selectName: pending.selectName,
+          selectionPagesRemaining: selectionPagesRemaining - 1,
+          selectionGeneration: pending.selectionGeneration ?? selectionLookupGeneration.current[page.panel]
+        });
+        send({ type: "file.page.get", operationId: nextPageId, sessionId: currentSession.sessionId, panel: page.panel, revision: page.revision, continuation: page.continuation });
+      }
+      const selectionNotLocated = pending.selectName && !selected && (!page.continuation || selectionPagesRemaining === 0);
+      setStatus(selectionNotLocated ? "File copied to the PC. It is outside the loaded rows." : message.message);
+      setStatusTone(selectionNotLocated ? "success" : "neutral");
       return;
     }
     if (message.type === "file.properties.get.result") {
@@ -262,14 +307,16 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
       if (message.succeeded) {onMirrorView();}
       return;
     }
+    if (message.type.startsWith("file.transfer.") || !("message" in message) || !("succeeded" in message)) {return;}
     setStatus(message.message);
     setStatusTone(message.succeeded ? "success" : "error");
     });
-  }, [onMirrorView, send]);
+  }, [onMirrorView, refreshPanel, send]);
 
   const sendPanel = (panel: PanelName, targetId: string) => {
     if (!session || !panels) {return;}
     setActivePanel(panel);
+    selectionLookupGeneration.current[panel]++;
     const operationId = createLocalId();
     latestReplacementRequest.current[panel] = operationId;
     pendingPanelRequests.current.set(operationId, { panel, kind: "replace", revision: panels[panel].page.revision });
@@ -288,6 +335,7 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
 
   const toggleEntry = (panel: PanelName, entryId: string) => {
     setActivePanel(panel);
+    selectionLookupGeneration.current[panel]++;
     setSelections((current) => {
       const selection = current[panel];
       if (selection.all) {
@@ -299,6 +347,14 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
       if (ids.has(entryId)) {ids.delete(entryId);} else {ids.add(entryId);}
       return { ...current, [panel]: { ...selection, ids } };
     });
+  };
+  const selectEntry = (panel: PanelName, entryId: string) => {
+    setActivePanel(panel);
+    selectionLookupGeneration.current[panel]++;
+    setSelections((current) => ({
+      ...current,
+      [panel]: { all: false, ids: new Set([entryId]), excluded: new Set() }
+    }));
   };
 
   const selectionFields = (panel: PanelName): FileSelectionMessageFields => {
@@ -392,26 +448,25 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
     setClipboardOpen(false);
     setShortcutsOpen(false);
   };
-
   return (
-    <section className="file-manager-workspace" aria-label="Files on PC">
+    <section className={`file-manager-workspace ${leadingJob ? "job-bar-presented" : ""}`} aria-label="Files on PC">
       <div ref={stageRef} className="file-manager-stage">
         <div className="file-manager-content" onPointerDownCapture={(event) => dismissTransientMenus(event.target)} onClickCapture={(event) => dismissTransientMenus(event.target)}>
           <FileToolbar
             canModify={capability.canModify} dualPanel={dualPanel} selected={selected} single={single}
-            onSelectAll={() => setSelections((current) => ({ ...current, [activePanel]: { all: true, ids: new Set(), excluded: new Set() } }))}
-            onUnselectAll={() => setSelections((current) => ({ ...current, [activePanel]: emptySelection() }))}
+            transfer={capability.canTransfer === true && activePc && clientId ? <FileTransferMenu
+              activePc={activePc} canModify={capability.canModify} clientId={clientId} enabled={state === "paired" && capability.canTransfer === true}
+              onPresentationChange={setTransferPresented} onTransferNotice={handleTransferNotice} onUploadCompleted={handleUploadCompleted}
+              send={send} target={{ sessionId: session.sessionId, panel: activePanel, revision: panels[activePanel].page.revision, entry: single }}
+            /> : null}
+            onSelectAll={() => {selectionLookupGeneration.current[activePanel]++; setSelections((current) => ({ ...current, [activePanel]: { all: true, ids: new Set(), excluded: new Set() } }));}}
+            onUnselectAll={() => {selectionLookupGeneration.current[activePanel]++; setSelections((current) => ({ ...current, [activePanel]: emptySelection() }));}}
             onCut={() => setClipboard("move")} onCopyClipboard={() => setClipboard("copy")} onPaste={() => createJob("paste")}
             onProperties={() => getProperties()} onDelete={() => setDeleteTarget({ sessionId: session.sessionId, panel: activePanel, revision: panels[activePanel].page.revision, fields: selectionFields(activePanel), count: selected })}
             onRename={() => { if (single) {setRenameTarget({ sessionId: session.sessionId, panel: activePanel, revision: panels[activePanel].page.revision, fields: { selectionAll: false, entryIds: [single.id], excludedEntryIds: [] }, count: 1, entryId: single.id, originalName: single.name, name: single.name });} }}
             onView={viewSelected} onOpen={openSelected} onCopy={() => createJob("copy")} onMove={() => createJob("move")}
             onClipboard={() => { setClipboardOpen((open) => !open); setShortcutsOpen(false); }}
-            onShortcuts={() => { setShortcutsOpen((open) => !open); setClipboardOpen(false); }} onRefresh={() => {
-              const operationId = createLocalId();
-              latestReplacementRequest.current[activePanel] = operationId;
-              pendingPanelRequests.current.set(operationId, { panel: activePanel, kind: "replace", revision: panels[activePanel].page.revision });
-              send({ type: "file.refresh", operationId, sessionId: session.sessionId, panel: activePanel });
-            }}
+            onShortcuts={() => { setShortcutsOpen((open) => !open); setClipboardOpen(false); }}
           />
           {clipboardOpen && <div className="file-toolbar-menu file-clipboard-menu" role="menu" aria-label="Windows file clipboard">
             <button role="menuitem" onClick={() => { setClipboard("move"); setClipboardOpen(false); }} disabled={!capability.canModify || selected === 0}><Scissors />Cut to clipboard</button>
@@ -422,18 +477,20 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
             {(["left", "right"] as const).map((panel) => <FilePanel key={panel} active={activePanel === panel} drives={session.drives} panel={panels[panel]} selection={selections[panel]}
               onActivate={() => setActivePanel(panel)} onDrive={(id) => sendPanel(panel, id)} onLoadMore={() => loadMore(panel)} onNavigate={(id) => sendPanel(panel, id)}
               onProperties={(entryId) => getProperties(panel, entryId)}
+              onRefresh={() => refreshPanel(panel)}
               onSort={(sortBy) => {
+                selectionLookupGeneration.current[panel]++;
                 const operationId = createLocalId();
                 latestReplacementRequest.current[panel] = operationId;
                 pendingPanelRequests.current.set(operationId, { panel, kind: "replace", revision: panels[panel].page.revision });
                 send({ type: "file.sort", operationId, sessionId: session.sessionId, panel, sortBy, descending: panels[panel].page.sortBy === sortBy && !panels[panel].page.descending });
-              }} onToggle={(id) => toggleEntry(panel, id)} />)}
+              }} onSelect={(id) => selectEntry(panel, id)} onToggle={(id) => toggleEntry(panel, id)} />)}
           </div>
         </div>
       </div>
       <div className={`file-status ${statusTone}`} role={statusTone === "error" ? "alert" : "status"}>{statusTone === "error" ? <TriangleAlert /> : statusTone === "success" ? <CircleCheck /> : <Info />}<span>{status}</span></div>
       {leadingJob && <button className="file-job-minimized" onClick={() => setOperationsOpen(true)}><span>{leadingJob.operation} · {leadingJob.currentName ?? leadingJob.state}</span><progress max={Math.max(1, leadingJob.bytesTotal || leadingJob.itemsTotal)} value={leadingJob.bytesTotal ? leadingJob.bytesCompleted : leadingJob.itemsCompleted} /></button>}
-      {!leadingJob && terminalJobCount > 0 && <button className="file-job-minimized file-job-history" onClick={() => setOperationsOpen(true)}><span>File operations · {terminalJobCount} in history</span></button>}
+      {!transferPresented && !leadingJob && terminalJobCount > 0 && <button className="file-job-minimized file-job-history" onClick={() => setOperationsOpen(true)}><span>File operations · {terminalJobCount} in history</span></button>}
       {operationsOpen && <OperationCenter jobs={jobs} onClose={() => setOperationsOpen(false)} send={send} />}
       {properties && <PropertiesDialog value={properties} onClose={() => setProperties(null)} />}
       <ConfirmationDialog confirmLabel="Move to Recycle Bin" description={`Move ${deleteTarget?.count ?? 0} selected item${deleteTarget?.count === 1 ? "" : "s"} to the Windows Recycle Bin? The PC rejects the operation if every item cannot be recycled.`} isOpen={deleteTarget !== null} onCancel={() => setDeleteTarget(null)} onConfirm={() => { const target = deleteTarget; setDeleteTarget(null); if (target) {createJob("delete", undefined, target);} }} title="Delete selected items?" />
@@ -453,10 +510,10 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
 }
 
 function FileToolbar(props: {
-  canModify: boolean; dualPanel: boolean; selected: number; single: FileManagerEntry | null;
+  canModify: boolean; dualPanel: boolean; selected: number; single: FileManagerEntry | null; transfer: ReactNode;
   onSelectAll: () => void; onUnselectAll: () => void; onCut: () => void; onCopyClipboard: () => void; onPaste: () => void;
   onProperties: () => void; onDelete: () => void; onRename: () => void; onView: () => void; onOpen: () => void; onCopy: () => void; onMove: () => void;
-  onClipboard: () => void; onShortcuts: () => void; onRefresh: () => void;
+  onClipboard: () => void; onShortcuts: () => void;
 }) {
   const action = (label: string, Icon: typeof Copy, run: () => void, disabled = false, menuTrigger = false) => <button type="button" aria-label={label} title={label} data-file-menu-trigger={menuTrigger || undefined} disabled={disabled} onClick={run}><Icon /><span>{label}</span></button>;
   return <div className={`file-toolbar ${props.dualPanel ? "dual-panel" : "single-panel"}`} aria-label="File actions">
@@ -468,14 +525,14 @@ function FileToolbar(props: {
     {action("Delete", Trash2, props.onDelete, !props.canModify || props.selected === 0)}{action("Rename", Type, props.onRename, !props.canModify || !props.single)}
     {action("View", Eye, props.onView, props.single?.kind !== "file")}{action("Open", FolderOpen, props.onOpen, !props.single)}
     {props.dualPanel && action("Clipboard", Clipboard, props.onClipboard, false, true)}
-    {action("Locations", HardDrive, props.onShortcuts, false, true)}{action("Refresh", RefreshCw, props.onRefresh)}
+    {props.transfer}{action("Locations", HardDrive, props.onShortcuts, false, true)}
   </div>;
 }
 
-function FilePanel({ active, drives, panel, selection, onActivate, onDrive, onLoadMore, onNavigate, onProperties, onSort, onToggle }: {
+function FilePanel({ active, drives, panel, selection, onActivate, onDrive, onLoadMore, onNavigate, onProperties, onRefresh, onSelect, onSort, onToggle }: {
   active: boolean; drives: FileManagerSession["drives"]; panel: PanelView; selection: SelectionState;
   onActivate: () => void; onDrive: (id: string) => void; onLoadMore: () => void; onNavigate: (id: string) => void;
-  onProperties: (entryId: string) => void; onSort: (sortBy: "name" | "size" | "type" | "modified") => void; onToggle: (id: string) => void;
+  onProperties: (entryId: string) => void; onRefresh: () => void; onSelect: (id: string) => void; onSort: (sortBy: "name" | "size" | "type" | "modified") => void; onToggle: (id: string) => void;
 }) {
   const [scrollTop, setScrollTop] = useState(0);
   const [height, setHeight] = useState(400);
@@ -493,6 +550,21 @@ function FilePanel({ active, drives, panel, selection, onActivate, onDrive, onLo
   useEffect(() => () => {
     if (longPressRef.current) {clearTimeout(longPressRef.current.timer);}
   }, []);
+  useEffect(() => {
+    if (selection.all || selection.ids.size !== 1) {return;}
+    const selectedId = [...selection.ids][0];
+    const index = panel.entries.findIndex((entry) => entry.id === selectedId);
+    const viewport = viewportRef.current;
+    if (index < 0 || !viewport) {return;}
+    const top = (index + (panel.page.parentId ? 1 : 0)) * rowHeight;
+    const bottom = top + rowHeight;
+    if (top < viewport.scrollTop) {viewport.scrollTop = top; setScrollTop(top);}
+    else if (bottom > viewport.scrollTop + viewport.clientHeight) {
+      const nextTop = Math.max(0, bottom - viewport.clientHeight);
+      viewport.scrollTop = nextTop;
+      setScrollTop(nextTop);
+    }
+  }, [panel.entries, panel.page.parentId, selection]);
   const start = Math.max(0, Math.floor(scrollTop / rowHeight) - 5);
   const visible = Math.ceil(height / rowHeight) + 10;
   const parentOffset = panel.page.parentId ? 1 : 0;
@@ -551,6 +623,7 @@ function FilePanel({ active, drives, panel, selection, onActivate, onDrive, onLo
     <div className="file-panel-location">
       <select aria-label={`${panel.page.panel} drive`} value={panel.page.driveId ?? ""} onChange={(event) => onDrive(event.target.value)}><option value="" disabled>Drive</option>{drives.map((drive) => <option key={drive.id} value={drive.id}>{drive.label}</option>)}</select>
       <div data-properties-entry="current" title={`${panel.page.displayPath} — long press for properties`}>{panel.page.displayPath}</div>
+      <button type="button" className="icon-action file-panel-refresh" aria-label={`Refresh ${panel.page.panel} panel`} title="Refresh" onClick={onRefresh}><RefreshCw /></button>
     </div>
     <div className="file-columns">{heading("Name", "name")}{heading("Size", "size")}{heading("Type", "type")}{heading("Modified", "modified")}</div>
     <div ref={viewportRef} className="file-list" onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}>
@@ -564,7 +637,7 @@ function FilePanel({ active, drives, panel, selection, onActivate, onDrive, onLo
           const attributeLabel = entry.attributes.map(fileAttributeLabel).join(", ");
           return <div key={entry.id} data-properties-entry={entry.id} className={`file-row ${checked ? "selected" : ""}`} style={{ transform: `translateY(${absoluteIndex * rowHeight}px)` }}>
             <input type="checkbox" aria-label={`Select ${entry.name}`} checked={checked} onChange={() => onToggle(entry.id)} />
-            <button type="button" title={entry.name} onClick={() => entry.kind === "folder" ? onNavigate(entry.id) : onToggle(entry.id)}><Icon /><span>{entry.name}</span>{entry.attributes.length > 0 && <small className="file-attributes" aria-label={attributeLabel} title={attributeLabel}>{entry.attributes.map(fileAttributeCode).join("")}</small>}</button>
+            <button type="button" title={entry.name} onClick={() => entry.kind === "folder" ? onNavigate(entry.id) : onSelect(entry.id)}><Icon /><span>{entry.name}</span>{entry.attributes.length > 0 && <small className="file-attributes" aria-label={attributeLabel} title={attributeLabel}>{entry.attributes.map(fileAttributeCode).join("")}</small>}</button>
             <span>{entry.kind === "folder" ? "DIR" : formatBytes(entry.size ?? 0)}</span><span>{entry.kind === "folder" ? "Folder" : entry.extension || "File"}</span><time dateTime={entry.modifiedUtc}><span>{modified.date}</span><span>{modified.time}</span></time>
           </div>;
         })}
@@ -597,8 +670,8 @@ function OperationCenter({ jobs, onClose, send }: { jobs: FileJobSnapshot[]; onC
         </div>
         {job.state === "needs-attention" && <div className="file-conflict">
           <p>{job.conflictName} already exists.</p>
-          <label><input type="checkbox" checked={applyAll[job.jobId] === true} onChange={(event) => setApplyAll((current) => ({ ...current, [job.jobId]: event.target.checked }))} />Apply to all remaining conflicts</label>
-          {(["replace", "skip", "cancel"] as const).map((resolution) => <button key={resolution} onClick={() => send({ type: "file.job.conflict.resolve", operationId: createLocalId(), jobId: job.jobId, resolution, applyToAll: applyAll[job.jobId] === true })}>{resolution === "skip" ? <SkipForward /> : resolution === "replace" ? <Copy /> : <X />}{resolution}</button>)}
+          {job.operation !== "upload" && <label><input type="checkbox" checked={applyAll[job.jobId] === true} onChange={(event) => setApplyAll((current) => ({ ...current, [job.jobId]: event.target.checked }))} />Apply to all remaining conflicts</label>}
+          {(job.operation === "upload" ? ["replace", "keep-both", "cancel"] as const : ["replace", "skip", "cancel"] as const).map((resolution) => <button key={resolution} onClick={() => send({ type: "file.job.conflict.resolve", operationId: createLocalId(), jobId: job.jobId, resolution, applyToAll: job.operation === "upload" ? false : applyAll[job.jobId] === true })}>{resolution === "skip" || resolution === "keep-both" ? <SkipForward /> : resolution === "replace" ? <Copy /> : <X />}{resolution === "keep-both" ? "keep both" : resolution}</button>)}
         </div>}
       </article>)}
       <ConfirmationDialog confirmLabel="Cancel move" description="Cancel the move? The current incomplete destination file is removed. Already committed destination items remain, and their source items have already been removed." isOpen={cancelMoveJobId !== null} onCancel={() => setCancelMoveJobId(null)} onConfirm={() => { const jobId = cancelMoveJobId; setCancelMoveJobId(null); if (jobId) {control(jobId, "cancel");} }} title="Cancel this move?" />

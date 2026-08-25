@@ -30,11 +30,13 @@ networks that block inbound PC connections.
 - From another computer, use **View PC screen** with a mouse or trackpad and
   physical keyboard to move, left- or right-click, drag, scroll, and type on
   the selected Windows display.
-- Browse and manage files that stay on the PC or its mapped drives. **Files on
-  PC** adapts from one touch panel in narrow views to two panels whenever the
-  screen is wide enough, including phones in landscape,
-  with direct copy/move, Windows clipboard operations, properties, background
-  progress, and an option to open a file and continue into the PC screen mirror.
+- Browse and manage files on the PC or its mapped drives. **Files** adapts from
+  one touch panel in narrow views to two panels whenever the screen is wide
+  enough, including phones in landscape, with direct copy/move, Windows
+  clipboard operations, properties, background progress, and an option to open
+  a file and continue into the PC screen mirror. Its compact Transfer menu can
+  save one selected PC file to the device or upload one chosen device file into
+  the active PC folder.
 - Control presentations, use a laser pointer, track time, and review saved
   reports on the PC.
 - Dictate, reuse snippets, and send text to a PC app, document, email draft, or
@@ -168,8 +170,9 @@ protected-file filter remain separate from profiles.
 The optional **View PC screen** tool requires Screen viewing permission on the
 PC before a paired phone, tablet, or browser can use it. Direct physical mouse
 and keyboard control from another computer also requires Pointer and keyboard
-permission. **Files on PC** separately requires Browse and open files permission;
-file-changing actions also require Change files permission.
+permission. **Files** separately requires Browse and open files permission;
+file-changing actions also require Change files permission, and one-file
+transfers require Transfer files permission.
 **Phone webcam** requires Enhanced Direct or Relay, an enabled virtual camera, and
 the effective Phone webcam permission for the paired device.
 

@@ -416,6 +416,30 @@ export const serverFrameCatalog = {
     { type: "file.jobs.status", jobs: [] },
     { type: "file.jobs.status", operationId: "op-file-paste-status", jobs: [{ ...fileJob, jobId: "job-paste", operation: "paste" }] }
   ] },
+  "file.transfer.start.result": { required: ["operationId", "succeeded", "message"], frames: [
+    { type: "file.transfer.start.result", operationId: "op-transfer-start", succeeded: true, message: "Ready.", transferId: "transfer-a" },
+    { type: "file.transfer.start.result", operationId: "op-transfer-failed", succeeded: false, code: "busy", message: "Busy." }
+  ] },
+  "file.transfer.offer": { required: ["transferId", "direction", "fileName", "declaredSize", "offerSdp", "hostSignature"], frames: [{
+    type: "file.transfer.offer", transferId: "transfer-a", direction: "download", fileName: "report.pdf", declaredSize: 12,
+    offerSdp: "v=0\r\n", hostSignature: "signature-a", iceServers: null
+  }] },
+  "file.transfer.answer.result": { required: ["operationId", "succeeded", "message"], frames: [
+    { type: "file.transfer.answer.result", operationId: "op-transfer-answer", succeeded: true, message: "Connected." },
+    { type: "file.transfer.answer.result", operationId: "op-transfer-answer-failed", succeeded: false, code: "offer-expired", message: "Expired." }
+  ] },
+  "file.transfer.cancel.result": { required: ["operationId", "succeeded", "message"], frames: [
+    { type: "file.transfer.cancel.result", operationId: "op-transfer-cancel", succeeded: true, message: "Canceled." },
+    { type: "file.transfer.cancel.result", operationId: "op-transfer-cancel-failed", succeeded: false, code: "transfer-unavailable", message: "Unavailable." }
+  ] },
+  "file.transfer.status": { required: ["transferId", "direction", "state", "bytesCompleted", "bytesTotal"], frames: [{
+    type: "file.transfer.status", transferId: "transfer-a", direction: "download", state: "transferring", bytesCompleted: 6, bytesTotal: 12
+  }] },
+  "file.transfer.result": { required: ["transferId", "direction", "succeeded", "message", "fileName", "declaredSize"], frames: [{
+    type: "file.transfer.result", transferId: "transfer-a", direction: "download", succeeded: true, message: "Ready.", fileName: "report.pdf", declaredSize: 12
+  }, {
+    type: "file.transfer.result", transferId: "transfer-b", direction: "upload", succeeded: false, code: "stalled", message: "Stopped.", fileName: "report.pdf", declaredSize: 12
+  }] },
   "audio.state": { required: ["volume", "muted"], frames: [{ type: "audio.state", volume: 72, muted: false }] }
 } satisfies { [T in ServerMessageType]: ServerFrameContract<T> };
 

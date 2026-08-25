@@ -8,6 +8,7 @@ create one. Keep the shared notices in
 
 ## v1.1.0
 
+- Added one-file transfers to **Files**. Save one selected PC file to the current device with retryable Save to Files/Share, or choose one device file to upload into the active PC folder, which refreshes and selects the copied file. Transfers have separate device access, progress and cancellation, available-space checks, safe conflict handling, and no folder browsing, batches, sync, or resume.
 - Added simpler device access profiles. Choose **My device** or **Remote controls** for new pairings, then customize any paired device from Devices. Existing devices keep their previous effective access as Custom, while application control and protected-file filtering remain separate. Remote controls devices cannot operate the Voltura Air application or change access settings through its UI.
 - The first authenticated connection now shows the device's access profile and opens that device's access controls when clicked. Later single-device connection notifications also include the current profile.
 

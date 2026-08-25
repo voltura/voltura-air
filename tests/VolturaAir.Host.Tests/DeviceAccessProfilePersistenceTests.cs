@@ -202,6 +202,34 @@ public sealed class DeviceAccessProfilePersistenceTests : IsolatedHostSettingsTe
     }
 
     [Fact]
+    public void CompleteCustomMatrixMissingOnlyFileTransferMigratesBlockedWithoutChangingOtherAccess()
+    {
+        using var store = new TempPairingStore();
+        using var key = new PairingTestKey();
+        var previous = DeviceAccessProfiles.MyDevice with { AllowPcSleep = false, AllowFileChanges = false };
+        store.Store.Save([new PairingRecord(
+            "legacy-custom",
+            key.PublicKey,
+            "Legacy custom",
+            AccessProfile: DeviceAccessProfile.Custom,
+            PermissionOverrides: DeviceAccessProfiles.ToCompleteOverrides(previous))]);
+        var path = Path.Combine(store.RootPath, "Voltura Air", "pairing.json");
+        var root = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        root["devices"]!.AsArray()[0]!["permissionOverrides"]!.AsObject().Remove("allowFileTransfer");
+        File.WriteAllText(path, root.ToJsonString(JsonOptions.Default));
+
+        var manager = new PairingManager(store.Store);
+        var effective = manager.GetEffectivePermissions("legacy-custom", AppPermissionSettings.Load());
+        var persisted = Assert.Single(store.Store.Load());
+
+        Assert.Equal(DeviceAccessProfile.Custom, persisted.AccessProfile);
+        Assert.False(effective.AllowFileTransfer);
+        Assert.False(persisted.PermissionOverrides!.AllowFileTransfer);
+        foreach (var permission in DeviceAccessProfiles.Permissions.Where(permission => permission.Kind != DevicePermissionKind.FileTransfer))
+            Assert.Equal(permission.Read(previous), permission.Read(effective));
+    }
+
+    [Fact]
     public void DefaultChangeAffectsOnlyLaterPairingAndDoesNotRotateCurrentToken()
     {
         using var store = new TempPairingStore();

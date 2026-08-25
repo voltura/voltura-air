@@ -29,7 +29,7 @@
 }
 
 .file-toolbar {
-  z-index: 1;
+  z-index: 8;
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1px;
@@ -38,7 +38,7 @@
   background: var(--border);
 }
 
-.file-toolbar button {
+.file-toolbar > button {
   display: grid;
   min-width: 0;
   min-height: 3.25rem;
@@ -52,11 +52,11 @@
   font-size: 0.64rem;
 }
 
-.file-toolbar button:disabled {
+.file-toolbar > button:disabled {
   opacity: 0.38;
 }
 
-.file-toolbar svg {
+.file-toolbar > button svg {
   width: 1.18rem;
   height: 1.18rem;
 }
@@ -83,8 +83,93 @@
   right: 6.5rem;
 }
 
+.file-transfer-menu {
+  right: 3.6rem;
+}
+
+.file-transfer-input {
+  display: none;
+}
+
+.file-transfer-progress {
+  position: absolute;
+  z-index: 8;
+  right: 0.55rem;
+  bottom: 0.55rem;
+  left: 0.55rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem 0.7rem;
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--surface-elevated, var(--surface));
+  box-shadow: 0 0.8rem 2rem color-mix(in srgb, black 24%, transparent);
+}
+
+.file-manager-workspace.job-bar-presented .file-transfer-progress {
+  bottom: calc(var(--control-prominent-height) + var(--space-xl));
+}
+
+.file-transfer-progress > div:first-child {
+  display: grid;
+  min-width: 0;
+}
+
+.file-transfer-progress strong,
+.file-transfer-progress span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-transfer-progress span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.file-transfer-progress progress {
+  width: 100%;
+  grid-column: 1;
+}
+
+.file-transfer-progress > button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  box-shadow: none;
+}
+
+.file-transfer-progress button svg {
+  width: 1rem;
+}
+
+.file-transfer-ready-actions {
+  display: flex;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.file-transfer-ready-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: var(--space-none);
+  box-shadow: none;
+}
+
 .file-shortcuts-menu button,
 .file-toolbar-menu button {
+  display: flex;
+  min-height: 2.55rem;
+  padding: 0.55rem 0.65rem;
+  align-items: center;
   justify-content: flex-start;
   box-shadow: none;
   gap: 0.5rem;
@@ -130,8 +215,8 @@
 .file-panel-location {
   display: grid;
   min-width: 0;
-  min-height: 2.35rem;
-  grid-template-columns: auto minmax(0, 1fr);
+  min-height: var(--control-compact-height);
+  grid-template-columns: auto minmax(0, 1fr) var(--control-compact-height);
   align-items: stretch;
   background: color-mix(in srgb, var(--accent) 30%, var(--surface));
 }
@@ -155,6 +240,18 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 700;
+}
+
+.file-panel-refresh {
+  display: grid;
+  width: var(--control-compact-height);
+  min-width: 0;
+  place-items: center;
+}
+
+.file-panel-refresh svg {
+  width: var(--icon-small);
+  height: var(--icon-small);
 }
 
 .file-panel-location [data-properties-entry],
@@ -378,6 +475,13 @@
 
 .file-job-minimized progress {
   width: 100%;
+}
+
+.file-job-minimized span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .file-operation-scrim {

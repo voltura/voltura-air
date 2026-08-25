@@ -46,9 +46,12 @@ internal sealed class RelayRoutingIdentity : IDisposable
             DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
     }
 
-    public string SignTurnRequest(string timestamp, string nonce)
+    public string SignTurnRequest(string timestamp, string nonce, string? purpose = null)
     {
-        var transcript = Encoding.UTF8.GetBytes($"voltura-air-relay-turn-v1\n{RouteId}\n{timestamp}\n{nonce}");
+        if (purpose is not null and not "file-transfer") throw new ArgumentOutOfRangeException(nameof(purpose));
+        var transcript = Encoding.UTF8.GetBytes(purpose is null
+            ? $"voltura-air-relay-turn-v1\n{RouteId}\n{timestamp}\n{nonce}"
+            : $"voltura-air-relay-turn-v2\n{RouteId}\n{timestamp}\n{nonce}\n{purpose}");
         return ScreenViewHostIdentity.Base64Url(_key.SignData(
             transcript,
             HashAlgorithmName.SHA256,

@@ -26,6 +26,9 @@ flowchart LR
   Session --> Handlers["Focused command handlers\ninput, text, clipboard,\nlaunch, URL, power, awake"]
   Session --> CustomHandler["CustomScreenCommandHandler\nassignment + revision + permission"]
   Session --> FileHandler["FileManagerCommandHandler\nbrowse/change permission + opaque references"]
+  Session --> Transfer["FileTransferCoordinator\ntransfer permission + signed WebRTC setup"]
+  Client <-->|"DTLS one-file records\n+ cumulative ACKs"| Transfer
+  Transfer --> FileService
   FileHandler --> FileService["FileManagerService\nrevision validation + one mutation queue"]
   FileService --> FileSystem["Windows Shell, file system,\nRecycle Bin, mapped drives"]
   CustomHandler --> CustomStore[("custom-screens.json\nhost-only actions + assignments")]
@@ -118,7 +121,7 @@ flowchart TD
   CustomGate -- "true" --> OpaqueAction["Resolve opaque button host-side\nprotected input or approved app service"]
 
   Dispatch --> Files["file.*"]
-  Files --> FilePerm{"Browse/open permission\n+ Change files for mutations"}
+  Files --> FilePerm{"Browse/open permission\n+ Change files for mutations\n+ Transfer files for transfer"}
   FilePerm -- "false" --> FileDenied["Recoverable denied result\nno path resolved"]
   FilePerm -- "true" --> FileRevision{"Opaque session + current\ndirectory revision valid"}
   FileRevision -- "false" --> FileStale["stale-panel\nno partial action"]

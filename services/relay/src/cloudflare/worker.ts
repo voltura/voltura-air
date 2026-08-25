@@ -178,11 +178,16 @@ export class RelayRoomObject extends DurableObject<Environment> {
     let value: unknown;
     try { value = await request.json(); } catch { return new Response("Invalid request", { status: 400 }); }
     if (!isRecord(value) || typeof value.timestamp !== "string" || typeof value.nonce !== "string" ||
-        typeof value.signature !== "string" || Object.keys(value).length !== 3 ||
+        typeof value.signature !== "string" ||
+        !((Object.keys(value).length === 3 && value.purpose === undefined) ||
+          (Object.keys(value).length === 4 && value.purpose === "file-transfer")) ||
         !isTurnRequestTimestampFresh(value.timestamp) || !/^[A-Za-z0-9_-]{43}$/u.test(value.nonce) ||
         !/^[A-Za-z0-9_-]{86}$/u.test(value.signature) ||
         !attachment.publicKey) return new Response("Unauthorized", { status: 401 });
-    const transcript = new TextEncoder().encode(`voltura-air-relay-turn-v1\n${routeId}\n${value.timestamp}\n${value.nonce}`);
+    const purpose = value.purpose === "file-transfer" ? value.purpose : undefined;
+    const transcript = new TextEncoder().encode(purpose
+      ? `voltura-air-relay-turn-v2\n${routeId}\n${value.timestamp}\n${value.nonce}\n${purpose}`
+      : `voltura-air-relay-turn-v1\n${routeId}\n${value.timestamp}\n${value.nonce}`);
     if (!await verifySignature(attachment.publicKey, transcript, value.signature, routeId)) return new Response("Unauthorized", { status: 401 });
     const replayKey = `turn-nonce:${value.nonce}`;
     if (await this.ctx.storage.get(replayKey)) return new Response("Unauthorized", { status: 401 });
@@ -191,7 +196,7 @@ export class RelayRoomObject extends DurableObject<Environment> {
     const priorNonces = await this.ctx.storage.list<number>({ prefix: "turn-nonce:" });
     const expired = [...priorNonces].filter(([, createdAt]) => createdAt < now - turnRequestNonceRetentionMs).map(([key]) => key);
     if (expired.length > 0) await this.ctx.storage.delete(expired);
-    return createTurnResponse(this.env, routeId);
+    return createTurnResponse(this.env, routeId, purpose);
   }
 
   async webSocketMessage(socket: WebSocket, message: ArrayBuffer | string): Promise<void> {

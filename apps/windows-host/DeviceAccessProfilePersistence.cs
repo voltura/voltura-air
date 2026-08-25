@@ -32,9 +32,11 @@ internal static class DeviceAccessProfilePersistence
             };
         }
 
+        var customOverrides = MigrateLegacyCompleteCustom(record.PermissionOverrides);
+        record = record with { PermissionOverrides = customOverrides };
         return DeviceAccessProfiles.TryResolveCustom(
-            record.PermissionOverrides,
-            record.PermissionOverrides?.HideProtectedFileSystemItems ?? legacyGlobalPermissions.HideProtectedFileSystemItems,
+            customOverrides,
+            customOverrides?.HideProtectedFileSystemItems ?? legacyGlobalPermissions.HideProtectedFileSystemItems,
             out _)
                 ? record
                 : BlockAll(record);
@@ -142,4 +144,13 @@ internal static class DeviceAccessProfilePersistence
             record.AccessProfile ?? DeviceAccessProfile.Custom,
             record.PermissionOverrides,
             globalPermissions);
+
+    private static DevicePermissionOverrides? MigrateLegacyCompleteCustom(DevicePermissionOverrides? values)
+    {
+        if (values is null || values.AllowFileTransfer is not null) return values;
+        var legacyComplete = DeviceAccessProfiles.Permissions
+            .Where(permission => permission.Kind != DevicePermissionKind.FileTransfer)
+            .All(permission => permission.ReadOverride(values) is not null);
+        return legacyComplete ? values with { AllowFileTransfer = false } : values;
+    }
 }

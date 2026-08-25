@@ -35,6 +35,20 @@ describe("Cloudflare TURN quota policy", () => {
     });
     expect(body.iceServers).toHaveLength(1);
     expect(fetch).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(String(fetch.mock.calls[1]?.[1]?.body))).toMatchObject({ ttl: 15 * 60 });
+  });
+
+  it("issues 60-minute credentials only for file transfer and keeps quota accounting", async () => {
+    const fetch = mockFetch(100_000_000_000);
+    vi.stubGlobal("fetch", fetch);
+
+    const response = await createTurnResponse(environment, "r".repeat(22), "file-transfer");
+    const body = await response.json() as { allowed: boolean; forcedQuality: string | null; expiresAt: string };
+
+    expect(body).toMatchObject({ allowed: true, forcedQuality: null });
+    expect(JSON.parse(String(fetch.mock.calls[1]?.[1]?.body))).toMatchObject({ ttl: 60 * 60 });
+    expect(new Date(body.expiresAt).getTime() - Date.now()).toBeGreaterThan(59 * 60 * 1000);
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it("forces Data Saver at the warning threshold", async () => {
@@ -81,7 +95,7 @@ describe("Cloudflare TURN quota policy", () => {
 });
 
 function mockFetch(usageBytes: number) {
-  return vi.fn(async (input: string | URL | Request) => {
+  return vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
     if (String(input).includes("graphql")) {
       return Response.json({
         data: { viewer: { accounts: [{ callsTurnUsageAdaptiveGroups: [{ sum: { egressBytes: usageBytes, ingressBytes: 0 } }] }] } }

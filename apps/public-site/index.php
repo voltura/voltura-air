@@ -124,8 +124,8 @@
           <p>Use any paired-phone camera as a Windows webcam over Enhanced Direct or Cloud relay. Optional audio is off by default and supports mute and testing. It requires separately installed <a href="https://vb-audio.com/Cable/">VB-CABLE</a>, third-party donationware from VB-Audio that is not included with Voltura Air and is used under its own licence.</p>
         </article>
         <article>
-          <h2>Files on PC</h2>
-          <p>Browse files that stay on the PC or mapped drives. Use one or two touch panels for direct copy and move, Windows clipboard actions, properties, Recycle Bin deletion, and background progress.</p>
+          <h2>Files</h2>
+          <p>Browse files on the PC or mapped drives. Use one or two touch panels for file management, save one selected PC file to your device, or upload one chosen device file into the active PC folder.</p>
         </article>
         <article>
           <h2>Cloud relay for restricted networks</h2>
@@ -166,7 +166,7 @@
             permissions, without requiring a mobile app, account, or paid upgrade.
             Use it directly on the local network or through its optional encrypted outbound Cloud relay. Other
             products may offer broader operating-system support, remote desktop,
-            file transfer, or gaming features.
+            or gaming features.
           </p>
         </div>
         <p class="comparison-scroll-hint">Scroll horizontally to compare all products.</p>
@@ -283,7 +283,7 @@
               </tr>
               <tr>
                 <th scope="row">File access or transfer</th>
-                <td class="comparison-voltura"><strong class="comparison-status">Touch-first host file manager</strong>; one or two panels, local and mapped drives, Windows clipboard operations, direct copy/move, background jobs, and host/per-device permissions. Files remain on the PC rather than transferring to the phone.</td>
+                <td class="comparison-voltura"><strong class="comparison-status">Touch-first file manager and one-file transfer</strong>; one or two panels, local and mapped drives, Windows clipboard operations, direct copy/move, background jobs, and separately permitted transfers to or from the device.</td>
                 <td>Cross-device clipboard transfers text and images; general file transfer is <strong class="comparison-status">not documented</strong></td>
                 <td>File Explorer and file-transfer functionality are advertised</td>
               </tr>

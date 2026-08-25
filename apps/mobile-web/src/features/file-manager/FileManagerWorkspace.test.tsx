@@ -39,6 +39,18 @@ describe("FileManagerWorkspace pagination and selection", () => {
 
   afterEach(() => {vi.useRealTimers();});
 
+  it("uses row taps for one-file selection while checkboxes retain multi-select", () => {
+    const sent: ClientMessage[] = [];
+    renderWorkspace(sent);
+    openSession(sent, entries(0, 2), []);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select file-0.txt" }));
+    fireEvent.click(screen.getByRole("button", { name: "file-1.txt" }));
+
+    expect((screen.getByRole("checkbox", { name: "Select file-0.txt" }) as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByRole("checkbox", { name: "Select file-1.txt" }) as HTMLInputElement).checked).toBe(true);
+  });
+
   it("virtualizes, loads once near the end, retries inline, and preserves full-directory select all", async () => {
     const sent: ClientMessage[] = [];
     render(<FileManagerWorkspace capability={{ canBrowse: true, canModify: true, hidesProtectedSystemItems: true, maxPageSize: 100 }} canMirrorView connectionEpoch={1} mirrorViewUnavailableMessage="PC Screen unavailable." onMirrorView={() => undefined} send={(message) => sent.push(message)} state="paired" />);
@@ -147,8 +159,9 @@ describe("FileManagerWorkspace pagination and selection", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Locations" }));
     expect(screen.getByRole("menu", { name: "File shortcuts" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh left panel" }));
     expect(screen.queryByRole("menu", { name: "File shortcuts" })).toBeNull();
+    expect([...sent].reverse().find((message) => message.type === "file.refresh")).toMatchObject({ type: "file.refresh", panel: "left" });
   });
 
   it("enters PC Screen only after View opens the selected file successfully", () => {

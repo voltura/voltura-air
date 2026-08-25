@@ -31,6 +31,7 @@
       "appGradientPrimary": "#3D0F7B6C",
       "appGradientDanger": "#2EC0533A",
       "trackpadGrid": "#09FFFFFF",
+      "iconActionBackground": "#00000000",
       "qrBackground": "#FFFFFF"
     },
     "light": {
@@ -64,6 +65,7 @@
       "appGradientPrimary": "#1F0F7B6C",
       "appGradientDanger": "#14C0533A",
       "trackpadGrid": "#0F1C2227",
+      "iconActionBackground": "#00000000",
       "qrBackground": "#FFFFFF"
     }
   },

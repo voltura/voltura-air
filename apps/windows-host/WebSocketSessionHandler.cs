@@ -23,6 +23,7 @@ internal sealed class WebSocketSessionHandler(
     TextTransferCommandHandler textTransferCommands,
     ClipboardCommandHandler clipboardCommands,
     FileManagerCommandHandler fileManagerCommands,
+    FileTransferCoordinator fileTransfers,
     InputCommandHandler inputCommands,
     CustomScreenCommandHandler customScreenCommands,
     ScreenViewCommandHandler screenViewCommands,
@@ -278,17 +279,23 @@ internal sealed class WebSocketSessionHandler(
         }
         finally
         {
-            if (!string.IsNullOrEmpty(authenticatedClientId))
+            try
             {
-                await screenViewCommands.ClientDisconnectedAsync(authenticatedClientId);
-                await phoneWebcamCommands.ClientDisconnectedAsync(authenticatedClientId, socket);
-                fileManagerCommands.ClientDisconnected(authenticatedClientId, socket);
-                transport.Unregister(authenticatedClientId, socket);
-                presentationCommands.DisableLaserForClient(authenticatedClientId);
+                if (!string.IsNullOrEmpty(authenticatedClientId))
+                {
+                    await screenViewCommands.ClientDisconnectedAsync(authenticatedClientId);
+                    await phoneWebcamCommands.ClientDisconnectedAsync(authenticatedClientId, socket);
+                    fileManagerCommands.ClientDisconnected(authenticatedClientId, socket);
+                    fileTransfers.ClientDisconnected(authenticatedClientId, socket);
+                    transport.Unregister(authenticatedClientId, socket);
+                    presentationCommands.DisableLaserForClient(authenticatedClientId);
+                }
             }
-
-            activeConnection?.Dispose();
-            authenticatedAdmission?.Dispose();
+            finally
+            {
+                activeConnection?.Dispose();
+                authenticatedAdmission?.Dispose();
+            }
         }
     }
 
@@ -776,6 +783,28 @@ internal sealed class WebSocketSessionHandler(
             case "file.job.reorder":
             case "file.job.conflict.resolve":
                 await fileManagerCommands.HandleAsync(socket, clientId, type, root, cancellationToken);
+                return true;
+            case "file.transfer.start":
+                await fileTransfers.StartAsync(socket, clientId, root, cancellationToken);
+                return true;
+            case "file.transfer.answer":
+                await fileTransfers.AnswerAsync(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    ProtocolMessageFields.GetString(root, "transferId"),
+                    ProtocolMessageFields.GetString(root, "answerSdp"),
+                    ProtocolMessageFields.GetString(root, "clientSignature"),
+                    cancellationToken);
+                return true;
+            case "file.transfer.cancel":
+                await fileTransfers.CancelAsync(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    ProtocolMessageFields.GetOptionalString(root, "transferId"),
+                    ProtocolMessageFields.GetOptionalString(root, "requestId"),
+                    cancellationToken);
                 return true;
         }
 

@@ -99,6 +99,7 @@ export type InputContext =
 export interface FileManagerCapability {
   canBrowse: boolean;
   canModify: boolean;
+  canTransfer?: boolean;
   hidesProtectedSystemItems: boolean;
   maxPageSize: number;
 }
@@ -150,7 +151,7 @@ export interface FileManagerProperties {
 export type FileJobState = "queued" | "preparing" | "running" | "paused" | "needs-attention" | "canceling" | "completed" | "failed" | "canceled" | "interrupted";
 export interface FileJobSnapshot {
   jobId: string;
-  operation: "copy" | "move" | "paste" | "delete" | "rename";
+  operation: "copy" | "move" | "paste" | "delete" | "rename" | "upload";
   state: FileJobState;
   queuePosition: number;
   itemsCompleted: number;
@@ -185,7 +186,22 @@ export interface FileJobsGetMessage { type: "file.jobs.get"; operationId: string
 export interface FileJobCreateMessage extends FileSelectionMessageFields { type: "file.job.create"; operationId: string; sessionId: string; panel: "left" | "right"; revision: string; operation: "copy" | "move" | "paste" | "rename" | "delete"; destinationPanel?: "left" | "right"; destinationRevision?: string; newName?: string; }
 export interface FileJobControlMessage { type: "file.job.control"; operationId: string; jobId: string; action: "pause" | "resume" | "cancel" | "dismiss"; }
 export interface FileJobReorderMessage { type: "file.job.reorder"; operationId: string; jobId: string; direction: "up" | "down"; }
-export interface FileConflictResolveMessage { type: "file.job.conflict.resolve"; operationId: string; jobId: string; resolution: "replace" | "skip" | "cancel"; applyToAll: boolean; }
+export interface FileConflictResolveMessage { type: "file.job.conflict.resolve"; operationId: string; jobId: string; resolution: "replace" | "skip" | "keep-both" | "cancel"; applyToAll: boolean; }
+export type FileTransferDirection = "download" | "upload";
+export interface FileTransferStartMessage {
+  type: "file.transfer.start";
+  operationId: string;
+  direction: FileTransferDirection;
+  sessionId: string;
+  panel: "left" | "right";
+  revision: string;
+  entryId?: string;
+  fileName?: string;
+  declaredSize?: number;
+  clientSignature: string;
+}
+export interface FileTransferAnswerMessage { type: "file.transfer.answer"; operationId: string; transferId: string; answerSdp: string; clientSignature: string; }
+export interface FileTransferCancelMessage { type: "file.transfer.cancel"; operationId: string; transferId?: string; requestId?: string; }
 
 export interface FileSessionOpenResultMessage { type: "file.session.open.result"; operationId: string; succeeded: boolean; code?: string | null; message: string; session?: FileManagerSession | null; }
 interface FilePanelResultMessageBase<T extends "file.page.get.result" | "file.navigate.result" | "file.refresh.result" | "file.sort.result"> { type: T; operationId: string; succeeded: boolean; code?: string | null; message: string; page?: FileManagerPanelPage | null; }
@@ -195,7 +211,26 @@ interface FileActionResultMessageBase<T extends "file.clipboard.set.result" | "f
 export type FileActionResultMessage = FileActionResultMessageBase<"file.clipboard.set.result"> | FileActionResultMessageBase<"file.open.result"> | FileActionResultMessageBase<"file.job.control.result"> | FileActionResultMessageBase<"file.job.reorder.result"> | FileActionResultMessageBase<"file.job.conflict.resolve.result">;
 export interface FileJobCreateResultMessage { type: "file.job.create.result"; operationId: string; succeeded: boolean; code?: string | null; message: string; job?: FileJobSnapshot | null; }
 export interface FileJobsStatusMessage { type: "file.jobs.status"; operationId?: string; jobs: FileJobSnapshot[]; }
-export type FileManagerServerMessage = FileSessionOpenResultMessage | FilePanelResultMessage | FilePropertiesResultMessage | FileActionResultMessage | FileJobCreateResultMessage | FileJobsStatusMessage;
+export interface FileTransferStartResultMessage { type: "file.transfer.start.result"; operationId: string; succeeded: boolean; code?: string | null; message: string; transferId?: string | null; job?: FileJobSnapshot | null; }
+export interface FileTransferOfferMessage {
+  type: "file.transfer.offer";
+  transferId: string;
+  direction: FileTransferDirection;
+  fileName: string;
+  declaredSize: number;
+  offerSdp: string;
+  hostSignature: string;
+  iceServers?: RTCIceServer[] | null;
+  turnExpiresAt?: string | null;
+  relayUsageBytes?: number | null;
+  relayUsageCheckedAt?: string | null;
+}
+export interface FileTransferAnswerResultMessage { type: "file.transfer.answer.result"; operationId: string; succeeded: boolean; code?: string | null; message: string; }
+export interface FileTransferCancelResultMessage { type: "file.transfer.cancel.result"; operationId: string; succeeded: boolean; code?: string | null; message: string; }
+export interface FileTransferStatusMessage { type: "file.transfer.status"; transferId: string; direction: FileTransferDirection; state: "queued" | "connecting" | "transferring"; bytesCompleted: number; bytesTotal: number; }
+export interface FileTransferResultMessage { type: "file.transfer.result"; transferId: string; direction: FileTransferDirection; succeeded: boolean; code?: string | null; message: string; fileName: string; declaredSize: number; jobId?: string | null; }
+export type FileTransferServerMessage = FileTransferStartResultMessage | FileTransferOfferMessage | FileTransferAnswerResultMessage | FileTransferCancelResultMessage | FileTransferStatusMessage | FileTransferResultMessage;
+export type FileManagerServerMessage = FileSessionOpenResultMessage | FilePanelResultMessage | FilePropertiesResultMessage | FileActionResultMessage | FileJobCreateResultMessage | FileJobsStatusMessage | FileTransferServerMessage;
 
 export interface ScreenViewCapability {
   enabled: boolean;
@@ -1062,6 +1097,9 @@ export type ClientMessage =
   | FileJobCreateMessage
   | FileJobControlMessage
   | FileJobReorderMessage
-  | FileConflictResolveMessage;
+  | FileConflictResolveMessage
+  | FileTransferStartMessage
+  | FileTransferAnswerMessage
+  | FileTransferCancelMessage;
 
 export type ServerMessage = PairAcceptedMessage | PairDisconnectAcceptedMessage | PairChallengeMessage | PairBootstrapChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PowerPointRefreshResultMessage | PowerPointLaunchResultMessage | PresentationSessionResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage | CustomScreenGetResultMessage | CustomScreenInvokeResultMessage | ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage | ScreenViewEndedMessage | PhoneWebcamServerMessage | FileManagerServerMessage;

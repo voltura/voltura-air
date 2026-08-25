@@ -164,6 +164,34 @@ button[aria-disabled="true"] {
   }
 }
 
+.icon-action,
+.control-depth button.icon-action,
+.control-depth button.icon-action:not(:disabled, [aria-disabled="true"]):active {
+  --control-background: var(--icon-action-background);
+
+  min-width: var(--control-compact-height);
+  min-height: var(--control-compact-height);
+  padding: var(--space-none);
+  border: 0;
+  border-radius: 0;
+  background: var(--icon-action-background);
+  box-shadow: none;
+  transform: none;
+}
+
+.icon-action:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) {
+  .control-depth button.icon-action:not(:disabled, [aria-disabled="true"]):hover {
+    border: 0;
+    background: var(--icon-action-background);
+    box-shadow: none;
+  }
+}
+
 svg {
   width: 20px;
   height: 20px;

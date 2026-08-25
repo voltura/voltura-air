@@ -7,9 +7,11 @@ export interface TurnEnvironment {
   USAGE_CUTOFF_BYTES: string;
 }
 
-const credentialTtlSeconds = 15 * 60;
+const mediaCredentialTtlSeconds = 15 * 60;
+const fileTransferCredentialTtlSeconds = 60 * 60;
 
-export async function createTurnResponse(env: TurnEnvironment, routeId: string): Promise<Response> {
+export async function createTurnResponse(env: TurnEnvironment, routeId: string, purpose?: "file-transfer"): Promise<Response> {
+  const credentialTtlSeconds = purpose === "file-transfer" ? fileTransferCredentialTtlSeconds : mediaCredentialTtlSeconds;
   const limits = resolveUsageLimits(env);
   if (!limits) return Response.json({ code: "quota-configuration-invalid" }, { status: 503 });
   const { warningBytes, cutoffBytes } = limits;

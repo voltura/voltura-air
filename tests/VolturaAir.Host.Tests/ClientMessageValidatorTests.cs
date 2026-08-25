@@ -16,6 +16,17 @@ public sealed class ClientMessageValidatorTests
     [InlineData("file.job.create", """{ "type": "file.job.create", "operationId": "files-4", "sessionId": "session", "panel": "left", "revision": "revision", "operation": "copy", "destinationPanel": "right", "destinationRevision": "destination-revision", "selectionAll": true, "entryIds": [], "excludedEntryIds": [], "sourcePath": "C:\\Users" }""", false)]
     [InlineData("file.job.control", """{ "type": "file.job.control", "operationId": "files-5", "jobId": "job-a", "action": "dismiss" }""", true)]
     [InlineData("file.job.control", """{ "type": "file.job.control", "operationId": "files-5", "jobId": "job-a", "action": "remove" }""", false)]
+    [InlineData("file.job.create", """{ "type": "file.job.create", "operationId": "files-upload", "sessionId": "session", "panel": "left", "revision": "revision", "operation": "upload", "selectionAll": false, "entryIds": [], "excludedEntryIds": [] }""", false)]
+    [InlineData("file.transfer.start", """{ "type": "file.transfer.start", "operationId": "transfer-1", "direction": "download", "sessionId": "session", "panel": "left", "revision": "revision", "entryId": "entry", "clientSignature": "proof" }""", true)]
+    [InlineData("file.transfer.start", """{ "type": "file.transfer.start", "operationId": "transfer-2", "direction": "upload", "sessionId": "session", "panel": "right", "revision": "revision", "fileName": "empty.txt", "declaredSize": 0, "clientSignature": "proof" }""", true)]
+    [InlineData("file.transfer.start", """{ "type": "file.transfer.start", "operationId": "transfer-3", "direction": "upload", "sessionId": "session", "panel": "right", "revision": "revision", "fileName": "bad.txt", "declaredSize": -1, "clientSignature": "proof" }""", false)]
+    [InlineData("file.transfer.start", """{ "type": "file.transfer.start", "operationId": "transfer-4", "direction": "upload", "sessionId": "session", "panel": "right", "revision": "revision", "fileName": "bad.txt", "declaredSize": 9007199254740992, "clientSignature": "proof" }""", false)]
+    [InlineData("file.transfer.answer", """{ "type": "file.transfer.answer", "operationId": "answer-1", "transferId": "transfer-1", "answerSdp": "v=0\\r\\n", "clientSignature": "proof" }""", true)]
+    [InlineData("file.transfer.cancel", """{ "type": "file.transfer.cancel", "operationId": "cancel-1", "transferId": "transfer-1" }""", true)]
+    [InlineData("file.transfer.cancel", """{ "type": "file.transfer.cancel", "operationId": "cancel-2", "requestId": "transfer-start-1" }""", true)]
+    [InlineData("file.transfer.cancel", """{ "type": "file.transfer.cancel", "operationId": "cancel-3" }""", false)]
+    [InlineData("file.transfer.cancel", """{ "type": "file.transfer.cancel", "operationId": "cancel-4", "transferId": "transfer-1", "requestId": "transfer-start-1" }""", false)]
+    [InlineData("file.job.conflict.resolve", """{ "type": "file.job.conflict.resolve", "operationId": "resolve-1", "jobId": "job-a", "resolution": "keep-both", "applyToAll": false }""", true)]
     public void ValidatesOpaqueFileManagerMessages(string type, string json, bool expected)
     {
         using var document = JsonDocument.Parse(json);

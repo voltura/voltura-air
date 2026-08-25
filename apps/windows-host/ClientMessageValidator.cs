@@ -115,6 +115,9 @@ internal static class ClientMessageValidator
             ["file.job.control"] = Fields("type", "operationId", "jobId", "action"),
             ["file.job.reorder"] = Fields("type", "operationId", "jobId", "direction"),
             ["file.job.conflict.resolve"] = Fields("type", "operationId", "jobId", "resolution", "applyToAll"),
+            ["file.transfer.start"] = Fields("type", "operationId", "direction", "sessionId", "panel", "revision", "entryId", "fileName", "declaredSize", "clientSignature"),
+            ["file.transfer.answer"] = Fields("type", "operationId", "transferId", "answerSdp", "clientSignature"),
+            ["file.transfer.cancel"] = Fields("type", "operationId", "transferId", "requestId"),
             ["audio.mute.toggle"] = Fields("type", "inputContext"),
             ["audio.volume.set"] = Fields("type", "volume", "inputContext"),
             ["pointer.move"] = Fields("type", "seq", "dx", "dy", "inputContext"),
@@ -383,8 +386,14 @@ internal static class ClientMessageValidator
                 TryGetRequiredString(root, "direction", 8, allowEmpty: false, out var direction) && direction is "up" or "down",
             "file.job.conflict.resolve" => IsValidFileOperationId(root) &&
                 TryGetRequiredString(root, "jobId", MaxCredentialLength, allowEmpty: false, out _) &&
-                TryGetRequiredString(root, "resolution", 16, allowEmpty: false, out var resolution) && resolution is "replace" or "skip" or "cancel" &&
+                TryGetRequiredString(root, "resolution", 16, allowEmpty: false, out var resolution) && resolution is "replace" or "skip" or "keep-both" or "cancel" &&
                 root.TryGetProperty("applyToAll", out var applyToAll) && applyToAll.ValueKind is JsonValueKind.True or JsonValueKind.False,
+            "file.transfer.start" => IsValidFileTransferStart(root),
+            "file.transfer.answer" => IsValidFileOperationId(root) &&
+                TryGetRequiredString(root, "transferId", MaxCredentialLength, allowEmpty: false, out var transferId) && IsValidOperationId(transferId) &&
+                TryGetRequiredString(root, "answerSdp", ScreenViewProtocol.MaxSdpLength, allowEmpty: false, out _) &&
+                TryGetRequiredString(root, "clientSignature", MaxCredentialLength, allowEmpty: false, out _),
+            "file.transfer.cancel" => IsValidFileOperationId(root) && IsValidFileTransferCancel(root),
             "audio.mute.toggle" => TryGetOptionalInputContext(root, out var muteContext) &&
                 IsInputContextAllowed(type, muteContext),
             "audio.volume.set" => TryGetNumber(root, "volume", 0, 100, out _) &&
@@ -595,6 +604,30 @@ internal static class ClientMessageValidator
     private static bool IsValidAppLaunchActionId(string actionId)
     {
         return actionId.All(character => char.IsAsciiLetterOrDigit(character) || character is '.' or '-' or '_');
+    }
+
+    private static bool IsValidFileTransferStart(JsonElement root)
+    {
+        if (!IsValidFilePanelRequest(root, requireRevision: true) ||
+            !TryGetRequiredString(root, "direction", 16, allowEmpty: false, out var direction) ||
+            !TryGetRequiredString(root, "clientSignature", MaxCredentialLength, allowEmpty: false, out _)) return false;
+        if (direction == "download")
+        {
+            return TryGetRequiredString(root, "entryId", MaxCredentialLength, allowEmpty: false, out _) &&
+                !root.TryGetProperty("fileName", out _) && !root.TryGetProperty("declaredSize", out _);
+        }
+        if (direction != "upload" || root.TryGetProperty("entryId", out _) ||
+            !TryGetRequiredString(root, "fileName", FileManagerProtocol.MaxNameLength, allowEmpty: false, out _)) return false;
+        return root.TryGetProperty("declaredSize", out var size) && size.ValueKind == JsonValueKind.Number &&
+            size.TryGetInt64(out var declaredSize) && declaredSize is >= 0 and <= FileTransferProtocol.MaximumSafeFileSize;
+    }
+
+    private static bool IsValidFileTransferCancel(JsonElement root)
+    {
+        if (!TryGetOptionalString(root, "transferId", MaxCredentialLength, out var transferId) ||
+            !TryGetOptionalString(root, "requestId", MaxOperationIdLength, out var requestId) ||
+            (transferId is null) == (requestId is null)) return false;
+        return transferId is not null ? IsValidOperationId(transferId) : IsValidOperationId(requestId!);
     }
 
     private static bool IsValidOperationId(string operationId)

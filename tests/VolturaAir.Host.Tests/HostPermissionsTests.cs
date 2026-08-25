@@ -7,7 +7,7 @@ public sealed class HostPermissionsTests
     [Fact]
     public void MyDeviceAllowsEveryCatalogPermission()
     {
-        Assert.Equal(19, DeviceAccessProfiles.Permissions.Count);
+        Assert.Equal(20, DeviceAccessProfiles.Permissions.Count);
         Assert.All(
             DeviceAccessProfiles.Permissions,
             permission => Assert.True(permission.Read(DeviceAccessProfiles.MyDevice), permission.PersistedKey));

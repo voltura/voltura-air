@@ -15,6 +15,7 @@ public sealed class TempPairingStore : IDisposable
     }
 
     public PairingStore Store { get; }
+    public string RootPath => _tempRoot;
 
     public void Dispose()
     {

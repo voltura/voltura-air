@@ -31,6 +31,7 @@
   --app-gradient-primary: rgb(15 123 108 / 24%);
   --app-gradient-danger: rgb(192 83 58 / 18%);
   --trackpad-grid: rgb(255 255 255 / 4%);
+  --icon-action-background: rgb(0 0 0 / 0%);
   --qr-background: #FFFFFF;
   --space-none: 0px;
   --space-2xs: 2px;
@@ -96,6 +97,7 @@
   --app-gradient-primary: rgb(15 123 108 / 12%);
   --app-gradient-danger: rgb(192 83 58 / 8%);
   --trackpad-grid: rgb(28 34 39 / 6%);
+  --icon-action-background: rgb(0 0 0 / 0%);
   --qr-background: #FFFFFF;
   }
 }
@@ -132,5 +134,6 @@
   --app-gradient-primary: rgb(15 123 108 / 12%);
   --app-gradient-danger: rgb(192 83 58 / 8%);
   --trackpad-grid: rgb(28 34 39 / 6%);
+  --icon-action-background: rgb(0 0 0 / 0%);
   --qr-background: #FFFFFF;
 }

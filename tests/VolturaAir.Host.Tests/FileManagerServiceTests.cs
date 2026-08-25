@@ -665,6 +665,393 @@ public sealed class FileManagerServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task UploadJournalsBeforeItsPartialAndCommitsFlushedBytes()
+    {
+        var left = CreateDirectory("left");
+        var right = CreateDirectory("right");
+        await using var service = CreateService(left, right, out var journal);
+        var session = service.OpenSession("client-a");
+        var content = "uploaded content"u8.ToArray();
+
+        var created = service.CreateUploadJob("client-a", session.SessionId, "right", session.Right.Revision, "upload.txt", content.Length, async (destination, committed, cancellationToken) =>
+        {
+            var recovery = Assert.Single(journal.Entries);
+            Assert.Equal("upload", recovery.Operation);
+            Assert.True(File.Exists(Assert.Single(recovery.TemporaryPaths)));
+            await destination.WriteAsync(content, cancellationToken);
+            await destination.FlushAsync(cancellationToken);
+            committed(content.Length);
+        });
+
+        var completed = await created.Admission!.Completion;
+
+        Assert.Equal("completed", completed.State);
+        Assert.Equal("upload.txt", completed.CurrentName);
+        Assert.Equal(content, File.ReadAllBytes(Path.Combine(right, "upload.txt")));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(right, "*.part"));
+    }
+
+    [Fact]
+    public async Task EmptyUploadCompletesAndCannotPauseOrResume()
+    {
+        var left = CreateDirectory("left");
+        var right = CreateDirectory("right");
+        await using var service = CreateService(left, right, out _);
+        var session = service.OpenSession("client-a");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var created = service.CreateUploadJob("client-a", session.SessionId, "right", session.Right.Revision, "empty.txt", 0, async (_, committed, cancellationToken) =>
+        {
+            entered.SetResult();
+            await release.Task.WaitAsync(cancellationToken);
+            committed(0);
+        });
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var running = Assert.Single(service.GetJobs("client-a"), job => job.JobId == created.Admission!.Snapshot.JobId);
+        Assert.False(running.CanPause);
+        Assert.False(running.CanResume);
+        Assert.False(service.ControlJob("client-a", running.JobId, "pause"));
+        Assert.False(service.ControlJob("client-a", running.JobId, "resume"));
+        release.SetResult();
+
+        Assert.Equal("completed", (await created.Admission!.Completion).State);
+        Assert.Equal(0, new FileInfo(Path.Combine(right, "empty.txt")).Length);
+    }
+
+    [Fact]
+    public async Task UploadKeepBothUsesAHostGeneratedContainedName()
+    {
+        var left = CreateDirectory("left");
+        var right = CreateDirectory("right");
+        File.WriteAllText(Path.Combine(right, "same.txt"), "original");
+        await using var service = CreateService(left, right, out _);
+        var session = service.OpenSession("client-a");
+        var bytes = "incoming"u8.ToArray();
+        var created = service.CreateUploadJob("client-a", session.SessionId, "right", session.Right.Revision, "same.txt", bytes.Length, async (destination, committed, cancellationToken) =>
+        {
+            await destination.WriteAsync(bytes, cancellationToken);
+            committed(bytes.Length);
+        });
+        await WaitForJobAsync(service, "client-a", created.Admission!.Snapshot.JobId, "needs-attention");
+
+        Assert.False(service.ResolveConflict("client-a", created.Admission.Snapshot.JobId, "keep-both", applyToAll: true));
+        Assert.True(service.ResolveConflict("client-a", created.Admission.Snapshot.JobId, "keep-both", applyToAll: false));
+        var completed = await created.Admission.Completion;
+        Assert.Equal("completed", completed.State);
+        Assert.Equal("same (2).txt", completed.CurrentName);
+
+        Assert.Equal("original", File.ReadAllText(Path.Combine(right, "same.txt")));
+        Assert.Equal("incoming", File.ReadAllText(Path.Combine(right, "same (2).txt")));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UploadAcceptsAMaximumLengthNameWithShortOwnedArtifacts(bool replace)
+    {
+        var left = CreateDirectory("left");
+        var right = CreateDirectory("right");
+        var name = $"{new string('a', 251)}.txt";
+        var destination = Path.Combine(right, name);
+        if (replace) File.WriteAllText(destination, "original");
+        await using var service = CreateService(left, right, out _);
+        var session = service.OpenSession("client-a");
+        var bytes = "replacement"u8.ToArray();
+        var created = service.CreateUploadJob(
+            "client-a", session.SessionId, "right", session.Right.Revision, name, bytes.Length,
+            async (output, committed, cancellationToken) =>
+            {
+                await output.WriteAsync(bytes, cancellationToken);
+                committed(bytes.Length);
+            });
+        if (replace)
+        {
+            await WaitForJobAsync(service, "client-a", created.Admission!.Snapshot.JobId, "needs-attention");
+            Assert.True(service.ResolveConflict("client-a", created.Admission.Snapshot.JobId, "replace", applyToAll: false));
+        }
+
+        Assert.Equal("completed", (await created.Admission!.Completion).State);
+        Assert.Equal("replacement", File.ReadAllText(destination));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(right, ".voltura-air-*"));
+    }
+
+    [Fact]
+    public async Task UploadQueuesBehindTheExistingMutationWorker()
+    {
+        var left = CreateDirectory("left");
+        var right = CreateDirectory("right");
+        File.WriteAllText(Path.Combine(left, "blocked.txt"), "new");
+        File.WriteAllText(Path.Combine(right, "blocked.txt"), "old");
+        await using var service = CreateService(left, right, out _);
+        var session = service.OpenSession("client-a");
+        var source = Assert.Single(session.Left.Entries);
+        var blocking = service.CreateJob("client-a", session.SessionId, "left", session.Left.Revision, new FileManagerSelection(false, [source.Id], []), "copy", "right", null, session.Right.Revision);
+        await WaitForJobAsync(service, "client-a", blocking.Job!.JobId, "needs-attention");
+        var receiverStarted = false;
+        var upload = service.CreateUploadJob("client-a", session.SessionId, "right", session.Right.Revision, "queued.txt", 0, (_, committed, _) =>
+        {
+            receiverStarted = true;
+            committed(0);
+            return Task.CompletedTask;
+        });
+
+        Assert.Equal("queued", Assert.Single(service.GetJobs("client-a"), job => job.JobId == upload.Admission!.Snapshot.JobId).State);
+        Assert.False(receiverStarted);
+        Assert.True(service.ResolveConflict("client-a", blocking.Job.JobId, "cancel", applyToAll: false));
+        Assert.Equal("completed", (await upload.Admission!.Completion).State);
+        Assert.True(receiverStarted);
+    }
+
+    [Fact]
+    public async Task UploadRejectsADeclaredSizeLargerThanCurrentVolumeSpace()
+    {
+        var left = CreateDirectory("left");
+        var right = CreateDirectory("right");
+        await using var service = CreateService(left, right, out _);
+        var session = service.OpenSession("client-a");
+
+        var created = service.CreateUploadJob("client-a", session.SessionId, "right", session.Right.Revision, "huge.bin", FileTransferProtocol.MaximumSafeFileSize, (_, _, _) => Task.CompletedTask);
+
+        Assert.False(created.Succeeded);
+        Assert.Equal("insufficient-space", created.Code);
+        Assert.Empty(service.GetJobs("client-a"));
+    }
+
+    [Fact]
+    public async Task TransferAdmissionCannotCreateWorkAfterFilesShutdownStarts()
+    {
+        var left = CreateDirectory("left");
+        var right = CreateDirectory("right");
+        File.WriteAllText(Path.Combine(left, "source.txt"), "source");
+        var service = CreateService(left, right, out _);
+        var session = service.OpenSession("client-a");
+        var source = Assert.Single(session.Left.Entries);
+        await service.DisposeAsync();
+
+        var download = service.OpenDownload("client-a", session.SessionId, "left", session.Left.Revision, source.Id);
+        var upload = service.CreateUploadJob(
+            "client-a", session.SessionId, "right", session.Right.Revision, "upload.txt", 0,
+            (_, _, _) => Task.CompletedTask);
+
+        Assert.False(download.Succeeded);
+        Assert.Equal("host-stopped", download.Code);
+        Assert.False(upload.Succeeded);
+        Assert.Equal("host-stopped", upload.Code);
+        Assert.Null(upload.Admission);
+    }
+
+    [Fact]
+    public async Task UploadIoFailureRemovesItsPartialAndDoesNotCreateTheDestination()
+    {
+        var left = CreateDirectory("left");
+        var right = CreateDirectory("right");
+        await using var service = CreateService(left, right, out var journal);
+        var session = service.OpenSession("client-a");
+        var created = service.CreateUploadJob("client-a", session.SessionId, "right", session.Right.Revision, "failed.txt", 4, async (destination, committed, cancellationToken) =>
+        {
+            await destination.WriteAsync("fail"u8.ToArray(), cancellationToken);
+            committed(4);
+            throw new IOException("Injected flush failure.");
+        });
+
+        Assert.Equal("failed", (await created.Admission!.Completion).State);
+        Assert.False(File.Exists(Path.Combine(right, "failed.txt")));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(right));
+        Assert.Empty(journal.Entries);
+    }
+
+    [Fact]
+    public async Task UploadDoesNotReplaceAFileCreatedAtTheCommitBoundary()
+    {
+        var left = CreateDirectory("left");
+        var right = CreateDirectory("right");
+        var destination = Path.Combine(right, "raced.txt");
+        void RaceCommit(string source, string target, bool directory)
+        {
+            File.WriteAllText(target, "external");
+            if (directory) Directory.Move(source, target); else File.Move(source, target);
+        }
+        await using var service = new FileManagerService(
+            new FakePlatform(), left, right, new MemoryLocationStore(), new MemoryJobJournal(), movePath: RaceCommit);
+        var session = service.OpenSession("client-a");
+        var bytes = "uploaded"u8.ToArray();
+        var created = service.CreateUploadJob(
+            "client-a", session.SessionId, "right", session.Right.Revision, "raced.txt", bytes.Length,
+            async (output, committed, cancellationToken) =>
+            {
+                await output.WriteAsync(bytes, cancellationToken);
+                committed(bytes.Length);
+            });
+
+        Assert.Equal("failed", (await created.Admission!.Completion).State);
+        Assert.Equal("external", File.ReadAllText(destination));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(right, "*.part"));
+    }
+
+    [Fact]
+    public async Task UploadReplaceRestoresTheOriginalWhenCommitFails()
+    {
+        var left = CreateDirectory("left");
+        var right = CreateDirectory("right");
+        File.WriteAllText(Path.Combine(right, "same.txt"), "original");
+        var moves = 0;
+        void FailCommit(string source, string destination, bool directory)
+        {
+            moves++;
+            if (moves == 2) throw new IOException("Injected commit failure.");
+            if (directory) Directory.Move(source, destination); else File.Move(source, destination);
+        }
+        var journal = new MemoryJobJournal();
+        await using var service = new FileManagerService(new FakePlatform(), left, right, new MemoryLocationStore(), journal, movePath: FailCommit);
+        var session = service.OpenSession("client-a");
+        var bytes = "replacement"u8.ToArray();
+        var created = service.CreateUploadJob("client-a", session.SessionId, "right", session.Right.Revision, "same.txt", bytes.Length, async (destination, committed, cancellationToken) =>
+        {
+            await destination.WriteAsync(bytes, cancellationToken);
+            committed(bytes.Length);
+        });
+        await WaitForJobAsync(service, "client-a", created.Admission!.Snapshot.JobId, "needs-attention");
+        Assert.True(service.ResolveConflict("client-a", created.Admission.Snapshot.JobId, "replace", applyToAll: false));
+
+        Assert.Equal("failed", (await created.Admission.Completion).State);
+        Assert.Equal("original", File.ReadAllText(Path.Combine(right, "same.txt")));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(right, "*.backup"));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(right, "*.part"));
+        Assert.Empty(journal.Entries);
+    }
+
+    [Fact]
+    public async Task UploadReplaceKeepsItsBackupJournaledWhenCommitAndRollbackFail()
+    {
+        var left = CreateDirectory("left");
+        var right = CreateDirectory("right");
+        var destination = Path.Combine(right, "same.txt");
+        File.WriteAllText(destination, "original");
+        var moves = 0;
+        void FailCommitAndRollback(string source, string target, bool directory)
+        {
+            moves++;
+            if (moves > 1) throw new IOException("Injected commit or rollback failure.");
+            if (directory) Directory.Move(source, target); else File.Move(source, target);
+        }
+        var journal = new MemoryJobJournal();
+        await using var service = new FileManagerService(
+            new FakePlatform(), left, right, new MemoryLocationStore(), journal,
+            movePath: FailCommitAndRollback);
+        var session = service.OpenSession("client-a");
+        var bytes = "replacement"u8.ToArray();
+        var created = service.CreateUploadJob(
+            "client-a", session.SessionId, "right", session.Right.Revision, "same.txt", bytes.Length,
+            async (output, committed, cancellationToken) =>
+            {
+                await output.WriteAsync(bytes, cancellationToken);
+                committed(bytes.Length);
+            });
+        await WaitForJobAsync(service, "client-a", created.Admission!.Snapshot.JobId, "needs-attention");
+        Assert.True(service.ResolveConflict("client-a", created.Admission.Snapshot.JobId, "replace", applyToAll: false));
+
+        Assert.Equal("failed", (await created.Admission.Completion).State);
+        var recovery = Assert.Single(journal.Entries);
+        var backup = Assert.Single(recovery.Backups!);
+        Assert.False(File.Exists(destination));
+        Assert.Equal("original", File.ReadAllText(backup.BackupPath));
+        Assert.Empty(recovery.TemporaryPaths);
+    }
+
+    [Fact]
+    public async Task UploadReplaceRecoveryRestoresOriginalWhenBackupDeleteAndRollbackFail()
+    {
+        var left = CreateDirectory("left");
+        var right = CreateDirectory("right");
+        var destination = Path.Combine(right, "same.txt");
+        File.WriteAllText(destination, "original");
+        var journal = new MemoryJobJournal();
+        FileStream? lockedBackup = null;
+        var moves = 0;
+        void FailRollbackAfterLockingBackup(string source, string target, bool directory)
+        {
+            moves++;
+            if (moves == 3) throw new IOException("Injected rollback failure.");
+            if (directory) Directory.Move(source, target); else File.Move(source, target);
+            if (moves == 1) lockedBackup = new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.None);
+        }
+
+        await using (var service = new FileManagerService(
+            new FakePlatform(), left, right, new MemoryLocationStore(), journal,
+            movePath: FailRollbackAfterLockingBackup))
+        {
+            var session = service.OpenSession("client-a");
+            var bytes = "replacement"u8.ToArray();
+            var created = service.CreateUploadJob(
+                "client-a", session.SessionId, "right", session.Right.Revision, "same.txt", bytes.Length,
+                async (output, committed, cancellationToken) =>
+                {
+                    await output.WriteAsync(bytes, cancellationToken);
+                    committed(bytes.Length);
+                });
+            await WaitForJobAsync(service, "client-a", created.Admission!.Snapshot.JobId, "needs-attention");
+            Assert.True(service.ResolveConflict("client-a", created.Admission.Snapshot.JobId, "replace", applyToAll: false));
+
+            Assert.Equal("failed", (await created.Admission.Completion).State);
+            Assert.Equal("replacement", File.ReadAllText(destination));
+            Assert.Single(Assert.Single(journal.Entries).Backups!);
+        }
+        lockedBackup?.Dispose();
+
+        await using var recovered = new FileManagerService(new FakePlatform(), left, right, new MemoryLocationStore(), journal);
+        Assert.Equal("original", File.ReadAllText(destination));
+        Assert.Empty(journal.Entries);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(right, "*.backup"));
+    }
+
+    [Fact]
+    public async Task UploadCleanupFailureKeepsItsPartialJournaledForRecovery()
+    {
+        var left = CreateDirectory("left");
+        var right = CreateDirectory("right");
+        var journal = new MemoryJobJournal();
+        await using var service = new FileManagerService(
+            new FakePlatform(), left, right, new MemoryLocationStore(), journal,
+            deleteTemporary: _ => false);
+        var session = service.OpenSession("client-a");
+        var created = service.CreateUploadJob(
+            "client-a", session.SessionId, "right", session.Right.Revision, "failed.txt", 4,
+            async (output, committed, cancellationToken) =>
+            {
+                await output.WriteAsync("fail"u8.ToArray(), cancellationToken);
+                committed(4);
+                throw new IOException("Injected receive failure.");
+            });
+
+        Assert.Equal("failed", (await created.Admission!.Completion).State);
+        var recovery = Assert.Single(journal.Entries);
+        var partial = Assert.Single(recovery.TemporaryPaths);
+        Assert.True(File.Exists(partial));
+        Assert.False(File.Exists(Path.Combine(right, "failed.txt")));
+    }
+
+    [Theory]
+    [InlineData("CON")]
+    [InlineData("LPT1.txt")]
+    [InlineData("trailing.")]
+    [InlineData("trailing ")]
+    [InlineData("bad/name.txt")]
+    public async Task UploadRejectsInvalidWindowsNamesBeforeQueueing(string fileName)
+    {
+        var left = CreateDirectory($"left-{Guid.NewGuid():N}");
+        var right = CreateDirectory($"right-{Guid.NewGuid():N}");
+        await using var service = CreateService(left, right, out _);
+        var session = service.OpenSession("client-a");
+
+        var created = service.CreateUploadJob("client-a", session.SessionId, "right", session.Right.Revision, fileName, 0, (_, _, _) => Task.CompletedTask);
+
+        Assert.False(created.Succeeded);
+        Assert.Equal("invalid-name", created.Code);
+        Assert.Empty(service.GetJobs("client-a"));
+    }
+
+    [Fact]
     public async Task WindowsAccessDeniedIoFailureReportsPermissionClearly()
     {
         var left = CreateDirectory("left");

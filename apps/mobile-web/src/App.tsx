@@ -777,12 +777,14 @@ export function App() {
             state={state}
             trackpadSettings={effectiveTrackpadSettings}
           />
-        ) : tab === "files" && fileManagerCapability ? (
+        ) : tab === "files" && fileManagerCapability && activePc ? (
           <WorkspaceErrorBoundary featureName="Files" onBack={() => { selectModeTabWithPresentationGuard("trackpad", "selector"); }}>
             <Suspense fallback={<div className="workspace-loading">Opening Files…</div>}>
               <FileManagerWorkspace
-                key={`${connectionEpoch}-${String(fileManagerCapability.canBrowse)}-${String(fileManagerCapability.canModify)}-${String(fileManagerCapability.hidesProtectedSystemItems)}`}
+                key={`${connectionEpoch}-${String(fileManagerCapability.canBrowse)}-${String(fileManagerCapability.canModify)}-${String(fileManagerCapability.canTransfer)}-${String(fileManagerCapability.hidesProtectedSystemItems)}`}
+                activePc={activePc}
                 capability={fileManagerCapability}
+                clientId={clientId}
                 canMirrorView={canMirrorFileView}
                 connectionEpoch={connectionEpoch}
                 mirrorViewUnavailableMessage={mirrorFileViewUnavailableMessage}

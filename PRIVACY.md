@@ -93,6 +93,12 @@ ingress and egress solely for the local usage estimate and quota cutoff. TURN
 credentials expire after 15 minutes. Command relay remains available if screen
 credentials are blocked by quota.
 
+Relay file transfer uses the same Cloudflare TURN processing, aggregate byte
+metering, warning, and quota cutoff. Its purpose-bound credentials expire after
+60 minutes; existing screen and webcam credentials remain 15 minutes. TURN can
+observe network metadata and encrypted byte counts but cannot decrypt the
+DTLS-protected file content.
+
 When Phone webcam is enabled and permitted, selected phone camera video and optional,
 explicitly enabled microphone audio travel on WebRTC DTLS-SRTP media tracks to the
 paired Windows host. Camera frames, audio samples, encoded media, SDP, credentials,
@@ -151,12 +157,16 @@ saves it as a text snippet.
 
 When Files is permitted, mobile receives bounded directory metadata such as
 display locations, names, sizes, types, dates, attributes, progress display
-names, and properties. File content stays on the PC or its mapped drives and is
-not transferred to the mobile device. Client commands contain opaque references
-rather than paths. By default, the host removes entries marked with both Windows
-Hidden and System attributes before producing directory metadata; this setting
-has a global value and a per-device override. File paths, names, clipboard file lists, conflict names,
-temporary paths, and operation contents are excluded from application logs.
+names, and properties. Client commands contain opaque references rather than
+paths. By default, the host removes entries marked with both Windows Hidden and
+System attributes before producing directory metadata; this setting has a
+global value and a per-device override. With the separate Transfer permission,
+one explicitly selected file may travel directly between the paired devices on
+a WebRTC DTLS-protected data channel. PC-to-device content is held in transient
+browser storage until Save/Share and is removed on completion or Files/session
+cleanup; device-to-PC content is held in a journaled partial until commit or
+cleanup. File paths, names, clipboard file lists, conflict names, temporary
+paths, file contents, and operation contents are excluded from application logs.
 
 ## Dictation and external services
 

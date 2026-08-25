@@ -16,6 +16,7 @@ import type {
   PresentationCommandResultMessage,
   PresentationReportSaveResultMessage,
   PresentationSessionResultMessage,
+  ServerMessage,
   ServerCapabilities,
   ScreenViewAnswerResultMessage,
   ScreenViewEndedMessage,
@@ -575,17 +576,30 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         handleSocketMessage(messageData);
       }
 
+      let pendingFileTransferMessages = Promise.resolve();
       function handleSocketMessage(messageData: unknown) {
         const response = parseServerMessage(messageData);
-        if (!response) {
-          const rejectedCustomScreenResult = parseRejectedCustomScreenGetResult(messageData);
-          if (rejectedCustomScreenResult) {
-            touchHealthy();
-            rejectCustomScreenGet(rejectedCustomScreenResult.operationId);
-            scheduleHealthCheck(ws);
-          }
+        if (response) {
+          handleValidatedSocketMessage(response);
           return;
         }
+        if (typeof messageData === "string" && messageData.includes("\"file.transfer.")) {
+          pendingFileTransferMessages = pendingFileTransferMessages.then(async () => {
+            const { parseFileTransferServerMessage } = await import("./fileTransferServerProtocol");
+            const transferResponse = parseFileTransferServerMessage(messageData);
+            if (transferResponse && !disposed && ws === socketRef.current) {handleValidatedSocketMessage(transferResponse);}
+          }).catch(() => markUnavailable(ws, "The file transfer protocol could not be loaded. Retrying...", "VAIR-FILE-TRANSFER-PROTOCOL"));
+          return;
+        }
+        const rejectedCustomScreenResult = parseRejectedCustomScreenGetResult(messageData);
+        if (rejectedCustomScreenResult) {
+          touchHealthy();
+          rejectCustomScreenGet(rejectedCustomScreenResult.operationId);
+          scheduleHealthCheck(ws);
+        }
+      }
+
+      function handleValidatedSocketMessage(response: ServerMessage) {
   
         if (response.type === "pair.challenge") {
           sendPairProof(response.challenge);

@@ -33,6 +33,7 @@ public sealed class WebHostService : IAsyncDisposable
     private readonly PhoneWebcamCommandHandler _phoneWebcamCommands;
     private readonly FileManagerService _fileManager;
     private readonly FileManagerCommandHandler _fileManagerCommands;
+    private readonly FileTransferCoordinator _fileTransfers;
     private readonly PresentationLaserPointerController _presentationLaserPointer;
     private readonly IPowerPointAutomationService _powerPoint;
     private readonly PowerPointPresentationSessionService _presentationSession;
@@ -143,7 +144,8 @@ public sealed class WebHostService : IAsyncDisposable
         IPhoneWebcamFeature? phoneWebcamFeature,
         IPhoneWebcamWebRtcPeerFactory? phoneWebcamPeerFactory,
         IScreenViewWebRtcPeerFactory? screenViewPeerFactory,
-        IUsageTelemetryRecorder? usageTelemetry = null)
+        IUsageTelemetryRecorder? usageTelemetry = null,
+        IFileTransferWebRtcPeerFactory? fileTransferPeerFactory = null)
     {
         _configureWebHost = configureWebHost;
 
@@ -317,6 +319,14 @@ public sealed class WebHostService : IAsyncDisposable
             _transport);
         _fileManager = new FileManagerService(hideProtectedItems: statusFactory.HideProtectedFileSystemItems);
         _fileManagerCommands = new FileManagerCommandHandler(_fileManager, statusFactory, _transport, pairingManager, _appLog);
+        _fileTransfers = new FileTransferCoordinator(
+            _fileManager,
+            statusFactory,
+            pairingManager,
+            _transport,
+            TransportMode == ConnectionTransportMode.Relay,
+            GetFileTransferRelayTurnConfigurationAsync,
+            fileTransferPeerFactory ?? (isolatedTestMode ? new IsolatedFileTransferWebRtcPeerFactory() : null));
         var inputCommands = new InputCommandHandler(
             inputDispatcher,
             _powerController,
@@ -379,6 +389,7 @@ public sealed class WebHostService : IAsyncDisposable
             textTransferCommands,
             clipboardCommands,
             _fileManagerCommands,
+            _fileTransfers,
             inputCommands,
             customScreenCommands,
             _screenViewCommands,
@@ -621,6 +632,7 @@ public sealed class WebHostService : IAsyncDisposable
         }
 
         await _statusBroadcaster.DisposeAsync();
+        await _fileTransfers.DisposeAsync();
         await _fileManagerCommands.DisposeAsync();
         await _fileManager.DisposeAsync();
         await _screenViewCommands.DisposeAsync();
@@ -785,6 +797,13 @@ public sealed class WebHostService : IAsyncDisposable
         if (relay is null) return Task.FromResult<RelayTurnConfiguration?>(null);
         var quality = AppNetworkSettings.Load().RelayScreenQuality;
         return relay.GetTurnConfigurationAsync(quality, cancellationToken);
+    }
+
+    private Task<RelayTurnConfiguration?> GetFileTransferRelayTurnConfigurationAsync(CancellationToken cancellationToken)
+    {
+        var relay = _relay;
+        if (relay is null) return Task.FromResult<RelayTurnConfiguration?>(null);
+        return relay.GetTurnConfigurationAsync(RelayScreenQuality.Standard, cancellationToken, "file-transfer");
     }
 
     internal static IPowerPointAutomationService ResolvePowerPointAutomation(

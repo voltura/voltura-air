@@ -14,6 +14,7 @@ import {
   trimPendingInputAcks
 } from "./connectionProtocol";
 import { catalogFrames, serverFrameCatalog } from "./serverFrameCatalog.testData";
+import { parseFileTransferServerMessage } from "./fileTransferServerProtocol";
 
 describe("connection protocol policy", () => {
   it("throttles movement acknowledgements without throttling discrete input", () => {
@@ -431,7 +432,8 @@ describe("parseServerMessage", () => {
   });
 
   it.each(catalogFrames)("accepts the catalogued $type frame", (message) => {
-    expect(parseServerMessage(JSON.stringify(message))).toEqual(message);
+    const parse = message.type.startsWith("file.transfer.") ? parseFileTransferServerMessage : parseServerMessage;
+    expect(parse(JSON.stringify(message))).toEqual(message);
   });
 
   it.each([
@@ -445,11 +447,12 @@ describe("parseServerMessage", () => {
   it.each(Object.entries(serverFrameCatalog).flatMap(([type, contract]) =>
     contract.frames.flatMap((message) => contract.required.map((field) => ({ type, message, field })))))(
     "rejects $type when required field $field is missing or null",
-    ({ message, field }) => {
+    ({ type, message, field }) => {
       const missing = { ...message } as Record<string, unknown>;
       delete missing[field];
-      expect(parseServerMessage(JSON.stringify(missing))).toBeNull();
-      expect(parseServerMessage(JSON.stringify({ ...message, [field]: null }))).toBeNull();
+      const parse = type.startsWith("file.transfer.") ? parseFileTransferServerMessage : parseServerMessage;
+      expect(parse(JSON.stringify(missing))).toBeNull();
+      expect(parse(JSON.stringify({ ...message, [field]: null }))).toBeNull();
     }
   );
 

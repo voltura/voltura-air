@@ -61,17 +61,21 @@ signed-in user's Windows key store, and paired browsers pin its public half. The
 controls do not make it a sandbox against malware already running as the same
 Windows user; same-user software can generally act with that user's privileges.
 
-The optional Files tool has separate default-off browse/open and change
-permissions, each resolved through global and per-device policy. Authenticated
+The optional Files tool has separate browse/open, change, and transfer
+permissions, each resolved through the device access profile or explicit Custom matrix. Authenticated
 clients submit only bounded opaque session, location, entry, revision,
 continuation, and job references; the host never accepts a client path. It
 removes protected Hidden+System entries by default before issuing client-visible
 counts or references, with a global setting and per-device override, and
 revalidates the complete directory revision before clipboard, Shell, or mutation
-work begins. File content remains on the PC, deletion is limited to Windows
-Recycle Bin eligibility, and permission revocation closes sessions and cancels
-owned work. This is remote operation with the signed-in Windows user's authority,
-not a sandbox against that user or same-user malware.
+work begins. Deletion is limited to Windows Recycle Bin eligibility, and permission
+revocation closes sessions and cancels owned work. One-file transfer additionally
+requires a reconnect-key-signed start and answer plus a pinned-host-signed offer.
+Bytes use a dedicated reliable WebRTC DTLS data channel with bounded records,
+acknowledgements, backpressure, and stall cleanup. Upload names and destination
+revisions are revalidated host-side; journaled partial and backup ownership preserves
+an original through commit or rollback. This is remote operation with the signed-in
+Windows user's authority, not a sandbox against that user or same-user malware.
 
 Files **View** composes existing boundaries rather than granting a combined
 permission: the host first authorizes and completes `file.open` under the
@@ -114,6 +118,11 @@ credentials. Signed credential requests require the active host routing key and
 reject timestamp/nonce replay. Usage thresholds restrict TURN issuance without
 affecting command authentication. A self-hosted relay changes endpoint and
 deployment ownership, not these application-layer security contracts.
+
+Relay file transfer uses the exact signed TURN purpose `file-transfer` and a
+60-minute credential; existing media credentials remain 15 minutes. Transfer
+content remains DTLS-protected from Relay, counts toward the same usage warning
+and cutoff, and is canceled at credential expiry.
 
 Phone webcam reverses the authenticated Screen media direction: the paired browser's
 reconnect key signs the exact bounded start request and answer, and the pinned PC

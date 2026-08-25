@@ -271,22 +271,15 @@ function isServerMessage(value: unknown): value is ServerMessage {
     case "screen.view.start.result":
       return hasOnlyFields(value, ["type", "operationId", "displayId", "succeeded", "code", "message", "offerSdp", "hostSignature", "iceServers", "turnExpiresAt", "relayUsageBytes", "relayUsageCheckedAt", "relayScreenQuality"]) &&
         isOperationId(value.operationId) && isBoundedString(value.displayId, 80, false) && isResultBase(value) &&
-        isOptional(value, "offerSdp", (candidate) => candidate === null || isBoundedString(candidate, 32 * 1024, false)) &&
-        isOptional(value, "hostSignature", (candidate) => candidate === null || isBoundedString(candidate, 128, false)) &&
-        isOptional(value, "iceServers", (candidate) => candidate === null || isRelayIceServers(candidate)) &&
-        isOptional(value, "turnExpiresAt", (candidate) => candidate === null || isBoundedString(candidate, 40, false)) &&
-        isOptional(value, "relayUsageBytes", (candidate) => candidate === null || typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate >= 0) &&
-        isOptional(value, "relayUsageCheckedAt", (candidate) => candidate === null || isBoundedString(candidate, 40, false)) &&
+        hasValidOptionalWebRtcOffer(value) &&
         isOptional(value, "relayScreenQuality", (candidate) => candidate === null || isBoundedString(candidate, 32, false));
     case "screen.view.answer.result":
-      return hasOnlyFields(value, ["type", "operationId", "succeeded", "code", "message"]) &&
-        isOperationId(value.operationId) && isResultBase(value);
+      return isExactOperationResult(value);
     case "screen.view.source.result":
       return hasOnlyFields(value, ["type", "operationId", "displayId", "succeeded", "code", "message"]) &&
         isOperationId(value.operationId) && isBoundedString(value.displayId, 80, false) && isResultBase(value);
     case "screen.view.stop.result":
-      return hasOnlyFields(value, ["type", "operationId", "succeeded", "code", "message"]) &&
-        isOperationId(value.operationId) && isResultBase(value);
+      return isExactOperationResult(value);
     case "screen.view.ended":
       return hasOnlyFields(value, ["type", "operationId", "reason", "message"]) &&
         isOperationId(value.operationId) &&
@@ -295,18 +288,12 @@ function isServerMessage(value: unknown): value is ServerMessage {
     case "phone.webcam.start.result":
       return hasOnlyFields(value, ["type", "operationId", "succeeded", "code", "message", "offerSdp", "hostSignature", "iceServers", "turnExpiresAt", "relayUsageBytes", "relayUsageCheckedAt", "relayQuality", "maximumBitrate"]) &&
         isOperationId(value.operationId) && isResultBase(value) &&
-        isOptional(value, "offerSdp", (candidate) => candidate === null || isBoundedString(candidate, 32 * 1024, false)) &&
-        isOptional(value, "hostSignature", (candidate) => candidate === null || isBoundedString(candidate, 128, false)) &&
-        isOptional(value, "iceServers", (candidate) => candidate === null || isRelayIceServers(candidate)) &&
-        isOptional(value, "turnExpiresAt", (candidate) => candidate === null || isBoundedString(candidate, 40, false)) &&
-        isOptional(value, "relayUsageBytes", (candidate) => candidate === null || typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate >= 0) &&
-        isOptional(value, "relayUsageCheckedAt", (candidate) => candidate === null || isBoundedString(candidate, 40, false)) &&
+        hasValidOptionalWebRtcOffer(value) &&
         isOptional(value, "relayQuality", (candidate) => candidate === null || isOneOf(candidate, ["Standard", "DataSaver"])) &&
         isOptional(value, "maximumBitrate", (candidate) => candidate === null || Number.isInteger(candidate) && (candidate as number) >= 100_000 && (candidate as number) <= 20_000_000);
     case "phone.webcam.answer.result":
     case "phone.webcam.stop.result":
-      return hasOnlyFields(value, ["type", "operationId", "succeeded", "code", "message"]) &&
-        isOperationId(value.operationId) && isResultBase(value);
+      return isExactOperationResult(value);
     case "phone.webcam.ended":
       return hasOnlyFields(value, ["type", "operationId", "reason", "message"]) &&
         isOperationId(value.operationId) &&
@@ -374,6 +361,7 @@ function isServerCapabilities(value: unknown): boolean {
 
 function isFileManagerCapability(value: unknown): boolean {
   return isRecord(value) && typeof value.canBrowse === "boolean" && typeof value.canModify === "boolean" &&
+    isOptional(value, "canTransfer", isBoolean) &&
     typeof value.hidesProtectedSystemItems === "boolean" &&
     Number.isInteger(value.maxPageSize) && (value.maxPageSize as number) >= 1 && (value.maxPageSize as number) <= 100;
 }
@@ -424,7 +412,7 @@ function isFilePanelPage(value: unknown): boolean {
 function isFileEntry(value: unknown): boolean {
   return isRecord(value) && isBoundedString(value.id, 512, false) && isBoundedString(value.name, 255, false) &&
     isOneOf(value.kind, ["file", "folder"]) && isBoundedString(value.extension, 255, true) &&
-    isOptional(value, "size", (candidate) => candidate === null || Number.isSafeInteger(candidate) && (candidate as number) >= 0) &&
+    isOptional(value, "size", (candidate) => candidate === null || isSafeFileSize(candidate)) &&
     isBoundedString(value.modifiedUtc, 64, false) && Array.isArray(value.attributes) && value.attributes.length <= 8 &&
     value.attributes.every((attribute) => isBoundedString(attribute, 32, false));
 }
@@ -438,11 +426,33 @@ function isFileProperties(value: unknown): boolean {
 }
 
 function isFileJob(value: unknown): boolean {
-  return isRecord(value) && isBoundedString(value.jobId, 512, false) && isOneOf(value.operation, ["copy", "move", "paste", "delete", "rename"]) &&
+  return isRecord(value) && isBoundedString(value.jobId, 512, false) && isOneOf(value.operation, ["copy", "move", "paste", "delete", "rename", "upload"]) &&
     isOneOf(value.state, ["queued", "preparing", "running", "paused", "needs-attention", "canceling", "completed", "failed", "canceled", "interrupted"]) &&
     ["queuePosition", "itemsCompleted", "itemsTotal", "bytesCompleted", "bytesTotal"].every((field) =>
       Number.isFinite(value[field]) && (value[field] as number) >= 0) &&
     typeof value.canPause === "boolean" && typeof value.canResume === "boolean" && typeof value.canCancel === "boolean";
+}
+
+function isSafeFileSize(value: unknown): boolean {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function hasValidRelayDetails(value: Record<string, unknown>): boolean {
+  return isOptional(value, "iceServers", (candidate) => candidate === null || isRelayIceServers(candidate)) &&
+    isOptional(value, "turnExpiresAt", (candidate) => candidate === null || isBoundedString(candidate, 40, false)) &&
+    isOptional(value, "relayUsageBytes", (candidate) => candidate === null || isSafeFileSize(candidate)) &&
+    isOptional(value, "relayUsageCheckedAt", (candidate) => candidate === null || isBoundedString(candidate, 40, false));
+}
+
+function hasValidOptionalWebRtcOffer(value: Record<string, unknown>): boolean {
+  return isOptional(value, "offerSdp", (candidate) => candidate === null || isBoundedString(candidate, 32 * 1024, false)) &&
+    isOptional(value, "hostSignature", (candidate) => candidate === null || isBoundedString(candidate, 128, false)) &&
+    hasValidRelayDetails(value);
+}
+
+function isExactOperationResult(value: Record<string, unknown>): boolean {
+  return hasOnlyFields(value, ["type", "operationId", "succeeded", "code", "message"]) &&
+    isOperationId(value.operationId) && isResultBase(value);
 }
 
 function isHostIdentity(value: unknown): boolean {

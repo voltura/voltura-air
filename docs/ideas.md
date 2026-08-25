@@ -41,13 +41,12 @@ peaks, text, or audio in logs. Browser dictation must remain independent.
 
 ### Mobile app gaps
 
-Mouse and keyboard control, media playback controls, and Files for Windows PC or
-mapped-drive storage are implemented. The following capabilities from the broader
-mobile-app list are not implemented:
+Mouse and keyboard control, media playback controls, Files for Windows PC or
+mapped-drive storage, and one-file transfers are implemented. The following
+capabilities from the broader mobile-app list are not implemented:
 
 | Missing capability | Possible direction |
 | --- | --- |
-| Phone storage access / PC-device transfer | Let the user explicitly copy one file at a time between the paired PC and phone storage. Start with iPhone validation; treat Android as a later compatibility target until a real Android device is available for testing. Use the detailed **PC and device file transfer** candidate below; do not begin with sync, backup, batches, or archives. |
 | System information and diagnostics | Consider a read-only, user-invoked mobile view of selected host information and diagnostic state. Define privacy, permission, redaction, bounds, and failure behavior first. |
 | Running-process management | Consider a bounded process list with explicit, safe actions only after defining identity, elevation, confirmation, stale results, and cancellation behavior. |
 | Terminal or shell access | Keep this research-gated until authentication, command policy, output limits, working-directory restrictions, lifetime, privacy, and audit behavior are defined. |
@@ -68,15 +67,14 @@ on real target devices.
 | --- | --- |
 | Motion gestures | Extend the existing motion owner with a small set such as Shake and left/right Flick, mapped locally to existing actions. Prove useful thresholds, false-positive resistance, orientation behavior, cancellation, and real-iPhone operation before adding Tilt scroll or Custom Screen integration; do not send or persist raw sensor samples. |
 | Share to Voltura Air | Evaluate installed-PWA share intake as an entry point to existing Send text/Open URL behavior. Confirm target-platform support, launch/session behavior, input bounds, and an understandable fallback; do not add history, inboxes, or cloud storage. |
-| PC/device file transfer | Extend Files with one-file-at-a-time authenticated download first, then upload. Define a bounded payload transport separate from interactive commands, permissions, progress, cancellation, Relay quotas, safe names, path containment, partial-file cleanup, and reconnect behavior before considering batches or archives. |
-| Capture or scan directly to PC | After upload exists, reuse its destination, progress, cancellation, and cleanup while the existing camera owner supplies one transient photo or document capture. Prove real-device capture, review, retake, page lifecycle, and camera-track cleanup before considering multi-page scanning, correction, or OCR. |
+| Capture or scan directly to PC | Reuse the existing one-file upload destination, progress, cancellation, and cleanup while the existing camera owner supplies one transient photo or document capture. Prove real-device capture, review, retake, page lifecycle, and camera-track cleanup before considering multi-page scanning, correction, or OCR. |
 | Current location | Consider only a direct user action that sends the current location to an existing text or URL destination. Define a concrete workflow and validate permission, precision disclosure, cancellation, and cleanup; do not add tracking, geofencing, or background automation. |
 
 #### Share to Voltura Air
 
 - Accept shared text and one HTTP(S) address only after proving installed-PWA share
-  target support on the intended devices. Files belong to the separate file-transfer
-  candidate.
+  target support on the intended devices. A shared file could only enter the existing
+  one-file transfer after equivalent support and review are proven.
 - Route an address to the existing Open URL review flow and other text to the
   existing Send text draft. Never open or send shared content automatically.
 - Keep one bounded transient pending share across PWA launch and connection setup,
@@ -86,24 +84,6 @@ on real target devices.
   mode cannot register Voltura Air in the device share sheet. Validate cold launch,
   already-open app, unpaired/disconnected state, malformed input, and navigation
   cleanup without adding a new host message.
-
-#### PC and device file transfer
-
-- Start with **Download to this device** for one selected PC file. Add one-file
-  upload into the current Files folder only after download ownership, cancellation,
-  and cleanup are proven. Defer directory transfer, multiple selection, archives,
-  background continuation, and synchronization.
-- Keep Files as the UI/session owner and add a separate default-off transfer
-  permission with global and per-device policy. Existing PC-side Copy and Move
-  remain distinct and must not imply permission to move bytes onto another device.
-- Do not carry large payloads on the authenticated interactive command queue. Choose
-  a bounded authenticated streaming path that preserves low-latency control traffic
-  and works deliberately across Enhanced Direct and Relay.
-- Define size limits, confirmation, progress, cancellation, timeout, reconnect,
-  Relay accounting/quotas, safe download names, upload path containment, conflict
-  handling, and durable ownership of every partial destination before protocol work.
-  Test interruption and cleanup at each external read, write, network, and commit
-  boundary.
 
 #### Motion gesture shortcuts
 
@@ -121,7 +101,7 @@ on real target devices.
 
 #### Capture or scan directly to PC
 
-- Treat this as a focused Files upload entry point, not a new transfer service.
+- Treat this as a focused entry point to the existing one-file Files transfer, not a new transfer service.
   The user chooses or confirms the PC folder, captures one image, reviews or retakes
   it, and explicitly uploads it through the same permission and transfer owner.
 - Reuse the existing camera permission and lifecycle mechanisms, while keeping
@@ -132,7 +112,7 @@ on real target devices.
   compression choice, multi-page documents, PDF generation, or OCR only after the
   one-image workflow has real-device evidence and explicit quality, memory, and
   temporary-data limits.
-- Use the transfer candidate's safe names, conflicts, progress, cancellation,
+- Use the existing transfer's safe names, conflicts, progress, cancellation,
   reconnect behavior, Relay quotas, partial-file cleanup, and failure testing.
 
 #### Send current location to the PC
@@ -160,8 +140,6 @@ before further design.
 
 - Consider host-defined custom Files locations below the Windows known folders after defining configuration ownership, unavailable-target behavior, ordering, and per-device visibility.
 - Consider an internal read-only file viewer after defining supported formats, bounded decoding/rendering, privacy, temporary-data cleanup, large-file behavior, and fallback to the Windows default application.
-- Treat the detailed **PC and device file transfer** candidate above as the sole
-  transfer direction; do not create a parallel Files transport or permission model.
 
 ### Additional device preferences
 

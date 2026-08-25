@@ -59,6 +59,15 @@ internal sealed record FileManagerProperties(
     DateTimeOffset AccessedUtc,
     string[] Attributes);
 internal sealed record FileManagerSelection(bool All, string[] EntryIds, string[] ExcludedEntryIds);
+internal sealed class FileTransferDownloadSource(string name, long size, FileStream stream) : IAsyncDisposable
+{
+    public string Name { get; } = name;
+    public long Size { get; } = size;
+    public FileStream Stream { get; } = stream;
+    public ValueTask DisposeAsync() => Stream.DisposeAsync();
+}
+internal delegate Task FileUploadReceiver(Stream destination, Action<long> committed, CancellationToken cancellationToken);
+internal sealed record FileUploadAdmission(FileJobSnapshot Snapshot, Task<FileJobSnapshot> Completion);
 
 internal enum FileJobState
 {
@@ -355,7 +364,9 @@ internal sealed class FileManagerService : IAsyncDisposable
         public long Generation { get; set; }
     }
 
-    private sealed class FileJob(long sequence, string ownerClientId, long authorizationGeneration, string operation, string[] sources, string? destination, string? rename, bool clearClipboard)
+    private sealed record FileUploadWork(string SessionId, string Panel, string Revision, string PanelSignature, string Name, long Size, FileUploadReceiver Receive);
+
+    private sealed class FileJob(long sequence, string ownerClientId, long authorizationGeneration, string operation, string[] sources, string? destination, string? rename, bool clearClipboard, FileUploadWork? upload = null)
     {
         public long Sequence { get; set; } = sequence;
         public string Id { get; } = Guid.NewGuid().ToString("N");
@@ -366,6 +377,7 @@ internal sealed class FileManagerService : IAsyncDisposable
         public string? Destination { get; } = destination;
         public string? Rename { get; } = rename;
         public bool ClearClipboard { get; } = clearClipboard;
+        public FileUploadWork? Upload { get; } = upload;
         public CancellationTokenSource Cancellation { get; } = new();
         public AsyncPauseGate PauseGate { get; } = new();
         public FileJobState State { get; set; } = FileJobState.Queued;
@@ -383,6 +395,7 @@ internal sealed class FileManagerService : IAsyncDisposable
         public ConcurrentDictionary<string, byte> TemporaryPaths { get; } = new(StringComparer.OrdinalIgnoreCase);
         public ConcurrentDictionary<string, string> BackupPaths { get; } = new(StringComparer.OrdinalIgnoreCase);
         public ConcurrentDictionary<string, long> PreparedSizes { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public TaskCompletionSource<FileJobSnapshot> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     private sealed class AsyncPauseGate
@@ -432,6 +445,7 @@ internal sealed class FileManagerService : IAsyncDisposable
     });
     private readonly Task _journalWorker;
     private long _jobSequence;
+    private int _disposeStarted;
 
     public FileManagerService(IFileManagerPlatform? platform = null, string? initialLeftPath = null, string? initialRightPath = null, IFileManagerLocationStore? locations = null, IFileJobJournal? journal = null, Func<string, bool>? hideProtectedItems = null, Action<string, string, bool>? movePath = null, Func<string, bool>? deleteTemporary = null)
     {
@@ -637,6 +651,80 @@ internal sealed class FileManagerService : IAsyncDisposable
             : (false, "permission-revoked", "File permission was revoked on the PC.");
     }
 
+    public (bool Succeeded, string? Code, string Message, FileTransferDownloadSource? Source) OpenDownload(
+        string clientId,
+        string sessionId,
+        string panelName,
+        string revision,
+        string entryId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (Volatile.Read(ref _disposeStarted) != 0) return (false, "host-stopped", "Files is stopping.", null);
+        if (!TryResolveEntry(clientId, sessionId, panelName, revision, entryId, out var entry, out var code, cancellationToken) || entry!.Value.Kind != "file")
+            return (false, code, "Select one available PC file.", null);
+        cancellationToken.ThrowIfCancellationRequested();
+        FileStream? stream = null;
+        try
+        {
+            stream = new FileStream(entry.Path, FileMode.Open, FileAccess.Read, FileShare.Read, FileTransferProtocol.MaximumPayloadBytes, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (stream.Length > FileTransferProtocol.MaximumSafeFileSize)
+            {
+                return (false, "file-too-large", "This file is too large for the transfer protocol.", null);
+            }
+            var source = new FileTransferDownloadSource(Path.GetFileName(entry.Path), stream.Length, stream);
+            stream = null;
+            return (true, null, "File ready.", source);
+        }
+        catch (Exception ex) when (IsFileBoundaryFailure(ex))
+        {
+            return (false, IsAccessDenied(ex) ? "access-denied" : "file-unavailable", "The selected file is unavailable.", null);
+        }
+        finally { stream?.Dispose(); }
+    }
+
+    public (bool Succeeded, string? Code, string Message, FileUploadAdmission? Admission) CreateUploadJob(
+        string clientId,
+        string sessionId,
+        string panelName,
+        string revision,
+        string fileName,
+        long declaredSize,
+        FileUploadReceiver receive,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(receive);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (Volatile.Read(ref _disposeStarted) != 0) return (false, "host-stopped", "Files is stopping.", null);
+        if (declaredSize is < 0 or > FileTransferProtocol.MaximumSafeFileSize)
+            return (false, "invalid-size", "The selected file size is invalid.", null);
+        if (!IsValidName(fileName)) return (false, "invalid-name", "Enter one valid Windows file name.", null);
+        if (!TryGetPanel(clientId, sessionId, panelName, out var session, out var panel))
+            return (false, "session-expired", "Files must be reopened.", null);
+        string destination;
+        string panelSignature;
+        lock (session.Gate)
+        {
+            if (panel.Revision != revision || !MatchesPanel(panel, _hideProtectedItems(clientId), cancellationToken))
+                return (false, "stale-panel", "The folder changed. Refresh it and try again.", null);
+            destination = panel.Path;
+            panelSignature = panel.Signature;
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!HasAvailableSpace(destination, declaredSize))
+            return (false, "insufficient-space", "The PC does not have enough free space for this file.", null);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var authorizationGeneration = CaptureAuthorizationGeneration(clientId);
+        var upload = new FileUploadWork(sessionId, panelName, revision, panelSignature, fileName, declaredSize, receive);
+        var job = new FileJob(Interlocked.Increment(ref _jobSequence), clientId, authorizationGeneration, "upload", [], destination, fileName, false, upload);
+        var admitted = AdmitJob(job, cancellationToken);
+        if (!admitted.Succeeded) return (false, admitted.Code, admitted.Message, null);
+        var snapshot = Snapshot(job);
+        return (true, null, "Upload queued.", new FileUploadAdmission(snapshot, job.Completion.Task));
+    }
+
     public (bool Succeeded, string? Code, string Message, FileJobSnapshot? Job) CreateJob(
         string clientId,
         string sessionId,
@@ -704,31 +792,39 @@ internal sealed class FileManagerService : IAsyncDisposable
             return (false, "invalid-destination", "Choose a destination outside the selected items.", null);
 
         var job = new FileJob(Interlocked.Increment(ref _jobSequence), clientId, authorizationGeneration, operation, paths, destination, newName, clearClipboard);
-        var admitted = false;
-        lock (GetAuthorizationState(clientId).Gate)
+        var admitted = AdmitJob(job);
+        if (!admitted.Succeeded) return (false, admitted.Code, admitted.Message, null);
+        return (true, null, "File operation queued.", Snapshot(job));
+    }
+
+    private (bool Succeeded, string? Code, string Message) AdmitJob(FileJob job, CancellationToken cancellationToken = default)
+    {
+        lock (GetAuthorizationState(job.OwnerClientId).Gate)
         {
-            if (GetAuthorizationState(clientId).Generation != authorizationGeneration)
+            if (GetAuthorizationState(job.OwnerClientId).Generation != job.AuthorizationGeneration)
             {
                 job.Cancellation.Dispose();
-                return (false, "permission-revoked", "File permission was revoked on the PC.", null);
+                return (false, "permission-revoked", "File permission was revoked on the PC.");
             }
-
             lock (_queueGate)
             {
+                if (cancellationToken.IsCancellationRequested || Volatile.Read(ref _disposeStarted) != 0)
+                {
+                    job.Cancellation.Dispose();
+                    return (false, "host-stopped", "Files is stopping.");
+                }
                 if (_jobs.Values.Count(candidate => !IsTerminalJob(candidate.State)) >= 32)
                 {
                     job.Cancellation.Dispose();
-                    return (false, "queue-full", "The file-operation queue is full. Try again later.", null);
+                    return (false, "queue-full", "The file-operation queue is full. Try again later.");
                 }
                 _jobs[job.Id] = job;
                 _pendingJobs.Add(job);
-                admitted = true;
             }
         }
-        if (!admitted) return (false, "permission-revoked", "File permission was revoked on the PC.", null);
         _queueSignal.Release();
         Publish(job);
-        return (true, null, "File operation queued.", Snapshot(job));
+        return (true, null, "File operation queued.");
     }
 
     public bool ControlJob(string clientId, string jobId, string action)
@@ -747,7 +843,7 @@ internal sealed class FileManagerService : IAsyncDisposable
             return DismissInterruptedJob(clientId, jobId);
         }
         if (!_jobs.TryGetValue(jobId, out var job) || job.OwnerClientId != clientId) return false;
-        if (action == "pause" && job.State is FileJobState.Running or FileJobState.Preparing)
+        if (action == "pause" && job.Upload is null && job.State is FileJobState.Running or FileJobState.Preparing)
         {
             job.ResumeState = job.State;
             job.PauseGate.Pause();
@@ -774,6 +870,7 @@ internal sealed class FileManagerService : IAsyncDisposable
             {
                 PruneTerminalJobs(job.OwnerClientId);
                 Publish(job);
+                job.Completion.TrySetResult(Snapshot(job));
                 return true;
             }
             job.State = FileJobState.Canceling;
@@ -802,8 +899,9 @@ internal sealed class FileManagerService : IAsyncDisposable
 
     public bool ResolveConflict(string clientId, string jobId, string resolution, bool applyToAll)
     {
-        if (!_jobs.TryGetValue(jobId, out var job) || job.OwnerClientId != clientId || job.State != FileJobState.NeedsAttention ||
-            resolution is not ("replace" or "skip" or "cancel")) return false;
+        if (!_jobs.TryGetValue(jobId, out var job) || job.OwnerClientId != clientId || job.State != FileJobState.NeedsAttention) return false;
+        if (job.Upload is null && resolution is not ("replace" or "skip" or "cancel") ||
+            job.Upload is not null && (resolution is not ("replace" or "keep-both" or "cancel") || applyToAll)) return false;
         if (applyToAll) job.ApplyAllResolution = resolution;
         job.Conflict?.TrySetResult(resolution);
         return true;
@@ -851,6 +949,7 @@ internal sealed class FileManagerService : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0) return;
         _locationUpdates.Writer.TryComplete();
         await _lifetime.CancelAsync().ConfigureAwait(false);
         _queueSignal.Release();
@@ -884,7 +983,8 @@ internal sealed class FileManagerService : IAsyncDisposable
             try
             {
                 job.State = FileJobState.Preparing;
-                job.ItemsTotal = job.Sources.Length;
+                job.ItemsTotal = job.Upload is null ? job.Sources.Length : 1;
+                if (job.Upload is not null) job.BytesTotal = job.Upload.Size;
                 if (job.Operation is "copy" or "move")
                 {
                     foreach (var source in job.Sources)
@@ -925,6 +1025,7 @@ internal sealed class FileManagerService : IAsyncDisposable
                 SaveJournalSnapshot();
                 if (IsTerminalJob(job.State)) PruneTerminalJobs(job.OwnerClientId);
                 Publish(job);
+                job.Completion.TrySetResult(Snapshot(job));
             }
         }
     }
@@ -939,6 +1040,11 @@ internal sealed class FileManagerService : IAsyncDisposable
 
     private async Task ExecuteJobAsync(FileJob job)
     {
+        if (job.Upload is not null)
+        {
+            await ExecuteUploadAsync(job, job.Upload).ConfigureAwait(false);
+            return;
+        }
         if (job.Operation == "delete")
         {
             foreach (var source in job.Sources)
@@ -998,6 +1104,62 @@ internal sealed class FileManagerService : IAsyncDisposable
             }
             job.ItemsCompleted++;
             Publish(job);
+        }
+    }
+
+    private async Task ExecuteUploadAsync(FileJob job, FileUploadWork upload)
+    {
+        await AwaitReadyAsync(job).ConfigureAwait(false);
+        if (!UploadDestinationMatches(job.OwnerClientId, upload, ignoredPath: null))
+            throw new IOException("The upload destination changed.");
+        if (!HasAvailableSpace(job.Destination!, upload.Size))
+            throw new IOException("The upload destination does not have enough free space.");
+
+        var destination = Path.Combine(job.Destination!, upload.Name);
+        var replaceExisting = false;
+        if (File.Exists(destination) || Directory.Exists(destination))
+        {
+            var resolution = await ResolveConflictAsync(job, Path.GetFileName(destination)).ConfigureAwait(false);
+            if (resolution == "cancel") throw new OperationCanceledException(job.Cancellation.Token);
+            if (resolution == "keep-both") destination = CreateKeepBothPath(destination);
+            else replaceExisting = true;
+        }
+        job.CurrentName = Path.GetFileName(destination);
+        Publish(job);
+
+        var temporary = Path.Combine(job.Destination!, $".voltura-air-{Guid.NewGuid():N}.part");
+        job.TemporaryPaths[temporary] = 0;
+        if (!SaveJournalSnapshot())
+        {
+            job.TemporaryPaths.TryRemove(temporary, out _);
+            throw new IOException("The upload recovery journal could not be saved.");
+        }
+        try
+        {
+            FileStream? output = null;
+            ExecuteAuthorized(job, () => output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, FileTransferProtocol.MaximumPayloadBytes, FileOptions.Asynchronous | FileOptions.SequentialScan));
+            await using (var outputStream = output ?? throw new IOException("The upload partial file could not be opened."))
+            {
+                await upload.Receive(outputStream, committed =>
+                {
+                    if (committed < job.BytesCompleted || committed > upload.Size) throw new IOException("The upload committed an invalid byte count.");
+                    job.BytesCompleted = committed;
+                    Publish(job);
+                }, job.Cancellation.Token).ConfigureAwait(false);
+                if (job.BytesCompleted != upload.Size || outputStream.Length != upload.Size)
+                    throw new IOException("The upload ended before the declared file size was received.");
+                ExecuteAuthorized(job, () => outputStream.Flush(flushToDisk: true));
+            }
+            await AwaitReadyAsync(job).ConfigureAwait(false);
+            if (!UploadDestinationMatches(job.OwnerClientId, upload, temporary))
+                throw new IOException("The upload destination changed before commit.");
+            ExecuteAuthorized(job, () => CommitPreparedPath(job, temporary, destination, directory: false, allowReplacement: replaceExisting));
+            job.ItemsCompleted = 1;
+        }
+        finally
+        {
+            if (_deleteTemporary(temporary)) job.TemporaryPaths.TryRemove(temporary, out _);
+            QueueJournalWrite();
         }
     }
 
@@ -1224,13 +1386,8 @@ internal sealed class FileManagerService : IAsyncDisposable
                 {
                     if (!File.Exists(backup.BackupPath) && !Directory.Exists(backup.BackupPath)) continue;
                     if (File.Exists(backup.DestinationPath) || Directory.Exists(backup.DestinationPath))
-                    {
-                        DeleteExisting(backup.BackupPath);
-                    }
-                    else
-                    {
-                        _movePath(backup.BackupPath, backup.DestinationPath, Directory.Exists(backup.BackupPath));
-                    }
+                        DeleteExisting(backup.DestinationPath);
+                    _movePath(backup.BackupPath, backup.DestinationPath, Directory.Exists(backup.BackupPath));
                 }
                 catch (Exception ex) when (IsFileBoundaryFailure(ex)) { unresolvedBackups.Add(backup); }
             }
@@ -1277,8 +1434,8 @@ internal sealed class FileManagerService : IAsyncDisposable
             job.CurrentName,
             job.Message,
             job.ConflictName,
-            job.State is FileJobState.Running or FileJobState.Preparing,
-            job.State == FileJobState.Paused,
+            job.Upload is null && job.State is (FileJobState.Running or FileJobState.Preparing),
+            job.Upload is null && job.State == FileJobState.Paused,
             job.State is not (FileJobState.Completed or FileJobState.Failed or FileJobState.Canceled));
     }
 
@@ -1305,14 +1462,22 @@ internal sealed class FileManagerService : IAsyncDisposable
         }
     }
 
-    private bool TryResolveEntry(string clientId, string sessionId, string panelName, string revision, string entryId, out EntryState? entry, out string code)
+    private bool TryResolveEntry(
+        string clientId,
+        string sessionId,
+        string panelName,
+        string revision,
+        string entryId,
+        out EntryState? entry,
+        out string code,
+        CancellationToken cancellationToken = default)
     {
         entry = null;
         if (!TryGetPanel(clientId, sessionId, panelName, out var session, out var panel)) { code = "session-expired"; return false; }
         lock (session.Gate)
         {
             if (panel.Revision != revision) { code = "stale-panel"; return false; }
-            if (!MatchesPanel(panel, _hideProtectedItems(clientId))) { code = "stale-panel"; return false; }
+            if (!MatchesPanel(panel, _hideProtectedItems(clientId), cancellationToken)) { code = "stale-panel"; return false; }
             entry = panel.Entries.FirstOrDefault(candidate => candidate.Id == entryId);
             code = entry is null ? "entry-unavailable" : "accepted";
             return entry is not null;
@@ -1576,6 +1741,55 @@ internal sealed class FileManagerService : IAsyncDisposable
         return Directory.Exists(sourcePath) && destinationPath.StartsWith(sourcePath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
+    private bool UploadDestinationMatches(string clientId, FileUploadWork upload, string? ignoredPath)
+    {
+        if (!TryGetPanel(clientId, upload.SessionId, upload.Panel, out var session, out var panel)) return false;
+        lock (session.Gate)
+        {
+            if (panel.Revision != upload.Revision) return false;
+            try
+            {
+                var current = ReadPanelEntries(panel.Path, _hideProtectedItems(clientId))
+                    .Where(entry => ignoredPath is null || !string.Equals(entry.Path, ignoredPath, StringComparison.OrdinalIgnoreCase));
+                return string.Equals(upload.PanelSignature, ComputeSignature(current), StringComparison.Ordinal);
+            }
+            catch (Exception ex) when (IsFileBoundaryFailure(ex))
+            {
+                return false;
+            }
+        }
+    }
+
+    private static bool HasAvailableSpace(string destinationDirectory, long requiredBytes)
+    {
+        try
+        {
+            var root = Path.GetPathRoot(Path.GetFullPath(destinationDirectory));
+            return string.IsNullOrEmpty(root) || !new DriveInfo(root).IsReady || new DriveInfo(root).AvailableFreeSpace >= requiredBytes;
+        }
+        catch (Exception ex) when (IsFileBoundaryFailure(ex))
+        {
+            return true;
+        }
+    }
+
+    private static string CreateKeepBothPath(string destination)
+    {
+        var directory = Path.GetDirectoryName(destination) ?? throw new IOException("The upload destination is unavailable.");
+        var extension = Path.GetExtension(destination);
+        var stem = Path.GetFileNameWithoutExtension(destination);
+        for (var index = 2; index <= 9999; index++)
+        {
+            var suffix = $" ({index})";
+            var maximumStemLength = FileManagerProtocol.MaxNameLength - extension.Length - suffix.Length;
+            if (maximumStemLength < 1) throw new IOException("The upload file name is too long.");
+            var boundedStem = stem.Length <= maximumStemLength ? stem : stem[..maximumStemLength];
+            var candidate = Path.Combine(directory, $"{boundedStem}{suffix}{extension}");
+            if (!File.Exists(candidate) && !Directory.Exists(candidate)) return candidate;
+        }
+        throw new IOException("A keep-both file name is unavailable.");
+    }
+
     private void CommitCaseOnlyRename(FileJob job, string source, string destination, bool directory)
     {
         var temporary = $"{source}.voltura-air-{Guid.NewGuid():N}.rename";
@@ -1628,15 +1842,16 @@ internal sealed class FileManagerService : IAsyncDisposable
         }
     }
 
-    private void CommitPreparedPath(FileJob job, string source, string destination, bool directory)
+    private void CommitPreparedPath(FileJob job, string source, string destination, bool directory, bool allowReplacement = true)
     {
         if (!File.Exists(destination) && !Directory.Exists(destination))
         {
             _movePath(source, destination, directory);
             return;
         }
+        if (!allowReplacement) throw new IOException("The destination changed before commit.");
 
-        var backup = $"{destination}.voltura-air-{Guid.NewGuid():N}.backup";
+        var backup = Path.Combine(Path.GetDirectoryName(destination) ?? throw new IOException("The replacement destination is unavailable."), $".voltura-air-{Guid.NewGuid():N}.backup");
         var destinationIsDirectory = Directory.Exists(destination);
         job.BackupPaths[backup] = destination;
         if (!SaveJournalSnapshot())
@@ -1686,7 +1901,18 @@ internal sealed class FileManagerService : IAsyncDisposable
     {
         if (directory) Directory.Move(source, destination); else File.Move(source, destination);
     }
-    private static bool IsValidName(string? name) => !string.IsNullOrWhiteSpace(name) && name.Length <= FileManagerProtocol.MaxNameLength && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0 && name is not "." and not "..";
+    private static bool IsValidName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name.Length > FileManagerProtocol.MaxNameLength ||
+            name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name is "." or ".." ||
+            name.EndsWith(' ') || name.EndsWith('.')) return false;
+        var stem = name.Split('.')[0];
+        return !stem.Equals("CON", StringComparison.OrdinalIgnoreCase) &&
+            !stem.Equals("PRN", StringComparison.OrdinalIgnoreCase) &&
+            !stem.Equals("AUX", StringComparison.OrdinalIgnoreCase) &&
+            !stem.Equals("NUL", StringComparison.OrdinalIgnoreCase) &&
+            !(stem.Length == 4 && (stem.StartsWith("COM", StringComparison.OrdinalIgnoreCase) || stem.StartsWith("LPT", StringComparison.OrdinalIgnoreCase)) && stem[3] is >= '1' and <= '9');
+    }
     private static void DeleteExisting(string path) { if (Directory.Exists(path)) Directory.Delete(path, true); else File.Delete(path); }
     private static void DeleteSource(string path) { if (Directory.Exists(path)) Directory.Delete(path, true); else File.Delete(path); }
     private static bool IsAccessDenied(Exception ex) =>

@@ -6,6 +6,7 @@ const [version, publishRoot] = process.argv.slice(2);
 if (!/^\d+\.\d+\.\d+$/u.test(version ?? "") || !publishRoot) throw new Error("Usage: node scripts/sign-update-manifest.mjs VERSION PUBLISH_ROOT");
 const keyPath = process.env.VOLTURA_AIR_UPDATE_SIGNING_KEY_PATH;
 if (!keyPath) throw new Error("VOLTURA_AIR_UPDATE_SIGNING_KEY_PATH is required to sign update manifests.");
+const configuredPassphrase = process.env.VOLTURA_AIR_UPDATE_SIGNING_PASSPHRASE;
 async function readPassphrase() {
   if (!process.stdin.isTTY) throw new Error("An authorized interactive terminal is required for the update signing passphrase.");
   process.stdout.write("Update signing passphrase: ");
@@ -24,8 +25,8 @@ async function readPassphrase() {
     });
   });
 }
-const passphrase = await readPassphrase();
-if (!passphrase) throw new Error("No update signing passphrase was provided.");
+const passphrase = configuredPassphrase === undefined ? await readPassphrase() : configuredPassphrase;
+if (!passphrase.trim()) throw new Error("No update signing passphrase was provided.");
 const installers = [
   `VolturaAir-Setup-${version}-win-x64.exe`,
   `VolturaAir-Setup-${version}-win-x64-full.exe`

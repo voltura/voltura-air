@@ -64,7 +64,7 @@ after final published-release verification succeeds.
 
 Outputs are under `artifacts/publish`; the command prints SHA-256 hashes for the
 ZIP and both installers.
-The release also generates a deterministic `VolturaAir-Update-<version>.json` and raw RSA-PSS signature after both installers are final. The authorized release PC supplies the encrypted private key path through `VOLTURA_AIR_UPDATE_SIGNING_KEY_PATH` and enters its passphrase without echo; the public key is the only key material in this repository. All five assets are checkpointed and uploaded as one exact set.
+The release also generates a deterministic `VolturaAir-Update-<version>.json` and raw RSA-PSS signature after both installers are final. The authorized release PC supplies the encrypted private key path through `VOLTURA_AIR_UPDATE_SIGNING_KEY_PATH` and either sets `VOLTURA_AIR_UPDATE_SIGNING_PASSPHRASE` before starting the release or enters the passphrase at the interactive prompt without echo. Do not store or log the passphrase; whitespace-only values are rejected. The public key is the only key material in this repository. All five assets are checkpointed and uploaded as one exact set.
 
 ## Version preparation
 

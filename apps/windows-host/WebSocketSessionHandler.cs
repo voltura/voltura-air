@@ -2,6 +2,7 @@ using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text.Json;
 using VolturaAir.Host.Features.PhoneWebcam;
+using VolturaAir.Host.Features.Diagnostics;
 using VolturaAir.Host.Features.UsageTelemetry;
 
 namespace VolturaAir.Host;
@@ -22,6 +23,7 @@ internal sealed class WebSocketSessionHandler(
     ExternalActionCommandHandler externalActionCommands,
     TextTransferCommandHandler textTransferCommands,
     ClipboardCommandHandler clipboardCommands,
+    DiagnosticsCommandHandler diagnosticsCommands,
     FileManagerCommandHandler fileManagerCommands,
     FileTransferCoordinator fileTransfers,
     InputCommandHandler inputCommands,
@@ -761,6 +763,9 @@ internal sealed class WebSocketSessionHandler(
                 return true;
             case "clipboard.get":
                 await clipboardCommands.HandleAsync(socket, clientId, ProtocolMessageFields.GetString(root, "operationId"), cancellationToken);
+                return true;
+            case "diagnostics.get":
+                await diagnosticsCommands.HandleAsync(socket, clientId, ProtocolMessageFields.GetString(root, "operationId"), cancellationToken);
                 return true;
             case "file.session.open":
                 if (usageSession.NeedsRecord(UsageFeature.Files, recordingToken) &&

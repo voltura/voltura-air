@@ -29,6 +29,10 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - The Windows tray app provides Connect, Devices, Custom screens,
   Presentations, Connection, Preferences, and Diagnostics. Closing the window
   leaves the host running.
+- Diagnostics system details include an on-demand snapshot of Windows, system
+  and processor models, logical processors, the primary display mode, installed
+  and available memory, system-disk capacity, and uptime. Each field can report
+  `Unavailable` independently; no system information is polled in the background.
 - Light, dark, system, Windows High Contrast, per-user installation, portable
   ZIP, and installer packages are supported.
 - Eligible installed stable builds can automatically stage a signed newer GitHub Release; the user explicitly installs it from the shared tray/sidebar update action. Portable and development runs do not check for updates.
@@ -79,7 +83,7 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   and materializes a complete Custom matrix before an individual edit.
 - Existing paired devices are migrated to Custom using their previous effective
   global-plus-device values. A complete Custom matrix saved before Transfer files
-  existed gains that permission as blocked. Other unknown or incomplete profile data remains paired
+  or View diagnostics existed gains each missing permission as blocked. Other unknown or incomplete profile data remains paired
   and blocks all profile-managed permissions. Pairing links, QR data, tokens,
   authentication messages, and protocol shapes are unchanged.
 - The Windows host's 3D control effect is a separate appearance preference and
@@ -94,7 +98,7 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   not read.
 - Profile-managed permissions cover sleep, volume, Screen viewing, Phone webcam,
   Presentation, file browsing/opening, file changes, file transfer, application launch, web
-  addresses, PC clipboard reads, Lock, Blackout, display off, screen saver,
+  addresses, PC clipboard reads, View diagnostics, Lock, Blackout, display off, screen saver,
   sign out, restart, shutdown, Keep awake, and pointer/keyboard input. Control of
   the Voltura Air Windows application is a separate setting that remains disabled
   by default. When enabled, it applies only to My device and Custom devices;
@@ -493,6 +497,24 @@ pairing, connecting, paired, rejected, unavailable/retrying, and disconnected.
 It explains unreadable/non-Voltura QR codes, expired codes, revoked devices,
 invalid reconnect proof, unreachable hosts, and input acknowledgement failures.
 Diagnostics copies redact tokens, private keys, challenges, and proofs.
+
+### Diagnostics
+
+- **Diagnostics** is a standalone Support destination in the mobile settings
+  drawer. It always shows the web-client version, browser, display mode, and
+  connection state; a connected PC can add a freshly generated host and computer
+  snapshot when the device has **View diagnostics** access.
+- My device allows View diagnostics, Remote controls blocks it, and Custom stores
+  an explicit Allow or Block value. The host checks the effective permission
+  before collecting any computer information and returns no partial snapshot when
+  access is blocked.
+- One snapshot is requested when the page opens and one more only when the user
+  selects Refresh. There is no polling, timer, history, or proactive diagnostics
+  push. The host and mobile views include whether enhanced HTTPS capabilities
+  are enabled. Copy actions use only visible `Label: value` rows and report the
+  result through the existing temporary toast; the device response excludes
+  local paths, Windows usernames, other device names, raw host or WebSocket URLs,
+  credentials, tokens, and logs.
 
 ### Trackpad
 

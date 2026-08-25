@@ -25,6 +25,7 @@ const baseProps = {
   onOpenGestureDebug: vi.fn(),
   onPairingQrSelected: vi.fn(),
   onOpenThirdPartyNotices: vi.fn(),
+  onOpenDiagnostics: vi.fn(),
   pairedPcs: [],
   pairingQrInputRef: { current: null },
   pairingScanMessage: "Scan.",

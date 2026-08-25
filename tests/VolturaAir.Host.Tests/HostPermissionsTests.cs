@@ -7,7 +7,7 @@ public sealed class HostPermissionsTests
     [Fact]
     public void MyDeviceAllowsEveryCatalogPermission()
     {
-        Assert.Equal(20, DeviceAccessProfiles.Permissions.Count);
+        Assert.Equal(21, DeviceAccessProfiles.Permissions.Count);
         Assert.All(
             DeviceAccessProfiles.Permissions,
             permission => Assert.True(permission.Read(DeviceAccessProfiles.MyDevice), permission.PersistedKey));
@@ -35,6 +35,8 @@ public sealed class HostPermissionsTests
         }
 
         Assert.Equal(expected.Count, DeviceAccessProfiles.Permissions.Count(permission => permission.RemoteControlsAllowed));
+        Assert.True(DeviceAccessProfiles.MyDevice.AllowDiagnostics);
+        Assert.False(DeviceAccessProfiles.RemoteControls.AllowDiagnostics);
     }
 
     [Fact]

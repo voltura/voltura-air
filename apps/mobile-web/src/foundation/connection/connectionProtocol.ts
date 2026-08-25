@@ -308,6 +308,11 @@ function isServerMessage(value: unknown): value is ServerMessage {
     case "clipboard.get.result":
       return isOperationId(value.operationId) && isResultBase(value) &&
         isOptional(value, "text", isString);
+    case "diagnostics.get.result":
+      return hasOnlyFields(value, ["type", "operationId", "succeeded", "code", "message", "snapshot"]) &&
+        isOperationId(value.operationId) && isResultBase(value) &&
+        isOptional(value, "snapshot", isMobileHostDiagnosticsSnapshot) &&
+        (value.succeeded ? isMobileHostDiagnosticsSnapshot(value.snapshot) : value.snapshot === undefined);
     case "audio.state":
       return typeof value.volume === "number" && Number.isFinite(value.volume) && value.volume >= 0 && value.volume <= 100 &&
         typeof value.muted === "boolean";
@@ -342,6 +347,7 @@ function isServerCapabilities(value: unknown): boolean {
     isOptional(value, "inputContextV1", isBoolean) &&
     isOptional(value, "remoteInput", isBoolean) &&
     isOptional(value, "clipboardRead", isBoolean) &&
+    isOptional(value, "diagnostics", (candidate) => isBooleanCapability(candidate, "canView")) &&
     isOptional(value, "presentation", isPresentationCapability) &&
     isOptional(value, "power", isPowerCapabilities) &&
     isOptional(value, "remoteLaunch", isBoolean) &&
@@ -357,6 +363,46 @@ function isServerCapabilities(value: unknown): boolean {
     isOptional(value, "sleep", isBoolean) &&
     isOptional(value, "textTransfer", isBoolean) &&
     isOptional(value, "volume", isBoolean);
+}
+
+function isMobileHostDiagnosticsSnapshot(value: unknown): boolean {
+  if (!isRecord(value) || !hasOnlyFields(value, [
+    "generatedAt", "hostVersion", "connectionMethod", "enhancedCapabilities", "relayStatus", "relayEndpointType",
+    "relayFailureCode", "pairingState", "windowsLockPolicy", "applicationLogging",
+    "applicationLogRetention", "pairedDeviceCount", "connectedDeviceCount", "pcName",
+    "selectedAdapter", "selectedIp", "selectedPort", "advisories", "computer"
+  ])) {
+    return false;
+  }
+
+  const stringFields = [
+    "generatedAt", "hostVersion", "connectionMethod", "enhancedCapabilities", "relayStatus", "relayEndpointType",
+    "relayFailureCode", "pairingState", "windowsLockPolicy", "applicationLogging",
+    "applicationLogRetention", "pcName", "selectedAdapter", "selectedIp"
+  ];
+  return stringFields.every((field) => isBoundedString(value[field], 256, false)) &&
+    Number.isInteger(value.pairedDeviceCount) && (value.pairedDeviceCount as number) >= 0 &&
+    Number.isInteger(value.connectedDeviceCount) && (value.connectedDeviceCount as number) >= 0 &&
+    Number.isInteger(value.selectedPort) && (value.selectedPort as number) > 0 && (value.selectedPort as number) <= 65_535 &&
+    Array.isArray(value.advisories) && value.advisories.length <= 2 && value.advisories.every(isMobileDiagnosticAdvisory) &&
+    isComputerDiagnosticsSnapshot(value.computer);
+}
+
+function isMobileDiagnosticAdvisory(value: unknown): boolean {
+  return isRecord(value) && hasOnlyFields(value, ["name", "summary", "details", "code"]) &&
+    isBoundedString(value.name, 80, false) && isBoundedString(value.summary, 256, false) &&
+    isBoundedString(value.details, 256, false) && isBoundedString(value.code, 80, false);
+}
+
+function isComputerDiagnosticsSnapshot(value: unknown): boolean {
+  if (!isRecord(value) || !hasOnlyFields(value, [
+    "windows", "system", "processor", "logicalProcessors", "primaryDisplay", "installedMemory",
+    "availableMemory", "systemDisk", "systemUptime"
+  ])) {
+    return false;
+  }
+
+  return Object.values(value).every((field) => isBoundedString(field, 256, false));
 }
 
 function isFileManagerCapability(value: unknown): boolean {
@@ -930,6 +976,8 @@ export const getFileManagerCapability = (capabilities: ServerCapabilities | unde
 export const hasTextTransferCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.textTransfer === true;
 export const getClipboardReadPermission = (capabilities: ServerCapabilities | undefined): boolean | undefined =>
   typeof capabilities?.clipboardRead === "boolean" ? capabilities.clipboardRead : undefined;
+export const getDiagnosticsPermission = (capabilities: ServerCapabilities | undefined): boolean | undefined =>
+  typeof capabilities?.diagnostics?.canView === "boolean" ? capabilities.diagnostics.canView : undefined;
 export const getUrlOpenCapability = (capabilities: ServerCapabilities | undefined): UrlOpenCapability | undefined =>
   typeof capabilities?.urlOpen?.canOpen === "boolean" ? { canOpen: capabilities.urlOpen.canOpen } : undefined;
 export const hasGestureDebugCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.gestureDebug === true;

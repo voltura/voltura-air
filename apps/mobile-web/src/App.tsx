@@ -33,6 +33,7 @@ import { requestGyroPermission, type GyroActivationRequest } from "./foundation/
 const ScreenViewWorkspace = lazy(() => import("./features/screen-view"));
 const FileManagerWorkspace = lazy(() => import("./features/file-manager"));
 const PhoneWebcamWorkspace = lazy(() => import("./features/phone-webcam"));
+const DiagnosticsWorkspace = lazy(() => import("./features/diagnostics"));
 const PairingQrScannerDialog = lazy(loadPairingQrScannerDialog);
 
 export function App() {
@@ -57,6 +58,11 @@ export function App() {
     screenViewCapability,
     phoneWebcamCapability,
     fileManagerCapability,
+    diagnosticsPermission,
+    diagnosticsSnapshot,
+    diagnosticsFailure,
+    pendingDiagnostics,
+    requestDiagnostics,
     invokeCustomScreenButton,
     pendingCustomScreenButtonIds,
     requestCustomScreen,
@@ -117,6 +123,7 @@ export function App() {
     }
   }), []);
   const [isThirdPartyNoticesOpen, setIsThirdPartyNoticesOpen] = useState(false);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const connectionErrorKey = lastConnectionError
     ? `${lastConnectionError.code}\n${lastConnectionError.message}`
     : null;
@@ -193,6 +200,7 @@ export function App() {
   const openScreenViewFromFiles = useCallback(() => {
     setActiveCustomScreenId(null);
     setIsThirdPartyNoticesOpen(false);
+    setIsDiagnosticsOpen(false);
     setIsScreenViewOpen(true);
     setIsPhoneWebcamOpen(false);
   }, []);
@@ -256,7 +264,7 @@ export function App() {
     supportsGestureDebug,
     trackpadSettings,
     suppressSplitMode: gyroSelected,
-    showModeButtons: showModeButtons && !isThirdPartyNoticesOpen
+    showModeButtons: showModeButtons && !isThirdPartyNoticesOpen && !isDiagnosticsOpen
   });
   useEffect(() => {
     if (state === "paired" &&
@@ -282,6 +290,7 @@ export function App() {
       setIsScreenViewOpen(false);
       setIsPhoneWebcamOpen(false);
       setIsThirdPartyNoticesOpen(false);
+      setIsDiagnosticsOpen(false);
       if (nextTab === "presentation") {
         requestPresentationActivation();
       }
@@ -300,6 +309,7 @@ export function App() {
       setIsScreenViewOpen(false);
       setIsPhoneWebcamOpen(false);
       setIsThirdPartyNoticesOpen(false);
+      setIsDiagnosticsOpen(false);
       if (mode === "presentation") {
         requestPresentationActivation();
       }
@@ -318,6 +328,7 @@ export function App() {
       setIsScreenViewOpen(false);
       setIsPhoneWebcamOpen(false);
       setIsThirdPartyNoticesOpen(false);
+      setIsDiagnosticsOpen(false);
       openGestureDebug();
     });
   };
@@ -329,6 +340,7 @@ export function App() {
       setIsScreenViewOpen(false);
       setIsPhoneWebcamOpen(false);
       setIsThirdPartyNoticesOpen(false);
+      setIsDiagnosticsOpen(false);
       setGyroActivationRequest(request);
       openModeFromMenu("trackpad");
     });
@@ -369,6 +381,7 @@ export function App() {
         setActiveCustomScreenId(null);
         setIsScreenViewOpen(false);
         setIsThirdPartyNoticesOpen(false);
+        setIsDiagnosticsOpen(false);
         selectModeTab("remote", "settings");
         setIsSettingsOpen(false);
         requestRemoteModeLaunch(value, nextSettings);
@@ -533,7 +546,7 @@ export function App() {
 
   return (
     <div className={`app-frame${controlDepth ? " control-depth" : ""}`}>
-      <main className={`${shellClassName}${controlDepth ? " control-depth" : ""}${isScreenViewOpen ? " screen-view-active" : ""}${tab === "files" ? " files-active" : ""}`}>
+      <main className={`${shellClassName}${controlDepth ? " control-depth" : ""}${isScreenViewOpen ? " screen-view-active" : ""}${isDiagnosticsOpen ? " diagnostics-active" : ""}${tab === "files" ? " files-active" : ""}`}>
         <AppHeader
           activeMode={activeModeTab}
           canShowModeNavigation={canShowModeNavigation}
@@ -641,6 +654,7 @@ export function App() {
               setIsScreenViewOpen(false);
               setIsPhoneWebcamOpen(false);
               setIsThirdPartyNoticesOpen(false);
+              setIsDiagnosticsOpen(false);
               setIsSettingsOpen(false);
             });
           }}
@@ -648,6 +662,7 @@ export function App() {
             requestPresentationExit(() => {
               setActiveCustomScreenId(null);
               setIsThirdPartyNoticesOpen(false);
+              setIsDiagnosticsOpen(false);
               setIsScreenViewOpen(true);
               setIsPhoneWebcamOpen(false);
               setIsSettingsOpen(false);
@@ -658,6 +673,7 @@ export function App() {
               setPhoneWebcamCapabilitySnapshot(phoneWebcamCapability);
               setActiveCustomScreenId(null);
               setIsThirdPartyNoticesOpen(false);
+              setIsDiagnosticsOpen(false);
               setIsScreenViewOpen(false);
               setIsPhoneWebcamOpen(true);
               setIsSettingsOpen(false);
@@ -672,7 +688,16 @@ export function App() {
             setActiveCustomScreenId(null);
             setIsScreenViewOpen(false);
             setIsPhoneWebcamOpen(false);
+            setIsDiagnosticsOpen(false);
             setIsThirdPartyNoticesOpen(true);
+          }}
+          onOpenDiagnostics={() => {
+            closeTransientSurfaces();
+            setActiveCustomScreenId(null);
+            setIsScreenViewOpen(false);
+            setIsPhoneWebcamOpen(false);
+            setIsThirdPartyNoticesOpen(false);
+            setIsDiagnosticsOpen(true);
           }}
           onOpenGyroMouse={openGyroMouse}
           onPairingQrSelected={onPairingQrSelected}
@@ -729,7 +754,20 @@ export function App() {
 
         {activeCustomScreenId === null && !isScreenViewOpen && !isPhoneWebcamOpen && tab !== "files" && isModeButtonsVisible && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
 
-        {isThirdPartyNoticesOpen ? (
+        {isDiagnosticsOpen ? (
+          <Suspense fallback={<div className="workspace-loading">Opening Diagnostics…</div>}>
+            <DiagnosticsWorkspace
+              state={state}
+              permission={diagnosticsPermission}
+              snapshot={diagnosticsSnapshot}
+              pending={pendingDiagnostics}
+              failure={diagnosticsFailure}
+              requestDiagnostics={requestDiagnostics}
+              onCopyFeedback={(feedbackMessage, tone) => { setTransientFeedback({ message: feedbackMessage, tone }); }}
+              onBack={() => { setIsDiagnosticsOpen(false); }}
+            />
+          </Suspense>
+        ) : isThirdPartyNoticesOpen ? (
           <ThirdPartyNoticesWorkspace onBack={() => { setIsThirdPartyNoticesOpen(false); }} />
         ) : isPhoneWebcamOpen && activePc && activePhoneWebcamCapability ? (
           <WorkspaceErrorBoundary featureName="Phone webcam" onBack={() => { setIsPhoneWebcamOpen(false); }}>

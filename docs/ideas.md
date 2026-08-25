@@ -14,7 +14,6 @@ capabilities from the broader mobile-app list are not implemented:
 
 | Missing capability | Possible direction |
 | --- | --- |
-| System information and diagnostics | Consider a read-only, user-invoked mobile view of selected host information and diagnostic state. Define privacy, permission, redaction, bounds, and failure behavior first. |
 | Running-process management | Consider a bounded process list with explicit, safe actions only after defining identity, elevation, confirmation, stale results, and cancellation behavior. |
 | Terminal or shell access | Keep this research-gated until authentication, command policy, output limits, working-directory restrictions, lifetime, privacy, and audit behavior are defined. |
 | PC screenshots | Consider an explicit action to capture a selected PC display or current view and deliver it to the mobile app, with permission, size, transient-storage, and cleanup limits. |

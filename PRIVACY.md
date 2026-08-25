@@ -155,6 +155,15 @@ browser only after an explicit request and when the host permission allows it.
 The browser does not store returned clipboard text unless the user explicitly
 saves it as a text snippet.
 
+When a paired device opens Diagnostics or explicitly refreshes it, the Windows
+host may return a permission-gated, read-only snapshot containing connection
+state, whether enhanced HTTPS capabilities are enabled, PC and adapter names,
+selected local IP and port, Windows/system/processor details, logical-processor
+count, primary display mode, memory, system-disk capacity, and uptime. It excludes
+local paths, Windows usernames, other device names, raw host or WebSocket URLs,
+credentials, tokens, query strings, and log contents. Voltura Air does not poll,
+retain a history of, or proactively push this snapshot.
+
 When Files is permitted, mobile receives bounded directory metadata such as
 display locations, names, sizes, types, dates, attributes, progress display
 names, and properties. Client commands contain opaque references rather than

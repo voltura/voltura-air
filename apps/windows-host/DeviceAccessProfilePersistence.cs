@@ -147,10 +147,30 @@ internal static class DeviceAccessProfilePersistence
 
     private static DevicePermissionOverrides? MigrateLegacyCompleteCustom(DevicePermissionOverrides? values)
     {
-        if (values is null || values.AllowFileTransfer is not null) return values;
-        var legacyComplete = DeviceAccessProfiles.Permissions
-            .Where(permission => permission.Kind != DevicePermissionKind.FileTransfer)
-            .All(permission => permission.ReadOverride(values) is not null);
-        return legacyComplete ? values with { AllowFileTransfer = false } : values;
+        if (values is null) return null;
+
+        if (values.AllowFileTransfer is null)
+        {
+            var completeBeforeFileTransfer = DeviceAccessProfiles.Permissions
+                .Where(permission => permission.Kind is not (DevicePermissionKind.FileTransfer or DevicePermissionKind.Diagnostics))
+                .All(permission => permission.ReadOverride(values) is not null);
+            if (completeBeforeFileTransfer)
+            {
+                values = values with { AllowFileTransfer = false };
+            }
+        }
+
+        if (values.AllowDiagnostics is null)
+        {
+            var completeBeforeDiagnostics = DeviceAccessProfiles.Permissions
+                .Where(permission => permission.Kind != DevicePermissionKind.Diagnostics)
+                .All(permission => permission.ReadOverride(values) is not null);
+            if (completeBeforeDiagnostics)
+            {
+                values = values with { AllowDiagnostics = false };
+            }
+        }
+
+        return values;
     }
 }

@@ -49,6 +49,7 @@ internal sealed class DiagnosticsPageController(
             new("Voltura Air version", AppVersion.Display),
             new("Voltura Air web client version", "copy mobile diagnostics for web client version"),
             new("Connection method", webHost.TransportMode == ConnectionTransportMode.Relay ? "cloud-relay" : "direct-lan"),
+            new("Enhanced capabilities", webHost.EnhancedCapabilitiesEnabled ? "enabled" : "disabled"),
             new("Relay status", webHost.RelayState.ToString().ToLowerInvariant()),
             new("Relay endpoint type", webHost.RelayEndpoint?.IsOfficial == false ? "custom" : webHost.TransportMode == ConnectionTransportMode.Relay ? "official" : "not-active"),
             new("Relay failure code", webHost.RelayFailureCode ?? "none"),
@@ -64,6 +65,8 @@ internal sealed class DiagnosticsPageController(
             new("Application log folder", appLog.LogDirectory),
             new("Pairing state", GetPairingState()),
         ];
+
+        diagnostics.AddRange(webHost.ComputerDiagnostics.Capture().ToItems());
 
         foreach (var advisory in GetAdvisories())
         {

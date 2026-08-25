@@ -102,6 +102,7 @@ internal static class ClientMessageValidator
             ["url.open"] = Fields("type", "operationId", "url"),
             ["text.send"] = Fields("type", "operationId", "text", "sendEnter"),
             ["clipboard.get"] = Fields("type", "operationId"),
+            ["diagnostics.get"] = Fields("type", "operationId"),
             ["file.session.open"] = Fields("type", "operationId"),
             ["file.page.get"] = Fields("type", "operationId", "sessionId", "panel", "revision", "continuation"),
             ["file.navigate"] = Fields("type", "operationId", "sessionId", "panel", "revision", "targetId"),
@@ -354,7 +355,7 @@ internal static class ClientMessageValidator
                 root.TryGetProperty("sendEnter", out var sendEnter) && sendEnter.ValueKind is JsonValueKind.True or JsonValueKind.False,
             "clipboard.get" => TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var clipboardOperationId) &&
                 IsValidOperationId(clipboardOperationId),
-            "file.session.open" or "file.jobs.get" => IsValidFileOperationId(root),
+            "file.session.open" or "file.jobs.get" or "diagnostics.get" => IsValidFileOperationId(root),
             "file.page.get" => IsValidFilePanelRequest(root, requireRevision: true) &&
                 TryGetRequiredString(root, "continuation", MaxCredentialLength, allowEmpty: false, out _),
             "file.navigate" => IsValidFilePanelRequest(root, requireRevision: true) &&

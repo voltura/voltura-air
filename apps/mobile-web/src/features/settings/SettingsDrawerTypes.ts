@@ -39,6 +39,7 @@ export interface SettingsDrawerProps {
   onOpenGyroMouse?: (() => void) | undefined;
   onOpenMode?: (mode: SettingsModeId) => void;
   onOpenThirdPartyNotices: () => void;
+  onOpenDiagnostics: () => void;
   onOpenCustomScreen?: ((screenId: string) => void) | undefined;
   onOpenScreenView?: (() => void) | undefined;
   onOpenPhoneWebcam?: (() => void) | undefined;

@@ -350,6 +350,7 @@ Success:
     "urlOpen": { "canOpen": false },
     "textTransfer": true,
     "clipboardRead": false,
+    "diagnostics": { "canView": true },
     "screenView": {
       "enabled": false,
       "permissionGranted": false,
@@ -415,6 +416,8 @@ Authenticated metadata is not authentication state:
   `vlc`, `powerpoint`, or `custom`. Paths, URLs, and arguments are excluded.
 - `urlOpen.canOpen`, `remoteInput`, `textTransfer`, `clipboardRead`: effective
   device permissions.
+- `diagnostics.canView`: effective **View diagnostics** permission. The capability
+  remains present when blocked so the mobile destination can explain recovery.
 - `textTransferTarget`: exactly `{ mode, displayName, available }`; mode is
   `focused`, `clipboard`, or `configured`. It excludes paths, process/window
   IDs, matching rules, and clipboard content.
@@ -482,6 +485,87 @@ from user action. Appearance changes set an override for the authenticated
 device; the host Devices page can restore inheritance from the global default.
 `health.pong` is liveness only; it contains no metadata/capability/audio state.
 Any valid client message resets the receive timeout.
+
+## Diagnostics
+
+Diagnostics uses the authenticated paired-device connection. It is strictly
+request/response: the host sends no proactive diagnostics snapshot and performs
+no polling. The client requests one snapshot on page open or explicit Refresh.
+
+```json
+{ "type": "diagnostics.get", "operationId": "diagnostics-1" }
+```
+
+`operationId` uses the normal bounded operation-ID rules. The request has no
+other fields. The host checks the effective **View diagnostics** permission
+before collecting system data.
+
+```json
+{
+  "type": "diagnostics.get.result",
+  "operationId": "diagnostics-1",
+  "succeeded": true,
+  "message": "Diagnostics loaded.",
+  "snapshot": {
+    "generatedAt": "2026-08-25T12:00:00.0000000Z",
+    "hostVersion": "1.1.0",
+    "connectionMethod": "direct-lan",
+    "enhancedCapabilities": "enabled",
+    "relayStatus": "disabled",
+    "relayEndpointType": "not-active",
+    "relayFailureCode": "none",
+    "pairingState": "connected",
+    "windowsLockPolicy": "notexplicitlydisabled",
+    "applicationLogging": "disabled",
+    "applicationLogRetention": "7 days",
+    "pairedDeviceCount": 1,
+    "connectedDeviceCount": 1,
+    "pcName": "WINDOWS-PC",
+    "selectedAdapter": "Ethernet",
+    "selectedIp": "192.168.1.50",
+    "selectedPort": 51395,
+    "advisories": [],
+    "computer": {
+      "windows": "Windows 11 Pro, version 24H2, build 26100",
+      "system": "Manufacturer Model",
+      "processor": "Processor model",
+      "logicalProcessors": "8",
+      "primaryDisplay": "3840 × 2160 at 60 Hz",
+      "installedMemory": "16.0 GiB",
+      "availableMemory": "8.0 GiB",
+      "systemDisk": "500.0 GiB total, 200.0 GiB free",
+      "systemUptime": "1d 2h 3m"
+    }
+  }
+}
+```
+
+The success snapshot is an explicit allowlist. `enhancedCapabilities` reports
+whether the active host endpoint enables the browser capabilities that require
+the Voltura certificate and HTTPS. `advisories` contains at most two objects with
+exactly `name`, `summary`, `details`, and `code`. Each computer probe fails
+independently and uses `Unavailable` when its value cannot be read. The web-client
+version, browser, and local display mode remain client-owned and are not sent by
+the host.
+
+The snapshot excludes application/data/executable paths, the Windows username,
+other device names, raw host and WebSocket URLs, relay identifiers or credentials,
+tokens, query strings, and log contents. Unknown snapshot fields are rejected by
+the client.
+
+```json
+{
+  "type": "diagnostics.get.result",
+  "operationId": "diagnostics-1",
+  "succeeded": false,
+  "code": "permission-denied",
+  "message": "Diagnostics viewing is disabled for this device."
+}
+```
+
+Failures contain no `snapshot`. Expected codes are `permission-denied` and
+`diagnostics-unavailable`; a diagnostics failure does not terminate the paired
+connection.
 
 ## Encrypted screen viewing
 

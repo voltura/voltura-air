@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
 using VolturaAir.Host.Features.PhoneWebcam;
+using VolturaAir.Host.Features.Diagnostics;
 using VolturaAir.Host.Features.UsageTelemetry;
 
 namespace VolturaAir.Host;
@@ -145,7 +146,8 @@ public sealed class WebHostService : IAsyncDisposable
         IPhoneWebcamWebRtcPeerFactory? phoneWebcamPeerFactory,
         IScreenViewWebRtcPeerFactory? screenViewPeerFactory,
         IUsageTelemetryRecorder? usageTelemetry = null,
-        IFileTransferWebRtcPeerFactory? fileTransferPeerFactory = null)
+        IFileTransferWebRtcPeerFactory? fileTransferPeerFactory = null,
+        IComputerDiagnosticsProbe? computerDiagnosticsProbe = null)
     {
         _configureWebHost = configureWebHost;
 
@@ -256,6 +258,26 @@ public sealed class WebHostService : IAsyncDisposable
                 PhoneWebcamFeatureState.Unavailable,
                 "Phone webcam is unavailable."),
             () => phoneWebcamFeature?.AudioTargetStatus.IsReady == true);
+        ComputerDiagnostics = computerDiagnosticsProbe is null
+            ? new ComputerDiagnosticsProvider()
+            : new ComputerDiagnosticsProvider(computerDiagnosticsProbe);
+        var diagnosticsCommands = new DiagnosticsCommandHandler(
+            pairingManager,
+            statusFactory,
+            _workstationLockPolicy,
+            ComputerDiagnostics,
+            () => new MobileHostDiagnosticsContext(
+                TransportMode,
+                EnhancedCapabilitiesEnabled,
+                RelayState,
+                RelayEndpoint?.IsOfficial,
+                RelayFailureCode,
+                SelectedAdapterName,
+                AdvertisedHostAddress,
+                Port,
+                AddressSelectionWarning,
+                PortSelectionWarning),
+            _transport);
         var commandLog = new HostCommandLog(_appLog);
         var powerCommands = new PowerCommandHandler(
             _powerController,
@@ -388,6 +410,7 @@ public sealed class WebHostService : IAsyncDisposable
             externalActionCommands,
             textTransferCommands,
             clipboardCommands,
+            diagnosticsCommands,
             _fileManagerCommands,
             _fileTransfers,
             inputCommands,
@@ -479,6 +502,7 @@ public sealed class WebHostService : IAsyncDisposable
     internal IAwakeService AwakeService => _awakeService;
     internal IAppLaunchService AppLaunchService { get; }
     internal CustomScreenService CustomScreenService { get; }
+    internal ComputerDiagnosticsProvider ComputerDiagnostics { get; }
     internal IAppLog AppLog => _appLog;
     internal int ActiveSocketCount => _transport.ActiveSocketCount;
     internal int SendGateCount => _transport.SendGateCount;

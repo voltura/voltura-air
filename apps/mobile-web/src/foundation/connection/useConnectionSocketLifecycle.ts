@@ -6,6 +6,7 @@ import type {
   AwakeResultMessage,
   ClientMessage,
   ClipboardGetResultMessage,
+  DiagnosticsGetResultMessage,
   CustomScreenGetResultMessage,
   CustomScreenInvokeResultMessage,
   FileManagerServerMessage,
@@ -76,6 +77,7 @@ interface ConnectionSocketLifecycleOptions {
   completeAppLaunch: (result: AppLaunchResultMessage) => boolean;
   completeAwakeChange: (result: AwakeResultMessage) => boolean;
   completeClipboardRead: (result: ClipboardGetResultMessage) => boolean;
+  completeDiagnostics: (result: DiagnosticsGetResultMessage) => boolean;
   completeCustomScreenGet: (result: CustomScreenGetResultMessage) => boolean;
   completeCustomScreenInvoke: (result: CustomScreenInvokeResultMessage) => boolean;
   rejectCustomScreenGet: (operationId: string) => boolean;
@@ -128,6 +130,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     completeAppLaunch: completeAppLaunchState,
     completeAwakeChange: completeAwakeChangeState,
     completeClipboardRead: completeClipboardReadState,
+    completeDiagnostics: completeDiagnosticsState,
     completeCustomScreenGet: completeCustomScreenGetState,
     completeCustomScreenInvoke: completeCustomScreenInvokeState,
     rejectCustomScreenGet: rejectCustomScreenGetState,
@@ -177,6 +180,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
   const completeAppLaunch = useEffectEvent(completeAppLaunchState);
   const completeAwakeChange = useEffectEvent(completeAwakeChangeState);
   const completeClipboardRead = useEffectEvent(completeClipboardReadState);
+  const completeDiagnostics = useEffectEvent(completeDiagnosticsState);
   const completeCustomScreenGet = useEffectEvent(completeCustomScreenGetState);
   const completeCustomScreenInvoke = useEffectEvent(completeCustomScreenInvokeState);
   const rejectCustomScreenGet = useEffectEvent(rejectCustomScreenGetState);
@@ -869,6 +873,13 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
               ? null
               : { code: response.code ?? "VAIR-CLIPBOARD-READ-FAILED", message: response.message });
           }
+          scheduleHealthCheck(ws);
+          return;
+        }
+
+        if (response.type === "diagnostics.get.result") {
+          touchHealthy();
+          completeDiagnostics(response);
           scheduleHealthCheck(ws);
           return;
         }

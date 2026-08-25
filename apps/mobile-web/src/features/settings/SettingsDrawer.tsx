@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
-import { Camera, MonitorUp, Orbit, X } from "lucide-react";
+import { Activity, Camera, MonitorUp, Orbit, X } from "lucide-react";
 import {
   CustomPointerSettingsSection,
   KeyboardSettingsSection,
@@ -234,6 +234,16 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
         <SettingsSectionDetails section="custom-pointer" label="Custom pointer" isOpen={openSection === "custom-pointer"} onToggle={toggleSection}>
           <CustomPointerSettingsSection customPointerEnabled={props.customPointerEnabled} setHostCustomPointer={props.setHostCustomPointer} />
         </SettingsSectionDetails>
+
+        <section className="drawer-group" aria-labelledby="drawer-support-title">
+          <h3 id="drawer-support-title">Support</h3>
+          <div className="drawer-tool-list">
+            <button type="button" onClick={() => {closeThen(props.onOpenDiagnostics);}}>
+              <Activity aria-hidden="true" />
+              <span>Diagnostics</span>
+            </button>
+          </div>
+        </section>
 
         <footer className="drawer-legal-links">
           <button className="drawer-legal-link" type="button" onClick={props.onOpenThirdPartyNotices}>Third-party notices</button>

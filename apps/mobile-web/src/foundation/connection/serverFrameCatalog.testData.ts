@@ -23,6 +23,15 @@ const filePage = {
 const fileSession = { sessionId: "session-a", drives: [], shortcuts: [], left: filePage, right: { ...filePage, panel: "right" as const } };
 const fileProperties = { entryId: "entry-a", name: "file.txt", fullPath: "Downloads\\file.txt", kind: "file" as const, extension: "txt", size: 12, createdUtc: "2026-08-04T00:00:00Z", modifiedUtc: "2026-08-04T00:00:00Z", accessedUtc: "2026-08-04T00:00:00Z", attributes: [] };
 const fileJob = { jobId: "job-a", operation: "copy" as const, state: "queued" as const, queuePosition: 1, itemsCompleted: 0, itemsTotal: 1, bytesCompleted: 0, bytesTotal: 12, canPause: false, canResume: false, canCancel: true };
+export const diagnosticsSnapshot = {
+  generatedAt: "2026-08-25T12:00:00.0000000Z", hostVersion: "1.1.0", connectionMethod: "direct-lan",
+  enhancedCapabilities: "enabled",
+  relayStatus: "disabled", relayEndpointType: "not-active", relayFailureCode: "none", pairingState: "connected",
+  windowsLockPolicy: "notexplicitlydisabled", applicationLogging: "disabled", applicationLogRetention: "7 days",
+  pairedDeviceCount: 1, connectedDeviceCount: 1, pcName: "Office PC", selectedAdapter: "Ethernet",
+  selectedIp: "192.168.1.50", selectedPort: 51395, advisories: [],
+  computer: { windows: "Windows 11 Pro, version 24H2, build 26100", system: "Example Model", processor: "Example CPU", logicalProcessors: "8", primaryDisplay: "3840 × 2160 at 60 Hz", installedMemory: "16.0 GiB", availableMemory: "8.0 GiB", systemDisk: "500.0 GiB total, 200.0 GiB free", systemUptime: "1d 2h 3m" }
+};
 
 export const serverFrameCatalog = {
   "pair.accepted": {
@@ -31,7 +40,7 @@ export const serverFrameCatalog = {
       type: "pair.accepted", clientId: "client-a", pcName: "Office PC", paired: true,
       capabilities: {
         awake: { canControl: true, active: false, mode: "off" },
-        gestureDebug: false, inputAck: true, clipboardRead: true,
+        gestureDebug: false, inputAck: true, clipboardRead: true, diagnostics: { canView: true },
         presentation: { canControl: true, canSaveReports: true, laserPointerActive: false },
         power: { lock: true, lockAvailability: "notExplicitlyDisabled", blackoutDisplay: true, displayOff: true, screenSaver: true, screenSaverAvailable: true, signOut: true, restart: true, shutdown: true },
         remoteLaunch: true, urlOpen: { canOpen: true }, sleep: true, textTransfer: true, volume: true
@@ -223,6 +232,13 @@ export const serverFrameCatalog = {
       { type: "clipboard.get.result", operationId: "op-clipboard", succeeded: true, message: "Read", text: "Example PC clipboard text" },
       { type: "clipboard.get.result", operationId: "op-clipboard", succeeded: true, message: "Read", text: "" },
       { type: "clipboard.get.result", operationId: "op-clipboard", succeeded: false, code: "VAIR-CLIPBOARD-UNAVAILABLE", message: "Unavailable" }
+    ]
+  },
+  "diagnostics.get.result": {
+    required: ["operationId", "succeeded", "message"],
+    frames: [
+      { type: "diagnostics.get.result", operationId: "op-diagnostics", succeeded: true, message: "Diagnostics loaded.", snapshot: diagnosticsSnapshot },
+      { type: "diagnostics.get.result", operationId: "op-diagnostics-denied", succeeded: false, code: "permission-denied", message: "Blocked." }
     ]
   },
   "custom.screen.get.result": {

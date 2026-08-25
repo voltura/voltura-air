@@ -10,6 +10,7 @@ import {
   getFileManagerCapability,
   hasGestureDebugCapability,
   getClipboardReadPermission,
+  getDiagnosticsPermission,
   getUrlOpenCapability,
   hasInputAckCapability,
   hasRemoteLaunchCapability,
@@ -32,6 +33,7 @@ export function useConnectionRuntimeState(
   const [supportsRemoteLaunch, setSupportsRemoteLaunch] = useState(false);
   const [supportsTextTransfer, setSupportsTextTransfer] = useState(false);
   const [clipboardReadPermission, setClipboardReadPermission] = useState<boolean | undefined>(undefined);
+  const [diagnosticsPermission, setDiagnosticsPermission] = useState<boolean | undefined>(undefined);
   const [urlOpenCapability, setUrlOpenCapability] = useState<UrlOpenCapability | undefined>(undefined);
   const [powerCapabilities, setPowerCapabilities] = useState<PowerCapabilities | null>(null);
   const [presentationCapability, setPresentationCapability] = useState<PresentationCapability | undefined>(undefined);
@@ -55,6 +57,7 @@ export function useConnectionRuntimeState(
     setSupportsRemoteLaunch(false);
     setSupportsTextTransfer(false);
     setClipboardReadPermission(undefined);
+    setDiagnosticsPermission(undefined);
     setUrlOpenCapability(undefined);
     setPowerCapabilities(null);
     setPresentationCapability(undefined);
@@ -78,6 +81,7 @@ export function useConnectionRuntimeState(
     setSupportsRemoteLaunch(connected && hasRemoteLaunchCapability(capabilities));
     setSupportsTextTransfer(connected && hasTextTransferCapability(capabilities));
     setClipboardReadPermission(connected ? getClipboardReadPermission(capabilities) : undefined);
+    setDiagnosticsPermission(connected ? getDiagnosticsPermission(capabilities) : undefined);
     setUrlOpenCapability(connected ? getUrlOpenCapability(capabilities) : undefined);
     setPowerCapabilities(connected ? getPowerCapabilities(capabilities) : null);
     setPresentationCapability(connected ? getPresentationCapability(capabilities) : undefined);
@@ -109,6 +113,7 @@ export function useConnectionRuntimeState(
     audioState,
     awakeCapability,
     clipboardReadPermission,
+    diagnosticsPermission,
     customScreensCapability,
     clearRuntimeState,
     hostStatus,

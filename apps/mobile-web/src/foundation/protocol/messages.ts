@@ -73,6 +73,7 @@ export interface ServerCapabilities {
   inputAck?: boolean;
   inputContextV1?: boolean;
   clipboardRead?: boolean;
+  diagnostics?: DiagnosticsCapability;
   presentation?: PresentationCapability;
   power?: PowerCapabilities;
   remoteLaunch?: boolean;
@@ -84,6 +85,65 @@ export interface ServerCapabilities {
   screenView?: ScreenViewCapability | null;
   phoneWebcam?: PhoneWebcamCapability | null;
   fileManager?: FileManagerCapability | null;
+}
+
+export interface DiagnosticsCapability {
+  canView: boolean;
+}
+
+export interface ComputerDiagnosticsSnapshot {
+  windows: string;
+  system: string;
+  processor: string;
+  logicalProcessors: string;
+  primaryDisplay: string;
+  installedMemory: string;
+  availableMemory: string;
+  systemDisk: string;
+  systemUptime: string;
+}
+
+export interface MobileDiagnosticAdvisory {
+  name: string;
+  summary: string;
+  details: string;
+  code: string;
+}
+
+export interface MobileHostDiagnosticsSnapshot {
+  generatedAt: string;
+  hostVersion: string;
+  connectionMethod: string;
+  enhancedCapabilities: string;
+  relayStatus: string;
+  relayEndpointType: string;
+  relayFailureCode: string;
+  pairingState: string;
+  windowsLockPolicy: string;
+  applicationLogging: string;
+  applicationLogRetention: string;
+  pairedDeviceCount: number;
+  connectedDeviceCount: number;
+  pcName: string;
+  selectedAdapter: string;
+  selectedIp: string;
+  selectedPort: number;
+  advisories: MobileDiagnosticAdvisory[];
+  computer: ComputerDiagnosticsSnapshot;
+}
+
+export interface DiagnosticsGetMessage {
+  type: "diagnostics.get";
+  operationId: string;
+}
+
+export interface DiagnosticsGetResultMessage {
+  type: "diagnostics.get.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string;
+  message: string;
+  snapshot?: MobileHostDiagnosticsSnapshot;
 }
 
 export type InputContext =
@@ -1074,6 +1134,7 @@ export type ClientMessage =
   | UrlOpenMessage
   | TextSendMessage
   | ClipboardGetMessage
+  | DiagnosticsGetMessage
   | AudioMuteToggleMessage
   | AudioVolumeSetMessage
   | ScreenViewSourcesGetMessage
@@ -1102,4 +1163,4 @@ export type ClientMessage =
   | FileTransferAnswerMessage
   | FileTransferCancelMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairDisconnectAcceptedMessage | PairChallengeMessage | PairBootstrapChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PowerPointRefreshResultMessage | PowerPointLaunchResultMessage | PresentationSessionResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage | CustomScreenGetResultMessage | CustomScreenInvokeResultMessage | ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage | ScreenViewEndedMessage | PhoneWebcamServerMessage | FileManagerServerMessage;
+export type ServerMessage = PairAcceptedMessage | PairDisconnectAcceptedMessage | PairChallengeMessage | PairBootstrapChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PowerPointRefreshResultMessage | PowerPointLaunchResultMessage | PresentationSessionResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | DiagnosticsGetResultMessage | AudioStateMessage | CustomScreenGetResultMessage | CustomScreenInvokeResultMessage | ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage | ScreenViewEndedMessage | PhoneWebcamServerMessage | FileManagerServerMessage;

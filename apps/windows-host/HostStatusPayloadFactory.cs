@@ -89,6 +89,7 @@ internal sealed class HostStatusPayloadFactory(
     public bool CanLaunchRemoteApps(string clientId) => GetEffectivePermissions(clientId).AllowRemoteAppLaunch;
     public bool CanOpenUrls(string clientId) => GetEffectivePermissions(clientId).AllowUrlOpen;
     public bool CanReadClipboard(string clientId) => GetEffectivePermissions(clientId).AllowClipboardRead;
+    public bool CanViewDiagnostics(string clientId) => GetEffectivePermissions(clientId).AllowDiagnostics;
     public bool CanBrowseFiles(string clientId) => GetEffectivePermissions(clientId).AllowFileBrowsing;
     public bool CanChangeFiles(string clientId) => GetEffectivePermissions(clientId).AllowFileBrowsing && GetEffectivePermissions(clientId).AllowFileChanges;
     public bool CanTransferFiles(string clientId) =>
@@ -133,6 +134,7 @@ internal sealed class HostStatusPayloadFactory(
         urlOpen = new { canOpen = permissions.AllowUrlOpen },
         textTransfer = permissions.AllowRemoteInput,
         clipboardRead = permissions.AllowClipboardRead,
+        diagnostics = new { canView = permissions.AllowDiagnostics },
         gestureDebug = AppDeveloperSettings.EnableGestureDebug(),
         inputAck = true,
         inputContextV1 = true,

@@ -4,39 +4,6 @@ These ideas need a product decision or evidence before moving to
 [todo.md](todo.md). Each implementation needs explicit ownership, limits,
 privacy/security review, recovery behavior, and proportionate validation.
 
-## Dictate: PC assistance
-
-Optionally add a named, feature-gated Dictate path that inspects the Windows default
-microphone and opens Windows Voice Typing without capturing audio.
-
-Decide the user value, permission model, privacy wording, and whether controlling
-the system-wide default input is appropriate. If promoted, the host should use
-bounded Core Audio operations, fixed Windows Settings destinations, the
-protected input path for `Win+H`, no polling, and no microphone names, levels,
-peaks, text, or audio in logs. Browser dictation must remain independent.
-
-## Presentation
-
-- Consider reusable host-managed presentations only after defining canonical
-  presentation identity, file ownership, deletion behavior, and how saved runs
-  relate to the reusable item.
-- Consider bounded Open XML metadata inspection for modern PowerPoint files
-  without launching PowerPoint. Decide refresh behavior, legacy `.ppt`
-  treatment, failure states, and cleanup first.
-- Add bounded multi-select report actions with clear filtered-selection and
-  partial-failure behavior.
-- Evaluate deeper mail-provider integration only with explicit consent, token
-  ownership, provider limits, and final user review.
-- Research slideshow zoom through a supported automation mechanism; do not
-  inject `+` or `-` because PowerPoint's slideshow Zoom property is read-only.
-- Validate reliable automation before adding All Slides or Presenter View
-  interactions.
-- Consider presentation previews only after deciding rendering, privacy, cache
-  limits, invalidation, and deletion behavior.
-- Consider ink/read-only controls, hyperlinks, hidden-slide/help controls,
-  media transport, and temporary-pointer behavior only with explicit state,
-  availability, and cleanup contracts.
-
 ## Control and personalization
 
 ### Mobile app gaps

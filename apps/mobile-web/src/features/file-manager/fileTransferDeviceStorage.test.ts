@@ -1,13 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { prepareDeviceTransferStorage, saveOrShareDeviceTransfer } from "./fileTransferDeviceStorage";
+import { prepareDeviceTransferStorage, saveOrShareDeviceTransfer, sweepDeviceTransferStorage } from "./fileTransferDeviceStorage";
 
 function storageWithEstimate(estimate: () => Promise<StorageEstimate>) {
   const writable = {} as FileSystemWritableFileStream;
   const handle = { createWritable: vi.fn(() => Promise.resolve(writable)) } as unknown as FileSystemFileHandle;
   const directory = { getFileHandle: vi.fn(() => Promise.resolve(handle)), removeEntry: vi.fn(() => Promise.resolve()) } as unknown as FileSystemDirectoryHandle;
-  const root = { getDirectoryHandle: vi.fn(() => Promise.resolve(directory)) } as unknown as FileSystemDirectoryHandle;
+  const transfers = { getDirectoryHandle: vi.fn(() => Promise.resolve(directory)), removeEntry: vi.fn(() => Promise.resolve()) } as unknown as FileSystemDirectoryHandle;
+  const root = { getDirectoryHandle: vi.fn(() => Promise.resolve(transfers)) } as unknown as FileSystemDirectoryHandle;
   vi.stubGlobal("navigator", { storage: { estimate, getDirectory: vi.fn(() => Promise.resolve(root)) } });
-  return { directory, handle, root, writable };
+  return { directory, handle, root, transfers, writable };
 }
 
 describe("device file-transfer storage", () => {
@@ -47,5 +48,17 @@ describe("device file-transfer storage", () => {
 
     await expect(prepareDeviceTransferStorage(1, "transfer-c")).rejects.toThrow("Failed");
     expect(storage.directory.removeEntry).toHaveBeenCalledWith("transfer-c.partial");
+  });
+
+  it("sweeps only the current tab's transfer directory", async () => {
+    const storage = storageWithEstimate(() => Promise.resolve({}));
+    vi.stubGlobal("sessionStorage", { getItem: vi.fn(() => "tab-a"), setItem: vi.fn() });
+
+    await sweepDeviceTransferStorage();
+
+    expect(storage.root.getDirectoryHandle).toHaveBeenCalledWith("voltura-air-transfers");
+    expect(storage.transfers.removeEntry).toHaveBeenCalledWith("tab-a", { recursive: true });
+    expect(storage.transfers.removeEntry).not.toHaveBeenCalledWith("tab-b", expect.anything());
+    expect(storage.root.removeEntry).toBeUndefined();
   });
 });

@@ -692,6 +692,36 @@ public sealed class FileManagerServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task UploadSurvivesDestinationPanelRefreshAndNavigation()
+    {
+        var left = CreateDirectory("left");
+        var right = CreateDirectory("right/destination");
+        await using var service = CreateService(left, right, out _);
+        var session = service.OpenSession("client-a");
+        var receiverEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseReceiver = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var content = "uploaded content"u8.ToArray();
+        var created = service.CreateUploadJob(
+            "client-a", session.SessionId, "right", session.Right.Revision, "upload.txt", content.Length,
+            async (output, committed, cancellationToken) =>
+            {
+                await output.WriteAsync(content, cancellationToken);
+                committed(content.Length);
+                receiverEntered.SetResult();
+                await releaseReceiver.Task.WaitAsync(cancellationToken);
+            });
+        await receiverEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.True(service.TryRefresh("client-a", session.SessionId, "right", out var refreshed, out _));
+        Assert.Empty(refreshed!.Entries);
+        Assert.True(service.TryNavigate("client-a", session.SessionId, "right", refreshed.Revision, "parent", out _, out _));
+        releaseReceiver.SetResult();
+
+        Assert.Equal("completed", (await created.Admission!.Completion).State);
+        Assert.Equal(content, File.ReadAllBytes(Path.Combine(right, "upload.txt")));
+    }
+
+    [Fact]
     public async Task EmptyUploadCompletesAndCannotPauseOrResume()
     {
         var left = CreateDirectory("left");
@@ -862,6 +892,32 @@ public sealed class FileManagerServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RevokingAnActiveUploadCancelsAndRemovesItsPartial()
+    {
+        var left = CreateDirectory("left");
+        var right = CreateDirectory("right");
+        await using var service = CreateService(left, right, out var journal);
+        var session = service.OpenSession("client-a");
+        var receiverEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var created = service.CreateUploadJob(
+            "client-a", session.SessionId, "right", session.Right.Revision, "revoked.txt", 4,
+            async (output, committed, cancellationToken) =>
+            {
+                await output.WriteAsync("part"u8.ToArray(), cancellationToken);
+                committed(4);
+                receiverEntered.SetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            });
+        await receiverEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        service.RevokeClient("client-a", closeSession: false);
+
+        Assert.Equal("canceled", (await created.Admission!.Completion).State);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(right));
+        Assert.Empty(journal.Entries);
+    }
+
+    [Fact]
     public async Task UploadDoesNotReplaceAFileCreatedAtTheCommitBoundary()
     {
         var left = CreateDirectory("left");
@@ -938,6 +994,7 @@ public sealed class FileManagerServiceTests : IAsyncLifetime
         var journal = new MemoryJobJournal();
         await using var service = new FileManagerService(
             new FakePlatform(), left, right, new MemoryLocationStore(), journal,
+            hideProtectedItems: _ => false,
             movePath: FailCommitAndRollback);
         var session = service.OpenSession("client-a");
         var bytes = "replacement"u8.ToArray();
@@ -957,6 +1014,8 @@ public sealed class FileManagerServiceTests : IAsyncLifetime
         Assert.False(File.Exists(destination));
         Assert.Equal("original", File.ReadAllText(backup.BackupPath));
         Assert.Empty(recovery.TemporaryPaths);
+        var otherDevice = service.OpenSession("client-b");
+        Assert.Empty(otherDevice.Right.Entries);
     }
 
     [Fact]
@@ -1013,6 +1072,7 @@ public sealed class FileManagerServiceTests : IAsyncLifetime
         var journal = new MemoryJobJournal();
         await using var service = new FileManagerService(
             new FakePlatform(), left, right, new MemoryLocationStore(), journal,
+            hideProtectedItems: _ => false,
             deleteTemporary: _ => false);
         var session = service.OpenSession("client-a");
         var created = service.CreateUploadJob(
@@ -1029,6 +1089,8 @@ public sealed class FileManagerServiceTests : IAsyncLifetime
         var partial = Assert.Single(recovery.TemporaryPaths);
         Assert.True(File.Exists(partial));
         Assert.False(File.Exists(Path.Combine(right, "failed.txt")));
+        var otherDevice = service.OpenSession("client-b");
+        Assert.Empty(otherDevice.Right.Entries);
     }
 
     [Theory]

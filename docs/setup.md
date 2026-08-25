@@ -78,7 +78,7 @@ Run the smallest relevant checks:
 | Secure Direct controller transport | Focused Relay signaling/Origin tests, mobile lifecycle/parser tests, host admission/native-boundary tests, bundle/size gates, then real-device private-LAN setup and signaling-loss validation; preserve the selected transport without automatic fallback |
 | Gyro or motion input | Focused motion mapping, permission, hook cleanup, Trackpad, and app-navigation tests; mobile check/build as scoped; then real sensor, orientation, visibility, and permission validation over HTTPS |
 | Screen viewing | Fake-capture `TestServer` protocol/crypto/cleanup tests, mobile parser/renderer tests, bundle/size gates, then Windows preflight and `npm run dev:quick`; real phone/Wi-Fi viewing remains user acceptance |
-| Files on PC | Mobile pagination/selection/gesture tests, strict protocol tests, focused host file-system/clipboard/job tests, host ownership and size gates, then Windows local/mapped-drive acceptance |
+| Files on PC | Mobile pagination/selection/gesture/transfer-storage tests, strict protocol tests, focused host file-system/clipboard/job/cleanup tests, host ownership and size gates, then real one-file upload/download acceptance over Direct and Relay, including slow-iPhone negotiation and permission revocation |
 | Script | Relevant script test; full `npm run test:scripts` only for shared orchestration/root package composition |
 | Significant UI | Visual checkpoint by default; `npm run test:ui` only when its real pairing/smoke flow changes |
 | Structural/source ownership | `npm run size:check` |

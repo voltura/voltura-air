@@ -364,7 +364,7 @@ internal sealed class FileManagerService : IAsyncDisposable
         public long Generation { get; set; }
     }
 
-    private sealed record FileUploadWork(string SessionId, string Panel, string Revision, string PanelSignature, string Name, long Size, FileUploadReceiver Receive);
+    private sealed record FileUploadWork(string DestinationSignature, string Name, long Size, FileUploadReceiver Receive);
 
     private sealed class FileJob(long sequence, string ownerClientId, long authorizationGeneration, string operation, string[] sources, string? destination, string? rename, bool clearClipboard, FileUploadWork? upload = null)
     {
@@ -717,7 +717,7 @@ internal sealed class FileManagerService : IAsyncDisposable
         cancellationToken.ThrowIfCancellationRequested();
 
         var authorizationGeneration = CaptureAuthorizationGeneration(clientId);
-        var upload = new FileUploadWork(sessionId, panelName, revision, panelSignature, fileName, declaredSize, receive);
+        var upload = new FileUploadWork(panelSignature, fileName, declaredSize, receive);
         var job = new FileJob(Interlocked.Increment(ref _jobSequence), clientId, authorizationGeneration, "upload", [], destination, fileName, false, upload);
         var admitted = AdmitJob(job, cancellationToken);
         if (!admitted.Succeeded) return (false, admitted.Code, admitted.Message, null);
@@ -1110,7 +1110,7 @@ internal sealed class FileManagerService : IAsyncDisposable
     private async Task ExecuteUploadAsync(FileJob job, FileUploadWork upload)
     {
         await AwaitReadyAsync(job).ConfigureAwait(false);
-        if (!UploadDestinationMatches(job.OwnerClientId, upload, ignoredPath: null))
+        if (!UploadDestinationMatches(job.OwnerClientId, job.Destination!, upload, ignoredPath: null))
             throw new IOException("The upload destination changed.");
         if (!HasAvailableSpace(job.Destination!, upload.Size))
             throw new IOException("The upload destination does not have enough free space.");
@@ -1151,7 +1151,7 @@ internal sealed class FileManagerService : IAsyncDisposable
                 ExecuteAuthorized(job, () => outputStream.Flush(flushToDisk: true));
             }
             await AwaitReadyAsync(job).ConfigureAwait(false);
-            if (!UploadDestinationMatches(job.OwnerClientId, upload, temporary))
+            if (!UploadDestinationMatches(job.OwnerClientId, job.Destination!, upload, temporary))
                 throw new IOException("The upload destination changed before commit.");
             ExecuteAuthorized(job, () => CommitPreparedPath(job, temporary, destination, directory: false, allowReplacement: replaceExisting));
             job.ItemsCompleted = 1;
@@ -1492,18 +1492,19 @@ internal sealed class FileManagerService : IAsyncDisposable
         return panel is not null;
     }
 
-    private static void RefreshPanel(PanelState panel, bool hideProtectedItems, CancellationToken cancellationToken = default)
+    private void RefreshPanel(PanelState panel, bool hideProtectedItems, CancellationToken cancellationToken = default)
     {
         ReplacePanelEntries(panel, ReadPanelEntries(panel.Path, hideProtectedItems, cancellationToken));
     }
 
-    private static List<EntryState> ReadPanelEntries(string path, bool hideProtectedItems, CancellationToken cancellationToken = default)
+    private List<EntryState> ReadPanelEntries(string path, bool hideProtectedItems, CancellationToken cancellationToken = default)
     {
         var entries = new List<EntryState>();
         var inspected = 0;
         foreach (var childPath in Directory.EnumerateFileSystemEntries(path))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (IsRecoveryArtifact(childPath)) continue;
             if (++inspected > FileManagerProtocol.MaxEnumeratedEntriesPerPanel) break;
             try
             {
@@ -1666,7 +1667,7 @@ internal sealed class FileManagerService : IAsyncDisposable
         panel.Entries = [.. ordered];
     }
 
-    private static bool MatchesPanel(PanelState panel, bool hideProtectedItems, CancellationToken cancellationToken = default)
+    private bool MatchesPanel(PanelState panel, bool hideProtectedItems, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -1741,22 +1742,33 @@ internal sealed class FileManagerService : IAsyncDisposable
         return Directory.Exists(sourcePath) && destinationPath.StartsWith(sourcePath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
-    private bool UploadDestinationMatches(string clientId, FileUploadWork upload, string? ignoredPath)
+    private bool UploadDestinationMatches(string clientId, string destination, FileUploadWork upload, string? ignoredPath)
     {
-        if (!TryGetPanel(clientId, upload.SessionId, upload.Panel, out var session, out var panel)) return false;
-        lock (session.Gate)
+        try
         {
-            if (panel.Revision != upload.Revision) return false;
-            try
-            {
-                var current = ReadPanelEntries(panel.Path, _hideProtectedItems(clientId))
-                    .Where(entry => ignoredPath is null || !string.Equals(entry.Path, ignoredPath, StringComparison.OrdinalIgnoreCase));
-                return string.Equals(upload.PanelSignature, ComputeSignature(current), StringComparison.Ordinal);
-            }
-            catch (Exception ex) when (IsFileBoundaryFailure(ex))
-            {
-                return false;
-            }
+            var current = ReadPanelEntries(destination, _hideProtectedItems(clientId))
+                .Where(entry => ignoredPath is null || !string.Equals(entry.Path, ignoredPath, StringComparison.OrdinalIgnoreCase));
+            return string.Equals(upload.DestinationSignature, ComputeSignature(current), StringComparison.Ordinal);
+        }
+        catch (Exception ex) when (IsFileBoundaryFailure(ex))
+        {
+            return false;
+        }
+    }
+
+    private bool IsRecoveryArtifact(string path)
+    {
+        if (_jobs.Values.Any(job =>
+                job.TemporaryPaths.Keys.Any(candidate => string.Equals(candidate, path, StringComparison.OrdinalIgnoreCase)) ||
+                job.BackupPaths.Keys.Any(candidate => string.Equals(candidate, path, StringComparison.OrdinalIgnoreCase))))
+        {
+            return true;
+        }
+        lock (_journalGate)
+        {
+            return _unresolvedRecoveryEntries.Any(entry =>
+                entry.TemporaryPaths.Any(candidate => string.Equals(candidate, path, StringComparison.OrdinalIgnoreCase)) ||
+                (entry.Backups ?? []).Any(candidate => string.Equals(candidate.BackupPath, path, StringComparison.OrdinalIgnoreCase)));
         }
     }
 

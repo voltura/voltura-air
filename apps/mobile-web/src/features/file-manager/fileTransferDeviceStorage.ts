@@ -1,4 +1,6 @@
 const opfsDirectoryName = "voltura-air-transfers";
+const opfsOwnerStorageKey = "voltura-air-transfer-owner";
+const validOwnerId = /^[a-zA-Z0-9_-]{1,64}$/;
 
 export interface DeviceTransferStorage {
   directory: FileSystemDirectoryHandle;
@@ -12,6 +14,18 @@ export function supportsDeviceTransferStorage(): boolean {
     typeof FileSystemFileHandle !== "undefined" && typeof FileSystemFileHandle.prototype.createWritable === "function";
 }
 
+function getDeviceTransferStorageOwnerId(): string {
+  try {
+    const stored = sessionStorage.getItem(opfsOwnerStorageKey);
+    if (stored && validOwnerId.test(stored)) {return stored;}
+    const ownerId = crypto.randomUUID();
+    sessionStorage.setItem(opfsOwnerStorageKey, ownerId);
+    return ownerId;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
+
 export async function prepareDeviceTransferStorage(declaredSize: number, transferId: string): Promise<DeviceTransferStorage> {
   try {
     const estimate = await navigator.storage.estimate();
@@ -22,7 +36,9 @@ export async function prepareDeviceTransferStorage(declaredSize: number, transfe
     if (error instanceof Error && error.message.includes("enough available browser storage")) {throw error;}
   }
   const root = await navigator.storage.getDirectory();
-  const directory = await root.getDirectoryHandle(opfsDirectoryName, { create: true });
+  const transfers = await root.getDirectoryHandle(opfsDirectoryName, { create: true });
+  const ownerId = getDeviceTransferStorageOwnerId();
+  const directory = await transfers.getDirectoryHandle(ownerId, { create: true });
   const storedName = `${transferId}.partial`;
   const handle = await directory.getFileHandle(storedName, { create: true });
   try {
@@ -42,7 +58,8 @@ export async function removeDeviceTransferFile(directory: FileSystemDirectoryHan
 export async function sweepDeviceTransferStorage(): Promise<void> {
   try {
     const root = await navigator.storage.getDirectory();
-    await root.removeEntry(opfsDirectoryName, { recursive: true });
+    const transfers = await root.getDirectoryHandle(opfsDirectoryName);
+    await transfers.removeEntry(getDeviceTransferStorageOwnerId(), { recursive: true });
   } catch (error) {
     if (!(error instanceof DOMException && error.name === "NotFoundError")) {return;}
   }

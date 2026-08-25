@@ -15,7 +15,7 @@ Wire shape: [protocol](protocol.md). Failure UX:
 - Relay retains its persistent opaque route and paired devices when disabled.
   An optional custom endpoint is HTTPS-only and bounded to 512 characters.
 - Existing settings without a connection method normalize to Direct.
-- **Enhanced capabilities** is a default-off Direct preference. With Direct, it
+- **Enhanced device features** is a default-off Direct preference. With Direct, it
   makes `/s` the primary QR while retaining the local listener, `/ws`, and a
   Standard Local link using the same active token. Internet is required to load
   the hosted app and finish signaling; established controller traffic stays on

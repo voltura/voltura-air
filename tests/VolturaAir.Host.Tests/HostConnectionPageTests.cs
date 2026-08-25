@@ -30,28 +30,74 @@ public sealed partial class HostUiLayoutTests
                 .Single(text => text.Name == "EnhancedCapabilitiesDescriptionText");
             var enhancedCheckBox = FindWpfDescendants<CheckBox>(page)
                 .Single(checkBox => checkBox.Name == "EnhancedCapabilitiesCheckBox");
-            var relayIncluded = FindWpfDescendants<TextBlock>(page)
-                .Single(text => text.Name == "RelayEnhancedCapabilitiesIncludedText");
+            var enhancedPanel = FindWpfDescendants<Border>(page)
+                .Single(border => border.Name == "EnhancedCapabilitiesPanel");
+            var explainerButton = FindWpfDescendants<Button>(page)
+                .Single(button => button.Name == "OpenConnectionExplainerButton");
 
             page.TransportMode = ConnectionTransportMode.DirectLan;
             page.EnhancedCapabilitiesEnabled = false;
-            Assert.Equal("Fastest on the same network. Windows may require an inbound firewall exception.", directDescription.Text);
-            Assert.Contains("additional device capabilities", enhancedDescription.Text, StringComparison.Ordinal);
+            Assert.Equal(
+                "Best when your device and PC share a network. Controller communication stays on your home network.",
+                directDescription.Text);
+            Assert.Equal("Enable enhanced device features", enhancedCheckBox.Content);
+            Assert.Contains("phone webcam, motion controls, direct dictation", enhancedDescription.Text, StringComparison.Ordinal);
+            Assert.Equal("How connections work", explainerButton.Content);
             Assert.Equal(Visibility.Visible, enhancedCheckBox.Visibility);
-            Assert.Equal(Visibility.Collapsed, relayIncluded.Visibility);
+            Assert.Equal(Visibility.Visible, enhancedPanel.Visibility);
 
             page.EnhancedCapabilitiesEnabled = true;
-            Assert.Contains("Internet is required for setup", directDescription.Text, StringComparison.Ordinal);
+            Assert.Contains("communication stays on your home network", directDescription.Text, StringComparison.Ordinal);
 
             page.TransportMode = ConnectionTransportMode.Relay;
             Assert.Equal(Visibility.Collapsed, enhancedCheckBox.Visibility);
             Assert.Equal(Visibility.Collapsed, enhancedDescription.Visibility);
-            Assert.Equal(Visibility.Visible, relayIncluded.Visibility);
-            Assert.Contains("always available", relayIncluded.Text, StringComparison.Ordinal);
-            Assert.Contains("Internet is required for setup", directDescription.Text, StringComparison.Ordinal);
+            Assert.Equal(Visibility.Collapsed, enhancedPanel.Visibility);
+            Assert.Contains("communication stays on your home network", directDescription.Text, StringComparison.Ordinal);
 
             page.TransportMode = ConnectionTransportMode.DirectLan;
             Assert.True(enhancedCheckBox.IsChecked);
+        });
+    }
+
+    [Fact]
+    public void ConnectionDefaultDirectViewFitsWithoutPageScrolling()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            AppNetworkSettings.Save(CreateSettings(customAdapter: false, customPort: false) with
+            {
+                EnhancedCapabilitiesEnabled = true
+            });
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var inputInjector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var webHost = new WebHostService(
+                manager,
+                new InputDispatcher(inputInjector),
+                isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null);
+            try
+            {
+                window.Show();
+                window.ShowPage(HostPage.Connection);
+                window.UpdateLayout();
+
+                var scroller = FindWpfDescendants<ScrollViewer>(window)
+                    .Single(viewer => viewer.Name == "ConnectionScrollViewer");
+                Assert.Equal(0, scroller.ScrollableHeight);
+            }
+            finally
+            {
+                window.Close();
+                DisposeWebHost(webHost);
+            }
         });
     }
 

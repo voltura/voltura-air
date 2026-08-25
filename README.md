@@ -8,14 +8,14 @@ Turn a phone, tablet, or browser into a wireless remote&mdash;and live screen
 viewer or Windows webcam with optional phone audio&mdash;for a Windows 11 PC. With a mouse or trackpad and physical keyboard,
 **View PC screen** also lets you work on that PC from another computer. No
 app-store install or Voltura account is required. Direct LAN remains the default;
-on Direct LAN, Enhanced capabilities can add sensor-powered controls while
+on Direct LAN, enhanced device features can add sensor-powered controls while
 established traffic stays local. An optional Cloud relay is available for
 networks that block inbound PC connections.
 
 ## What you can do
 
 - Use a phone or tablet as a wireless touch trackpad and keyboard—or point the
-  device itself to steer the mouse with Gyro. Enhanced capabilities over HTTPS
+  device itself to steer the mouse with Gyro. Enhanced device features over HTTPS
   unlock Gyro on supported phones and tablets.
 - View one selected Windows display live on a paired phone, tablet, or browser
   over Direct LAN or the optional Cloud relay, with encrypted video, responsive
@@ -147,7 +147,7 @@ Installed stable builds check GitHub Releases at most once a day and automatical
 3. Scan the QR code from a phone or tablet on the same Wi-Fi or LAN.
 
 For Gyro mouse and other browser features that require HTTPS, open
-**Connection**, enable **Enhanced capabilities**, then save and restart. The
+**Connection**, select **Enable enhanced device features**, then save and restart. The
 primary QR opens Voltura Air's secure hosted controller, while established
 control traffic travels directly between the device and PC over the selected
 private LAN. A Standard Local link remains available on the Connect page.

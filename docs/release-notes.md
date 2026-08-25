@@ -8,6 +8,7 @@ create one. Keep the shared notices in
 
 ## v1.1.0
 
+- Added a simple visual guide explaining how Direct local network and Cloud relay connections work, and simplified the connection-setting descriptions.
 - Added a read-only mobile **Diagnostics** view with on-demand host, connection,
   browser, and PC information, including enhanced HTTPS capability status and the
   primary display mode. A separate **View diagnostics** device permission controls

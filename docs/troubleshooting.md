@@ -50,7 +50,7 @@ mobile app from the PC and scan the latest code.
 
 ## Secure Direct unavailable
 
-Enhanced capabilities require internet access to load the hosted controller and
+Enhanced device features require internet access to load the hosted controller and
 complete setup, plus a private IPv4 path between the device and the adapter
 selected on the PC. Keep both devices on the same LAN and check captive portals,
 guest-network isolation, VPNs, and the selected adapter.
@@ -125,7 +125,7 @@ pointer movement.
 
 ## Gyro mouse is unavailable or does not move
 
-Gyro requires a sensor-equipped phone or tablet using Enhanced capabilities.
+Gyro requires a sensor-equipped phone or tablet using enhanced device features.
 Open Gyro from its button so the browser can request motion access; on iPhone,
 approve the motion/orientation prompt. If Retry does not show the prompt again in
 a bookmarked Home Screen app, fully close and reopen Voltura Air, then try Gyro

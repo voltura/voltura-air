@@ -62,6 +62,20 @@ silently opens Direct. The first failed connection in an outage shows one danger
 toast while retries remain automatic and quiet; restoration shows one success
 toast. Initial successful connection does not show a restoration toast.
 
+The Connection method card provides a compact themed **How connections work**
+dialog. It opens on the pending method, keeps its Direct and Relay selector
+read-only with respect to settings, and provides an illustration-only enhanced-
+features toggle that does not change the Connection preference. Labelled routes
+remain clear without motion, and the moving track glow is removed after two
+local-use passes or when the dialog closes. Automatic playback respects reduced
+motion; the explicit **Play flow** action replays the illustration. Enhanced
+Direct presents secure web-app loading once, followed by two normal local
+communication passes; Standard Local shows only the route without a stage heading.
+The Play flow coloured border glow appears only while the route is idle; normal
+button chrome replaces it during playback so it does not compete with the route
+animation. Enhanced-device guidance
+appears only in the Direct view because Relay always includes those features.
+
 Preferences owns Direct Screen View quality. Automatic is the recommended
 adaptive default and preserves the Windows-scaling-derived readability floor.
 Quality keeps the selected display's full resolution while adapting frame rate.

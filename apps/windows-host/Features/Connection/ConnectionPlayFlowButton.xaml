@@ -1,0 +1,85 @@
+<UserControl x:Class="VolturaAir.Host.Features.Connection.ConnectionPlayFlowButton"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Height="{DynamicResource ControlMinHeight}">
+    <UserControl.Resources>
+        <Storyboard x:Key="PlayFlowEdgeGlowStoryboard" RepeatBehavior="Forever">
+            <DoubleAnimation Storyboard.TargetName="PlayFlowGlowSoftRotation"
+                             Storyboard.TargetProperty="Angle"
+                             From="0" To="360" Duration="0:0:3" />
+            <DoubleAnimation Storyboard.TargetName="PlayFlowGlowNearRotation"
+                             Storyboard.TargetProperty="Angle"
+                             From="0" To="360" Duration="0:0:3" />
+            <DoubleAnimation Storyboard.TargetName="PlayFlowGlowEdgeRotation"
+                             Storyboard.TargetProperty="Angle"
+                             From="0" To="360" Duration="0:0:3" />
+        </Storyboard>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid x:Name="PlayFlowOuterGlow"
+              Opacity="0"
+              IsHitTestVisible="False">
+            <Rectangle RadiusX="8" RadiusY="8" StrokeThickness="7" Opacity="0.72">
+                <Rectangle.Stroke>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <LinearGradientBrush.RelativeTransform>
+                            <RotateTransform x:Name="PlayFlowGlowSoftRotation"
+                                             CenterX="0.5" CenterY="0.5" />
+                        </LinearGradientBrush.RelativeTransform>
+                        <GradientStop Color="{DynamicResource UpdateGlowPinkColor}" Offset="0" />
+                        <GradientStop Color="{DynamicResource UpdateGlowVioletColor}" Offset="0.27" />
+                        <GradientStop Color="{DynamicResource UpdateGlowCyanColor}" Offset="0.55" />
+                        <GradientStop Color="{DynamicResource UpdateGlowBlueColor}" Offset="0.78" />
+                        <GradientStop Color="{DynamicResource UpdateGlowPinkColor}" Offset="1" />
+                    </LinearGradientBrush>
+                </Rectangle.Stroke>
+                <Rectangle.Effect>
+                    <BlurEffect Radius="16" KernelType="Gaussian" />
+                </Rectangle.Effect>
+            </Rectangle>
+            <Rectangle RadiusX="8" RadiusY="8" StrokeThickness="4" Opacity="0.82">
+                <Rectangle.Stroke>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <LinearGradientBrush.RelativeTransform>
+                            <RotateTransform x:Name="PlayFlowGlowNearRotation"
+                                             CenterX="0.5" CenterY="0.5" />
+                        </LinearGradientBrush.RelativeTransform>
+                        <GradientStop Color="{DynamicResource UpdateGlowPinkColor}" Offset="0" />
+                        <GradientStop Color="{DynamicResource UpdateGlowVioletColor}" Offset="0.27" />
+                        <GradientStop Color="{DynamicResource UpdateGlowCyanColor}" Offset="0.55" />
+                        <GradientStop Color="{DynamicResource UpdateGlowBlueColor}" Offset="0.78" />
+                        <GradientStop Color="{DynamicResource UpdateGlowPinkColor}" Offset="1" />
+                    </LinearGradientBrush>
+                </Rectangle.Stroke>
+                <Rectangle.Effect>
+                    <BlurEffect Radius="7" KernelType="Gaussian" />
+                </Rectangle.Effect>
+            </Rectangle>
+        </Grid>
+        <Button x:Name="PlayFlowButton"
+                Content="Play flow"
+                Style="{DynamicResource StandardButtonStyle}"
+                AutomationProperties.Name="Play connection flow animation" />
+        <Rectangle x:Name="PlayFlowEdgeGlow"
+                   RadiusX="8"
+                   RadiusY="8"
+                   StrokeThickness="2"
+                   Opacity="0"
+                   IsHitTestVisible="False">
+            <Rectangle.Stroke>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <LinearGradientBrush.RelativeTransform>
+                        <RotateTransform x:Name="PlayFlowGlowEdgeRotation"
+                                         CenterX="0.5" CenterY="0.5" />
+                    </LinearGradientBrush.RelativeTransform>
+                    <GradientStop Color="{DynamicResource UpdateGlowPinkColor}" Offset="0" />
+                    <GradientStop Color="{DynamicResource UpdateGlowVioletColor}" Offset="0.27" />
+                    <GradientStop Color="{DynamicResource UpdateGlowCyanColor}" Offset="0.55" />
+                    <GradientStop Color="{DynamicResource UpdateGlowBlueColor}" Offset="0.78" />
+                    <GradientStop Color="{DynamicResource UpdateGlowPinkColor}" Offset="1" />
+                </LinearGradientBrush>
+            </Rectangle.Stroke>
+        </Rectangle>
+    </Grid>
+</UserControl>

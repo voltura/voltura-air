@@ -12,7 +12,7 @@
         <ScrollViewer x:Name="ConnectionScrollViewer"
                       HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Auto">
-            <ui:SpacingStackPanel MaxWidth="760"
+            <ui:SpacingStackPanel MaxWidth="840"
                                   HorizontalAlignment="Left"
                                   Spacing="{DynamicResource SpaceLg}">
                 <Border Padding="{DynamicResource InsetMd}"
@@ -21,12 +21,24 @@
                         BorderThickness="1"
                         CornerRadius="{DynamicResource RadiusMedium}">
                     <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
-                        <TextBlock FontSize="16"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextBrush}"
-                                   Text="Connection method" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{DynamicResource GridSpaceMd}" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       Text="Connection method"
+                                       VerticalAlignment="Center" />
+                            <Button x:Name="OpenConnectionExplainerButton"
+                                    Grid.Column="2"
+                                    Content="How connections work"
+                                    Style="{DynamicResource StandardButtonStyle}" />
+                        </Grid>
                         <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                                   Text="Choose how phones and tablets reach this PC. Changing method requires a restart."
+                                   Text="Choose how phones and tablets connect to this PC. Changing the method requires a restart."
                                    TextWrapping="Wrap" />
                         <RadioButton x:Name="DirectLanRadioButton"
                                      GroupName="ConnectionMethod"
@@ -35,7 +47,7 @@
                         <TextBlock x:Name="DirectLanDescriptionText"
                                    Margin="24,0,0,0"
                                    Foreground="{DynamicResource MutedTextBrush}"
-                                   Text="Fastest on the same network. Windows may require an inbound firewall exception."
+                                   Text="Best when your device and PC share a network. Controller communication stays on your home network."
                                    TextWrapping="Wrap" />
                         <RadioButton x:Name="RelayRadioButton"
                                      GroupName="ConnectionMethod"
@@ -43,12 +55,13 @@
                                      Content="Cloud relay through Voltura" />
                         <TextBlock Margin="24,0,0,0"
                                    Foreground="{DynamicResource MutedTextBrush}"
-                                   Text="Both devices connect outward. Commands use HTTPS; screen viewing uses TURN. No inbound firewall exception is needed."
+                                   Text="Best away from this PC or when Direct is unavailable. Both devices connect securely through Voltura—no router or firewall setup is needed."
                                    TextWrapping="Wrap" />
                     </ui:SpacingStackPanel>
                 </Border>
 
-                <Border Padding="{DynamicResource InsetMd}"
+                <Border x:Name="EnhancedCapabilitiesPanel"
+                        Padding="{DynamicResource InsetMd}"
                         Background="{DynamicResource SurfaceBrush}"
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
@@ -57,22 +70,12 @@
                         <CheckBox x:Name="EnhancedCapabilitiesCheckBox"
                                   HorizontalAlignment="Left"
                                   Foreground="{DynamicResource TextBrush}"
-                                  Content="Enable enhanced capabilities requiring connection via voltura.se" />
+                                  Content="Enable enhanced device features" />
                         <TextBlock x:Name="EnhancedCapabilitiesDescriptionText"
                                    Margin="24,0,0,0"
                                    Foreground="{DynamicResource MutedTextBrush}"
-                                   Text="Uses Voltura Air's secure web app so your browser can provide additional device capabilities."
+                                   Text="Uses voltura.se for phone webcam, motion controls, direct dictation, and other supported features."
                                    TextWrapping="Wrap" />
-                        <TextBlock x:Name="RelayEnhancedCapabilitiesHeadingText"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextBrush}"
-                                   Text="Enhanced capabilities included"
-                                   Visibility="Collapsed" />
-                        <TextBlock x:Name="RelayEnhancedCapabilitiesIncludedText"
-                                   Foreground="{DynamicResource MutedTextBrush}"
-                                   Text="Relay already uses Voltura Air's secure web app, so these browser capabilities are always available."
-                                   TextWrapping="Wrap"
-                                   Visibility="Collapsed" />
                     </ui:SpacingStackPanel>
                 </Border>
 
@@ -319,7 +322,7 @@
 
         <Border x:Name="PendingActionsPanel"
                 Grid.Row="2"
-                MaxWidth="760"
+                MaxWidth="840"
                 HorizontalAlignment="Left"
                 Padding="{DynamicResource InsetSm}"
                 Background="{DynamicResource SurfaceBrush}"

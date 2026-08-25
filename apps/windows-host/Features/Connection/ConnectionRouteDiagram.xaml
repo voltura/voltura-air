@@ -1,0 +1,291 @@
+<UserControl x:Class="VolturaAir.Host.Features.Connection.ConnectionRouteDiagram"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+             xmlns:local="clr-namespace:VolturaAir.Host.Features.Connection"
+             IsTabStop="False">
+    <UserControl.Resources>
+        <LinearGradientBrush x:Key="ConnectionRouteTrackBrush" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="{DynamicResource UpdateGlowPinkColor}" Offset="0" />
+            <GradientStop Color="{DynamicResource UpdateGlowVioletColor}" Offset="0.34" />
+            <GradientStop Color="{DynamicResource UpdateGlowBlueColor}" Offset="0.7" />
+            <GradientStop Color="{DynamicResource UpdateGlowCyanColor}" Offset="1" />
+        </LinearGradientBrush>
+        <RadialGradientBrush x:Key="ConnectionRoutePacketBrush">
+            <GradientStop Color="#FFFFFFFF" Offset="0" />
+            <GradientStop Color="{DynamicResource UpdateGlowCyanColor}" Offset="0.24" />
+            <GradientStop Color="{DynamicResource UpdateGlowVioletColor}" Offset="0.58" />
+            <GradientStop Color="#00000000" Offset="1" />
+        </RadialGradientBrush>
+        <SolidColorBrush x:Key="ConnectionRouteStageBrush"
+                         Color="{DynamicResource UpdateGlowCyanColor}" />
+        <DataTemplate x:Key="PhoneNodeTemplate">
+            <Border Width="120"
+                    Height="84"
+                    Padding="8"
+                    Background="{DynamicResource SurfaceRaisedBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource RadiusSmall}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Viewbox Width="25" Height="29">
+                        <Grid Width="24" Height="32">
+                            <Border BorderBrush="{DynamicResource AccentStrongBrush}"
+                                    BorderThickness="2"
+                                    CornerRadius="3" />
+                            <Ellipse Width="3"
+                                     Height="3"
+                                     Margin="0,0,0,3"
+                                     VerticalAlignment="Bottom"
+                                     Fill="{DynamicResource AccentStrongBrush}" />
+                        </Grid>
+                    </Viewbox>
+                    <TextBlock Margin="0,5,0,0"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextBrush}"
+                               Text="Phone or tablet"
+                               TextAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="PcNodeTemplate">
+            <Border Width="120"
+                    Height="84"
+                    Padding="8"
+                    Background="{DynamicResource SurfaceRaisedBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource RadiusSmall}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Viewbox Width="29" Height="26">
+                        <Grid Width="36" Height="30">
+                            <Border Width="34"
+                                    Height="23"
+                                    VerticalAlignment="Top"
+                                    BorderBrush="{DynamicResource AccentStrongBrush}"
+                                    BorderThickness="2"
+                                    CornerRadius="2" />
+                            <Path Data="M18,23 V28 M11,28 H25"
+                                  Stroke="{DynamicResource AccentStrongBrush}"
+                                  StrokeThickness="2"
+                                  StrokeStartLineCap="Round" />
+                        </Grid>
+                    </Viewbox>
+                    <TextBlock Margin="0,5,0,0"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextBrush}"
+                               Text="PC"
+                               TextAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Border Padding="{DynamicResource InsetMd}"
+            Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource RadiusMedium}">
+        <StackPanel>
+            <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel x:Name="EnhancedRouteTogglePanel">
+                    <CheckBox x:Name="EnhancedRouteToggle"
+                              HorizontalAlignment="Left"
+                              Content="Show enhanced device features route" />
+                    <TextBlock Margin="24,2,0,0"
+                               FontSize="10"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="Illustration only — does not change the Connection setting." />
+                </StackPanel>
+                <local:ConnectionPlayFlowButton x:Name="PlayFlowAction"
+                                                Grid.Column="2"
+                                                VerticalAlignment="Top" />
+            </Grid>
+
+            <StackPanel x:Name="InitialLoadStagePanel">
+                <TextBlock Margin="0,0,0,6"
+                           FontSize="12"
+                           FontWeight="Bold"
+                           Foreground="{DynamicResource ConnectionRouteStageBrush}"
+                           Text="1  INITIAL WEB-APP LOAD" />
+                <Canvas Width="600" Height="84" HorizontalAlignment="Center">
+                    <Path Data="M120,42 L480,42"
+                          Stroke="{DynamicResource ConnectionRouteTrackBrush}"
+                          StrokeThickness="3"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round" />
+                    <Path x:Name="InitialLoadTrackGlow"
+                          Canvas.Left="95"
+                          Data="M0,42 L50,42"
+                          Stroke="{DynamicResource ConnectionRouteTrackBrush}"
+                          StrokeThickness="8"
+                          Opacity="0"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"
+                          IsHitTestVisible="False">
+                        <Path.Effect>
+                            <BlurEffect Radius="6" KernelType="Gaussian" />
+                        </Path.Effect>
+                    </Path>
+                    <Grid x:Name="InitialLoadPacket"
+                          Width="20"
+                          Height="20"
+                          Canvas.Left="-10"
+                          Canvas.Top="-10"
+                          Opacity="0"
+                          IsHitTestVisible="False">
+                        <Grid.RenderTransform>
+                            <MatrixTransform x:Name="InitialLoadPacketTransform" />
+                        </Grid.RenderTransform>
+                        <Ellipse x:Name="InitialLoadPacketGlow"
+                                 Fill="{DynamicResource ConnectionRoutePacketBrush}">
+                            <Ellipse.Effect>
+                                <BlurEffect Radius="5" KernelType="Gaussian" />
+                            </Ellipse.Effect>
+                        </Ellipse>
+                        <Ellipse Width="6" Height="6" Fill="White" />
+                    </Grid>
+                    <ContentControl Canvas.Left="0"
+                                    ContentTemplate="{StaticResource PhoneNodeTemplate}"
+                                    automation:AutomationProperties.Name="Phone or tablet" />
+                    <Border Canvas.Left="480"
+                            Width="120"
+                            Height="84"
+                            Padding="8"
+                            Background="{DynamicResource SurfaceRaisedBrush}"
+                            BorderBrush="{DynamicResource AccentBrush}"
+                            BorderThickness="1"
+                            CornerRadius="{DynamicResource RadiusSmall}"
+                            automation:AutomationProperties.Name="voltura dot se, initial secure web-app load">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Viewbox Width="30" Height="25">
+                                <Path Data="M8,25 H27 C32,25 34,22 34,18 C34,14 31,11 27,11 C26,6 22,3 17,3 C11,3 7,7 6,12 C2,13 0,16 0,20 C0,23 3,25 8,25 Z"
+                                      Stroke="{DynamicResource AccentStrongBrush}"
+                                      StrokeThickness="2"
+                                      StrokeLineJoin="Round"
+                                      Fill="Transparent" />
+                            </Viewbox>
+                            <TextBlock Margin="0,4,0,0"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       Text="voltura.se"
+                                       TextAlignment="Center" />
+                            <TextBlock FontSize="10"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       Text="Secure web-app load"
+                                       TextAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                </Canvas>
+            </StackPanel>
+
+            <TextBlock x:Name="MainStageLabel"
+                       Margin="0,10,0,6"
+                       FontSize="12"
+                       FontWeight="Bold"
+                       Foreground="{DynamicResource ConnectionRouteStageBrush}"
+                       Text="2  NORMAL USE — LOCAL ROUTE" />
+            <Canvas Width="600" Height="84" HorizontalAlignment="Center">
+                <Path Data="M120,42 L480,42"
+                      Stroke="{DynamicResource ConnectionRouteTrackBrush}"
+                      StrokeThickness="3"
+                      StrokeStartLineCap="Round"
+                      StrokeEndLineCap="Round" />
+                <Path x:Name="MainRouteTrackGlow"
+                      Canvas.Left="95"
+                      Data="M0,42 L50,42"
+                      Stroke="{DynamicResource ConnectionRouteTrackBrush}"
+                      StrokeThickness="8"
+                      Opacity="0"
+                      StrokeStartLineCap="Round"
+                      StrokeEndLineCap="Round"
+                      IsHitTestVisible="False">
+                    <Path.Effect>
+                        <BlurEffect Radius="6" KernelType="Gaussian" />
+                    </Path.Effect>
+                </Path>
+                <Grid x:Name="MainRoutePacket"
+                      Width="20"
+                      Height="20"
+                      Canvas.Left="-10"
+                      Canvas.Top="-10"
+                      Opacity="0"
+                      IsHitTestVisible="False">
+                    <Grid.RenderTransform>
+                        <MatrixTransform x:Name="MainRoutePacketTransform" />
+                    </Grid.RenderTransform>
+                    <Ellipse x:Name="MainRoutePacketGlow"
+                             Fill="{DynamicResource ConnectionRoutePacketBrush}">
+                        <Ellipse.Effect>
+                            <BlurEffect Radius="5" KernelType="Gaussian" />
+                        </Ellipse.Effect>
+                    </Ellipse>
+                    <Ellipse Width="6" Height="6" Fill="White" />
+                </Grid>
+                <ContentControl Canvas.Left="0"
+                                ContentTemplate="{StaticResource PhoneNodeTemplate}"
+                                automation:AutomationProperties.Name="Phone or tablet" />
+                <Border x:Name="MiddleRouteNode"
+                        Canvas.Left="240"
+                        Width="120"
+                        Height="84"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceRaisedBrush}"
+                        BorderBrush="{DynamicResource AccentBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource RadiusSmall}">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Grid Width="30" Height="25">
+                            <Viewbox x:Name="HomeNetworkIcon" Width="30" Height="25">
+                                <Path Data="M3,14 L17,3 L31,14 M7,12 V27 H27 V12 M12,27 V19 H22 V27"
+                                      Stroke="{DynamicResource AccentStrongBrush}"
+                                      StrokeThickness="2"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      Fill="Transparent" />
+                            </Viewbox>
+                            <Viewbox x:Name="VolturaCloudIcon" Width="30" Height="25" Visibility="Collapsed">
+                                <Path Data="M8,25 H27 C32,25 34,22 34,18 C34,14 31,11 27,11 C26,6 22,3 17,3 C11,3 7,7 6,12 C2,13 0,16 0,20 C0,23 3,25 8,25 Z"
+                                      Stroke="{DynamicResource AccentStrongBrush}"
+                                      StrokeThickness="2"
+                                      StrokeLineJoin="Round"
+                                      Fill="Transparent" />
+                            </Viewbox>
+                        </Grid>
+                        <TextBlock x:Name="MiddleRouteTitle"
+                                   Margin="0,4,0,0"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   Text="Home network"
+                                   TextAlignment="Center" />
+                        <TextBlock x:Name="MiddleRouteSubtitle"
+                                   FontSize="10"
+                                   Foreground="{DynamicResource MutedTextBrush}"
+                                   Text="Router or network"
+                                   TextAlignment="Center" />
+                    </StackPanel>
+                </Border>
+                <ContentControl Canvas.Left="480"
+                                ContentTemplate="{StaticResource PcNodeTemplate}"
+                                automation:AutomationProperties.Name="PC" />
+            </Canvas>
+
+            <TextBlock x:Name="RouteExplanationText"
+                       Margin="0,10,0,0"
+                       Foreground="{DynamicResource TextBrush}"
+                       Text="Your device and PC communicate directly through the same home network."
+                       TextWrapping="Wrap" />
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -55,6 +55,16 @@ public partial class ConnectionPageView : WpfUserControl
         SaveRestartButton.Click += (_, _) => saveAndRestart();
         RetryRelayButton.Click += (_, _) => retryRelay?.Invoke();
         RefreshRelayUsageButton.Click += (_, _) => refreshRelayUsage?.Invoke();
+        OpenConnectionExplainerButton.Click += (_, _) =>
+        {
+            if (Window.GetWindow(this) is { } owner)
+            {
+                ConnectionExplainerDialog.Show(
+                    owner,
+                    CurrentTransportMode,
+                    CurrentEnhancedCapabilitiesEnabled);
+            }
+        };
     }
 
     internal string RelayConnectionStatus
@@ -119,11 +129,18 @@ public partial class ConnectionPageView : WpfUserControl
             AdvancedConnectionExpander.Visibility = value == ConnectionTransportMode.DirectLan ? Visibility.Visible : Visibility.Collapsed;
             EnhancedCapabilitiesCheckBox.Visibility = value == ConnectionTransportMode.DirectLan ? Visibility.Visible : Visibility.Collapsed;
             EnhancedCapabilitiesDescriptionText.Visibility = value == ConnectionTransportMode.DirectLan ? Visibility.Visible : Visibility.Collapsed;
-            RelayEnhancedCapabilitiesHeadingText.Visibility = value == ConnectionTransportMode.Relay ? Visibility.Visible : Visibility.Collapsed;
-            RelayEnhancedCapabilitiesIncludedText.Visibility = value == ConnectionTransportMode.Relay ? Visibility.Visible : Visibility.Collapsed;
+            EnhancedCapabilitiesPanel.Visibility = value == ConnectionTransportMode.DirectLan ? Visibility.Visible : Visibility.Collapsed;
             if (value == ConnectionTransportMode.Relay) AdapterChooserPanel.Visibility = Visibility.Collapsed;
         }
     }
+
+    internal ConnectionTransportMode CurrentTransportMode =>
+        RelayRadioButton.IsChecked == true
+            ? ConnectionTransportMode.Relay
+            : ConnectionTransportMode.DirectLan;
+
+    internal bool CurrentEnhancedCapabilitiesEnabled =>
+        EnhancedCapabilitiesCheckBox.IsChecked == true;
 
     internal RelayScreenQuality RelayScreenQuality
     {
@@ -140,9 +157,6 @@ public partial class ConnectionPageView : WpfUserControl
         set
         {
             EnhancedCapabilitiesCheckBox.SetCurrentValue(WpfCheckBox.IsCheckedProperty, value);
-            DirectLanDescriptionText.Text = value
-                ? "Uses Voltura Air's secure web app. Internet is required for setup; controller traffic stays on your LAN after connection."
-                : "Fastest on the same network. Windows may require an inbound firewall exception.";
             PortSettingsTitleText.Text = value ? "Standard Local port settings" : "Port settings";
             UpdatePortSettingsAccessibleName();
         }

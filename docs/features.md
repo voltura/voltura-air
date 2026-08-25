@@ -47,7 +47,17 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   through Voltura** methods. Direct remains the default. Relay binds the local
   host to loopback and makes the PC and device connect outward without opening
   the LAN listener; it never falls back to Direct automatically.
-- Direct offers a default-off **Enhanced capabilities** preference. When
+- A read-only **How connections work** dialog illustrates the selected Direct
+  local network or Cloud relay route. Its selector changes only the explanation,
+  and its illustration-only enhanced-features toggle does not change Connection
+  settings. Its moving route glow is hidden while idle and stops when it finishes
+  or the dialog closes. Automatic playback respects reduced motion; **Play flow**
+  explicitly replays it. The button's rotating coloured border is an idle cue;
+  it is replaced by the normal button border while the route is moving. Enhanced
+  Direct presents initial secure web-app loading once, followed by two normal-
+  local-use passes. Standard Local shows only the local route without a stage
+  heading and plays it twice.
+- Direct offers a default-off **Enhanced device features** preference. When
   enabled, the primary QR opens the first-party `/s` HTTPS controller and uses
   bounded hosted signaling to establish an authenticated WebRTC DataChannel
   over the selected private IPv4 LAN. Established commands do not pass through
@@ -532,7 +542,7 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   controlled laser cursor moves naturally without any sensor-specific host
   behavior. Custom Screen trackpads can also provide the same Touch/Gyro
   selector. Screen View trackpads remain touch-only.
-- Gyro mouse requires Enhanced capabilities over HTTPS (always present for
+- Gyro mouse requires enhanced device features over HTTPS (always present for
   Relay and available through Secure Direct). Motion permission is requested
   from the user's Gyro action and is never remembered as an active mode. Gyro
   stops on release and is disabled when its Trackpad closes, the page becomes

@@ -1,7 +1,7 @@
 {
   "name": "voltura-air",
   "private": true,
-  "version": "1.0.9",
+  "version": "1.1.0",
   "license": "MIT",
   "packageManager": "npm@11.18.0",
   "engines": {

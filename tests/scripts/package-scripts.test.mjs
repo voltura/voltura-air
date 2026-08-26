@@ -45,6 +45,10 @@ const hostProject = readFileSync(
   new URL("../../apps/windows-host/VolturaAir.Host.csproj", import.meta.url),
   "utf8",
 );
+const hostManifest = readFileSync(
+  new URL("../../apps/windows-host/app.manifest", import.meta.url),
+  "utf8",
+);
 const directoryBuildProps = readFileSync(
   new URL("../../Directory.Build.props", import.meta.url),
   "utf8",
@@ -54,6 +58,22 @@ const inboxPowerShell = '"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\power
 test("documentation coverage runs in the root and pull-request quality gates", () => {
   assert.equal(packageJson.scripts.test.split(" && ")[0], "npm run docs:check");
   assert.match(qualityWorkflow, /run: npm run docs:check/u);
+});
+
+test("the Windows host declares per-monitor v2 DPI awareness in its executable manifest", () => {
+  assert.match(hostProject, /<ApplicationManifest>app\.manifest<\/ApplicationManifest>/u);
+  assert.match(
+    hostManifest,
+    /<assemblyIdentity version="1\.0\.0\.0" name="VolturaAir\.Host\.app" \/>/u,
+  );
+  assert.match(hostManifest, /<supportedOS Id="\{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a\}" \/>/u);
+  assert.match(hostManifest, /<application xmlns="urn:schemas-microsoft-com:asm\.v3">/u);
+  assert.match(hostManifest, /<dpiAware[^>]*>true\/pm<\/dpiAware>/u);
+  assert.match(hostManifest, /<dpiAwareness[^>]*>PerMonitorV2<\/dpiAwareness>/u);
+  assert.match(
+    hostProject,
+    /<RuntimeHostConfigurationOption Include="Switch\.System\.Windows\.DoNotScaleForDpiChanges" Value="false" \/>/u,
+  );
 });
 
 test("every root npm command has a current human-readable description", () => {
@@ -199,8 +219,10 @@ test("quick development rebuilds the host-served client without validation", () 
   assert.match(devScript, /if \(!quickStart\)[\s\S]*vite\.js/u);
   assert.match(devHostScript, /if \(useViteClient\)[\s\S]*else \{\s*await waitForClientFiles\(\)/u);
   assert.doesNotMatch(devHostScript, /SKIP_CURSOR_WATCHDOG|SkipCursorWatchdogBuild/u);
-  assert.match(devHostScript, /stopExistingHost\(\)[\s\S]*startHost\(\)/u);
-  assert.doesNotMatch(devHostScript, /"--no-build"/u);
+  assert.match(devHostScript, /stopExistingHost\(\)[\s\S]*buildHost\(\)[\s\S]*startHost\(\)/u);
+  assert.match(devHostScript, /spawnSync\("dotnet", \["build", hostProjectPath\]/u);
+  assert.match(devHostScript, /spawn\(hostExecutablePath, args/u);
+  assert.doesNotMatch(devHostScript, /\["run", "--project"/u);
   assert.doesNotMatch(devHostScript, /--isolated-test-mode/u);
   assert.doesNotMatch(devHostScript, /IntermediateOutputPath/u);
   assert.match(

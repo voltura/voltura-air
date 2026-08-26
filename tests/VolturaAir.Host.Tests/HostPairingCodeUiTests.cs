@@ -119,7 +119,7 @@ public sealed partial class HostUiLayoutTests
                 null,
                 null,
                 now,
-                () => refreshCalls += 1,
+                _ => refreshCalls += 1,
                 static () => { },
                 static () => { },
                 () => now);
@@ -169,7 +169,7 @@ public sealed partial class HostUiLayoutTests
                 null,
                 null,
                 now.AddMinutes(5),
-                static () => { },
+                static _ => { },
                 static () => { },
                 () => changeCalls += 1,
                 usesRelay: true);
@@ -211,7 +211,7 @@ public sealed partial class HostUiLayoutTests
                 null,
                 null,
                 now.AddMinutes(5),
-                static () => { },
+                static _ => { },
                 static () => { },
                 static () => { },
                 copyStandardLocalLink: static () => { });
@@ -245,6 +245,7 @@ public sealed partial class HostUiLayoutTests
             using var appScope = new WpfApplicationScope();
             var now = DateTimeOffset.UtcNow;
             var refreshCalls = 0;
+            bool? userInitiated = null;
             var view = new ConnectPageView(
                 CreateTestBitmap(),
                 "http://pc.local/pair?t=redacted",
@@ -257,7 +258,11 @@ public sealed partial class HostUiLayoutTests
                 null,
                 null,
                 now.AddMinutes(5),
-                () => refreshCalls += 1,
+                requestedByUser =>
+                {
+                    refreshCalls += 1;
+                    userInitiated = requestedByUser;
+                },
                 static () => { },
                 static () => { },
                 () => now);
@@ -288,11 +293,40 @@ public sealed partial class HostUiLayoutTests
                 Assert.False(view.IsCountdownActive);
                 Assert.Equal("Refreshing code\u2026", view.PairingCodeCard.Value);
                 Assert.Equal(1, refreshCalls);
+                Assert.False(userInitiated);
             }
             finally
             {
                 window.Close();
             }
+        });
+    }
+
+    [Fact]
+    public void ManualNewCodeRequestUsesTheLogoFreeFallback()
+    {
+        RunOnStaThread(() =>
+        {
+            bool? userInitiated = null;
+            var view = new ConnectPageView(
+                CreateTestBitmap(),
+                "http://pc.local/pair?t=redacted",
+                "http://pc.local",
+                "Ethernet (Test adapter)",
+                false,
+                "127.0.0.1",
+                "51395",
+                null,
+                null,
+                null,
+                DateTimeOffset.UtcNow.AddMinutes(5),
+                requestedByUser => userInitiated = requestedByUser,
+                static () => { },
+                static () => { });
+
+            view.RequestNewCode(userInitiated: true);
+
+            Assert.True(userInitiated);
         });
     }
 
@@ -356,7 +390,7 @@ public sealed partial class HostUiLayoutTests
                 null,
                 null,
                 now.AddMinutes(5),
-                () => refreshCalls += 1,
+                _ => refreshCalls += 1,
                 static () => { },
                 static () => { },
                 () => now);
@@ -484,7 +518,7 @@ public sealed partial class HostUiLayoutTests
                 adapterName,
                 null,
                 now.AddMinutes(5),
-                static () => { },
+                static _ => { },
                 static () => { },
                 () => changeCalls += 1);
 

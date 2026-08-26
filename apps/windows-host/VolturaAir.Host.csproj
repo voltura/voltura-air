@@ -7,10 +7,13 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- The mixed WPF/WinForms host needs DPI awareness established by its manifest before WPF initializes. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <UseWindowsForms>true</UseWindowsForms>
     <UseWPF>true</UseWPF>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\VolturaAir.ico</ApplicationIcon>
     <Version>1.1.1</Version>
     <AssemblyVersion>1.1.1.0</AssemblyVersion>
@@ -27,6 +30,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <RuntimeHostConfigurationOption Include="Switch.System.Windows.DoNotScaleForDpiChanges" Value="false" />
     <None Update="relay-service.json" CopyToOutputDirectory="PreserveNewest" />
     <EmbeddedResource Include="Features\Updates\update-signing-public.pem" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

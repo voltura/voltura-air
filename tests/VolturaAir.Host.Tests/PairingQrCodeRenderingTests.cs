@@ -1,5 +1,6 @@
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using QRCoder;
 using VolturaAir.Host.Features.Connect;
 
 namespace VolturaAir.Host.Tests;
@@ -7,9 +8,35 @@ namespace VolturaAir.Host.Tests;
 public sealed class PairingQrCodeRenderingTests
 {
     [Fact]
-    public void PairingQrCodeKeepsEveryModuleUnobstructed()
+    public void PairingQrCodeUsesMediumErrorCorrection()
+    {
+        Assert.Equal(QRCodeGenerator.ECCLevel.M, PairingQrCodeRenderer.ErrorCorrectionLevel);
+    }
+
+    [Fact]
+    public void PairingQrCodeIncludesVolturaAirIconInCenter()
     {
         var source = PairingQrCodeRenderer.Create("http://192.168.1.20:51395/pair?t=redacted&v=0.6.3");
+        var chromaticPixelCount = CountChromaticCenterPixels(source);
+
+        Assert.True(source.IsFrozen);
+        Assert.True(chromaticPixelCount > 100, $"Expected a colored Voltura Air icon in the QR center, but found {chromaticPixelCount} chromatic pixels.");
+    }
+
+    [Fact]
+    public void ManualFallbackPairingQrCodeOmitsTheCenterIcon()
+    {
+        var source = PairingQrCodeRenderer.Create(
+            "http://192.168.1.20:51395/pair?t=redacted&v=0.6.3",
+            includeIcon: false);
+        var chromaticPixelCount = CountChromaticCenterPixels(source);
+
+        Assert.True(source.IsFrozen);
+        Assert.Equal(0, chromaticPixelCount);
+    }
+
+    private static int CountChromaticCenterPixels(BitmapSource source)
+    {
         var converted = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
         var stride = converted.PixelWidth * 4;
         var pixels = new byte[stride * converted.PixelHeight];
@@ -33,7 +60,6 @@ public sealed class PairingQrCodeRenderingTests
             }
         }
 
-        Assert.True(source.IsFrozen);
-        Assert.Equal(0, chromaticPixelCount);
+        return chromaticPixelCount;
     }
 }

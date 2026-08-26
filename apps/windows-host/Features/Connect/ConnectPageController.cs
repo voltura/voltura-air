@@ -13,6 +13,7 @@ internal sealed class ConnectPageController(
     Action requestViewRefresh,
     Action openConnectionPage)
 {
+    private bool _includeIcon = true;
     private readonly PairingLinkController _pairingLinks = new(
         pairingManager,
         webHost.ServerUrl,
@@ -32,7 +33,10 @@ internal sealed class ConnectPageController(
 
     public ConnectPageView CreateView()
     {
-        _pairingLinks.RefreshIfDue(DateTimeOffset.UtcNow);
+        if (_pairingLinks.RefreshIfDue(DateTimeOffset.UtcNow))
+        {
+            _includeIcon = true;
+        }
         var pairingLink = GetVisiblePairingUrl();
         var hasMultipleAdapters = LanAddressSelector.GetCandidates()
             .Select(candidate => candidate.AdapterId)
@@ -40,7 +44,7 @@ internal sealed class ConnectPageController(
             .Skip(1)
             .Any();
         return new ConnectPageView(
-            PairingQrCodeRenderer.Create(pairingLink),
+            PairingQrCodeRenderer.Create(pairingLink, _includeIcon),
             pairingLink,
             webHost.ServerUrl,
             webHost.SelectedAdapterName,
@@ -58,9 +62,10 @@ internal sealed class ConnectPageController(
             copyStandardLocalLink: _pairingLinks.StandardLocalUrl is null ? null : () => clipboard.Copy(_pairingLinks.StandardLocalUrl, "Standard Local link copied"));
     }
 
-    public void CreateNewCode()
+    public void CreateNewCode(bool userInitiated)
     {
         _pairingLinks.CreateNew();
+        _includeIcon = !userInitiated;
         requestViewRefresh();
     }
 

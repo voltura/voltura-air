@@ -77,6 +77,7 @@ public partial class MainWindow : Window
 
         InitializeComponent();
         WindowWorkAreaPlacement.ConstrainAndCenterOnFirstLoad(this);
+        WindowWorkAreaPlacement.KeepVisibleAfterDisplayChanges(this);
         WpfTheme.Apply(this);
         WindowArtwork.Apply(this, SidebarAppIcon);
         _visuals = new HostVisualFactory(Resources);
@@ -193,7 +194,9 @@ public partial class MainWindow : Window
             _diagnosticsPage,
             RefreshStatusText);
         _connectionChangedAction = new OwnedDispatcherAction(Dispatcher, HandleConnectionChanged);
-        _pairingCodeInvalidatedAction = new OwnedDispatcherAction(Dispatcher, _connectPage.CreateNewCode);
+        _pairingCodeInvalidatedAction = new OwnedDispatcherAction(
+            Dispatcher,
+            () => _connectPage.CreateNewCode(userInitiated: false));
         _deviceProfileChangedAction = new OwnedDispatcherAction(Dispatcher, HandleDeviceProfileChanged);
         _themeChangedAction = new OwnedDispatcherAction(Dispatcher, HandleThemeChanged);
         _awakeStateChangedAction = new OwnedDispatcherAction(Dispatcher, HandleAwakeStateChanged);

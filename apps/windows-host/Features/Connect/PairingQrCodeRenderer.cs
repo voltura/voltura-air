@@ -7,12 +7,24 @@ namespace VolturaAir.Host.Features.Connect;
 
 internal static partial class PairingQrCodeRenderer
 {
-    public static BitmapSource Create(string url)
+    internal const QRCodeGenerator.ECCLevel ErrorCorrectionLevel = QRCodeGenerator.ECCLevel.M;
+
+    public static BitmapSource Create(string url, bool includeIcon = true)
     {
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "VolturaAir-256.png");
+        using var icon = includeIcon && File.Exists(iconPath) ? new System.Drawing.Bitmap(iconPath) : null;
         using var generator = new QRCodeGenerator();
-        using var data = generator.CreateQrCode(url, QRCodeGenerator.ECCLevel.M);
+        using var data = generator.CreateQrCode(url, ErrorCorrectionLevel);
         using var code = new QRCode(data);
-        using var bitmap = code.GetGraphic(18, System.Drawing.Color.Black, System.Drawing.Color.White, drawQuietZones: true);
+        using var bitmap = code.GetGraphic(
+            18,
+            System.Drawing.Color.Black,
+            System.Drawing.Color.White,
+            icon,
+            iconSizePercent: 15,
+            iconBorderWidth: 6,
+            drawQuietZones: true,
+            iconBackgroundColor: System.Drawing.Color.White);
         var handle = bitmap.GetHbitmap();
         try
         {

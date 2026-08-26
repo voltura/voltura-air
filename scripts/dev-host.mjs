@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { getLanAddress, stopChild, stopExistingHost } from "./dev-shared.mjs";
@@ -12,14 +12,22 @@ const clientPort = process.env.VOLTURA_AIR_CLIENT_PORT ?? "5173";
 const restartExitCode = 23;
 let shuttingDown = false;
 let developmentReadyReported = false;
-const args = ["run", "--project", "apps/windows-host/VolturaAir.Host.csproj"];
+const hostProjectPath = path.resolve("apps", "windows-host", "VolturaAir.Host.csproj");
+const hostExecutablePath = path.resolve(
+  "apps",
+  "windows-host",
+  "bin",
+  "cli",
+  "Debug",
+  "net10.0-windows",
+  "VolturaAir.Host.exe",
+);
+const args = [];
 const useViteClient =
   process.env.VOLTURA_AIR_USE_VITE_CLIENT === "1" ||
   process.env.VOLTURA_AIR_USE_VITE_CLIENT?.toLowerCase() === "true" ||
   Boolean(process.env.VOLTURA_AIR_CLIENT_URL);
 const clientUrl = process.env.VOLTURA_AIR_CLIENT_URL ?? `http://${getLanAddress()}:${clientPort}`;
-
-args.push("--");
 
 if (useViteClient) {
   args.push("--client-url", clientUrl);
@@ -28,6 +36,7 @@ if (useViteClient) {
 }
 
 stopExistingHost();
+buildHost();
 if (useViteClient) {
   console.log(`Voltura Air phone client: ${clientUrl}`);
 } else {
@@ -41,7 +50,8 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 }
 
 function startHost() {
-  const next = spawn("dotnet", args, {
+  // Launch the app host directly so development exercises the executable's own DPI manifest.
+  const next = spawn(hostExecutablePath, args, {
     stdio: ["inherit", "pipe", "inherit"],
     env: { ...process.env, VOLTURA_AIR_DEV_HOST: "1" },
   });
@@ -63,6 +73,16 @@ function startHost() {
     process.exit(code ?? 0);
   });
   return next;
+}
+
+function buildHost() {
+  const result = spawnSync("dotnet", ["build", hostProjectPath], { stdio: "inherit" });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(`Voltura Air host build failed with exit code ${result.status}.`);
+  }
 }
 
 function pipeHostOutput(host) {

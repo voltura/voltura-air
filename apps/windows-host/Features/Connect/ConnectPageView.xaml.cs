@@ -10,7 +10,7 @@ namespace VolturaAir.Host.Features.Connect;
 
 public partial class ConnectPageView : WpfUserControl
 {
-    private readonly Action _createNewCode;
+    private readonly Action<bool> _createNewCode;
     private readonly Action _copyLink;
     private readonly Action? _copyStandardLocalLink;
     private readonly Action _changeAdapter;
@@ -34,7 +34,7 @@ public partial class ConnectPageView : WpfUserControl
         string? addressWarningEmphasis,
         string? portWarning,
         DateTimeOffset refreshAt,
-        Action createNewCode,
+        Action<bool> createNewCode,
         Action copyLink,
         Action changeAdapter,
         Func<DateTimeOffset>? getCurrentTime = null,
@@ -95,7 +95,7 @@ public partial class ConnectPageView : WpfUserControl
         RenderCountdown(now);
         if (now >= _refreshAt)
         {
-            RequestNewCode();
+            RequestNewCode(userInitiated: false);
         }
     }
 
@@ -195,7 +195,7 @@ public partial class ConnectPageView : WpfUserControl
 
     private void OnNewCodeClicked(object sender, RoutedEventArgs eventArgs)
     {
-        RequestNewCode();
+        RequestNewCode(userInitiated: true);
     }
 
     private void OnCopyLinkClicked(object sender, RoutedEventArgs eventArgs)
@@ -264,7 +264,7 @@ public partial class ConnectPageView : WpfUserControl
         PairingCodeCard.Value = FormatRefreshCountdown(_refreshAt, now);
     }
 
-    private void RequestNewCode()
+    internal void RequestNewCode(bool userInitiated)
     {
         if (_refreshRequested)
         {
@@ -274,7 +274,7 @@ public partial class ConnectPageView : WpfUserControl
         _refreshRequested = true;
         _countdownTimer.Stop();
         PairingCodeCard.Value = "Refreshing code…";
-        _createNewCode();
+        _createNewCode(userInitiated);
     }
 
     private void ReleaseTimer()

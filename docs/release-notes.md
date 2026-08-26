@@ -8,6 +8,13 @@ create one. Keep the shared notices in
 
 ## v1.1.2
 
+- Fixed the Voltura Air window frame and tray menu sometimes becoming unusually
+  small after a monitor was turned off and back on or its display scaling
+  changed. The window is also moved back into the visible desktop when displays
+  change.
+- Restored the Voltura Air logo in pairing codes. If a code is difficult to
+  scan, choosing **New code** now shows the next code without the logo as a
+  simpler fallback; the logo returns with the following automatic refresh.
 - Added a camera button to **View PC screen** so you can take a screenshot of
   your PC display and save or share it from your phone, tablet, or other device.
 - Updated the third-party components used by Voltura Air and refreshed its

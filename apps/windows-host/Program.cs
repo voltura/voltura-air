@@ -35,6 +35,11 @@ internal static class Program
             RunInstallerHealthCheck(args);
             return;
         }
+
+        Forms.Application.SetHighDpiMode(Forms.HighDpiMode.PerMonitorV2);
+        Forms.Application.EnableVisualStyles();
+        Forms.Application.SetCompatibleTextRenderingDefault(false);
+
         CatalogImportRequestStore.EnqueueIfPresent(args);
         SingleInstanceCoordinator? singleInstance = null;
         try
@@ -51,10 +56,6 @@ internal static class Program
             {
                 CatalogProtocolRegistration.TryRegisterCurrentApplication();
             }
-
-            Forms.Application.SetHighDpiMode(Forms.HighDpiMode.PerMonitorV2);
-            Forms.Application.EnableVisualStyles();
-            Forms.Application.SetCompatibleTextRenderingDefault(false);
 
             var app = new WpfApplication
             {

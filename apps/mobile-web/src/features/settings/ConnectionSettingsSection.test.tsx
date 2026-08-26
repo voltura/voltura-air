@@ -17,7 +17,7 @@ const baseProps = {
   renameDevice: vi.fn(),
   renamePc: vi.fn(),
   scanPairingQr: vi.fn(),
-  selectPc: vi.fn()
+  selectPc: vi.fn(),
 };
 
 describe("ConnectionSettingsSection", () => {

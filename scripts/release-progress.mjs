@@ -6,7 +6,7 @@ const ansi = {
   green: "\u001b[32m",
   red: "\u001b[31m",
   reset: "\u001b[0m",
-  yellow: "\u001b[33m"
+  yellow: "\u001b[33m",
 };
 
 export function formatDuration(milliseconds) {
@@ -25,14 +25,14 @@ export function formatDuration(milliseconds) {
 }
 
 function createPainter(enabled) {
-  return (color, text) => enabled ? `${ansi[color]}${text}${ansi.reset}` : text;
+  return (color, text) => (enabled ? `${ansi[color]}${text}${ansi.reset}` : text);
 }
 
 export function createReleaseProgress({
   totalSteps,
   stream = process.stdout,
   clock = () => performance.now(),
-  useColor = Boolean(process.stdout.isTTY && !process.env.NO_COLOR)
+  useColor = Boolean(process.stdout.isTTY && !process.env.NO_COLOR),
 }) {
   const paint = createPainter(useColor);
   const releaseStartedAt = clock();
@@ -84,6 +84,6 @@ export function createReleaseProgress({
       }
       write(paint("red", message));
       write(`Total elapsed before issue: ${elapsed()}`);
-    }
+    },
   };
 }

@@ -5,13 +5,10 @@ import type {
   AppLaunchResultMessage,
   AvailablePowerPointPresentation,
   PowerPointCapability,
-  PowerPointLaunchResultMessage
+  PowerPointLaunchResultMessage,
 } from "../../../foundation/protocol/messages";
 
-type Selection =
-  | { kind: "open"; id: string }
-  | { kind: "saved"; id: string }
-  | null;
+type Selection = { kind: "open"; id: string } | { kind: "saved"; id: string } | null;
 
 interface PowerPointPresentationChooserProps {
   appLaunchAction?: AppLaunchActionSummary | undefined;
@@ -44,25 +41,28 @@ export function PowerPointPresentationChooser({
   onSelectOpen,
   refreshPending,
   selection,
-  onSelectionChange
+  onSelectionChange,
 }: PowerPointPresentationChooserProps) {
   const open = capability.presentations;
   const saved = capability.availablePresentations ?? [];
-  const selectedOpen = selection?.kind === "open"
-    ? open.find((item) => item.runtimePresentationId === selection.id)
-    : undefined;
-  const selectedSaved = selection?.kind === "saved"
-    ? saved.find((item) => item.presentationId === selection.id)
-    : undefined;
+  const selectedOpen =
+    selection?.kind === "open"
+      ? open.find((item) => item.runtimePresentationId === selection.id)
+      : undefined;
+  const selectedSaved =
+    selection?.kind === "saved"
+      ? saved.find((item) => item.presentationId === selection.id)
+      : undefined;
   const commitDisabled = launchPending || (!selectedOpen && !selectedSaved);
-  const replacesCurrentSession = capability.session?.state !== undefined &&
-    capability.session.state !== "inactive";
+  const replacesCurrentSession =
+    capability.session?.state !== undefined && capability.session.state !== "inactive";
 
   return (
     <section className="presentation-chooser" aria-labelledby="presentation-chooser-title">
       <header className="presentation-chooser-header">
         <button type="button" className="presentation-chooser-back" onClick={onBack}>
-          <ArrowLeft aria-hidden="true" /><span>Back</span>
+          <ArrowLeft aria-hidden="true" />
+          <span>Back</span>
         </button>
         <div>
           <h1 id="presentation-chooser-title">Choose presentation</h1>
@@ -74,7 +74,8 @@ export function PowerPointPresentationChooser({
           disabled={refreshPending || launchPending}
           onClick={onRefresh}
         >
-          <RefreshCw aria-hidden="true" /><span>{refreshPending ? "Refreshing…" : "Refresh"}</span>
+          <RefreshCw aria-hidden="true" />
+          <span>{refreshPending ? "Refreshing…" : "Refresh"}</span>
         </button>
       </header>
 
@@ -82,15 +83,21 @@ export function PowerPointPresentationChooser({
         <ChooserGroup title="Open in PowerPoint" empty="No open presentations.">
           {open.map((presentation) => (
             <ChooserRow
-              checked={selection?.kind === "open" && selection.id === presentation.runtimePresentationId}
-              detail={presentation.state === "presenting"
-                ? `Slide ${presentation.currentSlideIndex ?? "–"} of ${presentation.slideCount} · Presenting`
-                : `${presentation.slideCount} slides · Ready`}
+              checked={
+                selection?.kind === "open" && selection.id === presentation.runtimePresentationId
+              }
+              detail={
+                presentation.state === "presenting"
+                  ? `Slide ${presentation.currentSlideIndex ?? "–"} of ${presentation.slideCount} · Presenting`
+                  : `${presentation.slideCount} slides · Ready`
+              }
               disabled={launchPending}
               id={`open-${presentation.runtimePresentationId}`}
               key={presentation.runtimePresentationId}
               name={presentation.name}
-              onSelect={() => { onSelectionChange({ kind: "open", id: presentation.runtimePresentationId }); }}
+              onSelect={() => {
+                onSelectionChange({ kind: "open", id: presentation.runtimePresentationId });
+              }}
             />
           ))}
         </ChooserGroup>
@@ -99,14 +106,18 @@ export function PowerPointPresentationChooser({
           {saved.map((presentation) => (
             <ChooserRow
               checked={selection?.kind === "saved" && selection.id === presentation.presentationId}
-              detail={presentation.fileName === presentation.title
-                ? "Saved presentation"
-                : presentation.fileName}
+              detail={
+                presentation.fileName === presentation.title
+                  ? "Saved presentation"
+                  : presentation.fileName
+              }
               disabled={launchPending}
               id={`saved-${presentation.presentationId}`}
               key={presentation.presentationId}
               name={presentation.title}
-              onSelect={() => { onSelectionChange({ kind: "saved", id: presentation.presentationId }); }}
+              onSelect={() => {
+                onSelectionChange({ kind: "saved", id: presentation.presentationId });
+              }}
             />
           ))}
         </ChooserGroup>
@@ -118,13 +129,21 @@ export function PowerPointPresentationChooser({
             <p>Starting another deck saves the current presentation automatically.</p>
           )}
           {launchResult?.succeeded === false && (
-            <p className="presentation-permission-message" role="alert">{launchResult.message}</p>
+            <p className="presentation-permission-message" role="alert">
+              {launchResult.message}
+            </p>
           )}
-          {appLaunchResult?.succeeded === false && appLaunchResult.actionId === appLaunchAction?.id && (
-            <p className="presentation-permission-message" role="alert">{appLaunchResult.message}</p>
-          )}
+          {appLaunchResult?.succeeded === false &&
+            appLaunchResult.actionId === appLaunchAction?.id && (
+              <p className="presentation-permission-message" role="alert">
+                {appLaunchResult.message}
+              </p>
+            )}
           {!launchResult && capability.state !== "ready" && (
-            <p>PowerPoint is not running. Choose a saved deck to start it, or start PowerPoint without opening a file.</p>
+            <p>
+              PowerPoint is not running. Choose a saved deck to start it, or start PowerPoint
+              without opening a file.
+            </p>
           )}
         </div>
         <div className="presentation-chooser-actions">
@@ -132,7 +151,9 @@ export function PowerPointPresentationChooser({
             <button
               type="button"
               disabled={appLaunchPending || launchPending}
-              onClick={() => { onLaunchApp(appLaunchAction.id); }}
+              onClick={() => {
+                onLaunchApp(appLaunchAction.id);
+              }}
             >
               <Presentation aria-hidden="true" />
               <span>{appLaunchPending ? "Starting…" : "Start PowerPoint"}</span>
@@ -151,11 +172,9 @@ export function PowerPointPresentationChooser({
             }}
           >
             <Play aria-hidden="true" />
-            <span>{launchPending
-              ? "Opening…"
-              : selectedSaved
-                ? "Open and present"
-                : "Use presentation"}</span>
+            <span>
+              {launchPending ? "Opening…" : selectedSaved ? "Open and present" : "Use presentation"}
+            </span>
           </button>
         </div>
       </footer>
@@ -166,7 +185,7 @@ export function PowerPointPresentationChooser({
 function ChooserGroup({
   children,
   empty,
-  title
+  title,
 }: {
   children: ReactNode;
   empty: string;
@@ -189,7 +208,7 @@ function ChooserRow({
   disabled,
   id,
   name,
-  onSelect
+  onSelect,
 }: {
   checked: boolean;
   detail: string;

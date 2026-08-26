@@ -19,11 +19,15 @@ export class WorkspaceErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.failed) {
-      return <section className="workspace-error" role="alert">
-        <strong>{this.props.featureName} could not open</strong>
-        <span>Return to the app and try again.</span>
-        <button type="button" onClick={this.props.onBack}>Back</button>
-      </section>;
+      return (
+        <section className="workspace-error" role="alert">
+          <strong>{this.props.featureName} could not open</strong>
+          <span>Return to the app and try again.</span>
+          <button type="button" onClick={this.props.onBack}>
+            Back
+          </button>
+        </section>
+      );
     }
 
     return this.props.children;

@@ -1,6 +1,22 @@
 import { useEffect, useEffectEvent, useId, useRef, useState, type PointerEvent } from "react";
-import { AppWindow, ArrowLeft, ArrowRight, CornerDownLeft, ExternalLink, Monitor, Plus, RefreshCw, RotateCcw, Search, SquareX } from "lucide-react";
-import type { AppLaunchActionSummary, UrlOpenCapability, UrlOpenResultMessage } from "../../../foundation/protocol/messages";
+import {
+  AppWindow,
+  ArrowLeft,
+  ArrowRight,
+  CornerDownLeft,
+  ExternalLink,
+  Monitor,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  Search,
+  SquareX,
+} from "lucide-react";
+import type {
+  AppLaunchActionSummary,
+  UrlOpenCapability,
+  UrlOpenResultMessage,
+} from "../../../foundation/protocol/messages";
 import type { RemoteSettings } from "../../../foundation/settings/remoteSettings";
 import { validateUrlDraft } from "./urlOpenValidation";
 import { InfoButton } from "../../../ui/overlays/InfoButton";
@@ -44,12 +60,26 @@ function getAppLaunchLabelClass(label: string): string {
   return "remote-app-launch-label";
 }
 
-export function RemoteUtilityPanel({ appLaunchActions, id, isConnected, onAppLaunch, onUrlOpen, pendingAppLaunchId, pendingUrlOpen, remoteSettings, sendSpecial, urlOpenCapability, urlOpenResult }: RemoteUtilityPanelProps) {
+export function RemoteUtilityPanel({
+  appLaunchActions,
+  id,
+  isConnected,
+  onAppLaunch,
+  onUrlOpen,
+  pendingAppLaunchId,
+  pendingUrlOpen,
+  remoteSettings,
+  sendSpecial,
+  urlOpenCapability,
+  urlOpenResult,
+}: RemoteUtilityPanelProps) {
   const [isSwitcherActive, setIsSwitcherActive] = useState(false);
   const [isUrlDialogRequested, setIsUrlDialogRequested] = useState(false);
   const isUrlDialogOpen = isConnected && isUrlDialogRequested;
   const [urlDraft, setUrlDraft] = useState("");
-  const [dismissedUrlResultOperationId, setDismissedUrlResultOperationId] = useState<string | null>(null);
+  const [dismissedUrlResultOperationId, setDismissedUrlResultOperationId] = useState<string | null>(
+    null,
+  );
   const switcherHintId = useId();
   const urlValidationId = useId();
   const urlInputRef = useRef<HTMLInputElement | null>(null);
@@ -59,7 +89,8 @@ export function RemoteUtilityPanel({ appLaunchActions, id, isConnected, onAppLau
   const sendSpecialRef = useRef(sendSpecial);
   const pendingUrlOperationRef = useRef<string | null>(null);
   const urlValidation = validateUrlDraft(urlDraft);
-  const visibleUrlOpenResult = urlOpenResult?.operationId === dismissedUrlResultOperationId ? null : urlOpenResult;
+  const visibleUrlOpenResult =
+    urlOpenResult?.operationId === dismissedUrlResultOperationId ? null : urlOpenResult;
 
   useEffect(() => {
     sendSpecialRef.current = sendSpecial;
@@ -133,7 +164,7 @@ export function RemoteUtilityPanel({ appLaunchActions, id, isConnected, onAppLau
       id: event.pointerId,
       currentX: event.clientX,
       stepX: event.clientX,
-      active: false
+      active: false,
     };
     switcherTimerRef.current = window.setTimeout(() => {
       const pointer = switcherPointerRef.current;
@@ -213,7 +244,7 @@ export function RemoteUtilityPanel({ appLaunchActions, id, isConnected, onAppLau
       }
 
       sendSpecial("Tab", ["Alt"]);
-    }
+    },
   };
 
   return (
@@ -223,7 +254,12 @@ export function RemoteUtilityPanel({ appLaunchActions, id, isConnected, onAppLau
         <small>Fast helper keys for couch use.</small>
       </div>
       <div className="remote-utility-grid" aria-label="Windows helper controls">
-        <RemoteButton label="Start or search" onClick={() => { sendSpecial("Win"); }}>
+        <RemoteButton
+          label="Start or search"
+          onClick={() => {
+            sendSpecial("Win");
+          }}
+        >
           <Search aria-hidden="true" />
           <span>Start</span>
         </RemoteButton>
@@ -235,20 +271,41 @@ export function RemoteUtilityPanel({ appLaunchActions, id, isConnected, onAppLau
         >
           <span>Switch app</span>
         </RemoteButton>
-        <RemoteButton label="Task view" title="Open Windows Task View" onClick={() => { sendSpecial("Tab", ["Win"]); }}>
+        <RemoteButton
+          label="Task view"
+          title="Open Windows Task View"
+          onClick={() => {
+            sendSpecial("Tab", ["Win"]);
+          }}
+        >
           <span>Task view</span>
         </RemoteButton>
         {remoteSettings.showWindowHelpers && (
           <>
-            <RemoteButton label="Show desktop" onClick={() => { sendSpecial("D", ["Win"]); }}>
+            <RemoteButton
+              label="Show desktop"
+              onClick={() => {
+                sendSpecial("D", ["Win"]);
+              }}
+            >
               <Monitor aria-hidden="true" />
               <span>Desktop</span>
             </RemoteButton>
-            <RemoteButton label="Close focused window" onClick={() => { sendSpecial("F4", ["Alt"]); }}>
+            <RemoteButton
+              label="Close focused window"
+              onClick={() => {
+                sendSpecial("F4", ["Alt"]);
+              }}
+            >
               <SquareX aria-hidden="true" />
               <span>Close</span>
             </RemoteButton>
-            <RemoteButton label="Minimize focused window" onClick={() => { sendSpecial("ArrowDown", ["Win"]); }}>
+            <RemoteButton
+              label="Minimize focused window"
+              onClick={() => {
+                sendSpecial("ArrowDown", ["Win"]);
+              }}
+            >
               <span>Minimize</span>
             </RemoteButton>
           </>
@@ -265,51 +322,101 @@ export function RemoteUtilityPanel({ appLaunchActions, id, isConnected, onAppLau
         <small>Tabs and page controls.</small>
       </div>
       <div className="remote-utility-grid" aria-label="Browser helper controls">
-        <RemoteButton label="Browser back" onClick={() => { sendSpecial("BrowserBack"); }}>
+        <RemoteButton
+          label="Browser back"
+          onClick={() => {
+            sendSpecial("BrowserBack");
+          }}
+        >
           <CornerDownLeft aria-hidden="true" />
           <span>Back</span>
         </RemoteButton>
         {remoteSettings.showBrowserHelpers && (
           <>
-            <RemoteButton label="New tab" onClick={() => { sendSpecial("T", ["Control"]); }}>
+            <RemoteButton
+              label="New tab"
+              onClick={() => {
+                sendSpecial("T", ["Control"]);
+              }}
+            >
               <Plus aria-hidden="true" />
               <span>New tab</span>
             </RemoteButton>
-            <RemoteButton label="Close tab" onClick={() => { sendSpecial("W", ["Control"]); }}>
+            <RemoteButton
+              label="Close tab"
+              onClick={() => {
+                sendSpecial("W", ["Control"]);
+              }}
+            >
               <SquareX aria-hidden="true" />
               <span>Close</span>
             </RemoteButton>
-            <RemoteButton label="Reopen closed tab" onClick={() => { sendSpecial("T", ["Control", "Shift"]); }}>
+            <RemoteButton
+              label="Reopen closed tab"
+              onClick={() => {
+                sendSpecial("T", ["Control", "Shift"]);
+              }}
+            >
               <RotateCcw aria-hidden="true" />
               <span>Reopen</span>
             </RemoteButton>
-            <RemoteButton label="Next tab" onClick={() => { sendSpecial("Tab", ["Control"]); }}>
+            <RemoteButton
+              label="Next tab"
+              onClick={() => {
+                sendSpecial("Tab", ["Control"]);
+              }}
+            >
               <ArrowRight aria-hidden="true" />
               <span>Next</span>
             </RemoteButton>
-            <RemoteButton label="Previous tab" onClick={() => { sendSpecial("Tab", ["Control", "Shift"]); }}>
+            <RemoteButton
+              label="Previous tab"
+              onClick={() => {
+                sendSpecial("Tab", ["Control", "Shift"]);
+              }}
+            >
               <ArrowLeft aria-hidden="true" />
               <span>Prev tab</span>
             </RemoteButton>
-            <RemoteButton label="Reload page" onClick={() => { sendSpecial("R", ["Control"]); }}>
+            <RemoteButton
+              label="Reload page"
+              onClick={() => {
+                sendSpecial("R", ["Control"]);
+              }}
+            >
               <RefreshCw aria-hidden="true" />
               <span>Reload</span>
             </RemoteButton>
           </>
         )}
-        <RemoteButton label="Open URL" onClick={() => { setIsUrlDialogRequested(true); }}>
+        <RemoteButton
+          label="Open URL"
+          onClick={() => {
+            setIsUrlDialogRequested(true);
+          }}
+        >
           <ExternalLink aria-hidden="true" />
           <span>Open URL</span>
         </RemoteButton>
       </div>
       {isUrlDialogOpen && (
         <ModalDialog
-          actions={(
+          actions={
             <>
               {urlOpenCapability?.canOpen && (
-                <button type="submit" className="remote-url-dialog-primary" disabled={pendingUrlOpen || !urlValidation.valid}>
+                <button
+                  type="submit"
+                  className="remote-url-dialog-primary"
+                  disabled={pendingUrlOpen || !urlValidation.valid}
+                >
                   <ExternalLink aria-hidden="true" />
-                  <span>{pendingUrlOpen ? "Opening…" : visibleUrlOpenResult?.succeeded === false ? "Retry" : "Open"}</span>
+                  <span>
+                    {pendingUrlOpen
+                      ? "Opening…"
+                      : visibleUrlOpenResult?.succeeded === false
+                        ? "Retry"
+                        : "Open"}
+                  </span>
                 </button>
               )}
               <button
@@ -322,9 +429,11 @@ export function RemoteUtilityPanel({ appLaunchActions, id, isConnected, onAppLau
               >
                 Clear
               </button>
-              <button type="button" onClick={closeUrlDialog} disabled={pendingUrlOpen}>Close</button>
+              <button type="button" onClick={closeUrlDialog} disabled={pendingUrlOpen}>
+                Close
+              </button>
             </>
-          )}
+          }
           actionsClassName="remote-url-dialog-actions"
           className="remote-url-dialog"
           dismissLabel="Close"
@@ -342,42 +451,69 @@ export function RemoteUtilityPanel({ appLaunchActions, id, isConnected, onAppLau
             return false;
           }}
           title="Open URL on PC"
-          titleAccessory={(
+          titleAccessory={
             <InfoButton
               title="Opening URLs on PC"
               size="detailed"
               description="Enter a web address to open once in the PC's default browser. Addresses without a scheme use HTTPS. Only HTTP and HTTPS are supported. Voltura Air does not choose or fall back to a specific browser."
             />
-          )}
+          }
         >
-            {!urlOpenCapability && <p className="remote-url-feedback error" role="alert">Update the Windows host to open web addresses.</p>}
-            {urlOpenCapability && !urlOpenCapability.canOpen && <p className="remote-url-feedback error" role="alert">Allow URL opening in the PC permissions first.</p>}
-            {urlOpenCapability?.canOpen && (
-              <label>
-                <span>Web address</span>
-                <input
-                  ref={urlInputRef}
-                  id="remote-url-draft"
-                  name="url"
-                  type="url"
-                  inputMode="url"
-                  autoComplete="url"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  enterKeyHint="go"
-                  spellCheck={false}
-                  maxLength={2048}
-                  placeholder="example.com"
-                  value={urlDraft}
-                  aria-describedby={!urlValidation.valid && urlDraft.trim() ? urlValidationId : undefined}
-                  aria-invalid={!urlValidation.valid && urlDraft.trim() ? true : undefined}
-                  onChange={(event) => { setUrlDraft(event.target.value); }}
-                />
-              </label>
-            )}
-            {!urlValidation.valid && urlDraft.trim() && <p id={urlValidationId} className="remote-url-feedback error" role="alert">{urlValidation.message}</p>}
-            {pendingUrlOpen && <p className="remote-url-feedback pending" role="status">Waiting for the PC.</p>}
-            {!pendingUrlOpen && visibleUrlOpenResult && <p className={`remote-url-feedback ${visibleUrlOpenResult.succeeded ? "success" : "error"}`} role={visibleUrlOpenResult.succeeded ? "status" : "alert"}>{visibleUrlOpenResult.message}</p>}
+          {!urlOpenCapability && (
+            <p className="remote-url-feedback error" role="alert">
+              Update the Windows host to open web addresses.
+            </p>
+          )}
+          {urlOpenCapability && !urlOpenCapability.canOpen && (
+            <p className="remote-url-feedback error" role="alert">
+              Allow URL opening in the PC permissions first.
+            </p>
+          )}
+          {urlOpenCapability?.canOpen && (
+            <label>
+              <span>Web address</span>
+              <input
+                ref={urlInputRef}
+                id="remote-url-draft"
+                name="url"
+                type="url"
+                inputMode="url"
+                autoComplete="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                enterKeyHint="go"
+                spellCheck={false}
+                maxLength={2048}
+                placeholder="example.com"
+                value={urlDraft}
+                aria-describedby={
+                  !urlValidation.valid && urlDraft.trim() ? urlValidationId : undefined
+                }
+                aria-invalid={!urlValidation.valid && urlDraft.trim() ? true : undefined}
+                onChange={(event) => {
+                  setUrlDraft(event.target.value);
+                }}
+              />
+            </label>
+          )}
+          {!urlValidation.valid && urlDraft.trim() && (
+            <p id={urlValidationId} className="remote-url-feedback error" role="alert">
+              {urlValidation.message}
+            </p>
+          )}
+          {pendingUrlOpen && (
+            <p className="remote-url-feedback pending" role="status">
+              Waiting for the PC.
+            </p>
+          )}
+          {!pendingUrlOpen && visibleUrlOpenResult && (
+            <p
+              className={`remote-url-feedback ${visibleUrlOpenResult.succeeded ? "success" : "error"}`}
+              role={visibleUrlOpenResult.succeeded ? "status" : "alert"}
+            >
+              {visibleUrlOpenResult.message}
+            </p>
+          )}
         </ModalDialog>
       )}
       {appLaunchActions.length > 0 && (
@@ -386,16 +522,23 @@ export function RemoteUtilityPanel({ appLaunchActions, id, isConnected, onAppLau
             <span>Applications</span>
             <small>Buttons approved on this PC.</small>
           </div>
-          <div className="remote-utility-grid remote-app-launch-grid" aria-label="Application launch controls">
+          <div
+            className="remote-utility-grid remote-app-launch-grid"
+            aria-label="Application launch controls"
+          >
             {appLaunchActions.map((action) => (
               <RemoteButton
                 key={action.id}
                 label={`Start ${action.label}`}
                 disabled={pendingAppLaunchId !== null}
-                onClick={() => { onAppLaunch(action.id); }}
+                onClick={() => {
+                  onAppLaunch(action.id);
+                }}
               >
                 <AppWindow aria-hidden="true" />
-                <span className={getAppLaunchLabelClass(action.label)}>{pendingAppLaunchId === action.id ? "Starting…" : action.label}</span>
+                <span className={getAppLaunchLabelClass(action.label)}>
+                  {pendingAppLaunchId === action.id ? "Starting…" : action.label}
+                </span>
               </RemoteButton>
             ))}
           </div>

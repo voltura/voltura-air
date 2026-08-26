@@ -33,7 +33,7 @@ export function readCustomScreenPreviewControlDepth(url: string): boolean {
 
 export function CustomScreenBrowserPreview({
   controlDepth,
-  screenId
+  screenId,
 }: {
   controlDepth: boolean;
   screenId: string;
@@ -45,32 +45,36 @@ export function CustomScreenBrowserPreview({
     const abort = new AbortController();
     void fetch(`/api/custom-screens/preview/${encodeURIComponent(screenId)}`, {
       cache: "no-store",
-      signal: abort.signal
-    }).then(async (response) => {
-      if (!response.ok) {
-        throw new Error("The saved custom screen is unavailable.");
-      }
+      signal: abort.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("The saved custom screen is unavailable.");
+        }
 
-      const message = parseServerMessage(await response.text());
-      if (message?.type !== "custom.screen.get.result" ||
-          !message.succeeded ||
-          !message.screen) {
-        throw new Error("The custom-screen preview response was invalid.");
-      }
+        const message = parseServerMessage(await response.text());
+        if (message?.type !== "custom.screen.get.result" || !message.succeeded || !message.screen) {
+          throw new Error("The custom-screen preview response was invalid.");
+        }
 
-      setDefinition(message.screen);
-    }).catch((reason: unknown) => {
-      if (!abort.signal.aborted) {
-        setError(reason instanceof Error
-          ? reason.message
-          : "The custom screen could not be previewed.");
-      }
-    });
-    return () => { abort.abort(); };
+        setDefinition(message.screen);
+      })
+      .catch((reason: unknown) => {
+        if (!abort.signal.aborted) {
+          setError(
+            reason instanceof Error ? reason.message : "The custom screen could not be previewed.",
+          );
+        }
+      });
+    return () => {
+      abort.abort();
+    };
   }, [screenId]);
 
   return (
-    <div className={`app-frame custom-screen-browser-preview${controlDepth ? " control-depth" : ""}`}>
+    <div
+      className={`app-frame custom-screen-browser-preview${controlDepth ? " control-depth" : ""}`}
+    >
       <CustomScreenWorkspace
         definition={definition}
         error={error}

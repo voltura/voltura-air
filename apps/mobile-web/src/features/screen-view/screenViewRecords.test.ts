@@ -19,7 +19,12 @@ describe("screen WebRTC event records", () => {
     bytes.set([6, 7, 8], 39);
 
     expect(parseScreenPlaintextRecord(bytes)).toMatchObject({
-      type: "cursor", visible: true, x: 320, y: 240, width: 16, height: 24
+      type: "cursor",
+      visible: true,
+      x: 320,
+      y: 240,
+      width: 16,
+      height: 24,
     });
   });
 
@@ -33,7 +38,11 @@ describe("screen WebRTC event records", () => {
     bytes.set(code, 4);
     bytes.set(message, 4 + code.length);
 
-    expect(parseScreenPlaintextRecord(bytes)).toEqual({ type: "status", code: "capture-stopped", message: "Capture stopped." });
+    expect(parseScreenPlaintextRecord(bytes)).toEqual({
+      type: "status",
+      code: "capture-stopped",
+      message: "Capture stopped.",
+    });
     expect(() => parseScreenPlaintextRecord(Uint8Array.of(1))).toThrow("Unknown screen event type");
     expect(() => parseScreenPlaintextRecord(Uint8Array.of(6))).toThrow("Unknown screen event type");
   });

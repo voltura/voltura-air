@@ -7,7 +7,7 @@ const viewport: VisibleViewportBounds = {
   left: 0,
   right: 320,
   top: 0,
-  width: 320
+  width: 320,
 };
 
 function rect(left: number, top: number, width: number, height: number): DOMRectReadOnly {
@@ -20,7 +20,7 @@ function rect(left: number, top: number, width: number, height: number): DOMRect
     width,
     x: left,
     y: top,
-    toJSON: () => ({})
+    toJSON: () => ({}),
   };
 }
 
@@ -30,7 +30,7 @@ describe("computeAnchoredHintLayout", () => {
       anchorRect: rect(140, 40, 40, 44),
       hintSize: { width: 120, height: 40 },
       preferredPlacement: "below-center",
-      viewport
+      viewport,
     });
 
     expect(layout.placement).toBe("below-center");
@@ -43,7 +43,7 @@ describe("computeAnchoredHintLayout", () => {
       anchorRect: rect(140, 270, 40, 44),
       hintSize: { width: 120, height: 40 },
       preferredPlacement: "below-center",
-      viewport
+      viewport,
     });
 
     expect(layout.placement).toBe("above-center");
@@ -56,7 +56,7 @@ describe("computeAnchoredHintLayout", () => {
       fallbackPlacements: ["below-start"],
       hintSize: { width: 360, height: 360 },
       preferredPlacement: "below-start",
-      viewport
+      viewport,
     });
 
     expect(layout.placement).toBe("below-start");

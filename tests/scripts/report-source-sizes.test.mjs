@@ -17,8 +17,13 @@ async function withFixture(reviews, action) {
     await writeFile(
       path.join(root, "scripts/report-source-sizes.mjs"),
       await readFile(new URL("scripts/report-source-sizes.mjs", repositoryRoot), "utf8"),
-      "utf8");
-    await writeFile(path.join(root, "scripts/source-size-reviews.json"), JSON.stringify(reviews), "utf8");
+      "utf8",
+    );
+    await writeFile(
+      path.join(root, "scripts/source-size-reviews.json"),
+      JSON.stringify(reviews),
+      "utf8",
+    );
     await writeFile(path.join(root, "src/large.cs"), "public class Line {}\n".repeat(501), "utf8");
     await action(root);
   } finally {
@@ -27,48 +32,82 @@ async function withFixture(reviews, action) {
 }
 
 async function check(root) {
-  return executeFile(process.execPath, ["scripts/report-source-sizes.mjs", "--check"], { cwd: root });
+  return executeFile(process.execPath, ["scripts/report-source-sizes.mjs", "--check"], {
+    cwd: root,
+  });
 }
 
 test("accepts a specific current review for every strong source-size warning", async () => {
   await withFixture(
-    { "src/large.cs": "This fixture is intentionally cohesive so the strong-warning review has a sufficiently specific rationale." },
+    {
+      "src/large.cs":
+        "This fixture is intentionally cohesive so the strong-warning review has a sufficiently specific rationale.",
+    },
     async (root) => {
       const result = await check(root);
-      assert.match(result.stdout, /Every strong source-size warning has a current cohesive-ownership review/u);
-    });
+      assert.match(
+        result.stdout,
+        /Every strong source-size warning has a current cohesive-ownership review/u,
+      );
+    },
+  );
 });
 
 test("ignores the generated code statistics report", async () => {
   await withFixture(
-    { "src/large.cs": "This fixture is intentionally cohesive so the strong-warning review has a sufficiently specific rationale." },
+    {
+      "src/large.cs":
+        "This fixture is intentionally cohesive so the strong-warning review has a sufficiently specific rationale.",
+    },
     async (root) => {
       await mkdir(path.join(root, "apps/public-site"), { recursive: true });
-      await writeFile(path.join(root, "apps/public-site/stats.html"), "<p>Generated report</p>\n".repeat(501), "utf8");
+      await writeFile(
+        path.join(root, "apps/public-site/stats.html"),
+        "<p>Generated report</p>\n".repeat(501),
+        "utf8",
+      );
 
       const result = await check(root);
       assert.doesNotMatch(result.stdout, /apps\/public-site\/stats\.html/u);
-      assert.match(result.stdout, /Every strong source-size warning has a current cohesive-ownership review/u);
-    });
+      assert.match(
+        result.stdout,
+        /Every strong source-size warning has a current cohesive-ownership review/u,
+      );
+    },
+  );
 });
 
 test("ignores generated catalog preview assets", async () => {
   await withFixture(
-    { "src/large.cs": "This fixture is intentionally cohesive so the strong-warning review has a sufficiently specific rationale." },
+    {
+      "src/large.cs":
+        "This fixture is intentionally cohesive so the strong-warning review has a sufficiently specific rationale.",
+    },
     async (root) => {
       const assets = path.join(root, "apps/public-site/screens/assets");
       await mkdir(assets, { recursive: true });
-      await writeFile(path.join(assets, "catalog-preview.js"), "generated();\n".repeat(501), "utf8");
+      await writeFile(
+        path.join(assets, "catalog-preview.js"),
+        "generated();\n".repeat(501),
+        "utf8",
+      );
 
       const result = await check(root);
       assert.doesNotMatch(result.stdout, /catalog-preview\.js/u);
-      assert.match(result.stdout, /Every strong source-size warning has a current cohesive-ownership review/u);
-    });
+      assert.match(
+        result.stdout,
+        /Every strong source-size warning has a current cohesive-ownership review/u,
+      );
+    },
+  );
 });
 
 test("ignores generated development hosted-app assets", async () => {
   await withFixture(
-    { "src/large.cs": "This fixture is intentionally cohesive so the strong-warning review has a sufficiently specific rationale." },
+    {
+      "src/large.cs":
+        "This fixture is intentionally cohesive so the strong-warning review has a sufficiently specific rationale.",
+    },
     async (root) => {
       const assets = path.join(root, "apps/public-site/dev-app/assets");
       await mkdir(assets, { recursive: true });
@@ -76,14 +115,20 @@ test("ignores generated development hosted-app assets", async () => {
 
       const result = await check(root);
       assert.doesNotMatch(result.stdout, /apps\/public-site\/dev-app/u);
-      assert.match(result.stdout, /Every strong source-size warning has a current cohesive-ownership review/u);
-    }
+      assert.match(
+        result.stdout,
+        /Every strong source-size warning has a current cohesive-ownership review/u,
+      );
+    },
   );
 });
 
 test("ignores local Codex build probes", async () => {
   await withFixture(
-    { "src/large.cs": "This fixture is intentionally cohesive so the strong-warning review has a sufficiently specific rationale." },
+    {
+      "src/large.cs":
+        "This fixture is intentionally cohesive so the strong-warning review has a sufficiently specific rationale.",
+    },
     async (root) => {
       const probe = path.join(root, ".codex-tmp/screen-probe");
       await mkdir(probe, { recursive: true });
@@ -91,14 +136,21 @@ test("ignores local Codex build probes", async () => {
 
       const result = await check(root);
       assert.doesNotMatch(result.stdout, /screen-probe/u);
-      assert.match(result.stdout, /Every strong source-size warning has a current cohesive-ownership review/u);
-    });
+      assert.match(
+        result.stdout,
+        /Every strong source-size warning has a current cohesive-ownership review/u,
+      );
+    },
+  );
 });
 
 test("rejects an unreviewed strong source-size warning", async () => {
   await withFixture({}, async (root) => {
     await assert.rejects(check(root), (error) => {
-      assert.match(String(error.stderr), /Strong size warning needs a specific review: src\/large\.cs/u);
+      assert.match(
+        String(error.stderr),
+        /Strong size warning needs a specific review: src\/large\.cs/u,
+      );
       return true;
     });
   });
@@ -107,13 +159,16 @@ test("rejects an unreviewed strong source-size warning", async () => {
 test("rejects a stale source-size review", async () => {
   await withFixture(
     {
-      "src/large.cs": "This fixture is intentionally cohesive so the strong-warning review has a sufficiently specific rationale.",
-      "src/removed.cs": "This review must be removed when the warning disappears so the checked inventory remains current."
+      "src/large.cs":
+        "This fixture is intentionally cohesive so the strong-warning review has a sufficiently specific rationale.",
+      "src/removed.cs":
+        "This review must be removed when the warning disappears so the checked inventory remains current.",
     },
     async (root) => {
       await assert.rejects(check(root), (error) => {
         assert.match(String(error.stderr), /Source-size review is stale.*src\/removed\.cs/u);
         return true;
       });
-    });
+    },
+  );
 });

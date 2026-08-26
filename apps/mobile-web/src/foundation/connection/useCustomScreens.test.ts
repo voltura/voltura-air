@@ -3,16 +3,17 @@ import { describe, expect, it, vi } from "vitest";
 import {
   incompatibleCustomScreenResponseCode,
   incompatibleCustomScreenResponseMessage,
-  useCustomScreens
+  useCustomScreens,
 } from "./useCustomScreens";
 
 describe("useCustomScreens", () => {
   it("completes a correlated rejected definition instead of leaving it pending", () => {
     const send = vi.fn();
-    const { result } = renderHook(() =>
-      useCustomScreens("paired", 4, "catalog.current", send));
+    const { result } = renderHook(() => useCustomScreens("paired", 4, "catalog.current", send));
 
-    act(() => { result.current.requestCustomScreen("screen.gyro"); });
+    act(() => {
+      result.current.requestCustomScreen("screen.gyro");
+    });
     const request = send.mock.calls[0]?.[0] as { operationId: string };
 
     act(() => {
@@ -25,7 +26,7 @@ describe("useCustomScreens", () => {
       operationId: request.operationId,
       succeeded: false,
       code: incompatibleCustomScreenResponseCode,
-      message: incompatibleCustomScreenResponseMessage
+      message: incompatibleCustomScreenResponseMessage,
     });
     expect(result.current.rejectCustomScreenGet("other-operation")).toBe(false);
   });

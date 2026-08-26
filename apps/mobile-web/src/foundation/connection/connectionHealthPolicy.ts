@@ -8,7 +8,7 @@ export const staleConnectionMs = passiveHealthCheckMs + 6500 + 5000;
 export function hasExpiredInputAck(
   pendingAcks: Iterable<number>,
   supportsInputAck: boolean,
-  now = Date.now()
+  now = Date.now(),
 ) {
   if (!supportsInputAck) {
     return false;
@@ -27,7 +27,7 @@ export function getNextHealthCheckDelay(
   pendingAckCount: number,
   lastUserActivityAt: number,
   lastHealthyAt: number,
-  now = Date.now()
+  now = Date.now(),
 ) {
   const isInteractive = pendingAckCount > 0 || now - lastUserActivityAt < passiveAfterMs;
   const interval = isInteractive ? interactiveHealthCheckMs : passiveHealthCheckMs;

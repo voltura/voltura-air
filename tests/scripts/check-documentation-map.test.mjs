@@ -29,14 +29,14 @@ test("accepts a complete documentation catalog with valid local links", async ()
     {
       "README.md": "See the [guide](docs/guide.md).\n",
       "docs/README.md": "[Root](../README.md)\n[Guide](guide.md)\n",
-      "docs/guide.md": "Return to the [root](../README.md).\n"
+      "docs/guide.md": "Return to the [root](../README.md).\n",
     },
     async (root) => {
       const result = await checkDocumentationMap({ root, publicSurfaces: [] });
       assert.deepEqual(result.errors, []);
       assert.equal(result.requiredFiles.length, 2);
       assert.equal(result.checkedLinks, 4);
-    }
+    },
   );
 });
 
@@ -45,12 +45,12 @@ test("reports a maintained Markdown document missing from the catalog", async ()
     {
       "README.md": "Root\n",
       "docs/README.md": "[Root](../README.md)\n",
-      "docs/orphan.md": "Orphan\n"
+      "docs/orphan.md": "Orphan\n",
     },
     async (root) => {
       const result = await checkDocumentationMap({ root, publicSurfaces: [] });
       assert.ok(result.errors.includes("Documentation map does not catalog: docs/orphan.md"));
-    }
+    },
   );
 });
 
@@ -58,12 +58,12 @@ test("reports broken local documentation links", async () => {
   await withFixture(
     {
       "README.md": "See [missing](docs/missing.md).\n",
-      "docs/README.md": "[Root](../README.md)\n"
+      "docs/README.md": "[Root](../README.md)\n",
     },
     async (root) => {
       const result = await checkDocumentationMap({ root, publicSurfaces: [] });
       assert.ok(result.errors.includes("README.md links to missing local target: docs/missing.md"));
-    }
+    },
   );
 });
 
@@ -73,14 +73,16 @@ test("rejects a new stable release-note heading outside the one-digit minor and 
       {
         "README.md": "Root\n",
         "docs/README.md": "[Root](../README.md)\n[Release notes](release-notes.md)\n",
-        "docs/release-notes.md": `## v${version}\n\n- Changed.\n\n## v0.8.10\n\n- Historical release.\n`
+        "docs/release-notes.md": `## v${version}\n\n- Changed.\n\n## v0.8.10\n\n- Historical release.\n`,
       },
       async (root) => {
         const result = await checkDocumentationMap({ root, publicSurfaces: [] });
-        assert.ok(result.errors.includes(
-          `docs/release-notes.md: Stable release '${version}' must use single-digit minor and patch components.`
-        ));
-      }
+        assert.ok(
+          result.errors.includes(
+            `docs/release-notes.md: Stable release '${version}' must use single-digit minor and patch components.`,
+          ),
+        );
+      },
     );
   }
 });
@@ -90,14 +92,16 @@ test("rejects a new stable release-note heading above the Windows major-version 
     {
       "README.md": "Root\n",
       "docs/README.md": "[Root](../README.md)\n[Release notes](release-notes.md)\n",
-      "docs/release-notes.md": "## v10000000000.1.0\n\n- Changed.\n"
+      "docs/release-notes.md": "## v10000000000.1.0\n\n- Changed.\n",
     },
     async (root) => {
       const result = await checkDocumentationMap({ root, publicSurfaces: [] });
-      assert.ok(result.errors.includes(
-        "docs/release-notes.md: Stable release '10000000000.1.0' must use a major component between 0 and 65535."
-      ));
-    }
+      assert.ok(
+        result.errors.includes(
+          "docs/release-notes.md: Stable release '10000000000.1.0' must use a major component between 0 and 65535.",
+        ),
+      );
+    },
   );
 });
 
@@ -106,14 +110,16 @@ test("rejects a malformed new release-note version heading", async () => {
     {
       "README.md": "Root\n",
       "docs/README.md": "[Root](../README.md)\n[Release notes](release-notes.md)\n",
-      "docs/release-notes.md": "## v65535. .0\n\n- Changed.\n"
+      "docs/release-notes.md": "## v65535. .0\n\n- Changed.\n",
     },
     async (root) => {
       const result = await checkDocumentationMap({ root, publicSurfaces: [] });
-      assert.ok(result.errors.includes(
-        "docs/release-notes.md: Version '65535. .0' is not supported semantic versioning."
-      ));
-    }
+      assert.ok(
+        result.errors.includes(
+          "docs/release-notes.md: Version '65535. .0' is not supported semantic versioning.",
+        ),
+      );
+    },
   );
 });
 
@@ -122,12 +128,14 @@ test("discovers public documentation surfaces and requires them in the catalog",
     {
       "README.md": "Root\n",
       "docs/README.md": "[Root](../README.md)\n",
-      "apps/public-site/index.php": "<!doctype html>\n"
+      "apps/public-site/index.php": "<!doctype html>\n",
     },
     async (root) => {
       const result = await checkDocumentationMap({ root });
-      assert.ok(result.errors.includes("Documentation map does not catalog: apps/public-site/index.php"));
-    }
+      assert.ok(
+        result.errors.includes("Documentation map does not catalog: apps/public-site/index.php"),
+      );
+    },
   );
 });
 
@@ -136,13 +144,13 @@ test("does not treat the ignored hosting config as a public documentation surfac
     {
       "README.md": "Root\n",
       "docs/README.md": "[Root](../README.md)\n",
-      "apps/public-site/config.php": "<?php return [];\n"
+      "apps/public-site/config.php": "<?php return [];\n",
     },
     async (root) => {
       const result = await checkDocumentationMap({ root });
       assert.deepEqual(result.errors, []);
       assert.ok(!result.requiredFiles.includes("apps/public-site/config.php"));
-    }
+    },
   );
 });
 
@@ -151,14 +159,16 @@ test("discovers structured public issue forms and requires them in the catalog",
     {
       "README.md": "Root\n",
       "docs/README.md": "[Root](../README.md)\n",
-      ".github/ISSUE_TEMPLATE/bug_report.yml": "name: Bug report\n"
+      ".github/ISSUE_TEMPLATE/bug_report.yml": "name: Bug report\n",
     },
     async (root) => {
       const result = await checkDocumentationMap({ root, publicSurfaces: [] });
-      assert.ok(result.errors.includes(
-        "Documentation map does not catalog: .github/ISSUE_TEMPLATE/bug_report.yml"
-      ));
-    }
+      assert.ok(
+        result.errors.includes(
+          "Documentation map does not catalog: .github/ISSUE_TEMPLATE/bug_report.yml",
+        ),
+      );
+    },
   );
 });
 
@@ -167,18 +177,18 @@ test("accepts documented root and workspace npm scripts with arguments", async (
     {
       "package.json": JSON.stringify({
         scripts: { "docs:check": "node check.mjs" },
-        workspaces: ["apps/mobile-web"]
+        workspaces: ["apps/mobile-web"],
       }),
       "apps/mobile-web/package.json": JSON.stringify({
-        scripts: { lint: "eslint ." }
+        scripts: { lint: "eslint ." },
       }),
       "README.md": "Run `npm run docs:check` and `npm run lint --workspace apps/mobile-web`.\n",
-      "docs/README.md": "[Root](../README.md)\n"
+      "docs/README.md": "[Root](../README.md)\n",
     },
     async (root) => {
       const result = await checkDocumentationMap({ root, publicSurfaces: [] });
       assert.deepEqual(result.errors, []);
-    }
+    },
   );
 });
 
@@ -187,12 +197,12 @@ test("reports a documented npm script that no package exposes", async () => {
     {
       "package.json": JSON.stringify({ scripts: { test: "node --test" } }),
       "README.md": "Run `npm run missing:check`.\n",
-      "docs/README.md": "[Root](../README.md)\n"
+      "docs/README.md": "[Root](../README.md)\n",
     },
     async (root) => {
       const result = await checkDocumentationMap({ root, publicSurfaces: [] });
       assert.ok(result.errors.includes("README.md references missing npm script: missing:check"));
-    }
+    },
   );
 });
 
@@ -202,11 +212,11 @@ test("ignores scripts from packages outside the declared workspaces", async () =
       "package.json": JSON.stringify({ scripts: {} }),
       "tools/unrelated/package.json": JSON.stringify({ scripts: { hidden: "node hidden.mjs" } }),
       "README.md": "Run `npm run hidden`.\n",
-      "docs/README.md": "[Root](../README.md)\n"
+      "docs/README.md": "[Root](../README.md)\n",
     },
     async (root) => {
       const result = await checkDocumentationMap({ root, publicSurfaces: [] });
       assert.ok(result.errors.includes("README.md references missing npm script: hidden"));
-    }
+    },
   );
 });

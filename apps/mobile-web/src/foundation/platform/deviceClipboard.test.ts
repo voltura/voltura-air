@@ -5,7 +5,7 @@ import {
   canWriteTextToDeviceClipboard,
   readTextFromDeviceClipboard,
   writeDeferredTextToDeviceClipboard,
-  writeTextToDeviceClipboard
+  writeTextToDeviceClipboard,
 } from "./deviceClipboard";
 
 const originalClipboard = navigator.clipboard;
@@ -26,7 +26,10 @@ function setClipboardItem(value: typeof ClipboardItem | undefined) {
 
 afterEach(() => {
   Object.defineProperty(navigator, "clipboard", { configurable: true, value: originalClipboard });
-  Object.defineProperty(window, "isSecureContext", { configurable: true, value: originalSecureContext });
+  Object.defineProperty(window, "isSecureContext", {
+    configurable: true,
+    value: originalSecureContext,
+  });
   setClipboardItem(originalClipboardItem);
 });
 
@@ -39,7 +42,10 @@ describe("deviceClipboard", () => {
 
     expect(canReadTextFromDeviceClipboard()).toBe(true);
     expect(canWriteTextToDeviceClipboard()).toBe(true);
-    await expect(readTextFromDeviceClipboard()).resolves.toEqual({ status: "success", text: "Phone text" });
+    await expect(readTextFromDeviceClipboard()).resolves.toEqual({
+      status: "success",
+      text: "Phone text",
+    });
     await expect(writeTextToDeviceClipboard("PC text")).resolves.toEqual({ status: "copied" });
     expect(writeText).toHaveBeenCalledExactlyOnceWith("PC text");
   });
@@ -51,15 +57,18 @@ describe("deviceClipboard", () => {
     await expect(readTextFromDeviceClipboard()).resolves.toEqual({ status: "empty" });
   });
 
-  it.each([false, true])("reports unavailable when secure context is %s without full API support", async (secure) => {
-    setSecureContext(secure);
-    setClipboard(undefined);
+  it.each([false, true])(
+    "reports unavailable when secure context is %s without full API support",
+    async (secure) => {
+      setSecureContext(secure);
+      setClipboard(undefined);
 
-    expect(canReadTextFromDeviceClipboard()).toBe(false);
-    expect(canWriteTextToDeviceClipboard()).toBe(false);
-    await expect(readTextFromDeviceClipboard()).resolves.toEqual({ status: "unavailable" });
-    await expect(writeTextToDeviceClipboard("Text")).resolves.toEqual({ status: "unavailable" });
-  });
+      expect(canReadTextFromDeviceClipboard()).toBe(false);
+      expect(canWriteTextToDeviceClipboard()).toBe(false);
+      await expect(readTextFromDeviceClipboard()).resolves.toEqual({ status: "unavailable" });
+      await expect(writeTextToDeviceClipboard("Text")).resolves.toEqual({ status: "unavailable" });
+    },
+  );
 
   it("does not expose clipboard methods from an insecure context", async () => {
     const readText = vi.fn().mockResolvedValue("Text");
@@ -79,7 +88,7 @@ describe("deviceClipboard", () => {
     setSecureContext(true);
     setClipboard({
       readText: vi.fn().mockRejectedValue(new DOMException("Denied", "NotAllowedError")),
-      writeText: vi.fn().mockRejectedValue(new Error("Unavailable"))
+      writeText: vi.fn().mockRejectedValue(new Error("Unavailable")),
     });
 
     await expect(readTextFromDeviceClipboard()).resolves.toEqual({ status: "denied" });
@@ -94,7 +103,9 @@ describe("deviceClipboard", () => {
       }
     }
     let resolveText: ((value: Blob) => void) | undefined;
-    const text = new Promise<Blob>((resolve) => { resolveText = resolve; });
+    const text = new Promise<Blob>((resolve) => {
+      resolveText = resolve;
+    });
     const write = vi.fn().mockResolvedValue(undefined);
     setSecureContext(true);
     setClipboard({ write });
@@ -115,6 +126,8 @@ describe("deviceClipboard", () => {
     setClipboardItem(undefined);
 
     expect(canWriteDeferredTextToDeviceClipboard()).toBe(false);
-    await expect(writeDeferredTextToDeviceClipboard(Promise.resolve(new Blob()))).resolves.toEqual({ status: "unavailable" });
+    await expect(writeDeferredTextToDeviceClipboard(Promise.resolve(new Blob()))).resolves.toEqual({
+      status: "unavailable",
+    });
   });
 });

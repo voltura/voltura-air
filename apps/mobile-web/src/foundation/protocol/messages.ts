@@ -189,7 +189,13 @@ export interface FileManagerPanelPage {
 
 export interface FileManagerSession {
   sessionId: string;
-  drives: { id: string; label: string; driveType: string; freeBytes?: number | null; totalBytes?: number | null }[];
+  drives: {
+    id: string;
+    label: string;
+    driveType: string;
+    freeBytes?: number | null;
+    totalBytes?: number | null;
+  }[];
   shortcuts: { id: string; label: string }[];
   left: FileManagerPanelPage;
   right: FileManagerPanelPage;
@@ -208,7 +214,17 @@ export interface FileManagerProperties {
   attributes: string[];
 }
 
-export type FileJobState = "queued" | "preparing" | "running" | "paused" | "needs-attention" | "canceling" | "completed" | "failed" | "canceled" | "interrupted";
+export type FileJobState =
+  | "queued"
+  | "preparing"
+  | "running"
+  | "paused"
+  | "needs-attention"
+  | "canceling"
+  | "completed"
+  | "failed"
+  | "canceled"
+  | "interrupted";
 export interface FileJobSnapshot {
   jobId: string;
   operation: "copy" | "move" | "paste" | "delete" | "rename" | "upload";
@@ -234,19 +250,98 @@ export interface FileSelectionMessageFields {
   excludedEntryIds: string[];
 }
 
-export interface FileSessionOpenMessage { type: "file.session.open"; operationId: string; }
-export interface FilePageGetMessage { type: "file.page.get"; operationId: string; sessionId: string; panel: "left" | "right"; revision: string; continuation: string; }
-export interface FileNavigateMessage { type: "file.navigate"; operationId: string; sessionId: string; panel: "left" | "right"; revision: string; targetId: string; }
-export interface FileRefreshMessage { type: "file.refresh"; operationId: string; sessionId: string; panel: "left" | "right"; }
-export interface FileSortMessage { type: "file.sort"; operationId: string; sessionId: string; panel: "left" | "right"; sortBy: "name" | "size" | "type" | "modified"; descending: boolean; }
-export interface FilePropertiesGetMessage { type: "file.properties.get"; operationId: string; sessionId: string; panel: "left" | "right"; revision: string; entryId: string; }
-export interface FileClipboardSetMessage extends FileSelectionMessageFields { type: "file.clipboard.set"; operationId: string; sessionId: string; panel: "left" | "right"; revision: string; effect: "copy" | "move"; }
-export interface FileOpenMessage { type: "file.open"; operationId: string; sessionId: string; panel: "left" | "right"; revision: string; entryId: string; }
-export interface FileJobsGetMessage { type: "file.jobs.get"; operationId: string; }
-export interface FileJobCreateMessage extends FileSelectionMessageFields { type: "file.job.create"; operationId: string; sessionId: string; panel: "left" | "right"; revision: string; operation: "copy" | "move" | "paste" | "rename" | "delete"; destinationPanel?: "left" | "right"; destinationRevision?: string; newName?: string; }
-export interface FileJobControlMessage { type: "file.job.control"; operationId: string; jobId: string; action: "pause" | "resume" | "cancel" | "dismiss"; }
-export interface FileJobReorderMessage { type: "file.job.reorder"; operationId: string; jobId: string; direction: "up" | "down"; }
-export interface FileConflictResolveMessage { type: "file.job.conflict.resolve"; operationId: string; jobId: string; resolution: "replace" | "skip" | "keep-both" | "cancel"; applyToAll: boolean; }
+export interface FileSessionOpenMessage {
+  type: "file.session.open";
+  operationId: string;
+}
+export interface FilePageGetMessage {
+  type: "file.page.get";
+  operationId: string;
+  sessionId: string;
+  panel: "left" | "right";
+  revision: string;
+  continuation: string;
+}
+export interface FileNavigateMessage {
+  type: "file.navigate";
+  operationId: string;
+  sessionId: string;
+  panel: "left" | "right";
+  revision: string;
+  targetId: string;
+}
+export interface FileRefreshMessage {
+  type: "file.refresh";
+  operationId: string;
+  sessionId: string;
+  panel: "left" | "right";
+}
+export interface FileSortMessage {
+  type: "file.sort";
+  operationId: string;
+  sessionId: string;
+  panel: "left" | "right";
+  sortBy: "name" | "size" | "type" | "modified";
+  descending: boolean;
+}
+export interface FilePropertiesGetMessage {
+  type: "file.properties.get";
+  operationId: string;
+  sessionId: string;
+  panel: "left" | "right";
+  revision: string;
+  entryId: string;
+}
+export interface FileClipboardSetMessage extends FileSelectionMessageFields {
+  type: "file.clipboard.set";
+  operationId: string;
+  sessionId: string;
+  panel: "left" | "right";
+  revision: string;
+  effect: "copy" | "move";
+}
+export interface FileOpenMessage {
+  type: "file.open";
+  operationId: string;
+  sessionId: string;
+  panel: "left" | "right";
+  revision: string;
+  entryId: string;
+}
+export interface FileJobsGetMessage {
+  type: "file.jobs.get";
+  operationId: string;
+}
+export interface FileJobCreateMessage extends FileSelectionMessageFields {
+  type: "file.job.create";
+  operationId: string;
+  sessionId: string;
+  panel: "left" | "right";
+  revision: string;
+  operation: "copy" | "move" | "paste" | "rename" | "delete";
+  destinationPanel?: "left" | "right";
+  destinationRevision?: string;
+  newName?: string;
+}
+export interface FileJobControlMessage {
+  type: "file.job.control";
+  operationId: string;
+  jobId: string;
+  action: "pause" | "resume" | "cancel" | "dismiss";
+}
+export interface FileJobReorderMessage {
+  type: "file.job.reorder";
+  operationId: string;
+  jobId: string;
+  direction: "up" | "down";
+}
+export interface FileConflictResolveMessage {
+  type: "file.job.conflict.resolve";
+  operationId: string;
+  jobId: string;
+  resolution: "replace" | "skip" | "keep-both" | "cancel";
+  applyToAll: boolean;
+}
 export type FileTransferDirection = "download" | "upload";
 export interface FileTransferStartMessage {
   type: "file.transfer.start";
@@ -260,18 +355,97 @@ export interface FileTransferStartMessage {
   declaredSize?: number;
   clientSignature: string;
 }
-export interface FileTransferAnswerMessage { type: "file.transfer.answer"; operationId: string; transferId: string; answerSdp: string; clientSignature: string; }
-export interface FileTransferCancelMessage { type: "file.transfer.cancel"; operationId: string; transferId?: string; requestId?: string; }
+export interface FileTransferAnswerMessage {
+  type: "file.transfer.answer";
+  operationId: string;
+  transferId: string;
+  answerSdp: string;
+  clientSignature: string;
+}
+export interface FileTransferCancelMessage {
+  type: "file.transfer.cancel";
+  operationId: string;
+  transferId?: string;
+  requestId?: string;
+}
 
-export interface FileSessionOpenResultMessage { type: "file.session.open.result"; operationId: string; succeeded: boolean; code?: string | null; message: string; session?: FileManagerSession | null; }
-interface FilePanelResultMessageBase<T extends "file.page.get.result" | "file.navigate.result" | "file.refresh.result" | "file.sort.result"> { type: T; operationId: string; succeeded: boolean; code?: string | null; message: string; page?: FileManagerPanelPage | null; }
-export type FilePanelResultMessage = FilePanelResultMessageBase<"file.page.get.result"> | FilePanelResultMessageBase<"file.navigate.result"> | FilePanelResultMessageBase<"file.refresh.result"> | FilePanelResultMessageBase<"file.sort.result">;
-export interface FilePropertiesResultMessage { type: "file.properties.get.result"; operationId: string; succeeded: boolean; code?: string | null; message: string; properties?: FileManagerProperties | null; }
-interface FileActionResultMessageBase<T extends "file.clipboard.set.result" | "file.open.result" | "file.job.control.result" | "file.job.reorder.result" | "file.job.conflict.resolve.result"> { type: T; operationId: string; succeeded: boolean; code?: string | null; message: string; }
-export type FileActionResultMessage = FileActionResultMessageBase<"file.clipboard.set.result"> | FileActionResultMessageBase<"file.open.result"> | FileActionResultMessageBase<"file.job.control.result"> | FileActionResultMessageBase<"file.job.reorder.result"> | FileActionResultMessageBase<"file.job.conflict.resolve.result">;
-export interface FileJobCreateResultMessage { type: "file.job.create.result"; operationId: string; succeeded: boolean; code?: string | null; message: string; job?: FileJobSnapshot | null; }
-export interface FileJobsStatusMessage { type: "file.jobs.status"; operationId?: string; jobs: FileJobSnapshot[]; }
-export interface FileTransferStartResultMessage { type: "file.transfer.start.result"; operationId: string; succeeded: boolean; code?: string | null; message: string; transferId?: string | null; job?: FileJobSnapshot | null; }
+export interface FileSessionOpenResultMessage {
+  type: "file.session.open.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string | null;
+  message: string;
+  session?: FileManagerSession | null;
+}
+interface FilePanelResultMessageBase<
+  T extends
+    | "file.page.get.result"
+    | "file.navigate.result"
+    | "file.refresh.result"
+    | "file.sort.result",
+> {
+  type: T;
+  operationId: string;
+  succeeded: boolean;
+  code?: string | null;
+  message: string;
+  page?: FileManagerPanelPage | null;
+}
+export type FilePanelResultMessage =
+  | FilePanelResultMessageBase<"file.page.get.result">
+  | FilePanelResultMessageBase<"file.navigate.result">
+  | FilePanelResultMessageBase<"file.refresh.result">
+  | FilePanelResultMessageBase<"file.sort.result">;
+export interface FilePropertiesResultMessage {
+  type: "file.properties.get.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string | null;
+  message: string;
+  properties?: FileManagerProperties | null;
+}
+interface FileActionResultMessageBase<
+  T extends
+    | "file.clipboard.set.result"
+    | "file.open.result"
+    | "file.job.control.result"
+    | "file.job.reorder.result"
+    | "file.job.conflict.resolve.result",
+> {
+  type: T;
+  operationId: string;
+  succeeded: boolean;
+  code?: string | null;
+  message: string;
+}
+export type FileActionResultMessage =
+  | FileActionResultMessageBase<"file.clipboard.set.result">
+  | FileActionResultMessageBase<"file.open.result">
+  | FileActionResultMessageBase<"file.job.control.result">
+  | FileActionResultMessageBase<"file.job.reorder.result">
+  | FileActionResultMessageBase<"file.job.conflict.resolve.result">;
+export interface FileJobCreateResultMessage {
+  type: "file.job.create.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string | null;
+  message: string;
+  job?: FileJobSnapshot | null;
+}
+export interface FileJobsStatusMessage {
+  type: "file.jobs.status";
+  operationId?: string;
+  jobs: FileJobSnapshot[];
+}
+export interface FileTransferStartResultMessage {
+  type: "file.transfer.start.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string | null;
+  message: string;
+  transferId?: string | null;
+  job?: FileJobSnapshot | null;
+}
 export interface FileTransferOfferMessage {
   type: "file.transfer.offer";
   transferId: string;
@@ -285,12 +459,54 @@ export interface FileTransferOfferMessage {
   relayUsageBytes?: number | null;
   relayUsageCheckedAt?: string | null;
 }
-export interface FileTransferAnswerResultMessage { type: "file.transfer.answer.result"; operationId: string; succeeded: boolean; code?: string | null; message: string; }
-export interface FileTransferCancelResultMessage { type: "file.transfer.cancel.result"; operationId: string; succeeded: boolean; code?: string | null; message: string; }
-export interface FileTransferStatusMessage { type: "file.transfer.status"; transferId: string; direction: FileTransferDirection; state: "queued" | "connecting" | "transferring"; bytesCompleted: number; bytesTotal: number; }
-export interface FileTransferResultMessage { type: "file.transfer.result"; transferId: string; direction: FileTransferDirection; succeeded: boolean; code?: string | null; message: string; fileName: string; declaredSize: number; jobId?: string | null; }
-export type FileTransferServerMessage = FileTransferStartResultMessage | FileTransferOfferMessage | FileTransferAnswerResultMessage | FileTransferCancelResultMessage | FileTransferStatusMessage | FileTransferResultMessage;
-export type FileManagerServerMessage = FileSessionOpenResultMessage | FilePanelResultMessage | FilePropertiesResultMessage | FileActionResultMessage | FileJobCreateResultMessage | FileJobsStatusMessage | FileTransferServerMessage;
+export interface FileTransferAnswerResultMessage {
+  type: "file.transfer.answer.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string | null;
+  message: string;
+}
+export interface FileTransferCancelResultMessage {
+  type: "file.transfer.cancel.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string | null;
+  message: string;
+}
+export interface FileTransferStatusMessage {
+  type: "file.transfer.status";
+  transferId: string;
+  direction: FileTransferDirection;
+  state: "queued" | "connecting" | "transferring";
+  bytesCompleted: number;
+  bytesTotal: number;
+}
+export interface FileTransferResultMessage {
+  type: "file.transfer.result";
+  transferId: string;
+  direction: FileTransferDirection;
+  succeeded: boolean;
+  code?: string | null;
+  message: string;
+  fileName: string;
+  declaredSize: number;
+  jobId?: string | null;
+}
+export type FileTransferServerMessage =
+  | FileTransferStartResultMessage
+  | FileTransferOfferMessage
+  | FileTransferAnswerResultMessage
+  | FileTransferCancelResultMessage
+  | FileTransferStatusMessage
+  | FileTransferResultMessage;
+export type FileManagerServerMessage =
+  | FileSessionOpenResultMessage
+  | FilePanelResultMessage
+  | FilePropertiesResultMessage
+  | FileActionResultMessage
+  | FileJobCreateResultMessage
+  | FileJobsStatusMessage
+  | FileTransferServerMessage;
 
 export interface ScreenViewCapability {
   enabled: boolean;
@@ -336,7 +552,10 @@ export interface PhoneWebcamAnswerMessage {
   clientSignature: string;
 }
 
-export interface PhoneWebcamStopMessage { type: "phone.webcam.stop"; operationId: string; }
+export interface PhoneWebcamStopMessage {
+  type: "phone.webcam.stop";
+  operationId: string;
+}
 
 export interface PhoneWebcamStartResultMessage {
   type: "phone.webcam.start.result";
@@ -373,11 +592,24 @@ export interface PhoneWebcamStopResultMessage {
 export interface PhoneWebcamEndedMessage {
   type: "phone.webcam.ended";
   operationId: string;
-  reason: "stopped" | "connection-lost" | "transport-lost" | "decoder-failed" | "audio-failed" | "permission-revoked" | "pairing-revoked" | "host-stopped" | "offer-expired";
+  reason:
+    | "stopped"
+    | "connection-lost"
+    | "transport-lost"
+    | "decoder-failed"
+    | "audio-failed"
+    | "permission-revoked"
+    | "pairing-revoked"
+    | "host-stopped"
+    | "offer-expired";
   message: string;
 }
 
-export type PhoneWebcamServerMessage = PhoneWebcamStartResultMessage | PhoneWebcamAnswerResultMessage | PhoneWebcamStopResultMessage | PhoneWebcamEndedMessage;
+export type PhoneWebcamServerMessage =
+  | PhoneWebcamStartResultMessage
+  | PhoneWebcamAnswerResultMessage
+  | PhoneWebcamStopResultMessage
+  | PhoneWebcamEndedMessage;
 
 export interface ScreenViewSource {
   id: string;
@@ -387,14 +619,22 @@ export interface ScreenViewSource {
   isPrimary: boolean;
 }
 
-export interface ScreenViewSourcesGetMessage { type: "screen.view.sources.get"; operationId: string; }
+export interface ScreenViewSourcesGetMessage {
+  type: "screen.view.sources.get";
+  operationId: string;
+}
 export interface ScreenViewStartMessage {
   type: "screen.view.start";
   operationId: string;
   displayId: string;
   clientSignature: string;
 }
-export interface ScreenViewAnswerMessage { type: "screen.view.answer"; operationId: string; answerSdp: string; clientSignature: string; }
+export interface ScreenViewAnswerMessage {
+  type: "screen.view.answer";
+  operationId: string;
+  answerSdp: string;
+  clientSignature: string;
+}
 export interface ScreenViewQualityMessage {
   type: "screen.view.quality";
   operationId: string;
@@ -406,8 +646,15 @@ export interface ScreenViewQualityMessage {
   freezeCount: number;
   packetsLost: number;
 }
-export interface ScreenViewStopMessage { type: "screen.view.stop"; operationId: string; }
-export interface ScreenViewSourceSetMessage { type: "screen.view.source.set"; operationId: string; displayId: string; }
+export interface ScreenViewStopMessage {
+  type: "screen.view.stop";
+  operationId: string;
+}
+export interface ScreenViewSourceSetMessage {
+  type: "screen.view.source.set";
+  operationId: string;
+  displayId: string;
+}
 export interface ScreenViewSourcesResultMessage {
   type: "screen.view.sources.result";
   operationId: string;
@@ -505,13 +752,7 @@ export interface CustomScreenSectionDefinition {
   heightMode: "content" | "fill";
   fillWeight: number;
   rowLimit: number;
-  buttonAlignment:
-    | "start"
-    | "center"
-    | "end"
-    | "space-between"
-    | "space-around"
-    | "space-evenly";
+  buttonAlignment: "start" | "center" | "end" | "space-between" | "space-around" | "space-evenly";
   kind: "buttons" | "trackpad" | "volume" | "navigationRing" | "dpad";
   collapsible: boolean;
   initiallyExpanded: boolean;
@@ -936,7 +1177,14 @@ export interface AppLaunchActionSummary {
   kind: AppLaunchActionKind;
 }
 
-export type SystemPowerAction = "lock" | "blackoutDisplay" | "displayOff" | "screenSaver" | "signOut" | "restart" | "shutdown";
+export type SystemPowerAction =
+  | "lock"
+  | "blackoutDisplay"
+  | "displayOff"
+  | "screenSaver"
+  | "signOut"
+  | "restart"
+  | "shutdown";
 
 export interface SystemPowerMessage {
   type: "system.power";
@@ -1163,4 +1411,36 @@ export type ClientMessage =
   | FileTransferAnswerMessage
   | FileTransferCancelMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairDisconnectAcceptedMessage | PairChallengeMessage | PairBootstrapChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PowerPointRefreshResultMessage | PowerPointLaunchResultMessage | PresentationSessionResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | DiagnosticsGetResultMessage | AudioStateMessage | CustomScreenGetResultMessage | CustomScreenInvokeResultMessage | ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage | ScreenViewEndedMessage | PhoneWebcamServerMessage | FileManagerServerMessage;
+export type ServerMessage =
+  | PairAcceptedMessage
+  | PairDisconnectAcceptedMessage
+  | PairChallengeMessage
+  | PairBootstrapChallengeMessage
+  | PairRejectedMessage
+  | StatusMessage
+  | HealthPongMessage
+  | InputAckMessage
+  | InputErrorMessage
+  | PresentationCommandResultMessage
+  | PowerPointRefreshResultMessage
+  | PowerPointLaunchResultMessage
+  | PresentationSessionResultMessage
+  | PresentationReportSaveResultMessage
+  | SystemPowerResultMessage
+  | AwakeResultMessage
+  | AppLaunchResultMessage
+  | UrlOpenResultMessage
+  | TextSendResultMessage
+  | ClipboardGetResultMessage
+  | DiagnosticsGetResultMessage
+  | AudioStateMessage
+  | CustomScreenGetResultMessage
+  | CustomScreenInvokeResultMessage
+  | ScreenViewSourcesResultMessage
+  | ScreenViewStartResultMessage
+  | ScreenViewAnswerResultMessage
+  | ScreenViewSourceResultMessage
+  | ScreenViewStopResultMessage
+  | ScreenViewEndedMessage
+  | PhoneWebcamServerMessage
+  | FileManagerServerMessage;

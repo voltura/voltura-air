@@ -8,12 +8,12 @@ import { fileURLToPath } from "node:url";
 import {
   getReleaseAssetPaths,
   getReleaseCheckpointPath,
-  readReleaseCheckpoint
+  readReleaseCheckpoint,
 } from "./release-checkpoint.mjs";
 import {
   auditDraft,
   auditReleaseArtifacts,
-  publishReleaseIfRequested
+  publishReleaseIfRequested,
 } from "./release-publish.mjs";
 import { parseReleaseArguments, parseSemver } from "./release-tools.mjs";
 
@@ -33,8 +33,10 @@ export function assertPreparedReleaseDraft({ version, commit, checkpoint, releas
   if (checkpoint?.phase !== "packaged") {
     throw new Error(`Release v${version} has no verified packaged checkpoint.`);
   }
-  if (release?.tagName !== `v${version}` ||
-      release.isPrerelease !== (parseSemver(version).prerelease.length > 0)) {
+  if (
+    release?.tagName !== `v${version}` ||
+    release.isPrerelease !== parseSemver(version).prerelease.length > 0
+  ) {
     throw new Error(`Draft v${version} has unexpected release metadata.`);
   }
   auditDraft(release, commit, assetNames, checkpoint.artifacts, checkpoint);
@@ -47,7 +49,7 @@ export function assertPreparedPublishedRelease({
   checkpoint,
   release,
   latest,
-  assetNames
+  assetNames,
 }) {
   if (checkpoint?.phase !== "packaged") {
     throw new Error(`Release v${version} has no verified packaged checkpoint.`);
@@ -59,34 +61,42 @@ export function assertPreparedPublishedRelease({
     throw new Error(`Published tag v${version} does not resolve to the reviewed commit.`);
   }
   auditReleaseArtifacts(release, commit, assetNames, false, checkpoint.artifacts, checkpoint);
-  if (latest?.tag_name !== `v${version}` || latest.draft !== false || latest.target_commitish !== commit) {
+  if (
+    latest?.tag_name !== `v${version}` ||
+    latest.draft !== false ||
+    latest.target_commitish !== commit
+  ) {
     throw new Error(`Published release v${version} is not GitHub Latest at the reviewed commit.`);
   }
 }
 
 export function publishPreparedReleaseDraft(
   { version, commit, checkpoint, release, assetNames },
-  execute = checked
+  execute = checked,
 ) {
   assertPreparedReleaseDraft({ version, commit, checkpoint, release, assetNames });
-  publishReleaseIfRequested({
-    publishLatest: true,
-    targetTag: `v${version}`,
-    repository,
-    expectedCommit: commit,
-  }, execute);
+  publishReleaseIfRequested(
+    {
+      publishLatest: true,
+      targetTag: `v${version}`,
+      repository,
+      expectedCommit: commit,
+    },
+    execute,
+  );
 }
 
-export async function verifyPreparedReleaseDraft(args = process.argv.slice(2), {
-  publishedLatest = false,
-  removeCheckpoint = false,
-  publishAuditedDraft = false
-} = {}) {
+export async function verifyPreparedReleaseDraft(
+  args = process.argv.slice(2),
+  { publishedLatest = false, removeCheckpoint = false, publishAuditedDraft = false } = {},
+) {
   if (publishedLatest && publishAuditedDraft) {
     throw new Error("Choose either audited-draft publication or published-release verification.");
   }
   const { version: explicitVersion } = parseReleaseArguments(args);
-  const version = String(JSON.parse(readFileSync(path.join(repositoryRoot, "package.json"), "utf8")).version ?? "");
+  const version = String(
+    JSON.parse(readFileSync(path.join(repositoryRoot, "package.json"), "utf8")).version ?? "",
+  );
   if (explicitVersion !== null && explicitVersion !== version) {
     throw new Error(`The reviewed checkout is v${version}, not v${explicitVersion}.`);
   }
@@ -104,10 +114,17 @@ export async function verifyPreparedReleaseDraft(args = process.argv.slice(2), {
 
   const assetPaths = getReleaseAssetPaths(repositoryRoot, version, runtime);
   const checkpoint = await readReleaseCheckpoint({ repositoryRoot, version, commit, assetPaths });
-  const release = JSON.parse(checked("gh", [
-    "release", "view", `v${version}`, "--repo", repository,
-    "--json", "tagName,name,body,isDraft,isPrerelease,targetCommitish,url,assets",
-  ]));
+  const release = JSON.parse(
+    checked("gh", [
+      "release",
+      "view",
+      `v${version}`,
+      "--repo",
+      repository,
+      "--json",
+      "tagName,name,body,isDraft,isPrerelease,targetCommitish,url,assets",
+    ]),
+  );
   const common = {
     version,
     commit,
@@ -126,10 +143,17 @@ export async function verifyPreparedReleaseDraft(args = process.argv.slice(2), {
     console.log(`Verified GitHub Latest v${version} and its packaged artifacts at ${commit}.`);
   } else if (publishAuditedDraft) {
     publishPreparedReleaseDraft(common);
-    const publishedRelease = JSON.parse(checked("gh", [
-      "release", "view", `v${version}`, "--repo", repository,
-      "--json", "tagName,name,body,isDraft,isPrerelease,targetCommitish,url,assets",
-    ]));
+    const publishedRelease = JSON.parse(
+      checked("gh", [
+        "release",
+        "view",
+        `v${version}`,
+        "--repo",
+        repository,
+        "--json",
+        "tagName,name,body,isDraft,isPrerelease,targetCommitish,url,assets",
+      ]),
+    );
     checked("git", ["fetch", "--quiet", "--force", "origin", `refs/tags/v${version}`]);
     const taggedCommit = checked("git", ["rev-parse", "FETCH_HEAD^{commit}"]);
     const latest = JSON.parse(checked("gh", ["api", `repos/${repository}/releases/latest`]));
@@ -154,7 +178,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const publishedArgs = publishedLatest ? modeArgs : [];
   const removeCheckpoint = publishedArgs[0] === "--remove-checkpoint";
   const releaseArgs = publishedLatest
-    ? (removeCheckpoint ? publishedArgs.slice(1) : publishedArgs)
+    ? removeCheckpoint
+      ? publishedArgs.slice(1)
+      : publishedArgs
     : modeArgs;
   verifyPreparedReleaseDraft(releaseArgs, {
     publishedLatest,

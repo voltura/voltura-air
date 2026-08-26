@@ -95,8 +95,9 @@ document.addEventListener("click", (event) => {
   }
   const deleteOpen = event.target.closest?.("[data-delete-dialog-open]");
   if (deleteOpen) {
-    const deleteDialog = deleteOpen.closest("article")?.querySelector(".catalog-delete-dialog")
-      ?? document.querySelector(".catalog-delete-dialog");
+    const deleteDialog =
+      deleteOpen.closest("article")?.querySelector(".catalog-delete-dialog") ??
+      document.querySelector(".catalog-delete-dialog");
     deleteDialog?.showModal();
     return;
   }
@@ -118,12 +119,17 @@ document.addEventListener("click", (event) => {
   const rotate = event.target.closest?.(".screen-preview-rotate");
   if (!rotate) return;
   const preview = rotate.closest(".screen-preview");
-  preview.dataset.orientation = preview.dataset.orientation === "portrait" ? "landscape" : "portrait";
+  preview.dataset.orientation =
+    preview.dataset.orientation === "portrait" ? "landscape" : "portrait";
   updatePreviewSize(preview);
 });
 
-document.addEventListener("pointerover", (event) => updateRatingHero(event.target.closest?.("[data-rating-value]")?.dataset.ratingValue));
-document.addEventListener("focusin", (event) => updateRatingHero(event.target.closest?.("[data-rating-value]")?.dataset.ratingValue));
+document.addEventListener("pointerover", (event) =>
+  updateRatingHero(event.target.closest?.("[data-rating-value]")?.dataset.ratingValue),
+);
+document.addEventListener("focusin", (event) =>
+  updateRatingHero(event.target.closest?.("[data-rating-value]")?.dataset.ratingValue),
+);
 
 document.querySelector(".star-picker")?.addEventListener("pointerleave", restoreRatingHero);
 
@@ -139,7 +145,9 @@ function restoreRatingHero() {
 }
 
 document.addEventListener("click", (event) => {
-  const dialog = event.target.closest?.(".catalog-rating-dialog, .catalog-delete-dialog, .catalog-remove-rejected-dialog");
+  const dialog = event.target.closest?.(
+    ".catalog-rating-dialog, .catalog-delete-dialog, .catalog-remove-rejected-dialog",
+  );
   if (dialog && event.target === dialog) dialog.close();
 });
 
@@ -174,7 +182,9 @@ function sizeRealDevicePreview(preview, width, height) {
 
 for (const preview of document.querySelectorAll(".real-device-preview")) {
   updatePreviewSize(preview);
-  new ResizeObserver(() => updatePreviewSize(preview)).observe(preview.querySelector(".screen-preview-stage"));
+  new ResizeObserver(() => updatePreviewSize(preview)).observe(
+    preview.querySelector(".screen-preview-stage"),
+  );
 }
 
 const toast = document.querySelector(".catalog-toast");

@@ -12,7 +12,9 @@ describe("screen WebRTC signaling identity", () => {
     const offer = "v=0\r\na=group:BUNDLE 0 1\r\n";
     const hash = hashScreenSdp(offer);
     const transcript = `VolturaAir screen-view:offer:v2:client:operation:display:${hash}`;
-    const signature = encodeBase64Url(p256.sign(encoder.encode(transcript), privateKey, { lowS: false }));
+    const signature = encodeBase64Url(
+      p256.sign(encoder.encode(transcript), privateKey, { lowS: false }),
+    );
 
     expect(hash).toHaveLength(43);
     expect(verifyHostScreenSignature(publicKey, signature, transcript)).toBe(true);
@@ -26,6 +28,8 @@ describe("screen WebRTC signaling identity", () => {
 
 function encodeBase64Url(bytes: Uint8Array): string {
   let binary = "";
-  for (const byte of bytes) {binary += String.fromCharCode(byte);}
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }

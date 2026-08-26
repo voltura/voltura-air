@@ -31,8 +31,8 @@ const snapshot: MobileHostDiagnosticsSnapshot = {
     installedMemory: "16.0 GiB",
     availableMemory: "8.0 GiB",
     systemDisk: "500.0 GiB total, 200.0 GiB free",
-    systemUptime: "1d 2h 3m"
-  }
+    systemUptime: "1d 2h 3m",
+  },
 };
 
 describe("useDiagnostics", () => {
@@ -43,8 +43,12 @@ describe("useDiagnostics", () => {
     const { result } = renderHook(() => useDiagnostics("paired", 1, send));
 
     let operationId: string | null = null;
-    act(() => { operationId = result.current.requestDiagnostics(); });
-    act(() => { expect(result.current.requestDiagnostics()).toBeNull(); });
+    act(() => {
+      operationId = result.current.requestDiagnostics();
+    });
+    act(() => {
+      expect(result.current.requestDiagnostics()).toBeNull();
+    });
 
     expect(send).toHaveBeenCalledExactlyOnceWith({ type: "diagnostics.get", operationId });
     expect(setIntervalSpy).not.toHaveBeenCalled();
@@ -56,19 +60,38 @@ describe("useDiagnostics", () => {
     const { result } = renderHook(() => useDiagnostics("paired", 1, send));
 
     let operationId = "";
-    act(() => { operationId = result.current.requestDiagnostics()!; });
     act(() => {
-      result.current.completeDiagnostics({ type: "diagnostics.get.result", operationId, succeeded: true, message: "Diagnostics ready.", snapshot });
+      operationId = result.current.requestDiagnostics()!;
+    });
+    act(() => {
+      result.current.completeDiagnostics({
+        type: "diagnostics.get.result",
+        operationId,
+        succeeded: true,
+        message: "Diagnostics ready.",
+        snapshot,
+      });
     });
     expect(result.current.snapshot).toEqual(snapshot);
 
-    act(() => { operationId = result.current.requestDiagnostics()!; });
+    act(() => {
+      operationId = result.current.requestDiagnostics()!;
+    });
     expect(result.current.snapshot).toEqual(snapshot);
     act(() => {
-      result.current.completeDiagnostics({ type: "diagnostics.get.result", operationId, succeeded: false, code: "diagnostics-unavailable", message: "Try again." });
+      result.current.completeDiagnostics({
+        type: "diagnostics.get.result",
+        operationId,
+        succeeded: false,
+        code: "diagnostics-unavailable",
+        message: "Try again.",
+      });
     });
 
     expect(result.current.snapshot).toEqual(snapshot);
-    expect(result.current.failure).toEqual({ code: "diagnostics-unavailable", message: "Try again." });
+    expect(result.current.failure).toEqual({
+      code: "diagnostics-unavailable",
+      message: "Try again.",
+    });
   });
 });

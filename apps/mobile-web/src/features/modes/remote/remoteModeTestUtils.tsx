@@ -22,7 +22,7 @@ export function renderRemote(overrides: Partial<ComponentProps<typeof RemoteMode
     urlOpenCapability: { canOpen: true },
     urlOpenResult: null,
     sendSpecial: vi.fn(),
-    ...overrides
+    ...overrides,
   };
 
   const result = render(<RemoteMode {...props} />);

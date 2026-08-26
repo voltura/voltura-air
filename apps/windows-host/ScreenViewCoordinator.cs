@@ -271,7 +271,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         if (active is not null)
         {
             ReleaseHeldButtons(active);
-            active.Stop.Cancel();
+            active.RequestStop();
         }
         return releasePending || answering || active is not null;
     }
@@ -285,7 +285,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         }
         if (active is null) return null;
         ReleaseHeldButtons(active);
-        active.Stop.Cancel();
+        active.RequestStop();
         return new(active.ClientId, active.OperationId);
     }
 
@@ -735,6 +735,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         private VirtualDesktopBounds _virtualDesktop = virtualDesktop;
         private readonly HashSet<string> _heldButtons = new(StringComparer.Ordinal);
         private readonly ScreenViewQualityController _quality = new(source, directQuality, maximumBitrate);
+        private readonly Lock _stopGate = new();
         private int _forceKeyFrame = 1;
         private int _released;
         private bool _hostStopClaimed;
@@ -770,16 +771,27 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         }
         public bool TakeForceKeyFrame() => Interlocked.Exchange(ref _forceKeyFrame, 0) != 0;
         public void RequestKeyFrame() => Interlocked.Exchange(ref _forceKeyFrame, 1);
-        public void OnPeerStopped(object? sender, EventArgs e) => Stop.Cancel();
+        public void OnPeerStopped(object? sender, EventArgs e) => RequestStop();
         public void OnKeyFrameRequested(object? sender, EventArgs e) => RequestKeyFrame();
         public bool ReportBackpressure() => _quality.ReportBackpressure(DateTimeOffset.UtcNow);
         public bool ReportReceiverQuality(ScreenViewReceiverQuality quality) =>
             _quality.ReportReceiverQuality(quality, DateTimeOffset.UtcNow);
         public bool ReportProfileUnsupported() => _quality.ReportProfileUnsupported(DateTimeOffset.UtcNow);
+        public void RequestStop()
+        {
+            lock (_stopGate)
+            {
+                if (_released == 0) Stop.Cancel();
+            }
+        }
         public void Release()
         {
-            if (Interlocked.Exchange(ref _released, 1) != 0) return;
-            Stop.Dispose();
+            lock (_stopGate)
+            {
+                if (_released != 0) return;
+                _released = 1;
+                Stop.Dispose();
+            }
             Peer.Dispose();
         }
     }

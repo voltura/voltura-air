@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   freewareNotice,
   getGeneralReleaseNotices,
-  unsignedReleaseNotice
+  unsignedReleaseNotice,
 } from "../../scripts/release-tools.mjs";
 
 const requiredNotices = `${freewareNotice}\n\n${unsignedReleaseNotice}`;

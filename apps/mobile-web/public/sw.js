@@ -9,7 +9,7 @@ const shellFiles = [
   "icons/icon-192.png",
   "icons/icon-512.png",
   "icons/icon-maskable-192.png",
-  "icons/icon-maskable-512.png"
+  "icons/icon-maskable-512.png",
 ].map((path) => `${appBase}${path}`);
 
 self.addEventListener("install", (event) => {
@@ -21,8 +21,14 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key.startsWith("voltura-air-") && key !== cacheName).map((key) => caches.delete(key))))
-      .then(() => self.clients.claim())
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((key) => key.startsWith("voltura-air-") && key !== cacheName)
+            .map((key) => caches.delete(key)),
+        ),
+      )
+      .then(() => self.clients.claim()),
   );
 });
 
@@ -33,7 +39,8 @@ self.addEventListener("fetch", (event) => {
 
   const isNavigationRequest = event.request.mode === "navigate";
   const requestUrl = new URL(event.request.url);
-  const cacheableStaticRequest = requestUrl.origin === self.location.origin &&
+  const cacheableStaticRequest =
+    requestUrl.origin === self.location.origin &&
     ["script", "style", "image", "font", "manifest"].includes(event.request.destination);
 
   event.respondWith(
@@ -67,6 +74,6 @@ self.addEventListener("fetch", (event) => {
         }
 
         return new Response("", { status: 503, statusText: "Service Unavailable" });
-      })
+      }),
   );
 });

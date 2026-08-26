@@ -34,7 +34,7 @@ export function AppModeContent({
   dictationMode,
   textTransferMode,
   clipboardReadMode,
-  gestureDebugMode
+  gestureDebugMode,
 }: AppModeContentProps) {
   const [isLiveTypingInfoOpen, setIsLiveTypingInfoOpen] = useState(false);
   const trackpad = <TrackpadMode {...trackpadMode} />;
@@ -48,20 +48,36 @@ export function AppModeContent({
 
   if (tab === "trackpad") {
     return shouldShowSplitMode ? (
-      <div className={`split-mode-shell split-trackpad-${trackpadMode.trackpadSettings.splitTrackpadPlacement}`}>
-        <div className="split-keyboard-pane" aria-label="Split keyboard panel">{keyboard}</div>
-        <div className="split-trackpad-pane" aria-label="Split trackpad panel">{trackpad}</div>
+      <div
+        className={`split-mode-shell split-trackpad-${trackpadMode.trackpadSettings.splitTrackpadPlacement}`}
+      >
+        <div className="split-keyboard-pane" aria-label="Split keyboard panel">
+          {keyboard}
+        </div>
+        <div className="split-trackpad-pane" aria-label="Split trackpad panel">
+          {trackpad}
+        </div>
       </div>
-    ) : trackpad;
+    ) : (
+      trackpad
+    );
   }
 
   if (tab === "keyboard") {
     return shouldShowSplitMode ? (
-      <div className={`split-mode-shell split-trackpad-${trackpadMode.trackpadSettings.splitTrackpadPlacement}`}>
-        <div className="split-keyboard-pane" aria-label="Split keyboard panel">{keyboard}</div>
-        <div className="split-trackpad-pane" aria-label="Split trackpad panel">{trackpad}</div>
+      <div
+        className={`split-mode-shell split-trackpad-${trackpadMode.trackpadSettings.splitTrackpadPlacement}`}
+      >
+        <div className="split-keyboard-pane" aria-label="Split keyboard panel">
+          {keyboard}
+        </div>
+        <div className="split-trackpad-pane" aria-label="Split trackpad panel">
+          {trackpad}
+        </div>
       </div>
-    ) : keyboard;
+    ) : (
+      keyboard
+    );
   }
 
   if (tab === "remote") {
@@ -77,7 +93,7 @@ export function AppModeContent({
             {...trackpadMode}
             audioState={null}
             compactModeSelector={undefined}
-              isExpanded={isFullscreen}
+            isExpanded={isFullscreen}
             onToggleExpanded={onToggleFullscreen}
             showRestoredMouseButtons={false}
             supportsVolumeControl={false}

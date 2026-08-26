@@ -1,4 +1,16 @@
-import { CornerDownLeft, FastForward, Layers, Maximize2, Pause, Play, Power, Rewind, SkipBack, SkipForward, SquareX } from "lucide-react";
+import {
+  CornerDownLeft,
+  FastForward,
+  Layers,
+  Maximize2,
+  Pause,
+  Play,
+  Power,
+  Rewind,
+  SkipBack,
+  SkipForward,
+  SquareX,
+} from "lucide-react";
 import type { RemoteModeCopy } from "./remoteModeCopy";
 import { RemoteButton, type RepeatablePressProps } from "./RemoteButton";
 
@@ -33,7 +45,7 @@ export function RemoteMediaSection({
   onSeekBackward,
   onSeekForward,
   onSpace,
-  onStopPlayback
+  onStopPlayback,
 }: RemoteMediaSectionProps) {
   return (
     <div className="remote-section remote-media-section">
@@ -47,26 +59,43 @@ export function RemoteMediaSection({
           <span>Prev</span>
         </RemoteButton>
         <RemoteButton label="Play or pause" onClick={onPlayPause}>
-          <span className="remote-play-pause-icons" aria-hidden="true"><Play /><Pause /></span>
+          <span className="remote-play-pause-icons" aria-hidden="true">
+            <Play />
+            <Pause />
+          </span>
           <span>Play/Pause</span>
         </RemoteButton>
         <RemoteButton label="Next track" onClick={onNext}>
           <SkipForward aria-hidden="true" />
           <span>Next</span>
         </RemoteButton>
-        <RemoteButton label="Seek backward" title={isKodiMode ? undefined : modeCopy.seekBackwardTitle} pressProps={getRepeatablePressProps(onSeekBackward)}>
+        <RemoteButton
+          label="Seek backward"
+          title={isKodiMode ? undefined : modeCopy.seekBackwardTitle}
+          pressProps={getRepeatablePressProps(onSeekBackward)}
+        >
           <Rewind aria-hidden="true" />
           <span>Seek -</span>
         </RemoteButton>
         {isKodiMode ? (
-          <RemoteButton label="Stop playback" className="remote-icon-button" onClick={onStopPlayback}>
+          <RemoteButton
+            label="Stop playback"
+            className="remote-icon-button"
+            onClick={onStopPlayback}
+          >
             <SquareX aria-hidden="true" />
             <span>Stop</span>
           </RemoteButton>
         ) : (
-          <RemoteButton label="Space" title={modeCopy.spaceTitle} onClick={onSpace}><span>Space</span></RemoteButton>
+          <RemoteButton label="Space" title={modeCopy.spaceTitle} onClick={onSpace}>
+            <span>Space</span>
+          </RemoteButton>
         )}
-        <RemoteButton label="Seek forward" title={isKodiMode ? undefined : modeCopy.seekForwardTitle} pressProps={getRepeatablePressProps(onSeekForward)}>
+        <RemoteButton
+          label="Seek forward"
+          title={isKodiMode ? undefined : modeCopy.seekForwardTitle}
+          pressProps={getRepeatablePressProps(onSeekForward)}
+        >
           <FastForward aria-hidden="true" />
           <span>Seek +</span>
         </RemoteButton>
@@ -74,7 +103,11 @@ export function RemoteMediaSection({
           <CornerDownLeft aria-hidden="true" />
           <span>Esc / Back</span>
         </RemoteButton>
-        <RemoteButton label={modeCopy.appFullscreenLabel} title={isKodiMode ? undefined : modeCopy.appFullscreenTitle} onClick={onAppFullscreen}>
+        <RemoteButton
+          label={modeCopy.appFullscreenLabel}
+          title={isKodiMode ? undefined : modeCopy.appFullscreenTitle}
+          onClick={onAppFullscreen}
+        >
           {isKodiMode ? <Layers aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
           <span>{modeCopy.appFullscreenLabel}</span>
         </RemoteButton>
@@ -84,7 +117,11 @@ export function RemoteMediaSection({
             <span>Power options</span>
           </RemoteButton>
         ) : (
-          <RemoteButton label="Browser fullscreen" title={modeCopy.browserFullscreenTitle} onClick={onBrowserFullscreen}>
+          <RemoteButton
+            label="Browser fullscreen"
+            title={modeCopy.browserFullscreenTitle}
+            onClick={onBrowserFullscreen}
+          >
             <Maximize2 aria-hidden="true" />
             <span>Browser Full</span>
           </RemoteButton>

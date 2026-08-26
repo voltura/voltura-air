@@ -1,7 +1,12 @@
 export class IceGatheringTimeoutError extends Error {}
 
-export function waitForIceGathering(peer: RTCPeerConnection, allowSettledRelayCandidates = false): Promise<void> {
-  if (peer.iceGatheringState === "complete") {return Promise.resolve();}
+export function waitForIceGathering(
+  peer: RTCPeerConnection,
+  allowSettledRelayCandidates = false,
+): Promise<void> {
+  if (peer.iceGatheringState === "complete") {
+    return Promise.resolve();
+  }
   return new Promise((resolve, reject) => {
     let relaySettleTimeout: number | undefined;
     const cleanup = () => {
@@ -11,20 +16,29 @@ export function waitForIceGathering(peer: RTCPeerConnection, allowSettledRelayCa
       peer.removeEventListener("icecandidate", onCandidate);
     };
     const finishWithRelayCandidates = () => {
-      if (!hasOnlyRelayCandidates(peer.localDescription?.sdp ?? "")) {return;}
+      if (!hasOnlyRelayCandidates(peer.localDescription?.sdp ?? "")) {
+        return;
+      }
       cleanup();
       resolve();
     };
     const scheduleRelaySettle = () => {
-      if (!allowSettledRelayCandidates) {return;}
+      if (!allowSettledRelayCandidates) {
+        return;
+      }
       window.clearTimeout(relaySettleTimeout);
       relaySettleTimeout = window.setTimeout(finishWithRelayCandidates, 350);
     };
     const onState = () => {
-      if (peer.iceGatheringState === "complete") {cleanup(); resolve();}
+      if (peer.iceGatheringState === "complete") {
+        cleanup();
+        resolve();
+      }
     };
     const onCandidate = (event: RTCPeerConnectionIceEvent) => {
-      if (isRelayCandidate(event.candidate)) {scheduleRelaySettle();}
+      if (isRelayCandidate(event.candidate)) {
+        scheduleRelaySettle();
+      }
     };
     peer.addEventListener("icegatheringstatechange", onState);
     peer.addEventListener("icecandidate", onCandidate);
@@ -36,7 +50,9 @@ export function waitForIceGathering(peer: RTCPeerConnection, allowSettledRelayCa
       cleanup();
       reject(new IceGatheringTimeoutError("WebRTC candidate gathering timed out."));
     }, 10_000);
-    if (hasOnlyRelayCandidates(peer.localDescription?.sdp ?? "")) {scheduleRelaySettle();}
+    if (hasOnlyRelayCandidates(peer.localDescription?.sdp ?? "")) {
+      scheduleRelaySettle();
+    }
   });
 }
 

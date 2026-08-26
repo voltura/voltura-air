@@ -14,7 +14,13 @@
   --control-highlight: rgba(255, 255, 255, 0.08);
   --control-shadow: rgba(0, 0, 0, 0.32);
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   background: var(--bg);
   color: var(--text);
   font-synthesis: none;
@@ -217,8 +223,7 @@ body {
   margin: 0;
   background:
     linear-gradient(145deg, rgba(18, 168, 148, 0.16), transparent 28rem),
-    linear-gradient(25deg, rgba(192, 83, 58, 0.16), transparent 34rem),
-    var(--bg);
+    linear-gradient(25deg, rgba(192, 83, 58, 0.16), transparent 34rem), var(--bg);
 }
 
 a {
@@ -379,7 +384,13 @@ nav a:hover {
   inset: 0;
   z-index: -2;
   background:
-    linear-gradient(90deg, rgba(16, 20, 24, 0.98) 0%, rgba(16, 20, 24, 0.94) 38%, rgba(16, 20, 24, 0.6) 66%, rgba(16, 20, 24, 0.28) 100%),
+    linear-gradient(
+      90deg,
+      rgba(16, 20, 24, 0.98) 0%,
+      rgba(16, 20, 24, 0.94) 38%,
+      rgba(16, 20, 24, 0.6) 66%,
+      rgba(16, 20, 24, 0.28) 100%
+    ),
     linear-gradient(180deg, rgba(16, 20, 24, 0.12), rgba(16, 20, 24, 0.9));
 }
 
@@ -488,12 +499,7 @@ h2 {
   border-radius: 8px;
   padding: 12px 18px;
   background:
-    linear-gradient(
-      to bottom,
-      var(--control-highlight),
-      transparent 42%,
-      rgba(0, 0, 0, 0.08)
-    ),
+    linear-gradient(to bottom, var(--control-highlight), transparent 42%, rgba(0, 0, 0, 0.08)),
     var(--button-background);
   box-shadow:
     inset 0 1px 0 var(--control-highlight),
@@ -1303,19 +1309,30 @@ footer a:hover {
   border: 2px dashed color-mix(in srgb, var(--accent) 78%, var(--border));
   border-radius: 12px;
   background:
-    radial-gradient(circle at 50% 15%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 44%),
+    radial-gradient(
+      circle at 50% 15%,
+      color-mix(in srgb, var(--accent) 14%, transparent),
+      transparent 44%
+    ),
     color-mix(in srgb, var(--surface-raised) 94%, var(--accent) 6%);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
   cursor: pointer;
   text-align: center;
-  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .catalog-page form label.catalog-package-drop:hover,
 .catalog-page form label.catalog-package-drop.is-dragging {
   border-color: var(--accent);
   background:
-    radial-gradient(circle at 50% 15%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 48%),
+    radial-gradient(
+      circle at 50% 15%,
+      color-mix(in srgb, var(--accent) 26%, transparent),
+      transparent 48%
+    ),
     color-mix(in srgb, var(--surface-raised) 84%, var(--accent) 16%);
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent),
@@ -1381,7 +1398,9 @@ footer a:hover {
   background: color-mix(in srgb, var(--accent-strong) 72%, var(--surface-raised));
   color: #fff;
   font-weight: 800;
-  box-shadow: inset 0 1px 0 var(--control-highlight), 0 2px 6px var(--control-shadow);
+  box-shadow:
+    inset 0 1px 0 var(--control-highlight),
+    0 2px 6px var(--control-shadow);
 }
 
 .catalog-package-drop:hover .catalog-package-drop-action,
@@ -1570,7 +1589,9 @@ footer a:hover {
   background: var(--accent-strong);
   color: #fff;
   font-weight: 800;
-  box-shadow: inset 0 1px 0 var(--control-highlight), 0 2px 4px var(--control-shadow);
+  box-shadow:
+    inset 0 1px 0 var(--control-highlight),
+    0 2px 4px var(--control-shadow);
 }
 
 .catalog-page button:hover {
@@ -1916,7 +1937,9 @@ footer a:hover {
   border-radius: 12px;
   background: #0d1114;
   box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
-  transition: width 160ms ease, height 160ms ease;
+  transition:
+    width 160ms ease,
+    height 160ms ease;
 }
 
 .real-device-preview .screen-preview-frame iframe {
@@ -2405,7 +2428,9 @@ footer a:hover {
   text-align: left;
   overflow-wrap: anywhere;
   pointer-events: none;
-  transition: opacity 180ms ease, transform 180ms ease;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
 }
 
 .catalog-toast::before {
@@ -2508,7 +2533,9 @@ footer a:hover {
   font-size: clamp(2.35rem, 7vw, 3.25rem);
   font-weight: 400;
   line-height: 1;
-  transition: color 100ms ease, transform 100ms ease;
+  transition:
+    color 100ms ease,
+    transform 100ms ease;
 }
 
 .catalog-page .star-picker label::after {
@@ -2529,7 +2556,9 @@ footer a:hover {
   opacity: 0;
   pointer-events: none;
   transform: translate(-50%, 4px);
-  transition: opacity 100ms ease, transform 100ms ease;
+  transition:
+    opacity 100ms ease,
+    transform 100ms ease;
   white-space: nowrap;
 }
 
@@ -2647,8 +2676,12 @@ footer a:hover {
   }
 
   .hero::before {
-    background:
-      linear-gradient(180deg, rgba(16, 20, 24, 0.34) 0%, rgba(16, 20, 24, 0.92) 58%, rgba(16, 20, 24, 0.98) 100%);
+    background: linear-gradient(
+      180deg,
+      rgba(16, 20, 24, 0.34) 0%,
+      rgba(16, 20, 24, 0.92) 58%,
+      rgba(16, 20, 24, 0.98) 100%
+    );
   }
 
   .hero-media {
@@ -2691,7 +2724,6 @@ footer a:hover {
   .catalog-moderation-grid {
     grid-template-columns: 1fr;
   }
-
 }
 
 @media (max-width: 560px) {
@@ -2707,8 +2739,12 @@ footer a:hover {
   }
 
   .hero::before {
-    background:
-      linear-gradient(180deg, rgba(16, 20, 24, 0.7) 0%, rgba(16, 20, 24, 0.96) 42%, rgba(16, 20, 24, 0.99) 100%);
+    background: linear-gradient(
+      180deg,
+      rgba(16, 20, 24, 0.7) 0%,
+      rgba(16, 20, 24, 0.96) 42%,
+      rgba(16, 20, 24, 0.99) 100%
+    );
   }
 
   .hero-media {

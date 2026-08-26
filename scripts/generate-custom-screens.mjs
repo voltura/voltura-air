@@ -14,14 +14,16 @@ const checkOnly = process.argv.includes("--check");
 const createBundle = process.argv.includes("--official");
 const crcTable = Array.from({ length: 256 }, (_, index) => {
   let value = index;
-  for (let bit = 0; bit < 8; bit += 1) value = (value & 1) ? (value >>> 1) ^ 0xedb88320 : value >>> 1;
+  for (let bit = 0; bit < 8; bit += 1) value = value & 1 ? (value >>> 1) ^ 0xedb88320 : value >>> 1;
   return value >>> 0;
 });
 
 const outputs = buildOutputs();
 await validateWithHost(outputs);
 if (checkOnly) {
-  process.stdout.write(`Validated ${officialScreens.length} deterministic official custom screens.\n`);
+  process.stdout.write(
+    `Validated ${officialScreens.length} deterministic official custom screens.\n`,
+  );
 } else {
   await mkdir(outputDirectory, { recursive: true });
   for (const [name, bytes] of outputs) {
@@ -31,7 +33,9 @@ if (checkOnly) {
     await mkdir(path.dirname(bundlePath), { recursive: true });
     await writeIfChanged(bundlePath, createZip(outputs));
   }
-  process.stdout.write(`Generated ${officialScreens.length} official custom screens${createBundle ? " and the catalog bundle" : ""}.\n`);
+  process.stdout.write(
+    `Generated ${officialScreens.length} official custom screens${createBundle ? " and the catalog bundle" : ""}.\n`,
+  );
 }
 
 function buildOutputs() {
@@ -40,14 +44,20 @@ function buildOutputs() {
   const catalog = [];
   for (const definition of officialScreens) {
     validateDefinition(definition);
-    if (seenIds.has(definition.screen.id)) throw new Error(`Duplicate official ID ${definition.screen.id}.`);
+    if (seenIds.has(definition.screen.id))
+      throw new Error(`Duplicate official ID ${definition.screen.id}.`);
     seenIds.add(definition.screen.id);
     const filename = packageFilenames.get(definition.screen.id);
     if (!filename) throw new Error(`No package filename for ${definition.screen.id}.`);
-    const packageValue = { packageVersion: 1, format: "voltura-air.custom-screen", screen: definition.screen };
+    const packageValue = {
+      packageVersion: 1,
+      format: "voltura-air.custom-screen",
+      screen: definition.screen,
+    };
     const first = Buffer.from(stableJson(packageValue));
     const second = Buffer.from(stableJson(packageValue));
-    if (!first.equals(second)) throw new Error(`Nondeterministic package output for ${definition.screen.id}.`);
+    if (!first.equals(second))
+      throw new Error(`Nondeterministic package output for ${definition.screen.id}.`);
     outputs.set(filename, first);
     catalog.push({ ...definition.metadata, packageFilename: filename });
   }
@@ -69,15 +79,18 @@ async function validateWithHost(outputs) {
         "--configuration",
         "Release",
         "--filter",
-        "FullyQualifiedName=VolturaAir.Host.Tests.OfficialCustomScreenPackageTests.GeneratedCatalogPassesTheRealPackageReaderAndPortableContract"
+        "FullyQualifiedName=VolturaAir.Host.Tests.OfficialCustomScreenPackageTests.GeneratedCatalogPassesTheRealPackageReaderAndPortableContract",
       ],
       {
         cwd: root,
         encoding: "utf8",
-        env: { ...process.env, VOLTURA_OFFICIAL_SCREEN_DIRECTORY: directory }
-      });
+        env: { ...process.env, VOLTURA_OFFICIAL_SCREEN_DIRECTORY: directory },
+      },
+    );
     if (result.status !== 0) {
-      throw new Error(`The host rejected the generated Custom Screen catalog.\n${result.stdout}${result.stderr}`);
+      throw new Error(
+        `The host rejected the generated Custom Screen catalog.\n${result.stdout}${result.stderr}`,
+      );
     }
   } finally {
     await rm(directory, { recursive: true, force: true });

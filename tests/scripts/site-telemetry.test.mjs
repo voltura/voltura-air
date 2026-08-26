@@ -32,7 +32,9 @@ test("hung telemetry fixture cleanup is force-stopped and followed by closed-tab
       {
         cleanupTimeoutMs: 5,
         terminationTimeoutMs: 5,
-        forceCleanup: () => { fallbackCleanupRan = true; },
+        forceCleanup: () => {
+          fallbackCleanupRan = true;
+        },
       },
     ),
     /cleanup did not exit/u,
@@ -72,7 +74,9 @@ test("public ingest has a closed schema, fixed HMAC domains, and no browser tele
     "apps/mobile-web/src/App.tsx",
     "apps/mobile-web/src/foundation/protocol/messages.ts",
     "apps/mobile-web/src/foundation/connection/useConnectionSender.ts",
-  ].map(read).join("\n");
+  ]
+    .map(read)
+    .join("\n");
 
   assert.match(library, /AIR_TELEMETRY_MAX_BODY_BYTES = 4096/u);
   assert.match(library, /air_telemetry_exact_keys/u);
@@ -129,7 +133,10 @@ test("usage statistics dashboard reuses administrator and CSRF ownership without
   assert.match(page, /<summary>Data cleanup<\/summary>/u);
   assert.match(page, /id="telemetry-cleanup"/u);
   assert.equal((page.match(/action="#telemetry-cleanup"/gu) ?? []).length, 2);
-  assert.doesNotMatch(page, /Telemetry requests|Delivery health|Approximate size|Custom dates|Host version.*select/u);
+  assert.doesNotMatch(
+    page,
+    /Telemetry requests|Delivery health|Approximate size|Custom dates|Host version.*select/u,
+  );
   assert.match(page, /class="telemetry-cleanup-confirm"/u);
   assert.match(page, /AIR_TELEMETRY_CLEANUP_PREVIEW_SESSION/u);
   assert.match(page, /cleanup_token/u);
@@ -150,8 +157,14 @@ test("local telemetry integration is mandatory, isolated, and applies schema ind
   const integration = read("tests/site-telemetry-integration.php");
   const httpIntegration = read("tests/site-telemetry-http-integration.mjs");
   const httpFixture = read("tests/site-telemetry-http-fixture.php");
-  assert.match(packageJson.scripts["test:site-telemetry-integration"], /site-telemetry-http-integration\.mjs/u);
-  assert.match(packageJson.scripts["test:site-telemetry-integration"], /VOLTURA_AIR_CATALOG_SECRET/u);
+  assert.match(
+    packageJson.scripts["test:site-telemetry-integration"],
+    /site-telemetry-http-integration\.mjs/u,
+  );
+  assert.match(
+    packageJson.scripts["test:site-telemetry-integration"],
+    /VOLTURA_AIR_CATALOG_SECRET/u,
+  );
   assert.match(initializer, /apps\\public-site\\telemetry\\schema\.sql/u);
   assert.match(initializer, /additive development telemetry schema/u);
   assert.match(integration, /catalogCounts/u);
@@ -164,11 +177,17 @@ test("local telemetry integration is mandatory, isolated, and applies schema ind
   assert.match(httpIntegration, /VOLTURA_AIR_TELEMETRY_TEST_TABLES/u);
   assert.match(httpFixture, /air_telemetry_test_daily/u);
   assert.match(httpFixture, /GET_LOCK/u);
-  assert.match(httpFixture, /Refusing to manage telemetry test tables outside explicit site-dev test mode/u);
+  assert.match(
+    httpFixture,
+    /Refusing to manage telemetry test tables outside explicit site-dev test mode/u,
+  );
   assert.doesNotMatch(httpFixture, /snapshot|restoreHealth/u);
   assert.doesNotMatch(httpFixture, /CREATE DATABASE|DROP DATABASE/iu);
   assert.match(httpIntegration, /record_invalid_before_commit,record_invalid_rollback/u);
-  assert.match(httpIntegration, /record_server_failure_before_commit,record_server_failure_rollback/u);
+  assert.match(
+    httpIntegration,
+    /record_server_failure_before_commit,record_server_failure_rollback/u,
+  );
   for (const status of [202, 400, 405, 413, 415, 429, 503]) {
     assert.match(httpIntegration, new RegExp(`\\b${status}\\b`, "u"));
   }

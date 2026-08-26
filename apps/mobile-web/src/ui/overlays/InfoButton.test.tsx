@@ -4,7 +4,7 @@ import { InfoButton } from "./InfoButton";
 
 const props = {
   title: "Live typing",
-  description: "Sends each character as you type."
+  description: "Sends each character as you type.",
 };
 
 describe("InfoButton", () => {
@@ -64,7 +64,11 @@ describe("InfoButton", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "About Live typing" }));
 
-    expect(screen.getByRole("dialog", { name: "Live typing" }).classList.contains("info-dialog-detailed")).toBe(true);
+    expect(
+      screen
+        .getByRole("dialog", { name: "Live typing" })
+        .classList.contains("info-dialog-detailed"),
+    ).toBe(true);
   });
 
   it("tracks the visible viewport through keyboard and orientation changes", async () => {
@@ -73,11 +77,11 @@ describe("InfoButton", () => {
       height: 500,
       offsetLeft: 0,
       offsetTop: 20,
-      width: 390
+      width: 390,
     });
     Object.defineProperty(window, "visualViewport", {
       configurable: true,
-      value: visualViewport as unknown as VisualViewport
+      value: visualViewport as unknown as VisualViewport,
     });
 
     try {
@@ -104,7 +108,7 @@ describe("InfoButton", () => {
     } finally {
       Object.defineProperty(window, "visualViewport", {
         configurable: true,
-        value: originalVisualViewport
+        value: originalVisualViewport,
       });
     }
   });

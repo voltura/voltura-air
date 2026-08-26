@@ -47,7 +47,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
-  padding: max(var(--space-lg), env(safe-area-inset-top)) var(--space-lg) max(var(--space-lg), env(safe-area-inset-bottom));
+  padding: max(var(--space-lg), env(safe-area-inset-top)) var(--space-lg)
+    max(var(--space-lg), env(safe-area-inset-bottom));
   border-right: 1px solid var(--border);
   background: var(--bg);
   box-shadow: 18px 0 40px var(--drawer-shadow);

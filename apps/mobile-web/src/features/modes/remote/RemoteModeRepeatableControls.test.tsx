@@ -20,7 +20,7 @@ describe("RemoteMode repeatable controls", () => {
     ["D-pad up", "ArrowUp", false],
     ["D-pad left", "ArrowLeft", false],
     ["D-pad right", "ArrowRight", false],
-    ["D-pad down", "ArrowDown", false]
+    ["D-pad down", "ArrowDown", false],
   ] as const)("repeats %s until release", (buttonName, key, isMediaControl) => {
     const sendSpecial = vi.fn();
     renderRemote({ sendSpecial });
@@ -64,7 +64,10 @@ describe("RemoteMode repeatable controls", () => {
 
   it("repeats YouTube volume shortcuts until release", () => {
     const sendSpecial = vi.fn();
-    renderRemote({ remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "youtube" }, sendSpecial });
+    renderRemote({
+      remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "youtube" },
+      sendSpecial,
+    });
 
     const button = screen.getByRole("button", { name: "Volume down" });
     fireEvent.pointerDown(button, { button: 0, pointerId: 1 });
@@ -87,10 +90,14 @@ describe("RemoteMode repeatable controls", () => {
     renderRemote({ sendSpecial });
     const button = screen.getByRole("button", { name: "Seek forward" });
     fireEvent.pointerDown(button, { button: 0, pointerId: 1 });
-    act(() => {vi.advanceTimersByTime(repeatStartDelayMs + repeatIntervalMs);});
+    act(() => {
+      vi.advanceTimersByTime(repeatStartDelayMs + repeatIntervalMs);
+    });
     fireEvent.blur(window);
     const countAfterBlur = sendSpecial.mock.calls.length;
-    act(() => {vi.advanceTimersByTime(repeatIntervalMs * 4);});
+    act(() => {
+      vi.advanceTimersByTime(repeatIntervalMs * 4);
+    });
     expect(sendSpecial).toHaveBeenCalledTimes(countAfterBlur);
     fireEvent.click(button);
     expect(sendSpecial).toHaveBeenCalledTimes(countAfterBlur + 1);
@@ -108,7 +115,7 @@ describe("RemoteMode repeatable controls", () => {
       fireEvent.click(button, { detail: 1 });
 
       expect(sendSpecial).toHaveBeenCalledExactlyOnceWith("ArrowUp");
-    }
+    },
   );
 
   it("sends an ordinary Remote button once for a complete pointer sequence", () => {
@@ -120,6 +127,10 @@ describe("RemoteMode repeatable controls", () => {
     fireEvent.pointerUp(button, { pointerId: 1 });
     fireEvent.click(button, { detail: 1 });
 
-    expect(sendSpecial).toHaveBeenCalledExactlyOnceWith("MediaPlayPause", undefined, "media-controls");
+    expect(sendSpecial).toHaveBeenCalledExactlyOnceWith(
+      "MediaPlayPause",
+      undefined,
+      "media-controls",
+    );
   });
 });

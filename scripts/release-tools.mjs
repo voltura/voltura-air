@@ -1,11 +1,15 @@
-const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
+const semverPattern =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
 
-export const freewareNotice = "Voltura Air is free software from Voltura AB. If it helps you, optional support is available through [Ko-fi](https://ko-fi.com/voltura) or [PayPal](https://www.paypal.me/voltura).";
-export const unsignedReleaseNotice = "Release binaries are not code-signed. Windows may show an unknown-publisher or Microsoft Defender SmartScreen warning. Download release files only from the official Voltura Air website or GitHub release page.";
+export const freewareNotice =
+  "Voltura Air is free software from Voltura AB. If it helps you, optional support is available through [Ko-fi](https://ko-fi.com/voltura) or [PayPal](https://www.paypal.me/voltura).";
+export const unsignedReleaseNotice =
+  "Release binaries are not code-signed. Windows may show an unknown-publisher or Microsoft Defender SmartScreen warning. Download release files only from the official Voltura Air website or GitHub release page.";
 export const releaseNotesStartMarker = "<!-- voltura-air:release-notes:start -->";
 export const releaseNotesEndMarker = "<!-- voltura-air:release-notes:end -->";
 
-const versionHeadingSource = "##[ \\t]+v(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?[ \\t]*";
+const versionHeadingSource =
+  "##[ \\t]+v(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?[ \\t]*";
 const sectionHeadingSource = "##[ \\t]+\\S.*?[ \\t]*";
 const generalNoticesHeading = "General notices";
 const releaseSectionEndHeadingSource = `(?:${versionHeadingSource}|##[ \\t]+${generalNoticesHeading}[ \\t]*)`;
@@ -16,7 +20,9 @@ export function parseReleaseArguments(args) {
   }
 
   if (args.length > 1) {
-    throw new Error("Usage: npm run release:draft -- [version] or npm run release:full -- [version]");
+    throw new Error(
+      "Usage: npm run release:draft -- [version] or npm run release:full -- [version]",
+    );
   }
 
   const version = args[0] ?? null;
@@ -47,20 +53,18 @@ export function parseSemver(version) {
   return {
     version,
     core: match.slice(1, 4).map(Number),
-    prerelease: match[4]?.split(".") ?? []
+    prerelease: match[4]?.split(".") ?? [],
   };
 }
 
 export function validateStableReleaseVersion(version) {
   const parsed = parseSemver(version);
   if (parsed.prerelease.length === 0 && parsed.core[0] > 65535) {
-    throw new Error(
-      `Stable release '${version}' must use a major component between 0 and 65535.`
-    );
+    throw new Error(`Stable release '${version}' must use a major component between 0 and 65535.`);
   }
   if (parsed.prerelease.length === 0 && (parsed.core[1] > 9 || parsed.core[2] > 9)) {
     throw new Error(
-      `Stable release '${version}' must use single-digit minor and patch components.`
+      `Stable release '${version}' must use single-digit minor and patch components.`,
     );
   }
   return version;
@@ -88,7 +92,11 @@ export function compareSemver(leftVersion, rightVersion) {
   }
 
   if (left.prerelease.length === 0 || right.prerelease.length === 0) {
-    return left.prerelease.length === right.prerelease.length ? 0 : left.prerelease.length === 0 ? 1 : -1;
+    return left.prerelease.length === right.prerelease.length
+      ? 0
+      : left.prerelease.length === 0
+        ? 1
+        : -1;
   }
 
   const count = Math.max(left.prerelease.length, right.prerelease.length);
@@ -136,7 +144,7 @@ export function resolveReleaseVersion({
   explicitVersion,
   currentTagExists,
   currentReleaseIsDraft,
-  getNextVersion
+  getNextVersion,
 }) {
   parseSemver(currentVersion);
   parseSemver(latestReleasedVersion);
@@ -205,10 +213,7 @@ export function validateReleaseNotesContent(content, { preserveComments = false 
 
 export function extractUserFacingReleaseNotes(content) {
   const releaseContent = validateReleaseNotesContent(content, { preserveComments: true });
-  return releaseContent
-    .replace(freewareNotice, "")
-    .replace(unsignedReleaseNotice, "")
-    .trim();
+  return releaseContent.replace(freewareNotice, "").replace(unsignedReleaseNotice, "").trim();
 }
 
 function validateUserFacingReleaseNotes(content, { preserveComments = false } = {}) {
@@ -224,8 +229,13 @@ function validateUserFacingReleaseNotes(content, { preserveComments = false } = 
 }
 
 export function extractMarkedReleaseNotes(body) {
-  if (countOccurrences(body, releaseNotesStartMarker) !== 1 || countOccurrences(body, releaseNotesEndMarker) !== 1) {
-    throw new Error("Published release notes must contain exactly one synchronization marker pair.");
+  if (
+    countOccurrences(body, releaseNotesStartMarker) !== 1 ||
+    countOccurrences(body, releaseNotesEndMarker) !== 1
+  ) {
+    throw new Error(
+      "Published release notes must contain exactly one synchronization marker pair.",
+    );
   }
   const start = body.indexOf(releaseNotesStartMarker) + releaseNotesStartMarker.length;
   const end = body.indexOf(releaseNotesEndMarker);
@@ -244,7 +254,9 @@ function findVersionSection(text, version) {
   const heading = new RegExp(`^##[ \\t]+v${escapeRegex(version)}[ \\t]*(?=\\r?$)`, "gmu");
   const matches = [...text.matchAll(heading)];
   if (matches.length !== 1) {
-    throw new Error(`Expected exactly one '## v${version}' heading in docs/release-notes.md; found ${matches.length}.`);
+    throw new Error(
+      `Expected exactly one '## v${version}' heading in docs/release-notes.md; found ${matches.length}.`,
+    );
   }
   const contentStart = matches[0].index + matches[0][0].length;
   const nextHeading = new RegExp(`^${releaseSectionEndHeadingSource}\\r?$`, "gmu");
@@ -255,14 +267,21 @@ function findVersionSection(text, version) {
 
 export function getReleaseNotesSection(text, version) {
   const section = findVersionSection(text, version);
-  return validateUserFacingReleaseNotes(text.slice(section.contentStart, section.contentEnd).trim());
+  return validateUserFacingReleaseNotes(
+    text.slice(section.contentStart, section.contentEnd).trim(),
+  );
 }
 
 export function getGeneralReleaseNotices(text) {
-  const heading = new RegExp(`^##[ \\t]+${escapeRegex(generalNoticesHeading)}[ \\t]*(?=\\r?$)`, "gmu");
+  const heading = new RegExp(
+    `^##[ \\t]+${escapeRegex(generalNoticesHeading)}[ \\t]*(?=\\r?$)`,
+    "gmu",
+  );
   const matches = [...text.matchAll(heading)];
   if (matches.length !== 1) {
-    throw new Error(`Expected exactly one '## ${generalNoticesHeading}' heading in docs/release-notes.md; found ${matches.length}.`);
+    throw new Error(
+      `Expected exactly one '## ${generalNoticesHeading}' heading in docs/release-notes.md; found ${matches.length}.`,
+    );
   }
   const contentStart = matches[0].index + matches[0][0].length;
   const nextHeading = new RegExp(`^${sectionHeadingSource}\\r?$`, "gmu");
@@ -270,8 +289,10 @@ export function getGeneralReleaseNotices(text) {
   const next = nextHeading.exec(text);
   const content = text.slice(contentStart, next?.index ?? text.length).trim();
   const releaseContent = removeHtmlComments(content).trim();
-  if (countOccurrences(releaseContent, freewareNotice) !== 1
-    || countOccurrences(releaseContent, unsignedReleaseNotice) !== 1) {
+  if (
+    countOccurrences(releaseContent, freewareNotice) !== 1 ||
+    countOccurrences(releaseContent, unsignedReleaseNotice) !== 1
+  ) {
     throw new Error("General notices must contain exactly one copy of each canonical notice.");
   }
   const remainingContent = releaseContent

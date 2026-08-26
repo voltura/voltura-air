@@ -13,8 +13,13 @@ export interface RelayHostProof {
 }
 
 export function parseHostHello(value: unknown, expectedRouteId: string): RelayHostHello | null {
-  if (!isRecord(value) || value.type !== "relay.host.hello" || value.routeId !== expectedRouteId ||
-      typeof value.publicKey !== "string" || Object.keys(value).length !== 3) {
+  if (
+    !isRecord(value) ||
+    value.type !== "relay.host.hello" ||
+    value.routeId !== expectedRouteId ||
+    typeof value.publicKey !== "string" ||
+    Object.keys(value).length !== 3
+  ) {
     return null;
   }
 
@@ -24,8 +29,10 @@ export function parseHostHello(value: unknown, expectedRouteId: string): RelayHo
 }
 
 export function parseHostProof(value: unknown): RelayHostProof | null {
-  return isRecord(value) && value.type === "relay.host.proof" &&
-    typeof value.signature === "string" && /^[A-Za-z0-9_-]{86}$/.test(value.signature) &&
+  return isRecord(value) &&
+    value.type === "relay.host.proof" &&
+    typeof value.signature === "string" &&
+    /^[A-Za-z0-9_-]{86}$/.test(value.signature) &&
     Object.keys(value).length === 2
     ? { type: value.type, signature: value.signature }
     : null;
@@ -33,7 +40,8 @@ export function parseHostProof(value: unknown): RelayHostProof | null {
 
 export async function deriveRouteId(publicKey: string): Promise<string> {
   const encoded = decodeBase64Url(publicKey);
-  if (encoded.length !== 65 || encoded[0] !== 4) throw new TypeError("Relay key must be uncompressed P-256.");
+  if (encoded.length !== 65 || encoded[0] !== 4)
+    throw new TypeError("Relay key must be uncompressed P-256.");
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", copyBuffer(encoded)));
   return encodeBase64Url(digest.subarray(0, 16));
 }
@@ -51,26 +59,36 @@ export function createHostTranscript(routeId: string, challenge: string): Uint8A
   return new TextEncoder().encode(`${relayHostTranscriptPrefix}\n${routeId}\n${challenge}`);
 }
 
-export async function verifyHostProof(publicKey: string, routeId: string, challenge: string, signature: string): Promise<boolean> {
+export async function verifyHostProof(
+  publicKey: string,
+  routeId: string,
+  challenge: string,
+  signature: string,
+): Promise<boolean> {
   return verifySignature(publicKey, createHostTranscript(routeId, challenge), signature, routeId);
 }
 
-export async function verifySignature(publicKey: string, payload: Uint8Array, signature: string, expectedRouteId?: string): Promise<boolean> {
+export async function verifySignature(
+  publicKey: string,
+  payload: Uint8Array,
+  signature: string,
+  expectedRouteId?: string,
+): Promise<boolean> {
   try {
-    if (expectedRouteId && await deriveRouteId(publicKey) !== expectedRouteId) return false;
+    if (expectedRouteId && (await deriveRouteId(publicKey)) !== expectedRouteId) return false;
     const encoded = decodeBase64Url(publicKey);
     const key = await crypto.subtle.importKey(
       "raw",
       copyBuffer(encoded),
       { name: "ECDSA", namedCurve: "P-256" },
       false,
-      ["verify"]
+      ["verify"],
     );
     return await crypto.subtle.verify(
       { name: "ECDSA", hash: "SHA-256" },
       key,
       copyBuffer(decodeBase64Url(signature)),
-      copyBuffer(payload)
+      copyBuffer(payload),
     );
   } catch {
     return false;

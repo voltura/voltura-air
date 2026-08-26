@@ -6,14 +6,15 @@ export function button(id, label, action, options = {}) {
     name: options.name ?? label,
     label,
     icon: options.icon ?? "command",
-    presentation: options.presentation ??
+    presentation:
+      options.presentation ??
       (action.kind === "text" || action.kind === "shortcut" ? "label" : "iconLabel"),
     size: options.size ?? "standard",
     repeat: options.repeat ?? false,
     portrait: options.portrait ?? null,
     landscape: options.landscape ?? null,
     action,
-    row: options.row ?? 0
+    row: options.row ?? 0,
   };
 }
 
@@ -36,7 +37,7 @@ export function buttonGrid(id, name, buttons, options = {}) {
     initiallyExpanded: options.initiallyExpanded ?? true,
     trackpadFullscreenControl: false,
     trackpadGyroControl: false,
-    buttonAlignment: options.buttonAlignment ?? "space-evenly"
+    buttonAlignment: options.buttonAlignment ?? "space-evenly",
   };
 }
 
@@ -45,7 +46,7 @@ export function volumeControls(id, options = {}) {
     ...buttonGrid(id, options.name ?? "Volume", [], options),
     showHeader: options.showHeader ?? false,
     kind: "volume",
-    widthColumns: options.widthColumns ?? 12
+    widthColumns: options.widthColumns ?? 12,
   };
 }
 
@@ -54,7 +55,7 @@ export function navigationPad(id, options = {}) {
     ...buttonGrid(id, options.name ?? "Navigation", [], options),
     showHeader: options.showHeader ?? false,
     kind: options.kind ?? "dpad",
-    widthColumns: options.widthColumns ?? 12
+    widthColumns: options.widthColumns ?? 12,
   };
 }
 
@@ -64,13 +65,13 @@ export function trackpad(id, options = {}) {
     kind: options.collapsible ? "collapsibleTrackpad" : "trackpad",
     heightMode: options.heightMode ?? "fill",
     trackpadFullscreenControl: options.fullscreen ?? true,
-    trackpadGyroControl: options.gyro ?? false
+    trackpadGyroControl: options.gyro ?? false,
   };
 }
 
 export function portraitLandscape(order, landscape = {}) {
   return {
     portrait: defaultLayout(order),
-    landscape: { ...defaultLayout(order), ...landscape }
+    landscape: { ...defaultLayout(order), ...landscape },
   };
 }

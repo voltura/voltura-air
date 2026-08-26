@@ -4,7 +4,13 @@ import { fileURLToPath } from "node:url";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const scheduleScript = path.join(scriptDirectory, "install-chatgpt-codex-schedule.ps1");
-const windowsPowerShell = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+const windowsPowerShell = path.join(
+  process.env.SystemRoot ?? "C:\\Windows",
+  "System32",
+  "WindowsPowerShell",
+  "v1.0",
+  "powershell.exe",
+);
 const argumentsFromUser = process.argv.slice(2);
 let time = "04:00:00";
 
@@ -24,7 +30,7 @@ if (!/^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/u.test(time)) {
 const result = spawnSync(
   windowsPowerShell,
   ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scheduleScript, "-Time", time],
-  { stdio: "inherit" }
+  { stdio: "inherit" },
 );
 
 if (result.error) {

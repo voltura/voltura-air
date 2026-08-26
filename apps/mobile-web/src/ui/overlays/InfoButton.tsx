@@ -10,7 +10,13 @@ interface InfoButtonProps {
   title: string;
 }
 
-export function InfoButton({ description, isOpen: controlledIsOpen, onOpenChange, size = "compact", title }: InfoButtonProps) {
+export function InfoButton({
+  description,
+  isOpen: controlledIsOpen,
+  onOpenChange,
+  size = "compact",
+  title,
+}: InfoButtonProps) {
   const [uncontrolledIsOpen, setUncontrolledIsOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const openedWithPointerRef = useRef(false);
@@ -31,13 +37,25 @@ export function InfoButton({ description, isOpen: controlledIsOpen, onOpenChange
         className="info-button"
         type="button"
         aria-label={`About ${title}`}
-        onPointerDown={() => { openedWithPointerRef.current = true; }}
-        onKeyDown={() => { openedWithPointerRef.current = false; }}
-        onClick={() => { setIsOpen(true); }}
+        onPointerDown={() => {
+          openedWithPointerRef.current = true;
+        }}
+        onKeyDown={() => {
+          openedWithPointerRef.current = false;
+        }}
+        onClick={() => {
+          setIsOpen(true);
+        }}
       >
         <Info aria-hidden="true" />
       </button>
-      <InfoDialog description={description} isOpen={isOpen} onClose={finishClosing} size={size} title={title} />
+      <InfoDialog
+        description={description}
+        isOpen={isOpen}
+        onClose={finishClosing}
+        size={size}
+        title={title}
+      />
     </>
   );
 }

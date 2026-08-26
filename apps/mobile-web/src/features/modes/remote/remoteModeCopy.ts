@@ -11,7 +11,7 @@ export function getRemoteModeCopy(mode: RemoteModeId) {
         spaceTitle: "Space / common browser play-pause",
         appFullscreenLabel: "Fullscreen",
         appFullscreenTitle: "YouTube/app fullscreen shortcut",
-        browserFullscreenTitle: "Chrome/browser fullscreen shortcut"
+        browserFullscreenTitle: "Chrome/browser fullscreen shortcut",
       };
     case "kodi":
       return {
@@ -22,7 +22,7 @@ export function getRemoteModeCopy(mode: RemoteModeId) {
         spaceTitle: "Kodi pause/play",
         appFullscreenLabel: "Toggle video",
         appFullscreenTitle: undefined,
-        browserFullscreenTitle: "Kodi fullscreen/windowed"
+        browserFullscreenTitle: "Kodi fullscreen/windowed",
       };
     case "standard":
       return {
@@ -33,7 +33,7 @@ export function getRemoteModeCopy(mode: RemoteModeId) {
         spaceTitle: "Space / common browser play-pause",
         appFullscreenLabel: "Fullscreen (F)",
         appFullscreenTitle: "Video/app fullscreen shortcut",
-        browserFullscreenTitle: "Chrome/browser fullscreen shortcut"
+        browserFullscreenTitle: "Chrome/browser fullscreen shortcut",
       };
   }
 }

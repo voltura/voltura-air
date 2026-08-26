@@ -5,10 +5,22 @@ import type { KeyboardSettings } from "../../foundation/settings/keyboardSetting
 import type { PcProfile } from "../../foundation/connection/pcProfiles";
 import type { ManualConnectionTarget } from "../../foundation/pairing/pairingLink";
 import type { RemoteSettings } from "../../foundation/settings/remoteSettings";
-import type { CustomScreenSummary, PhoneWebcamCapability, ScreenViewCapability } from "../../foundation/protocol/messages";
+import type {
+  CustomScreenSummary,
+  PhoneWebcamCapability,
+  ScreenViewCapability,
+} from "../../foundation/protocol/messages";
 
 export type ThemeMode = "system" | "light" | "dark";
-export type SettingsSection = "connection" | "custom-pointer" | "trackpad" | "keyboard" | "split" | "remote" | "appearance" | "app";
+export type SettingsSection =
+  | "connection"
+  | "custom-pointer"
+  | "trackpad"
+  | "keyboard"
+  | "split"
+  | "remote"
+  | "appearance"
+  | "app";
 export type SettingsModeId = "trackpad" | "keyboard" | "remote" | FourthMode;
 
 export interface SettingsToolOption {
@@ -69,8 +81,17 @@ export interface SettingsDrawerProps {
   toolOptions: readonly SettingsToolOption[];
   trackpadSettings: TrackpadSettings;
   updateAppSetting: <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => void;
-  updateKeyboardSetting: <Key extends keyof KeyboardSettings>(key: Key, value: KeyboardSettings[Key]) => void;
-  updateRemoteSetting: <Key extends keyof RemoteSettings>(key: Key, value: RemoteSettings[Key]) => void;
-  updateTrackpadSetting: <Key extends keyof TrackpadSettings>(key: Key, value: TrackpadSettings[Key]) => void;
+  updateKeyboardSetting: <Key extends keyof KeyboardSettings>(
+    key: Key,
+    value: KeyboardSettings[Key],
+  ) => void;
+  updateRemoteSetting: <Key extends keyof RemoteSettings>(
+    key: Key,
+    value: RemoteSettings[Key],
+  ) => void;
+  updateTrackpadSetting: <Key extends keyof TrackpadSettings>(
+    key: Key,
+    value: TrackpadSettings[Key],
+  ) => void;
   usesLivePairingQr: boolean;
 }

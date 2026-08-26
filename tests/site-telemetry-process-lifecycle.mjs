@@ -34,10 +34,7 @@ export async function waitForChildClose(child, timeoutMs, label) {
   }
 }
 
-export async function terminateChild(child, {
-  timeoutMs = 3000,
-  label = "Child process",
-} = {}) {
+export async function terminateChild(child, { timeoutMs = 3000, label = "Child process" } = {}) {
   const state = trackChild(child);
   if (state.closed) return state.code;
 
@@ -61,11 +58,10 @@ export async function terminateChild(child, {
   }
 }
 
-export async function stopFixtureHolder(holder, {
-  cleanupTimeoutMs = 15000,
-  terminationTimeoutMs = 3000,
-  forceCleanup,
-} = {}) {
+export async function stopFixtureHolder(
+  holder,
+  { cleanupTimeoutMs = 15000, terminationTimeoutMs = 3000, forceCleanup } = {},
+) {
   const state = trackChild(holder.child);
   let normalCleanupError = null;
   if (!state.closed) {
@@ -81,18 +77,20 @@ export async function stopFixtureHolder(holder, {
       }
       normalCleanupError = new Error(
         `Telemetry test-table cleanup failed with ${exitCode}. ` +
-        `${(holder.errors.join("") || holder.output.join("")).slice(-2000)}`,
+          `${(holder.errors.join("") || holder.output.join("")).slice(-2000)}`,
       );
     } catch (error) {
       normalCleanupError = error;
     }
-  } else if (holder.child.exitCode === 0 &&
-      holder.output.join("").includes("TELEMETRY_TEST_TABLES_REMOVED")) {
+  } else if (
+    holder.child.exitCode === 0 &&
+    holder.output.join("").includes("TELEMETRY_TEST_TABLES_REMOVED")
+  ) {
     return;
   } else {
     normalCleanupError = new Error(
       `Telemetry test-table holder exited before cleanup. ` +
-      `${(holder.errors.join("") || holder.output.join("")).slice(-2000)}`,
+        `${(holder.errors.join("") || holder.output.join("")).slice(-2000)}`,
     );
   }
 

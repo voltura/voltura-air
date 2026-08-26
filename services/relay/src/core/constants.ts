@@ -18,5 +18,5 @@ export const relayClose = {
   conflict: 4409,
   tooLarge: 4409,
   unavailable: 4410,
-  overloaded: 4413
+  overloaded: 4413,
 } as const;

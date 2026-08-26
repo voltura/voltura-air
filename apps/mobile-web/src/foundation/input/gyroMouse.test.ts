@@ -4,31 +4,64 @@ import { GyroMotionProcessor, requestGyroPermission } from "./gyroMouse";
 describe("gyro mouse sensor processing", () => {
   it("rejects non-finite motion and accepts valid stationary readings", () => {
     const processor = new GyroMotionProcessor();
-    expect(processor.motion(motion({ alpha: Number.NaN, beta: 0, gamma: 0 }, 10), 0, 1, true)).toBeNull();
-    expect(processor.motion(motion({ alpha: 0, beta: 0, gamma: Number.NaN }, 10), 0, 1, true)).toBeNull();
-    expect(processor.motion(motion({ alpha: 0, beta: 0, gamma: Number.POSITIVE_INFINITY }, 10), 0, 1, true)).toBeNull();
-    expect(processor.motion(motion({ alpha: 0, beta: 0, gamma: 0 }, 10), 0, 1, false)).toEqual({ dx: 0, dy: 0 });
+    expect(
+      processor.motion(motion({ alpha: Number.NaN, beta: 0, gamma: 0 }, 10), 0, 1, true),
+    ).toBeNull();
+    expect(
+      processor.motion(motion({ alpha: 0, beta: 0, gamma: Number.NaN }, 10), 0, 1, true),
+    ).toBeNull();
+    expect(
+      processor.motion(
+        motion({ alpha: 0, beta: 0, gamma: Number.POSITIVE_INFINITY }, 10),
+        0,
+        1,
+        true,
+      ),
+    ).toBeNull();
+    expect(processor.motion(motion({ alpha: 0, beta: 0, gamma: 0 }, 10), 0, 1, false)).toEqual({
+      dx: 0,
+      dy: 0,
+    });
   });
 
   it("distinguishes unavailable required axes from numeric stationary zero", () => {
     const current = new GyroMotionProcessor();
-    expect(current.motion(motion({ alpha: null, beta: null, gamma: null }, 10), 0, 1, true)).toBeNull();
-    expect(current.motion(motion({ alpha: 0, beta: null, gamma: null }, 20), 0, 1, true)).toBeNull();
-    expect(current.motion(motion({ alpha: null, beta: null, gamma: 0 }, 30), 0, 1, true)).toBeNull();
-    expect(current.motion(motion({ alpha: 0, beta: null, gamma: 0 }, 40), 0, 1, false)).toEqual({ dx: 0, dy: 0 });
+    expect(
+      current.motion(motion({ alpha: null, beta: null, gamma: null }, 10), 0, 1, true),
+    ).toBeNull();
+    expect(
+      current.motion(motion({ alpha: 0, beta: null, gamma: null }, 20), 0, 1, true),
+    ).toBeNull();
+    expect(
+      current.motion(motion({ alpha: null, beta: null, gamma: 0 }, 30), 0, 1, true),
+    ).toBeNull();
+    expect(current.motion(motion({ alpha: 0, beta: null, gamma: 0 }, 40), 0, 1, false)).toEqual({
+      dx: 0,
+      dy: 0,
+    });
 
     const legacy = new GyroMotionProcessor();
     legacy.setRotationRateConvention("legacy", true);
-    expect(legacy.motion(motion({ alpha: null, beta: null, gamma: null }, 10), 0, 1, true)).toBeNull();
+    expect(
+      legacy.motion(motion({ alpha: null, beta: null, gamma: null }, 10), 0, 1, true),
+    ).toBeNull();
     expect(legacy.motion(motion({ alpha: 0, beta: null, gamma: null }, 20), 0, 1, true)).toBeNull();
     expect(legacy.motion(motion({ alpha: null, beta: 0, gamma: null }, 30), 0, 1, true)).toBeNull();
-    expect(legacy.motion(motion({ alpha: 0, beta: 0, gamma: null }, 40), 0, 1, false)).toEqual({ dx: 0, dy: 0 });
+    expect(legacy.motion(motion({ alpha: 0, beta: 0, gamma: null }, 40), 0, 1, false)).toEqual({
+      dx: 0,
+      dy: 0,
+    });
   });
 
   it("accepts current-convention pointing axes when the unused twist axis is unavailable", () => {
     const processor = new GyroMotionProcessor();
     processor.motion(motion({ alpha: 0, beta: Number.NaN, gamma: 30 }, 0), 0, 1, true);
-    const delta = processor.motion(motion({ alpha: 0, beta: Number.NaN, gamma: 30 }, 20), 0, 1, true)!;
+    const delta = processor.motion(
+      motion({ alpha: 0, beta: Number.NaN, gamma: 30 }, 20),
+      0,
+      1,
+      true,
+    )!;
     expect(delta.dx).toBeGreaterThan(0);
     expect(Number.isFinite(delta.dy)).toBe(true);
   });
@@ -70,7 +103,7 @@ describe("gyro mouse sensor processing", () => {
       [aimUp, { alpha: -30, beta: 0, gamma: 0 }],
       [aimDown, { alpha: 30, beta: 0, gamma: 0 }],
       [aimLeft, { alpha: 0, beta: 0, gamma: -30 }],
-      [aimRight, { alpha: 0, beta: 0, gamma: 30 }]
+      [aimRight, { alpha: 0, beta: 0, gamma: 30 }],
     ] as const;
     for (const [processor, rate] of cases) {
       processor.motion(motion(rate, 0, gravity), 0, 1, true);
@@ -78,8 +111,18 @@ describe("gyro mouse sensor processing", () => {
     }
     const up = aimUp.motion(motion({ alpha: -30, beta: 0, gamma: 0 }, 40, gravity), 0, 1, true)!;
     const down = aimDown.motion(motion({ alpha: 30, beta: 0, gamma: 0 }, 40, gravity), 0, 1, true)!;
-    const left = aimLeft.motion(motion({ alpha: 0, beta: 0, gamma: -30 }, 40, gravity), 0, 1, true)!;
-    const right = aimRight.motion(motion({ alpha: 0, beta: 0, gamma: 30 }, 40, gravity), 0, 1, true)!;
+    const left = aimLeft.motion(
+      motion({ alpha: 0, beta: 0, gamma: -30 }, 40, gravity),
+      0,
+      1,
+      true,
+    )!;
+    const right = aimRight.motion(
+      motion({ alpha: 0, beta: 0, gamma: 30 }, 40, gravity),
+      0,
+      1,
+      true,
+    )!;
     expect(up.dy).toBeLessThan(0);
     expect(Math.abs(up.dx)).toBeLessThan(0.001);
     expect(down.dy).toBeGreaterThan(0);
@@ -122,13 +165,30 @@ describe("gyro mouse sensor processing", () => {
     for (let index = 0; index < 20; index += 1) {
       processor.motion(motion({ alpha: 0, beta: 0, gamma: 4 }, index * 16), 0, 1, false);
     }
-    expect(Math.abs(processor.motion(motion({ alpha: 0, beta: 0, gamma: 4 }, 400), 0, 1, true)!.dx)).toBeGreaterThan(0);
+    expect(
+      Math.abs(processor.motion(motion({ alpha: 0, beta: 0, gamma: 4 }, 400), 0, 1, true)!.dx),
+    ).toBeGreaterThan(0);
   });
 
   it.each([
-    ["portrait", { x: 0, y: 0, z: 9.8 }, { alpha: 20, beta: 0, gamma: 0 }, { alpha: 0, beta: -20, gamma: 0 }],
-    ["landscape right", { x: 9.8, y: 0, z: 0 }, { alpha: 0, beta: 20, gamma: 0 }, { alpha: 20, beta: 0, gamma: 0 }],
-    ["landscape left", { x: -9.8, y: 0, z: 0 }, { alpha: 0, beta: -20, gamma: 0 }, { alpha: -20, beta: 0, gamma: 0 }]
+    [
+      "portrait",
+      { x: 0, y: 0, z: 9.8 },
+      { alpha: 20, beta: 0, gamma: 0 },
+      { alpha: 0, beta: -20, gamma: 0 },
+    ],
+    [
+      "landscape right",
+      { x: 9.8, y: 0, z: 0 },
+      { alpha: 0, beta: 20, gamma: 0 },
+      { alpha: 20, beta: 0, gamma: 0 },
+    ],
+    [
+      "landscape left",
+      { x: -9.8, y: 0, z: 0 },
+      { alpha: 0, beta: -20, gamma: 0 },
+      { alpha: -20, beta: 0, gamma: 0 },
+    ],
   ])("keeps physical aim axes in %s", (_posture, gravity, aimRight, aimUp) => {
     const horizontal = new GyroMotionProcessor();
     const vertical = new GyroMotionProcessor();
@@ -186,14 +246,22 @@ describe("gyro mouse sensor processing", () => {
     processor.resetMapping();
 
     processor.motion(motion({ alpha: 0, beta: 0, gamma: 20 }, 140), 0, 1, true);
-    const currentDelta = processor.motion(motion({ alpha: 0, beta: 0, gamma: 20 }, 160), 0, 1, true)!;
+    const currentDelta = processor.motion(
+      motion({ alpha: 0, beta: 0, gamma: 20 }, 160),
+      0,
+      1,
+      true,
+    )!;
     expect(currentDelta.dx).toBeGreaterThan(0);
   });
 
   it("treats a suspended orientation gap as a new baseline", () => {
     const processor = new GyroMotionProcessor();
     processor.orientation(orientation(0, 0, 0, 0), 0, 1, true);
-    expect(processor.orientation(orientation(0, 0, 45, 2000), 0, 1, true)).toEqual({ dx: 0, dy: 0 });
+    expect(processor.orientation(orientation(0, 0, 45, 2000), 0, 1, true)).toEqual({
+      dx: 0,
+      dy: 0,
+    });
   });
 
   it("accepts low-frequency orientation fallback and isolates calibration from motion smoothing", () => {
@@ -208,7 +276,12 @@ describe("gyro mouse sensor processing", () => {
     calibrated.orientation(orientation(0, 0, 0, 0), 0, 1, true, false);
     calibrated.orientation(orientation(0, 0, 8, 20), 0, 1, true, false);
     const plainDelta = plain.motion(motion({ alpha: 0, beta: 20, gamma: 0 }, 40), 0, 1, true)!;
-    const calibratedDelta = calibrated.motion(motion({ alpha: 0, beta: 20, gamma: 0 }, 40), 0, 1, true)!;
+    const calibratedDelta = calibrated.motion(
+      motion({ alpha: 0, beta: 20, gamma: 0 }, 40),
+      0,
+      1,
+      true,
+    )!;
     expect(calibratedDelta.dx).toBeCloseTo(plainDelta.dx);
   });
 });
@@ -219,16 +292,41 @@ describe("gyro permission", () => {
   const originalOrientation = window.DeviceOrientationEvent;
 
   afterEach(() => {
-    Object.defineProperty(window, "isSecureContext", { configurable: true, value: originalSecureContext });
-    Object.defineProperty(window, "DeviceMotionEvent", { configurable: true, value: originalMotion });
-    Object.defineProperty(window, "DeviceOrientationEvent", { configurable: true, value: originalOrientation });
+    Object.defineProperty(window, "isSecureContext", {
+      configurable: true,
+      value: originalSecureContext,
+    });
+    Object.defineProperty(window, "DeviceMotionEvent", {
+      configurable: true,
+      value: originalMotion,
+    });
+    Object.defineProperty(window, "DeviceOrientationEvent", {
+      configurable: true,
+      value: originalOrientation,
+    });
   });
 
   it("requests both browser permissions in the initiating call", async () => {
     const calls: string[] = [];
     Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
-    Object.defineProperty(window, "DeviceMotionEvent", { configurable: true, value: { requestPermission: vi.fn(() => { calls.push("motion"); return Promise.resolve("granted"); }) } });
-    Object.defineProperty(window, "DeviceOrientationEvent", { configurable: true, value: { requestPermission: vi.fn(() => { calls.push("orientation"); return Promise.resolve("granted"); }) } });
+    Object.defineProperty(window, "DeviceMotionEvent", {
+      configurable: true,
+      value: {
+        requestPermission: vi.fn(() => {
+          calls.push("motion");
+          return Promise.resolve("granted");
+        }),
+      },
+    });
+    Object.defineProperty(window, "DeviceOrientationEvent", {
+      configurable: true,
+      value: {
+        requestPermission: vi.fn(() => {
+          calls.push("orientation");
+          return Promise.resolve("granted");
+        }),
+      },
+    });
     const result = requestGyroPermission();
     expect(calls).toEqual(["motion", "orientation"]);
     await expect(result).resolves.toBe(true);
@@ -236,16 +334,32 @@ describe("gyro permission", () => {
 
   it("reports denial and rejected permission promises", async () => {
     Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
-    Object.defineProperty(window, "DeviceMotionEvent", { configurable: true, value: { requestPermission: () => Promise.resolve("denied") } });
-    Object.defineProperty(window, "DeviceOrientationEvent", { configurable: true, value: { requestPermission: () => Promise.reject(new Error("blocked")) } });
+    Object.defineProperty(window, "DeviceMotionEvent", {
+      configurable: true,
+      value: { requestPermission: () => Promise.resolve("denied") },
+    });
+    Object.defineProperty(window, "DeviceOrientationEvent", {
+      configurable: true,
+      value: { requestPermission: () => Promise.reject(new Error("blocked")) },
+    });
     await expect(requestGyroPermission()).resolves.toBe(false);
   });
 
   it("still requests orientation when the motion permission method throws synchronously", async () => {
     const orientationPermission = vi.fn(() => Promise.resolve("granted" as const));
     Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
-    Object.defineProperty(window, "DeviceMotionEvent", { configurable: true, value: { requestPermission: () => { throw new Error("blocked"); } } });
-    Object.defineProperty(window, "DeviceOrientationEvent", { configurable: true, value: { requestPermission: orientationPermission } });
+    Object.defineProperty(window, "DeviceMotionEvent", {
+      configurable: true,
+      value: {
+        requestPermission: () => {
+          throw new Error("blocked");
+        },
+      },
+    });
+    Object.defineProperty(window, "DeviceOrientationEvent", {
+      configurable: true,
+      value: { requestPermission: orientationPermission },
+    });
     await expect(requestGyroPermission()).resolves.toBe(false);
     expect(orientationPermission).toHaveBeenCalledOnce();
   });
@@ -254,12 +368,18 @@ describe("gyro permission", () => {
 function motion(
   rotationRate: { alpha: number | null; beta: number | null; gamma: number | null },
   timeStamp: number,
-  gravity: number | { x: number; y: number; z: number } = 9.8
+  gravity: number | { x: number; y: number; z: number } = 9.8,
 ): DeviceMotionEvent {
-  const accelerationIncludingGravity = typeof gravity === "number" ? { x: 0, y: 0, z: gravity } : gravity;
+  const accelerationIncludingGravity =
+    typeof gravity === "number" ? { x: 0, y: 0, z: gravity } : gravity;
   return { accelerationIncludingGravity, rotationRate, timeStamp } as DeviceMotionEvent;
 }
 
-function orientation(alpha: number, beta: number, gamma: number, timeStamp = 0): DeviceOrientationEvent {
+function orientation(
+  alpha: number,
+  beta: number,
+  gamma: number,
+  timeStamp = 0,
+): DeviceOrientationEvent {
   return { alpha, beta, gamma, timeStamp } as DeviceOrientationEvent;
 }

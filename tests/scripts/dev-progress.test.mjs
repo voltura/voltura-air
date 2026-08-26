@@ -8,9 +8,13 @@ test("quick development progress separates timed startup steps", () => {
   const times = [0, 0, 0, 65_000];
   const progress = createDevProgress({
     totalSteps: 3,
-    stream: { write: (value) => { output += value; } },
+    stream: {
+      write: (value) => {
+        output += value;
+      },
+    },
     clock: () => times.shift() ?? 65_000,
-    useColor: false
+    useColor: false,
   });
 
   progress.start("Building mobile client", "Rebuilding without validation.");
@@ -27,8 +31,12 @@ test("quick development readiness reports host and total startup time", () => {
   writeDevReady({
     stepDurationMilliseconds: 65_000,
     totalDurationMilliseconds: 125_000,
-    stream: { write: (value) => { output += value; } },
-    useColor: false
+    stream: {
+      write: (value) => {
+        output += value;
+      },
+    },
+    useColor: false,
   });
 
   assert.match(output, /Step 3 completed in 1m 05s/u);

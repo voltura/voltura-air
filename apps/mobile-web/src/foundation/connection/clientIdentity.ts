@@ -38,7 +38,12 @@ export function hasPcUrlInAddress(source: string): boolean {
 
 function normalizeClientId(value: string | null): string | null {
   const trimmed = value?.trim();
-  if (!trimmed || trimmed.length < 8 || trimmed.length > 128 || !/^[a-zA-Z0-9._:-]+$/.test(trimmed)) {
+  if (
+    !trimmed ||
+    trimmed.length < 8 ||
+    trimmed.length > 128 ||
+    !/^[a-zA-Z0-9._:-]+$/.test(trimmed)
+  ) {
     return null;
   }
 
@@ -66,7 +71,10 @@ export function ensureClientMetadataInAddress(clientId: string, deviceName: stri
       return;
     }
     const normalizedDeviceName = deviceName.trim() || getDefaultDeviceName();
-    if (url.searchParams.get(clientIdQueryParam) === clientId && url.searchParams.get(deviceNameQueryParam) === normalizedDeviceName) {
+    if (
+      url.searchParams.get(clientIdQueryParam) === clientId &&
+      url.searchParams.get(deviceNameQueryParam) === normalizedDeviceName
+    ) {
       return;
     }
 

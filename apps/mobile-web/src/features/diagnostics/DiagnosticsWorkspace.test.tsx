@@ -2,7 +2,11 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { copyTextToClipboard } from "../../foundation/diagnostics/mobileDiagnostics";
 import type { MobileHostDiagnosticsSnapshot } from "../../foundation/protocol/messages";
-import { buildDiagnosticsGroups, buildDiagnosticsText, DiagnosticsWorkspace } from "./DiagnosticsWorkspace";
+import {
+  buildDiagnosticsGroups,
+  buildDiagnosticsText,
+  DiagnosticsWorkspace,
+} from "./DiagnosticsWorkspace";
 
 vi.mock("../../foundation/diagnostics/mobileDiagnostics", () => ({ copyTextToClipboard: vi.fn() }));
 
@@ -24,7 +28,9 @@ const snapshot: MobileHostDiagnosticsSnapshot = {
   selectedAdapter: "Ethernet",
   selectedIp: "192.168.1.10",
   selectedPort: 51395,
-  advisories: [{ name: "Network advisory", summary: "Ready", details: "No issue found", code: "none" }],
+  advisories: [
+    { name: "Network advisory", summary: "Ready", details: "No issue found", code: "none" },
+  ],
   computer: {
     windows: "Windows 11 Pro, version 24H2, build 26100",
     system: "Example Model",
@@ -34,8 +40,8 @@ const snapshot: MobileHostDiagnosticsSnapshot = {
     installedMemory: "16.0 GiB",
     availableMemory: "8.0 GiB",
     systemDisk: "500.0 GiB total, 200.0 GiB free",
-    systemUptime: "1d 2h 3m"
-  }
+    systemUptime: "1d 2h 3m",
+  },
 };
 
 const baseProps = {
@@ -46,22 +52,59 @@ const baseProps = {
   failure: null,
   requestDiagnostics: vi.fn(() => "operation"),
   onBack: vi.fn(),
-  onCopyFeedback: vi.fn()
+  onCopyFeedback: vi.fn(),
 };
 
 describe("DiagnosticsWorkspace", () => {
   beforeEach(() => {
     vi.stubGlobal("__APP_VERSION__", "web-test");
-    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false })));
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: false })),
+    );
     vi.mocked(copyTextToClipboard).mockReset().mockResolvedValue("copied");
     baseProps.onCopyFeedback.mockReset();
   });
 
   it.each([
-    ["disconnected", { state: "disconnected" as const, permission: undefined, snapshot: null, pending: false, failure: null }, "Connect to a PC"],
-    ["blocked", { state: "paired" as const, permission: false, snapshot: null, pending: false, failure: null }, "View diagnostics is blocked"],
-    ["loading", { state: "paired" as const, permission: true, snapshot: null, pending: true, failure: null }, "Loading PC diagnostics"],
-    ["failure", { state: "paired" as const, permission: true, snapshot: null, pending: false, failure: { code: "diagnostics-unavailable", message: "Try again." } }, "Try again."]
+    [
+      "disconnected",
+      {
+        state: "disconnected" as const,
+        permission: undefined,
+        snapshot: null,
+        pending: false,
+        failure: null,
+      },
+      "Connect to a PC",
+    ],
+    [
+      "blocked",
+      {
+        state: "paired" as const,
+        permission: false,
+        snapshot: null,
+        pending: false,
+        failure: null,
+      },
+      "View diagnostics is blocked",
+    ],
+    [
+      "loading",
+      { state: "paired" as const, permission: true, snapshot: null, pending: true, failure: null },
+      "Loading PC diagnostics",
+    ],
+    [
+      "failure",
+      {
+        state: "paired" as const,
+        permission: true,
+        snapshot: null,
+        pending: false,
+        failure: { code: "diagnostics-unavailable", message: "Try again." },
+      },
+      "Try again.",
+    ],
   ])("renders the %s state", (_name, overrides, expected) => {
     render(<DiagnosticsWorkspace {...baseProps} {...overrides} />);
     expect(screen.getByText(new RegExp(expected))).toBeTruthy();
@@ -78,7 +121,9 @@ describe("DiagnosticsWorkspace", () => {
     render(<DiagnosticsWorkspace {...baseProps} />);
     fireEvent.click(screen.getByRole("button", { name: "Copy Primary display" }));
     await waitFor(() => {
-      expect(copyTextToClipboard).toHaveBeenCalledExactlyOnceWith("Primary display: 3840 × 2160 at 60 Hz");
+      expect(copyTextToClipboard).toHaveBeenCalledExactlyOnceWith(
+        "Primary display: 3840 × 2160 at 60 Hz",
+      );
     });
     expect(baseProps.onCopyFeedback).toHaveBeenCalledWith("Primary display copied.", "success");
   });
@@ -87,8 +132,12 @@ describe("DiagnosticsWorkspace", () => {
     render(<DiagnosticsWorkspace {...baseProps} />);
     fireEvent.click(screen.getByRole("button", { name: "Copy all" }));
 
-    const expected = buildDiagnosticsText(buildDiagnosticsGroups("paired", snapshot).flatMap((group) => group.rows));
-    await waitFor(() => { expect(copyTextToClipboard).toHaveBeenCalledExactlyOnceWith(expected); });
+    const expected = buildDiagnosticsText(
+      buildDiagnosticsGroups("paired", snapshot).flatMap((group) => group.rows),
+    );
+    await waitFor(() => {
+      expect(copyTextToClipboard).toHaveBeenCalledExactlyOnceWith(expected);
+    });
     expect(expected).not.toContain("C:\\Users");
     expect(expected).not.toContain("WebSocket");
     expect(expected).not.toContain("Other device");
@@ -106,7 +155,13 @@ describe("DiagnosticsWorkspace", () => {
 
   it("requests once on open and once for an explicit refresh", () => {
     const requestDiagnostics = vi.fn(() => "operation");
-    const { rerender } = render(<DiagnosticsWorkspace {...baseProps} requestDiagnostics={requestDiagnostics} snapshot={null} />);
+    const { rerender } = render(
+      <DiagnosticsWorkspace
+        {...baseProps}
+        requestDiagnostics={requestDiagnostics}
+        snapshot={null}
+      />,
+    );
     expect(requestDiagnostics).toHaveBeenCalledOnce();
 
     rerender(<DiagnosticsWorkspace {...baseProps} requestDiagnostics={requestDiagnostics} />);

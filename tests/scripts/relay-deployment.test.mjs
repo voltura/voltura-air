@@ -57,7 +57,10 @@ test("standalone composition builds from the workspace and exposes only bounded 
   assert.match(composition, /"49160-49200:49160-49200\/udp"/u);
   assert.match(composition, /--external-ip=\$\{TURN_PUBLIC_IP:/u);
   assert.match(composition, /TURN_PUBLIC_IP: "\$\{TURN_PUBLIC_IP:/u);
-  assert.match(composition, /coturn:[\s\S]*depends_on:[\s\S]*relay:[\s\S]*condition: service_healthy/u);
+  assert.match(
+    composition,
+    /coturn:[\s\S]*depends_on:[\s\S]*relay:[\s\S]*condition: service_healthy/u,
+  );
   assert.match(environment, /^TURN_PUBLIC_IP=/mu);
   assert.match(edge, /proxy_set_header X-Forwarded-For \$remote_addr;/u);
   assert.doesNotMatch(composition, /"8787:8787"/u);

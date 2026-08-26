@@ -5,27 +5,21 @@ import type * as PairingFeedbackModule from "../../foundation/pairing/pairingFee
 import { PairingStatus } from "./PairingStatus";
 
 vi.mock("../../foundation/diagnostics/mobileDiagnostics", () => ({
-  copyTextToClipboard: vi.fn()
+  copyTextToClipboard: vi.fn(),
 }));
 
 vi.mock("../../foundation/pairing/pairingFeedback", async (importOriginal) => {
   const actual = await importOriginal<typeof PairingFeedbackModule>();
   return {
     ...actual,
-    buildPairingDiagnostics: vi.fn(() => "redacted diagnostics")
+    buildPairingDiagnostics: vi.fn(() => "redacted diagnostics"),
   };
 });
 
 describe("PairingStatus", () => {
   it("renders the complete blocking error message without a truncating text treatment", () => {
     const message = "PC identity check failed. Scan a fresh QR code from the PC.";
-    render(
-      <PairingStatus
-        blocksAppInteraction
-        message={message}
-        onPrimaryAction={vi.fn()}
-      />
-    );
+    render(<PairingStatus blocksAppInteraction message={message} onPrimaryAction={vi.fn()} />);
 
     const description = screen.getByText(message);
     expect(description.textContent).toBe(message);
@@ -41,7 +35,7 @@ describe("PairingStatus", () => {
         message="Confirm the device name"
         onDeviceNameChange={onDeviceNameChange}
         onPrimaryAction={vi.fn()}
-      />
+      />,
     );
 
     const input = screen.getByRole("textbox", { name: "Device name" });
@@ -54,11 +48,7 @@ describe("PairingStatus", () => {
 
   it("keeps keyboard focus inside blocking connection feedback", () => {
     render(
-      <PairingStatus
-        activePcUnavailable
-        message="PC is not available"
-        onPrimaryAction={vi.fn()}
-      />
+      <PairingStatus activePcUnavailable message="PC is not available" onPrimaryAction={vi.fn()} />,
     );
 
     const heading = screen.getByRole("heading", { name: "PC not available" });
@@ -81,7 +71,7 @@ describe("PairingStatus", () => {
         message="PC is not available. Retrying..."
         onPrimaryAction={vi.fn()}
         transportMode="relay"
-      />
+      />,
     );
 
     expect(screen.getByRole("heading", { name: "Relay connection unavailable" })).toBeTruthy();
@@ -101,10 +91,10 @@ describe("PairingStatus", () => {
         onSavedPcChange={vi.fn()}
         savedPcOptions={[
           { id: "pc-a", label: "Office PC" },
-          { id: "pc-b", label: "Living Room PC" }
+          { id: "pc-b", label: "Living Room PC" },
         ]}
         selectedSavedPcId="pc-a"
-      />
+      />,
     );
 
     const savedPcSelect = screen.getByRole("combobox", { name: "Saved PC" });
@@ -129,10 +119,12 @@ describe("PairingStatus", () => {
         secondaryLabel="Scan QR code"
         selectedSavedPcId="pc-a"
         usesLivePairingQr
-      />
+      />,
     );
 
-    expect(screen.getByText("Reconnect to Office PC, or pair another PC by scanning its QR code.")).toBeTruthy();
+    expect(
+      screen.getByText("Reconnect to Office PC, or pair another PC by scanning its QR code."),
+    ).toBeTruthy();
   });
 
   it("keeps the primary action focused and bounded through reconnect progress", () => {
@@ -143,7 +135,7 @@ describe("PairingStatus", () => {
         message="PC is not available"
         onPrimaryAction={onPrimaryAction}
         pcName="Living Room PC"
-      />
+      />,
     );
 
     const initialAction = screen.getByRole("button", { name: "Try reconnect" });
@@ -157,7 +149,7 @@ describe("PairingStatus", () => {
         message="Connecting"
         onPrimaryAction={onPrimaryAction}
         pcName="Living Room PC"
-      />
+      />,
     );
 
     const reconnectingAction = screen.getByRole("button", { name: "Reconnecting…" });
@@ -174,7 +166,7 @@ describe("PairingStatus", () => {
         message="Connected"
         onPrimaryAction={onPrimaryAction}
         pcName="Living Room PC"
-      />
+      />,
     );
 
     const connectedAction = screen.getByRole("button", { name: "Connected" });
@@ -193,7 +185,7 @@ describe("PairingStatus", () => {
         message="Reading QR code..."
         onPrimaryAction={onPrimaryAction}
         primaryActionPending
-      />
+      />,
     );
 
     const action = screen.getByRole("button", { name: "Reading QR code…" });
@@ -207,11 +199,7 @@ describe("PairingStatus", () => {
     vi.mocked(copyTextToClipboard).mockResolvedValueOnce("copied");
 
     render(
-      <PairingStatus
-        activePcUnavailable
-        message="PC is not available"
-        onPrimaryAction={vi.fn()}
-      />
+      <PairingStatus activePcUnavailable message="PC is not available" onPrimaryAction={vi.fn()} />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Copy diagnostics" }));
@@ -219,7 +207,11 @@ describe("PairingStatus", () => {
     await waitFor(() => {
       expect(document.querySelector(".app-toast.success")?.textContent).toBe("Diagnostics copied.");
     });
-    expect(screen.queryByText("Could not copy automatically. Select the diagnostics below and copy manually.")).toBeNull();
+    expect(
+      screen.queryByText(
+        "Could not copy automatically. Select the diagnostics below and copy manually.",
+      ),
+    ).toBeNull();
   });
 
   it("keeps invalid manual input and does not pass it to the connection controller", () => {
@@ -230,7 +222,7 @@ describe("PairingStatus", () => {
         message="PC is not available"
         onManualHostSubmit={onManualHostSubmit}
         onPrimaryAction={vi.fn()}
-      />
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Enter host manually" }));
@@ -241,7 +233,9 @@ describe("PairingStatus", () => {
     expect(onManualHostSubmit).not.toHaveBeenCalled();
     expect((input as HTMLInputElement).value).toBe("https://pc.local:51395/path");
     expect(input.getAttribute("aria-invalid")).toBe("true");
-    expect(screen.getByRole("alert").textContent).toBe("Host addresses cannot include a path, query, or fragment.");
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Host addresses cannot include a path, query, or fragment.",
+    );
   });
 
   it("keeps recovery labels stable and presents manual host entry as a dismissible dialog", () => {
@@ -251,16 +245,20 @@ describe("PairingStatus", () => {
         message="PC is not available"
         onManualHostSubmit={vi.fn()}
         onPrimaryAction={vi.fn()}
-      />
+      />,
     );
 
     const trigger = screen.getByRole("button", { name: "Enter host manually" });
     trigger.focus();
     fireEvent.click(trigger);
 
-    expect(screen.getByRole("button", { name: "Enter host manually" }).textContent).toBe("Enter host manually");
+    expect(screen.getByRole("button", { name: "Enter host manually" }).textContent).toBe(
+      "Enter host manually",
+    );
     expect(screen.getByRole("dialog", { name: "Enter host manually" })).toBeTruthy();
-    expect(screen.getByRole("textbox", { name: "Host or pairing link" })).toBe(document.activeElement);
+    expect(screen.getByRole("textbox", { name: "Host or pairing link" })).toBe(
+      document.activeElement,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog", { name: "Enter host manually" })).toBeNull();
@@ -271,24 +269,25 @@ describe("PairingStatus", () => {
     expect(screen.queryByRole("dialog", { name: "Enter host manually" })).toBeNull();
 
     fireEvent.click(trigger);
-    fireEvent.click(screen.getByRole("dialog", { name: "Enter host manually" }), { clientX: -1, clientY: -1 });
+    fireEvent.click(screen.getByRole("dialog", { name: "Enter host manually" }), {
+      clientX: -1,
+      clientY: -1,
+    });
     expect(screen.queryByRole("dialog", { name: "Enter host manually" })).toBeNull();
   });
 
   it("presents troubleshooting as an information dialog with a stable trigger", () => {
     render(
-      <PairingStatus
-        activePcUnavailable
-        message="PC is not available"
-        onPrimaryAction={vi.fn()}
-      />
+      <PairingStatus activePcUnavailable message="PC is not available" onPrimaryAction={vi.fn()} />,
     );
 
     const trigger = screen.getByRole("button", { name: "Open troubleshooting help" });
     trigger.focus();
     fireEvent.click(trigger);
 
-    expect(screen.getByRole("button", { name: "Open troubleshooting help" }).textContent).toBe("Open troubleshooting help");
+    expect(screen.getByRole("button", { name: "Open troubleshooting help" }).textContent).toBe(
+      "Open troubleshooting help",
+    );
     expect(screen.getByRole("dialog", { name: "Troubleshooting help" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "OK" })).toBe(document.activeElement);
 

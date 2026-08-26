@@ -9,20 +9,42 @@ class MockSignalingSocket extends EventTarget {
   static readonly CLOSED = 3;
   readyState = MockSignalingSocket.CONNECTING;
   sent: string[] = [];
-  constructor(readonly url: string | URL) { super(); MockSignalingSocket.instances.push(this); }
-  send(value: string) { this.sent.push(value); }
-  close() { this.readyState = MockSignalingSocket.CLOSED; this.dispatchEvent(new CloseEvent("close")); }
-  open() { this.readyState = MockSignalingSocket.OPEN; this.dispatchEvent(new Event("open")); }
-  message(value: string) { this.dispatchEvent(new MessageEvent("message", { data: value })); }
+  constructor(readonly url: string | URL) {
+    super();
+    MockSignalingSocket.instances.push(this);
+  }
+  send(value: string) {
+    this.sent.push(value);
+  }
+  close() {
+    this.readyState = MockSignalingSocket.CLOSED;
+    this.dispatchEvent(new CloseEvent("close"));
+  }
+  open() {
+    this.readyState = MockSignalingSocket.OPEN;
+    this.dispatchEvent(new Event("open"));
+  }
+  message(value: string) {
+    this.dispatchEvent(new MessageEvent("message", { data: value }));
+  }
 }
 
 class MockDataChannel extends EventTarget {
   binaryType: BinaryType = "blob";
   readyState: RTCDataChannelState = "connecting";
   closed = false;
-  constructor(readonly label: string) { super(); }
-  close() { this.closed = true; this.readyState = "closed"; this.dispatchEvent(new Event("close")); }
-  open() { this.readyState = "open"; this.dispatchEvent(new Event("open")); }
+  constructor(readonly label: string) {
+    super();
+  }
+  close() {
+    this.closed = true;
+    this.readyState = "closed";
+    this.dispatchEvent(new Event("close"));
+  }
+  open() {
+    this.readyState = "open";
+    this.dispatchEvent(new Event("open"));
+  }
 }
 
 class MockPeerConnection extends EventTarget {
@@ -31,11 +53,23 @@ class MockPeerConnection extends EventTarget {
   iceGatheringState: RTCIceGatheringState = "complete";
   localDescription: RTCSessionDescriptionInit | null = null;
   closed = false;
-  constructor(readonly configuration: RTCConfiguration) { super(); MockPeerConnection.instances.push(this); }
-  setRemoteDescription() { return Promise.resolve(); }
-  createAnswer(): Promise<RTCSessionDescriptionInit> { return Promise.resolve({ type: "answer", sdp: "v=0\r\n" }); }
-  setLocalDescription(description: RTCSessionDescriptionInit) { this.localDescription = description; return Promise.resolve(); }
-  close() { this.closed = true; }
+  constructor(readonly configuration: RTCConfiguration) {
+    super();
+    MockPeerConnection.instances.push(this);
+  }
+  setRemoteDescription() {
+    return Promise.resolve();
+  }
+  createAnswer(): Promise<RTCSessionDescriptionInit> {
+    return Promise.resolve({ type: "answer", sdp: "v=0\r\n" });
+  }
+  setLocalDescription(description: RTCSessionDescriptionInit) {
+    this.localDescription = description;
+    return Promise.resolve();
+  }
+  close() {
+    this.closed = true;
+  }
   fail() {
     this.connectionState = "failed";
     this.dispatchEvent(new Event("connectionstatechange"));

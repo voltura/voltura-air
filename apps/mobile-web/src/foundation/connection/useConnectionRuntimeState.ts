@@ -1,5 +1,17 @@
 import { useCallback, useRef, useState, type RefObject } from "react";
-import type { AudioStateMessage, AwakeCapability, CustomScreensCapability, FileManagerCapability, HostStatusMetadata, PhoneWebcamCapability, PowerCapabilities, PresentationCapability, ScreenViewCapability, ServerCapabilities, UrlOpenCapability } from "../protocol/messages";
+import type {
+  AudioStateMessage,
+  AwakeCapability,
+  CustomScreensCapability,
+  FileManagerCapability,
+  HostStatusMetadata,
+  PhoneWebcamCapability,
+  PowerCapabilities,
+  PresentationCapability,
+  ScreenViewCapability,
+  ServerCapabilities,
+  UrlOpenCapability,
+} from "../protocol/messages";
 import {
   getPowerCapabilities,
   getAwakeCapability,
@@ -17,13 +29,13 @@ import {
   hasSleepCapability,
   hasTextTransferCapability,
   hasVolumeCapability,
-  normalizeHostStatus
+  normalizeHostStatus,
 } from "./connectionProtocol";
 import type { PendingMovementAck } from "./useConnectionSender";
 
 export function useConnectionRuntimeState(
   pendingInputAcksRef: RefObject<Map<number, number>>,
-  pendingMovementAckRef: RefObject<PendingMovementAck | null>
+  pendingMovementAckRef: RefObject<PendingMovementAck | null>,
 ) {
   const [audioState, setAudioState] = useState<AudioStateMessage | null>(null);
   const [awakeCapability, setAwakeCapability] = useState<AwakeCapability | null>(null);
@@ -32,15 +44,31 @@ export function useConnectionRuntimeState(
   const [supportsVolumeControl, setSupportsVolumeControl] = useState(false);
   const [supportsRemoteLaunch, setSupportsRemoteLaunch] = useState(false);
   const [supportsTextTransfer, setSupportsTextTransfer] = useState(false);
-  const [clipboardReadPermission, setClipboardReadPermission] = useState<boolean | undefined>(undefined);
-  const [diagnosticsPermission, setDiagnosticsPermission] = useState<boolean | undefined>(undefined);
-  const [urlOpenCapability, setUrlOpenCapability] = useState<UrlOpenCapability | undefined>(undefined);
+  const [clipboardReadPermission, setClipboardReadPermission] = useState<boolean | undefined>(
+    undefined,
+  );
+  const [diagnosticsPermission, setDiagnosticsPermission] = useState<boolean | undefined>(
+    undefined,
+  );
+  const [urlOpenCapability, setUrlOpenCapability] = useState<UrlOpenCapability | undefined>(
+    undefined,
+  );
   const [powerCapabilities, setPowerCapabilities] = useState<PowerCapabilities | null>(null);
-  const [presentationCapability, setPresentationCapability] = useState<PresentationCapability | undefined>(undefined);
-  const [customScreensCapability, setCustomScreensCapability] = useState<CustomScreensCapability | undefined>(undefined);
-  const [screenViewCapability, setScreenViewCapability] = useState<ScreenViewCapability | undefined>(undefined);
-  const [phoneWebcamCapability, setPhoneWebcamCapability] = useState<PhoneWebcamCapability | undefined>(undefined);
-  const [fileManagerCapability, setFileManagerCapability] = useState<FileManagerCapability | undefined>(undefined);
+  const [presentationCapability, setPresentationCapability] = useState<
+    PresentationCapability | undefined
+  >(undefined);
+  const [customScreensCapability, setCustomScreensCapability] = useState<
+    CustomScreensCapability | undefined
+  >(undefined);
+  const [screenViewCapability, setScreenViewCapability] = useState<
+    ScreenViewCapability | undefined
+  >(undefined);
+  const [phoneWebcamCapability, setPhoneWebcamCapability] = useState<
+    PhoneWebcamCapability | undefined
+  >(undefined);
+  const [fileManagerCapability, setFileManagerCapability] = useState<
+    FileManagerCapability | undefined
+  >(undefined);
   const [hostStatus, setHostStatus] = useState<HostStatusMetadata | null>(null);
   const supportsVolumeControlRef = useRef(false);
   const supportsInputAckRef = useRef(false);
@@ -71,36 +99,39 @@ export function useConnectionRuntimeState(
     supportsInputContextV1Ref.current = false;
   }, [pendingInputAcksRef, pendingMovementAckRef]);
 
-  const updateCapabilities = useCallback((capabilities: ServerCapabilities | undefined, connected = true) => {
-    const nextSupportsVolumeControl = connected && hasVolumeCapability(capabilities);
-    const nextSupportsInputAck = connected && hasInputAckCapability(capabilities);
-    const nextSupportsInputContextV1 = connected && capabilities?.inputContextV1 === true;
-    setSupportsGestureDebug(connected && hasGestureDebugCapability(capabilities));
-    setSupportsSleep(connected && hasSleepCapability(capabilities));
-    setSupportsVolumeControl(nextSupportsVolumeControl);
-    setSupportsRemoteLaunch(connected && hasRemoteLaunchCapability(capabilities));
-    setSupportsTextTransfer(connected && hasTextTransferCapability(capabilities));
-    setClipboardReadPermission(connected ? getClipboardReadPermission(capabilities) : undefined);
-    setDiagnosticsPermission(connected ? getDiagnosticsPermission(capabilities) : undefined);
-    setUrlOpenCapability(connected ? getUrlOpenCapability(capabilities) : undefined);
-    setPowerCapabilities(connected ? getPowerCapabilities(capabilities) : null);
-    setPresentationCapability(connected ? getPresentationCapability(capabilities) : undefined);
-    setCustomScreensCapability(connected ? getCustomScreensCapability(capabilities) : undefined);
-    setScreenViewCapability(connected ? getScreenViewCapability(capabilities) : undefined);
-    setPhoneWebcamCapability(connected ? getPhoneWebcamCapability(capabilities) : undefined);
-    setFileManagerCapability(connected ? getFileManagerCapability(capabilities) : undefined);
-    setAwakeCapability(connected ? getAwakeCapability(capabilities) : null);
-    supportsVolumeControlRef.current = nextSupportsVolumeControl;
-    supportsInputAckRef.current = nextSupportsInputAck;
-    supportsInputContextV1Ref.current = nextSupportsInputContextV1;
-    if (!nextSupportsVolumeControl) {
-      setAudioState(null);
-    }
-    if (!nextSupportsInputAck) {
-      pendingInputAcksRef.current.clear();
-      pendingMovementAckRef.current = null;
-    }
-  }, [pendingInputAcksRef, pendingMovementAckRef]);
+  const updateCapabilities = useCallback(
+    (capabilities: ServerCapabilities | undefined, connected = true) => {
+      const nextSupportsVolumeControl = connected && hasVolumeCapability(capabilities);
+      const nextSupportsInputAck = connected && hasInputAckCapability(capabilities);
+      const nextSupportsInputContextV1 = connected && capabilities?.inputContextV1 === true;
+      setSupportsGestureDebug(connected && hasGestureDebugCapability(capabilities));
+      setSupportsSleep(connected && hasSleepCapability(capabilities));
+      setSupportsVolumeControl(nextSupportsVolumeControl);
+      setSupportsRemoteLaunch(connected && hasRemoteLaunchCapability(capabilities));
+      setSupportsTextTransfer(connected && hasTextTransferCapability(capabilities));
+      setClipboardReadPermission(connected ? getClipboardReadPermission(capabilities) : undefined);
+      setDiagnosticsPermission(connected ? getDiagnosticsPermission(capabilities) : undefined);
+      setUrlOpenCapability(connected ? getUrlOpenCapability(capabilities) : undefined);
+      setPowerCapabilities(connected ? getPowerCapabilities(capabilities) : null);
+      setPresentationCapability(connected ? getPresentationCapability(capabilities) : undefined);
+      setCustomScreensCapability(connected ? getCustomScreensCapability(capabilities) : undefined);
+      setScreenViewCapability(connected ? getScreenViewCapability(capabilities) : undefined);
+      setPhoneWebcamCapability(connected ? getPhoneWebcamCapability(capabilities) : undefined);
+      setFileManagerCapability(connected ? getFileManagerCapability(capabilities) : undefined);
+      setAwakeCapability(connected ? getAwakeCapability(capabilities) : null);
+      supportsVolumeControlRef.current = nextSupportsVolumeControl;
+      supportsInputAckRef.current = nextSupportsInputAck;
+      supportsInputContextV1Ref.current = nextSupportsInputContextV1;
+      if (!nextSupportsVolumeControl) {
+        setAudioState(null);
+      }
+      if (!nextSupportsInputAck) {
+        pendingInputAcksRef.current.clear();
+        pendingMovementAckRef.current = null;
+      }
+    },
+    [pendingInputAcksRef, pendingMovementAckRef],
+  );
 
   const updateHostStatus = useCallback((metadata: HostStatusMetadata | undefined) => {
     const normalized = normalizeHostStatus(metadata);
@@ -134,6 +165,6 @@ export function useConnectionRuntimeState(
     supportsVolumeControlRef,
     updateCapabilities,
     updateHostStatus,
-    urlOpenCapability
+    urlOpenCapability,
   };
 }

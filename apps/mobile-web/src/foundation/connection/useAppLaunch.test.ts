@@ -9,18 +9,24 @@ describe("useAppLaunch", () => {
     const send = vi.fn();
     const { result } = renderHook(() => useAppLaunch("paired", send));
 
-    act(() => { result.current.requestAppLaunch("custom.notes"); });
-    expect(send).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "app.launch", actionId: "custom.notes" }));
+    act(() => {
+      result.current.requestAppLaunch("custom.notes");
+    });
+    expect(send).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ type: "app.launch", actionId: "custom.notes" }),
+    );
     const operationId: string = (send.mock.calls[0]![0] as { operationId: string }).operationId;
     expect(result.current.pendingAppLaunchId).toBe("custom.notes");
 
-    act(() => { result.current.completeAppLaunch({
-      type: "app.launch.result",
-      operationId,
-      actionId: "custom.notes",
-      succeeded: true,
-      message: "Started Notes."
-    }); });
+    act(() => {
+      result.current.completeAppLaunch({
+        type: "app.launch.result",
+        operationId,
+        actionId: "custom.notes",
+        succeeded: true,
+        message: "Started Notes.",
+      });
+    });
     expect(result.current.pendingAppLaunchId).toBeNull();
     expect(result.current.appLaunchResult?.message).toBe("Started Notes.");
   });
@@ -30,14 +36,18 @@ describe("useAppLaunch", () => {
     const send = vi.fn();
     const { result } = renderHook(() => useAppLaunch("paired", send));
 
-    act(() => { result.current.requestAppLaunch("preset.browser"); });
-    act(() => { result.current.completeAppLaunch({
-      type: "app.launch.result",
-      operationId: "unrelated-operation",
-      actionId: "custom.other",
-      succeeded: true,
-      message: "Unrelated"
-    }); });
+    act(() => {
+      result.current.requestAppLaunch("preset.browser");
+    });
+    act(() => {
+      result.current.completeAppLaunch({
+        type: "app.launch.result",
+        operationId: "unrelated-operation",
+        actionId: "custom.other",
+        succeeded: true,
+        message: "Unrelated",
+      });
+    });
     expect(result.current.pendingAppLaunchId).toBe("preset.browser");
 
     await act(() => vi.advanceTimersByTime(5000));
@@ -51,15 +61,19 @@ describe("useAppLaunch", () => {
     const send = vi.fn();
     const { result } = renderHook(() => useAppLaunch("paired", send));
 
-    act(() => { result.current.requestAppLaunch("preset.vlc"); });
+    act(() => {
+      result.current.requestAppLaunch("preset.vlc");
+    });
     const operationId: string = (send.mock.calls[0]![0] as { operationId: string }).operationId;
-    act(() => { result.current.completeAppLaunch({
-      type: "app.launch.result",
-      operationId,
-      actionId: "preset.vlc",
-      succeeded: true,
-      message: "Started VLC."
-    }); });
+    act(() => {
+      result.current.completeAppLaunch({
+        type: "app.launch.result",
+        operationId,
+        actionId: "preset.vlc",
+        succeeded: true,
+        message: "Started VLC.",
+      });
+    });
 
     expect(result.current.appLaunchResult?.message).toBe("Started VLC.");
     await act(() => vi.advanceTimersByTime(3999));
@@ -73,19 +87,27 @@ describe("useAppLaunch", () => {
     const send = vi.fn();
     const { result } = renderHook(() => useAppLaunch("paired", send));
 
-    act(() => { result.current.requestAppLaunch("preset.browser"); });
-    const firstOperationId: string = (send.mock.calls[0]![0] as { operationId: string }).operationId;
+    act(() => {
+      result.current.requestAppLaunch("preset.browser");
+    });
+    const firstOperationId: string = (send.mock.calls[0]![0] as { operationId: string })
+      .operationId;
     await act(() => vi.advanceTimersByTime(5000));
-    act(() => { result.current.requestAppLaunch("preset.browser"); });
-    const secondOperationId: string = (send.mock.calls[1]![0] as { operationId: string }).operationId;
+    act(() => {
+      result.current.requestAppLaunch("preset.browser");
+    });
+    const secondOperationId: string = (send.mock.calls[1]![0] as { operationId: string })
+      .operationId;
 
-    act(() => { result.current.completeAppLaunch({
-      type: "app.launch.result",
-      operationId: firstOperationId,
-      actionId: "preset.browser",
-      succeeded: true,
-      message: "Started Browser."
-    }); });
+    act(() => {
+      result.current.completeAppLaunch({
+        type: "app.launch.result",
+        operationId: firstOperationId,
+        actionId: "preset.browser",
+        succeeded: true,
+        message: "Started Browser.",
+      });
+    });
 
     expect(secondOperationId).not.toBe(firstOperationId);
     expect(result.current.pendingAppLaunchId).toBe("preset.browser");

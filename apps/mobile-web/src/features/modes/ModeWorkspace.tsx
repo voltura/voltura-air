@@ -110,40 +110,59 @@ export function ModeWorkspace({
   showVolumeControl,
   tab,
   trackpadCompactModeSelector,
-  trackpadSettings
+  trackpadSettings,
 }: ModeWorkspaceProps) {
   const [optimisticAudioState, setOptimisticAudioState] = useState<{
     source: typeof connection.audioState;
     value: typeof connection.audioState;
   } | null>(null);
-  const displayedAudioState = optimisticAudioState?.source === connection.audioState
-    ? optimisticAudioState.value
-    : connection.audioState;
+  const displayedAudioState =
+    optimisticAudioState?.source === connection.audioState
+      ? optimisticAudioState.value
+      : connection.audioState;
   const [isTrackpadExpanded, setIsTrackpadExpanded] = useState(false);
   const [isPresentationTrackpadOpen, setIsPresentationTrackpadOpen] = useState(false);
   const [trackpadTwoFingerMode, setTrackpadTwoFingerMode] = useState<TwoFingerMode>("scroll");
   const [textTransferDraft, setTextTransferDraft] = useState("");
-  const effectiveTrackpadTwoFingerMode = trackpadSettings.zoomGestures ? trackpadTwoFingerMode : "scroll";
-  const inputContext = tab === "remote"
-    ? null
-    : tab === "keyboard" ? "keyboard"
-    : tab === "presentation" || tab === "dictation" ? tab : "trackpad";
-  const { cancel, emit, onTouchCancel, onTouchEnd, onTouchMove, onTouchStart, sendSpecial, sendText, sleepPc } = usePointerInput({
+  const effectiveTrackpadTwoFingerMode = trackpadSettings.zoomGestures
+    ? trackpadTwoFingerMode
+    : "scroll";
+  const inputContext =
+    tab === "remote"
+      ? null
+      : tab === "keyboard"
+        ? "keyboard"
+        : tab === "presentation" || tab === "dictation"
+          ? tab
+          : "trackpad";
+  const {
+    cancel,
+    emit,
+    onTouchCancel,
+    onTouchEnd,
+    onTouchMove,
+    onTouchStart,
+    sendSpecial,
+    sendText,
+    sleepPc,
+  } = usePointerInput({
     inputContext,
     send: connection.send,
     state: connection.state,
     trackpadSettings,
-    twoFingerMode: effectiveTrackpadTwoFingerMode
+    twoFingerMode: effectiveTrackpadTwoFingerMode,
   });
   const gyro = useGyroMouse({
     activationRequest: gyroActivationRequest,
     connected: connection.state === "paired",
     enabledSurface: tab === "trackpad" || (tab === "presentation" && isPresentationTrackpadOpen),
-    onMove: (dx, dy) => { emit({ type: "pointer.move", inputContext: "gyro-mouse", dx, dy }); },
+    onMove: (dx, dy) => {
+      emit({ type: "pointer.move", inputContext: "gyro-mouse", dx, dy });
+    },
     onSelectedChange: onGyroSelectedChange,
     onStop: cancel,
     sensitivity: trackpadSettings.gyroSensitivity,
-    sessionKey: connectionEpoch
+    sessionKey: connectionEpoch,
   });
   const {
     committedKeyboardTextRef,
@@ -155,17 +174,36 @@ export function ModeWorkspace({
     placeLiveKeyboardCaret,
     sendEmptyDelete,
     setKeyboardText,
-    setLiveTyping
+    setLiveTyping,
   } = useKeyboardInput(emit);
-  const { canUseSpeech, dictationText, isListening, setDictationText, speechError, startSpeech, stopSpeech } = useSpeechDictation(sendText, tab === "dictation");
+  const {
+    canUseSpeech,
+    dictationText,
+    isListening,
+    setDictationText,
+    speechError,
+    startSpeech,
+    stopSpeech,
+  } = useSpeechDictation(sendText, tab === "dictation");
   const { requestAudioState, state: connectionState, supportsVolumeControl } = connection;
 
   useEffect(() => {
     const trackpadVolumeVisible = tab === "trackpad" && showVolumeControl && !isTrackpadExpanded;
-    if (connectionState === "paired" && supportsVolumeControl && (trackpadVolumeVisible || tab === "remote" || tab === "presentation")) {
+    if (
+      connectionState === "paired" &&
+      supportsVolumeControl &&
+      (trackpadVolumeVisible || tab === "remote" || tab === "presentation")
+    ) {
       requestAudioState();
     }
-  }, [connectionState, isTrackpadExpanded, requestAudioState, showVolumeControl, supportsVolumeControl, tab]);
+  }, [
+    connectionState,
+    isTrackpadExpanded,
+    requestAudioState,
+    showVolumeControl,
+    supportsVolumeControl,
+    tab,
+  ]);
 
   const toggleMute = () => {
     if (connection.supportsVolumeControl) {
@@ -181,7 +219,7 @@ export function ModeWorkspace({
     const nextVolume = Math.max(0, Math.min(100, Math.round(volume)));
     setOptimisticAudioState({
       source: connection.audioState,
-      value: { type: "audio.state", volume: nextVolume, muted: false }
+      value: { type: "audio.state", volume: nextVolume, muted: false },
     });
     emit({ type: "audio.volume.set", inputContext: "media-controls", volume: nextVolume });
   };
@@ -203,9 +241,13 @@ export function ModeWorkspace({
           triggerHapticFeedback(trackpadSettings);
           emit({ type: "pointer.button", button, action: "down" });
         },
-        onMouseButtonUp: (button) => { emit({ type: "pointer.button", button, action: "up" }); },
+        onMouseButtonUp: (button) => {
+          emit({ type: "pointer.button", button, action: "up" });
+        },
         onSetVolume: setVolume,
-        onToggleExpanded: () => { setIsTrackpadExpanded((current) => !current); },
+        onToggleExpanded: () => {
+          setIsTrackpadExpanded((current) => !current);
+        },
         onToggleMute: toggleMute,
         onTwoFingerModeChange: setTrackpadTwoFingerMode,
         onTouchCancel,
@@ -213,9 +255,11 @@ export function ModeWorkspace({
         onTouchMove,
         onTouchStart,
         supportsVolumeControl: connection.supportsVolumeControl,
-        compactModeSelector: showTrackpadCompactModeSelector ? trackpadCompactModeSelector : undefined,
+        compactModeSelector: showTrackpadCompactModeSelector
+          ? trackpadCompactModeSelector
+          : undefined,
         trackpadSettings,
-        twoFingerMode: effectiveTrackpadTwoFingerMode
+        twoFingerMode: effectiveTrackpadTwoFingerMode,
       }}
       keyboardMode={{
         committedKeyboardTextRef,
@@ -235,7 +279,7 @@ export function ModeWorkspace({
         showControlKeys: keyboardSettings.showControlKeys,
         showFunctionKeys: keyboardSettings.showFunctionKeys,
         showSleepButton: keyboardSettings.showSleepButton && connection.supportsSleep,
-        toLiveKeyboardValue
+        toLiveKeyboardValue,
       }}
       presentationMode={{
         activationRequestId: presentationActivationRequestId,
@@ -254,14 +298,19 @@ export function ModeWorkspace({
         result: connection.presentationResult,
         powerPointLaunchResult: connection.powerPointLaunchResult,
         powerPointAppLaunchAction: connection.hostStatus?.appLaunchActions?.find(
-          (action) => action.kind === "powerpoint"),
+          (action) => action.kind === "powerpoint",
+        ),
         powerPointAppLaunchResult: connection.appLaunchResult,
-        pendingPowerPointAppLaunch: connection.pendingAppLaunchId ===
-          connection.hostStatus?.appLaunchActions?.find((action) => action.kind === "powerpoint")?.id,
+        pendingPowerPointAppLaunch:
+          connection.pendingAppLaunchId ===
+          connection.hostStatus?.appLaunchActions?.find((action) => action.kind === "powerpoint")
+            ?.id,
         onActivationRequestHandled: onPresentationActivationRequestHandled,
         onCommand: connection.requestPresentationCommand,
         onSessionCommand: connection.requestPresentationSession,
-        onMute: () => { sendSpecial("VolumeMute", undefined, "media-controls"); },
+        onMute: () => {
+          sendSpecial("VolumeMute", undefined, "media-controls");
+        },
         onPowerAction: connection.requestPowerAction,
         onPowerPointRefresh: connection.requestPowerPointRefresh,
         onPowerPointLaunch: connection.requestPowerPointLaunch,
@@ -269,8 +318,12 @@ export function ModeWorkspace({
         onSaveReport: connection.requestPresentationReportSave,
         onSessionActiveChange: onPresentationSessionActiveChange,
         onTrackpadOpenChange: setIsPresentationTrackpadOpen,
-        onVolumeDown: () => { sendSpecial("VolumeDown", undefined, "media-controls"); },
-        onVolumeUp: () => { sendSpecial("VolumeUp", undefined, "media-controls"); }
+        onVolumeDown: () => {
+          sendSpecial("VolumeDown", undefined, "media-controls");
+        },
+        onVolumeUp: () => {
+          sendSpecial("VolumeUp", undefined, "media-controls");
+        },
       }}
       remoteMode={{
         appLaunchActions: connection.hostStatus?.appLaunchActions ?? [],
@@ -279,13 +332,15 @@ export function ModeWorkspace({
           awake: connection.awakeCapability,
           awakeResult: connection.awakeResult,
           onAwakeChange: connection.requestAwakeChange,
-          pendingAwakeChange: connection.pendingAwakeChange
+          pendingAwakeChange: connection.pendingAwakeChange,
         },
         isConnected: connection.state === "paired",
         onPointerButtonClick: (button) => {
           emit({ type: "pointer.button", inputContext: "trackpad", button, action: "click" });
         },
-        onPointerMove: (dx, dy) => { emit({ type: "pointer.move", inputContext: "trackpad", dx, dy }); },
+        onPointerMove: (dx, dy) => {
+          emit({ type: "pointer.move", inputContext: "trackpad", dx, dy });
+        },
         onPowerAction: connection.requestPowerAction,
         onAppLaunch: connection.requestAppLaunch,
         onUrlOpen: connection.requestUrlOpen,
@@ -298,9 +353,18 @@ export function ModeWorkspace({
         urlOpenResult: connection.urlOpenResult,
         remoteSettings,
         onUtilityPanelOpenChange: onRemoteUtilityPanelOpenChange,
-        sendSpecial
+        sendSpecial,
       }}
-      dictationMode={{ canUseSpeech, dictationText, isListening, sendText, setDictationText, speechError, startSpeech, stopSpeech }}
+      dictationMode={{
+        canUseSpeech,
+        dictationText,
+        isListening,
+        sendText,
+        setDictationText,
+        speechError,
+        startSpeech,
+        stopSpeech,
+      }}
       textTransferMode={{
         clearAfterSending: appSettings.clearTextAfterSending,
         clientId: connection.clientId,
@@ -308,7 +372,9 @@ export function ModeWorkspace({
         leftHandedButtons: trackpadSettings.leftHandedButtons,
         onClearAfterSendingChange,
         onDraftChange: setTextTransferDraft,
-        onPointerButtonClick: (button) => { emit({ type: "pointer.button", button, action: "click" }); },
+        onPointerButtonClick: (button) => {
+          emit({ type: "pointer.button", button, action: "click" });
+        },
         onTouchCancel,
         onTouchEnd,
         onTouchMove,
@@ -317,7 +383,7 @@ export function ModeWorkspace({
         requestTextTransfer: connection.requestTextTransfer,
         result: connection.textTransferResult,
         supported: connection.supportsTextTransfer,
-        target: connection.hostStatus?.textTransferTarget
+        target: connection.hostStatus?.textTransferTarget,
       }}
       clipboardReadMode={{
         clientId: connection.clientId,
@@ -329,8 +395,10 @@ export function ModeWorkspace({
         onCancelGetTextForDevice: connection.cancelClipboardReadForDevice,
         onGetText: connection.requestClipboardRead,
         onGetTextForDevice: connection.requestClipboardReadForDevice,
-        onLoadSnippet: (snippet) => { connection.setClipboardText(snippet.text); },
-        onTextChange: connection.setClipboardText
+        onLoadSnippet: (snippet) => {
+          connection.setClipboardText(snippet.text);
+        },
+        onTextChange: connection.setClipboardText,
       }}
       gestureDebugMode={{ trackpadSettings }}
     />

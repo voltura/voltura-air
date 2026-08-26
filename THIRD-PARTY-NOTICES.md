@@ -57,7 +57,7 @@ SDK used for that release.
 | Vortice.Mathematics | 2.1.1 | Pinned Vortice runtime support | [MIT; amerkoleci/Vortice.Mathematics](https://github.com/amerkoleci/Vortice.Mathematics) |
 | SharpGen.Runtime and SharpGen.Runtime.COM | 2.4.2-beta | Transitive native interop support | [MIT; SharpGenTools/SharpGenTools](https://github.com/SharpGenTools/SharpGenTools) |
 | Concentus | 2.2.2 | Managed Opus decoding for optional Phone webcam audio | [BSD-style Opus licence; lostromb/concentus](https://github.com/lostromb/concentus/tree/6c2328dc19044601e33a9c11628b8d60e1f3011c) |
-| NAudio.Wasapi and NAudio.Core | 2.3.0 | Windows Core Audio endpoint discovery and PCM output | [MIT; naudio/NAudio](https://github.com/naudio/NAudio/tree/c89fee940ee6f8d7374d18714a6b85d8b7a18ab0) |
+| NAudio.Wasapi and NAudio.Core | 3.0.1 | Windows Core Audio endpoint discovery and PCM output | [MIT; naudio/NAudio v3.0.1](https://github.com/naudio/NAudio/tree/v3.0.1) |
 
 ## Mobile web application
 
@@ -69,7 +69,7 @@ license text and copyright notices.
 | --- | --- | --- | --- |
 | noble-curves and noble-hashes | 2.3.0 | Pairing and relay-session cryptography fallback | [MIT; paulmillr/noble-curves](https://github.com/paulmillr/noble-curves) and [paulmillr/noble-hashes](https://github.com/paulmillr/noble-hashes) |
 | jsQR | 1.4.0 | Pairing QR decoding | [Apache 2.0; cozmo/jsQR](https://github.com/cozmo/jsQR) |
-| Lucide React | 1.31.0 | User-interface icons | [ISC and derived Feather icons under MIT; lucide-icons/lucide](https://github.com/lucide-icons/lucide) |
+| Lucide React | 1.34.0 | User-interface icons | [ISC and derived Feather icons under MIT; lucide-icons/lucide](https://github.com/lucide-icons/lucide) |
 | React, React DOM, and Scheduler | 19.2.8 / 0.27.0 | Mobile user interface runtime | [MIT; facebook/react](https://github.com/facebook/react) |
 
 ## Relay service

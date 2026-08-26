@@ -5,7 +5,7 @@ import {
   powerPointRefreshResponseTimeoutMs,
   presentationCommandResponseTimeoutMs,
   presentationSessionResponseTimeoutMs,
-  usePresentationControl
+  usePresentationControl,
 } from "./usePresentationControl";
 
 describe("usePresentationControl", () => {
@@ -25,29 +25,33 @@ describe("usePresentationControl", () => {
       type: "presentation.command",
       operationId,
       target: "powerpoint",
-      action: "next"
+      action: "next",
     });
 
-    act(() => { result.current.completePresentationCommand({
-      type: "presentation.command.result",
-      operationId: "unrelated",
-      target: "powerpoint",
-      action: "next",
-      succeeded: false,
-      message: "Unrelated",
-      laserPointerActive: false
-    }); });
+    act(() => {
+      result.current.completePresentationCommand({
+        type: "presentation.command.result",
+        operationId: "unrelated",
+        target: "powerpoint",
+        action: "next",
+        succeeded: false,
+        message: "Unrelated",
+        laserPointerActive: false,
+      });
+    });
     expect(result.current.pendingPresentationCommand).not.toBeNull();
 
-    act(() => { result.current.completePresentationCommand({
-      type: "presentation.command.result",
-      operationId: operationId!,
-      target: "powerpoint",
-      action: "next",
-      succeeded: true,
-      message: "Next slide command sent.",
-      laserPointerActive: false
-    }); });
+    act(() => {
+      result.current.completePresentationCommand({
+        type: "presentation.command.result",
+        operationId: operationId!,
+        target: "powerpoint",
+        action: "next",
+        succeeded: true,
+        message: "Next slide command sent.",
+        laserPointerActive: false,
+      });
+    });
     expect(result.current.pendingPresentationCommand).toBeNull();
     expect(result.current.presentationResult?.succeeded).toBe(true);
   });
@@ -61,16 +65,18 @@ describe("usePresentationControl", () => {
     act(() => {
       operationId = result.current.requestPresentationCommand("powerpoint", "activate");
     });
-    act(() => { result.current.completePresentationCommand({
-      type: "presentation.command.result",
-      operationId: operationId!,
-      target: "powerpoint",
-      action: "activate",
-      succeeded: false,
-      code: "powerpoint-focus-failed",
-      message: "Windows could not bring PowerPoint to the foreground.",
-      laserPointerActive: false
-    }); });
+    act(() => {
+      result.current.completePresentationCommand({
+        type: "presentation.command.result",
+        operationId: operationId!,
+        target: "powerpoint",
+        action: "activate",
+        succeeded: false,
+        code: "powerpoint-focus-failed",
+        message: "Windows could not bring PowerPoint to the foreground.",
+        laserPointerActive: false,
+      });
+    });
 
     await act(() => vi.advanceTimersByTime(6000));
     expect(result.current.presentationResult?.succeeded).toBe(false);
@@ -78,15 +84,17 @@ describe("usePresentationControl", () => {
     act(() => {
       operationId = result.current.requestPresentationCommand("powerpoint", "activate");
     });
-    act(() => { result.current.completePresentationCommand({
-      type: "presentation.command.result",
-      operationId: operationId!,
-      target: "powerpoint",
-      action: "activate",
-      succeeded: true,
-      message: "PowerPoint activated.",
-      laserPointerActive: false
-    }); });
+    act(() => {
+      result.current.completePresentationCommand({
+        type: "presentation.command.result",
+        operationId: operationId!,
+        target: "powerpoint",
+        action: "activate",
+        succeeded: true,
+        message: "PowerPoint activated.",
+        laserPointerActive: false,
+      });
+    });
 
     await act(() => vi.advanceTimersByTime(5000));
     expect(result.current.presentationResult).toBeNull();
@@ -95,9 +103,12 @@ describe("usePresentationControl", () => {
   it("reports an acknowledgement timeout and stops pending work on disconnect", async () => {
     vi.useFakeTimers();
     const send = vi.fn();
-    const { result, rerender } = renderHook(({ state }: { state: ConnectionState }) => usePresentationControl(state, send), {
-      initialProps: { state: "paired" as ConnectionState }
-    });
+    const { result, rerender } = renderHook(
+      ({ state }: { state: ConnectionState }) => usePresentationControl(state, send),
+      {
+        initialProps: { state: "paired" as ConnectionState },
+      },
+    );
 
     await act(() => result.current.requestPresentationCommand("google-slides", "black"));
     await act(() => vi.advanceTimersByTime(presentationCommandResponseTimeoutMs - 1));
@@ -127,7 +138,7 @@ describe("usePresentationControl", () => {
       type: "presentation.command",
       target: "pdf",
       action: "pointer",
-      enabled: false
+      enabled: false,
     });
     expect(result.current.pendingPresentationCommand?.action).toBe("next");
   });
@@ -146,17 +157,19 @@ describe("usePresentationControl", () => {
       type: "presentation.session",
       operationId,
       action: "break",
-      enabled: true
+      enabled: true,
     });
     expect(result.current.pendingPresentationSession?.action).toBe("break");
 
-    act(() => { result.current.completePresentationSession({
-      type: "presentation.session.result",
-      operationId: operationId!,
-      action: "break",
-      succeeded: true,
-      message: "Break started."
-    }); });
+    act(() => {
+      result.current.completePresentationSession({
+        type: "presentation.session.result",
+        operationId: operationId!,
+        action: "break",
+        succeeded: true,
+        message: "Break started.",
+      });
+    });
 
     expect(result.current.pendingPresentationSession).toBeNull();
     expect(result.current.presentationSessionResult?.succeeded).toBe(true);
@@ -171,14 +184,16 @@ describe("usePresentationControl", () => {
     act(() => {
       operationId = result.current.requestPresentationSession("save");
     });
-    act(() => { result.current.completePresentationSession({
-      type: "presentation.session.result",
-      operationId: operationId!,
-      action: "save",
-      succeeded: false,
-      code: "session-persistence-failed",
-      message: "The session could not be saved."
-    }); });
+    act(() => {
+      result.current.completePresentationSession({
+        type: "presentation.session.result",
+        operationId: operationId!,
+        action: "save",
+        succeeded: false,
+        code: "session-persistence-failed",
+        message: "The session could not be saved.",
+      });
+    });
 
     expect(result.current.presentationSessionResult?.code).toBe("session-persistence-failed");
 
@@ -188,8 +203,9 @@ describe("usePresentationControl", () => {
     await act(() => vi.advanceTimersByTime(presentationSessionResponseTimeoutMs));
 
     expect(result.current.pendingPresentationSession).toBeNull();
-    expect(result.current.presentationSessionResult?.code)
-      .toBe("VAIR-PRESENTATION-SESSION-RESPONSE-TIMEOUT");
+    expect(result.current.presentationSessionResult?.code).toBe(
+      "VAIR-PRESENTATION-SESSION-RESPONSE-TIMEOUT",
+    );
   });
 
   it("tracks and correlates PowerPoint refresh acknowledgements", async () => {
@@ -205,29 +221,33 @@ describe("usePresentationControl", () => {
 
     expect(send).toHaveBeenCalledExactlyOnceWith({
       type: "presentation.powerpoint.refresh",
-      operationId
+      operationId,
     });
     expect(result.current.pendingPowerPointRefresh?.operationId).toBe(operationId);
 
-    act(() => { result.current.completePowerPointRefresh({
-      type: "presentation.powerpoint.refresh.result",
-      operationId: "unrelated",
-      succeeded: true,
-      message: "Ignored.",
-      state: "ready",
-      presentations: []
-    }); });
+    act(() => {
+      result.current.completePowerPointRefresh({
+        type: "presentation.powerpoint.refresh.result",
+        operationId: "unrelated",
+        succeeded: true,
+        message: "Ignored.",
+        state: "ready",
+        presentations: [],
+      });
+    });
     expect(result.current.pendingPowerPointRefresh).not.toBeNull();
 
-    act(() => { result.current.completePowerPointRefresh({
-      type: "presentation.powerpoint.refresh.result",
-      operationId: operationId!,
-      succeeded: false,
-      code: "powerpoint-busy",
-      message: "PowerPoint is busy.",
-      state: "busy",
-      presentations: []
-    }); });
+    act(() => {
+      result.current.completePowerPointRefresh({
+        type: "presentation.powerpoint.refresh.result",
+        operationId: operationId!,
+        succeeded: false,
+        code: "powerpoint-busy",
+        message: "PowerPoint is busy.",
+        state: "busy",
+        presentations: [],
+      });
+    });
     expect(result.current.pendingPowerPointRefresh).toBeNull();
     expect(result.current.powerPointRefreshResult?.code).toBe("powerpoint-busy");
 
@@ -236,8 +256,9 @@ describe("usePresentationControl", () => {
     });
     await act(() => vi.advanceTimersByTime(powerPointRefreshResponseTimeoutMs));
     expect(result.current.pendingPowerPointRefresh).toBeNull();
-    expect(result.current.powerPointRefreshResult?.code)
-      .toBe("VAIR-POWERPOINT-REFRESH-RESPONSE-TIMEOUT");
+    expect(result.current.powerPointRefreshResult?.code).toBe(
+      "VAIR-POWERPOINT-REFRESH-RESPONSE-TIMEOUT",
+    );
   });
 
   it("tracks and correlates a saved PowerPoint launch", () => {
@@ -253,18 +274,20 @@ describe("usePresentationControl", () => {
     expect(send).toHaveBeenCalledExactlyOnceWith({
       type: "presentation.powerpoint.launch",
       operationId,
-      presentationId: "report-1"
+      presentationId: "report-1",
     });
     expect(result.current.pendingPowerPointLaunch?.presentationId).toBe("report-1");
 
-    act(() => { result.current.completePowerPointLaunch({
-      type: "presentation.powerpoint.launch.result",
-      operationId: operationId!,
-      presentationId: "report-1",
-      succeeded: true,
-      message: "Presentation opened and started.",
-      runtimePresentationId: "runtime-1"
-    }); });
+    act(() => {
+      result.current.completePowerPointLaunch({
+        type: "presentation.powerpoint.launch.result",
+        operationId: operationId!,
+        presentationId: "report-1",
+        succeeded: true,
+        message: "Presentation opened and started.",
+        runtimePresentationId: "runtime-1",
+      });
+    });
     expect(result.current.pendingPowerPointLaunch).toBeNull();
     expect(result.current.powerPointLaunchResult?.runtimePresentationId).toBe("runtime-1");
   });

@@ -43,7 +43,7 @@ export function ConnectionSettingsSection({
   renamePc,
   scanPairingQr,
   selectPc,
-  usesLivePairingQr
+  usesLivePairingQr,
 }: ConnectionSettingsProps) {
   const pairingQrActionLabel = usesLivePairingQr ? "Scan QR code" : "Take photo of QR code";
   const [manualHost, setManualHost] = useState("");
@@ -63,7 +63,9 @@ export function ConnectionSettingsSection({
     }
 
     setManualDiagnostics(diagnostics);
-    setCopyDiagnosticsStatus("Could not copy automatically. Select the diagnostics below and copy manually.");
+    setCopyDiagnosticsStatus(
+      "Could not copy automatically. Select the diagnostics below and copy manually.",
+    );
   };
 
   const submitManualHost = (event: SubmitEvent<HTMLFormElement>) => {
@@ -83,24 +85,75 @@ export function ConnectionSettingsSection({
     <>
       <label className="setting-group">
         <span>This device name</span>
-        <input className="text-input" type="text" maxLength={80} value={deviceName} onChange={(event) => { renameDevice(event.target.value); }} placeholder="Joakim's iPhone" />
+        <input
+          className="text-input"
+          type="text"
+          maxLength={80}
+          value={deviceName}
+          onChange={(event) => {
+            renameDevice(event.target.value);
+          }}
+          placeholder="Joakim's iPhone"
+        />
       </label>
 
       <div className="install-card">
-        <div className="install-title"><Power aria-hidden="true" /><span>PC connection</span></div>
-        <p>{activePc ? `Active PC: ${getPcDisplayName(activePc)}` : "No active PC. Choose a saved PC or scan a pairing QR."}</p>
-        {activePc && <button type="button" className="danger-button" onClick={disconnectActivePc}><Power aria-hidden="true" /><span>Disconnect this PC</span></button>}
+        <div className="install-title">
+          <Power aria-hidden="true" />
+          <span>PC connection</span>
+        </div>
+        <p>
+          {activePc
+            ? `Active PC: ${getPcDisplayName(activePc)}`
+            : "No active PC. Choose a saved PC or scan a pairing QR."}
+        </p>
+        {activePc && (
+          <button type="button" className="danger-button" onClick={disconnectActivePc}>
+            <Power aria-hidden="true" />
+            <span>Disconnect this PC</span>
+          </button>
+        )}
         {pairedPcs.length > 0 && (
           <div className="pc-list">
             {pairedPcs.map((pc) => (
               <div className={`pc-row ${pc.id === activePc?.id ? "active" : ""}`} key={pc.id}>
                 <div className="pc-meta">
-                  <input aria-label="PC name" className="pc-name-input" type="text" maxLength={120} value={pc.name} onChange={(event) => { renamePc(pc.id, event.target.value); }} />
-                  <small>{pc.id === activePc?.id ? "Active" : "Saved"} &middot; {pc.url}</small>
+                  <input
+                    aria-label="PC name"
+                    className="pc-name-input"
+                    type="text"
+                    maxLength={120}
+                    value={pc.name}
+                    onChange={(event) => {
+                      renamePc(pc.id, event.target.value);
+                    }}
+                  />
+                  <small>
+                    {pc.id === activePc?.id ? "Active" : "Saved"} &middot; {pc.url}
+                  </small>
                 </div>
                 <div className="pc-actions">
-                  {pc.id !== activePc?.id && <button type="button" onClick={() => { selectPc(pc.id); }}><RefreshCw aria-hidden="true" /><span>Connect</span></button>}
-                  <button type="button" className="danger-button" onClick={() => { setForgetTarget({ id: pc.id, name: getPcDisplayName(pc) }); }}><X aria-hidden="true" /><span>Forget</span></button>
+                  {pc.id !== activePc?.id && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        selectPc(pc.id);
+                      }}
+                    >
+                      <RefreshCw aria-hidden="true" />
+                      <span>Connect</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="danger-button"
+                    onClick={() => {
+                      setForgetTarget({ id: pc.id, name: getPcDisplayName(pc) });
+                    }}
+                  >
+                    <X aria-hidden="true" />
+                    <span>Forget</span>
+                  </button>
                 </div>
               </div>
             ))}
@@ -111,33 +164,95 @@ export function ConnectionSettingsSection({
         confirmLabel="Forget PC"
         description={`Forget ${forgetTarget?.name ?? "this PC"}? You will need to scan its pairing QR code again, and this device's saved settings for it will be removed.`}
         isOpen={forgetTarget !== null}
-        onCancel={() => { setForgetTarget(null); }}
-        onConfirm={() => { const target = forgetTarget; setForgetTarget(null); if (target) {forgetPc(target.id);} }}
+        onCancel={() => {
+          setForgetTarget(null);
+        }}
+        onConfirm={() => {
+          const target = forgetTarget;
+          setForgetTarget(null);
+          if (target) {
+            forgetPc(target.id);
+          }
+        }}
         title="Forget this PC?"
       />
 
       <div className="install-card">
-        <div className="install-title"><Camera aria-hidden="true" /><span>Pair from QR code</span></div>
+        <div className="install-title">
+          <Camera aria-hidden="true" />
+          <span>Pair from QR code</span>
+        </div>
         <p>{pairingScanMessage}</p>
-        <input ref={pairingQrInputRef} className="visually-hidden" type="file" accept="image/*" capture="environment" disabled={isPairingQrReading} onChange={(event) => { void onPairingQrSelected(event); }} />
-        <button type="button" disabled={isPairingQrReading} aria-busy={isPairingQrReading || undefined} onClick={scanPairingQr}><Camera aria-hidden="true" /><span>{isPairingQrReading ? "Reading QR code…" : pairingQrActionLabel}</span></button>
+        <input
+          ref={pairingQrInputRef}
+          className="visually-hidden"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          disabled={isPairingQrReading}
+          onChange={(event) => {
+            void onPairingQrSelected(event);
+          }}
+        />
+        <button
+          type="button"
+          disabled={isPairingQrReading}
+          aria-busy={isPairingQrReading || undefined}
+          onClick={scanPairingQr}
+        >
+          <Camera aria-hidden="true" />
+          <span>{isPairingQrReading ? "Reading QR code…" : pairingQrActionLabel}</span>
+        </button>
       </div>
 
       <div className="install-card">
         <div className="install-title">
           <Clipboard aria-hidden="true" />
-          <span className="setting-label-with-info"><span>Diagnostics</span><InfoButton title="Connection diagnostics" size="detailed" description="Copies redacted connection details for troubleshooting. Pairing tokens, private reconnect keys, challenges, and proofs are not included." /></span>
+          <span className="setting-label-with-info">
+            <span>Diagnostics</span>
+            <InfoButton
+              title="Connection diagnostics"
+              size="detailed"
+              description="Copies redacted connection details for troubleshooting. Pairing tokens, private reconnect keys, challenges, and proofs are not included."
+            />
+          </span>
         </div>
         <p>Copy redacted troubleshooting details.</p>
-        <button type="button" onClick={() => { void copyDiagnostics(); }}><Clipboard aria-hidden="true" /><span>Copy diagnostics</span></button>
+        <button
+          type="button"
+          onClick={() => {
+            void copyDiagnostics();
+          }}
+        >
+          <Clipboard aria-hidden="true" />
+          <span>Copy diagnostics</span>
+        </button>
         {copyDiagnosticsStatus && <p className="pairing-inline-status">{copyDiagnosticsStatus}</p>}
-        {manualDiagnostics && <textarea aria-label="Diagnostics text" className="text-input diagnostics-textarea" onFocus={(event) => { event.currentTarget.select(); }} readOnly rows={8} value={manualDiagnostics} />}
+        {manualDiagnostics && (
+          <textarea
+            aria-label="Diagnostics text"
+            className="text-input diagnostics-textarea"
+            onFocus={(event) => {
+              event.currentTarget.select();
+            }}
+            readOnly
+            rows={8}
+            value={manualDiagnostics}
+          />
+        )}
       </div>
 
       <div className="install-card">
         <div className="install-title">
           <Power aria-hidden="true" />
-          <span className="setting-label-with-info"><span>Add PC manually</span><InfoButton title="Connect manually" size="detailed" description="Use this when the PC IP or port changed, or when a QR page was opened before the host changed network." /></span>
+          <span className="setting-label-with-info">
+            <span>Add PC manually</span>
+            <InfoButton
+              title="Connect manually"
+              size="detailed"
+              description="Use this when the PC IP or port changed, or when a QR page was opened before the host changed network."
+            />
+          </span>
         </div>
         <p>Connect using a host address or pairing link.</p>
         <form className="manual-pc-form" onSubmit={submitManualHost}>
@@ -150,11 +265,18 @@ export function ConnectionSettingsSection({
               aria-describedby={manualHostError ? manualHostErrorId : undefined}
               aria-invalid={manualHostError ? true : undefined}
               value={manualHost}
-              onChange={(event) => { setManualHost(event.target.value); setManualHostError(""); }}
+              onChange={(event) => {
+                setManualHost(event.target.value);
+                setManualHostError("");
+              }}
             />
           </label>
           <button type="submit">Connect to PC</button>
-          {manualHostError && <p id={manualHostErrorId} className="pairing-inline-error" role="alert">{manualHostError}</p>}
+          {manualHostError && (
+            <p id={manualHostErrorId} className="pairing-inline-error" role="alert">
+              {manualHostError}
+            </p>
+          )}
         </form>
       </div>
     </>

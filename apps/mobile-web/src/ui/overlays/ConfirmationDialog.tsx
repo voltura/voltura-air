@@ -22,25 +22,41 @@ export function ConfirmationDialog({
   isOpen,
   onCancel,
   onConfirm,
-  title
+  title,
 }: ConfirmationDialogProps) {
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
 
   return (
     <ModalDialog
-      actions={(
+      actions={
         <>
-          <button ref={confirmButtonRef} type="button" className={`confirmation-dialog-confirm${destructive ? " confirmation-dialog-destructive" : ""}`} onClick={onConfirm}>{confirmLabel}</button>
-          <button ref={cancelButtonRef} type="button" className="confirmation-dialog-cancel" onClick={onCancel}>{cancelLabel}</button>
+          <button
+            ref={confirmButtonRef}
+            type="button"
+            className={`confirmation-dialog-confirm${destructive ? " confirmation-dialog-destructive" : ""}`}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </button>
+          <button
+            ref={cancelButtonRef}
+            type="button"
+            className="confirmation-dialog-cancel"
+            onClick={onCancel}
+          >
+            {cancelLabel}
+          </button>
         </>
-      )}
+      }
       actionsClassName="confirmation-dialog-actions"
       className="confirmation-dialog"
       dismissLabel={cancelLabel}
-      initialFocusRef={(initialFocus ?? (destructive ? "cancel" : "confirm")) === "cancel"
-        ? cancelButtonRef
-        : confirmButtonRef}
+      initialFocusRef={
+        (initialFocus ?? (destructive ? "cancel" : "confirm")) === "cancel"
+          ? cancelButtonRef
+          : confirmButtonRef
+      }
       isOpen={isOpen}
       onClose={onCancel}
       title={title}

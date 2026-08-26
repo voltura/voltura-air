@@ -175,15 +175,15 @@
 }
 
 input:where(
-  :not([type]),
-  [type="email"],
-  [type="number"],
-  [type="password"],
-  [type="search"],
-  [type="tel"],
-  [type="text"],
-  [type="url"]
-):focus-visible {
+    :not([type]),
+    [type="email"],
+    [type="number"],
+    [type="password"],
+    [type="search"],
+    [type="tel"],
+    [type="text"],
+    [type="url"]
+  ):focus-visible {
   border-color: var(--focus);
   outline: none;
 }

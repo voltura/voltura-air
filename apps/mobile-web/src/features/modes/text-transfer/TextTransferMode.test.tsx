@@ -1,12 +1,15 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { canReadTextFromDeviceClipboard, readTextFromDeviceClipboard } from "../../../foundation/platform/deviceClipboard";
+import {
+  canReadTextFromDeviceClipboard,
+  readTextFromDeviceClipboard,
+} from "../../../foundation/platform/deviceClipboard";
 import { TextTransferMode } from "./TextTransferMode";
 
 vi.mock("../../../foundation/platform/deviceClipboard", () => ({
   canReadTextFromDeviceClipboard: vi.fn(),
-  readTextFromDeviceClipboard: vi.fn()
+  readTextFromDeviceClipboard: vi.fn(),
 }));
 
 const props = {
@@ -25,12 +28,27 @@ const props = {
   requestTextTransfer: vi.fn(),
   result: null,
   supported: true,
-  target: { mode: "configured" as const, displayName: "Microsoft Word", available: true }
+  target: { mode: "configured" as const, displayName: "Microsoft Word", available: true },
 };
 
-function TextTransferHarness({ initialDraft = "", onDraftChange = vi.fn() }: { initialDraft?: string; onDraftChange?: (value: string) => void }) {
+function TextTransferHarness({
+  initialDraft = "",
+  onDraftChange = vi.fn(),
+}: {
+  initialDraft?: string;
+  onDraftChange?: (value: string) => void;
+}) {
   const [draft, setDraft] = useState(initialDraft);
-  return <TextTransferMode {...props} draft={draft} onDraftChange={(value) => { setDraft(value); onDraftChange(value); }} />;
+  return (
+    <TextTransferMode
+      {...props}
+      draft={draft}
+      onDraftChange={(value) => {
+        setDraft(value);
+        onDraftChange(value);
+      }}
+    />
+  );
 }
 
 describe("TextTransferMode", () => {
@@ -53,10 +71,27 @@ describe("TextTransferMode", () => {
   it("clears only the unchanged draft submitted with clear enabled", () => {
     const onDraftChange = vi.fn();
     const requestTextTransfer = vi.fn(() => "op-a");
-    const view = render(<TextTransferMode {...props} clearAfterSending draft="Draft A" onDraftChange={onDraftChange} requestTextTransfer={requestTextTransfer} />);
+    const view = render(
+      <TextTransferMode
+        {...props}
+        clearAfterSending
+        draft="Draft A"
+        onDraftChange={onDraftChange}
+        requestTextTransfer={requestTextTransfer}
+      />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Send text" }));
 
-    view.rerender(<TextTransferMode {...props} clearAfterSending draft="Draft A" onDraftChange={onDraftChange} requestTextTransfer={requestTextTransfer} result={{ type: "text.send.result", operationId: "op-a", succeeded: true, message: "Sent" }} />);
+    view.rerender(
+      <TextTransferMode
+        {...props}
+        clearAfterSending
+        draft="Draft A"
+        onDraftChange={onDraftChange}
+        requestTextTransfer={requestTextTransfer}
+        result={{ type: "text.send.result", operationId: "op-a", succeeded: true, message: "Sent" }}
+      />,
+    );
 
     expect(onDraftChange).toHaveBeenCalledExactlyOnceWith("");
   });
@@ -64,11 +99,36 @@ describe("TextTransferMode", () => {
   it("preserves a newer edit when an older submission succeeds", () => {
     const onDraftChange = vi.fn();
     const requestTextTransfer = vi.fn(() => "op-a");
-    const view = render(<TextTransferMode {...props} clearAfterSending draft="Draft A" onDraftChange={onDraftChange} requestTextTransfer={requestTextTransfer} />);
+    const view = render(
+      <TextTransferMode
+        {...props}
+        clearAfterSending
+        draft="Draft A"
+        onDraftChange={onDraftChange}
+        requestTextTransfer={requestTextTransfer}
+      />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Send text" }));
 
-    view.rerender(<TextTransferMode {...props} clearAfterSending draft="Draft B" onDraftChange={onDraftChange} requestTextTransfer={requestTextTransfer} />);
-    view.rerender(<TextTransferMode {...props} clearAfterSending draft="Draft B" onDraftChange={onDraftChange} requestTextTransfer={requestTextTransfer} result={{ type: "text.send.result", operationId: "op-a", succeeded: true, message: "Sent" }} />);
+    view.rerender(
+      <TextTransferMode
+        {...props}
+        clearAfterSending
+        draft="Draft B"
+        onDraftChange={onDraftChange}
+        requestTextTransfer={requestTextTransfer}
+      />,
+    );
+    view.rerender(
+      <TextTransferMode
+        {...props}
+        clearAfterSending
+        draft="Draft B"
+        onDraftChange={onDraftChange}
+        requestTextTransfer={requestTextTransfer}
+        result={{ type: "text.send.result", operationId: "op-a", succeeded: true, message: "Sent" }}
+      />,
+    );
 
     expect(onDraftChange).not.toHaveBeenCalled();
   });
@@ -76,43 +136,175 @@ describe("TextTransferMode", () => {
   it("preserves text that was edited away from and back to the submitted value", () => {
     const onDraftChange = vi.fn();
     const requestTextTransfer = vi.fn(() => "op-a");
-    const view = render(<TextTransferMode {...props} clearAfterSending draft="Draft A" onDraftChange={onDraftChange} requestTextTransfer={requestTextTransfer} />);
+    const view = render(
+      <TextTransferMode
+        {...props}
+        clearAfterSending
+        draft="Draft A"
+        onDraftChange={onDraftChange}
+        requestTextTransfer={requestTextTransfer}
+      />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Send text" }));
 
-    view.rerender(<TextTransferMode {...props} clearAfterSending draft="Draft B" onDraftChange={onDraftChange} requestTextTransfer={requestTextTransfer} />);
-    view.rerender(<TextTransferMode {...props} clearAfterSending draft="Draft A" onDraftChange={onDraftChange} requestTextTransfer={requestTextTransfer} />);
-    view.rerender(<TextTransferMode {...props} clearAfterSending draft="Draft A" onDraftChange={onDraftChange} requestTextTransfer={requestTextTransfer} result={{ type: "text.send.result", operationId: "op-a", succeeded: true, message: "Sent" }} />);
+    view.rerender(
+      <TextTransferMode
+        {...props}
+        clearAfterSending
+        draft="Draft B"
+        onDraftChange={onDraftChange}
+        requestTextTransfer={requestTextTransfer}
+      />,
+    );
+    view.rerender(
+      <TextTransferMode
+        {...props}
+        clearAfterSending
+        draft="Draft A"
+        onDraftChange={onDraftChange}
+        requestTextTransfer={requestTextTransfer}
+      />,
+    );
+    view.rerender(
+      <TextTransferMode
+        {...props}
+        clearAfterSending
+        draft="Draft A"
+        onDraftChange={onDraftChange}
+        requestTextTransfer={requestTextTransfer}
+        result={{ type: "text.send.result", operationId: "op-a", succeeded: true, message: "Sent" }}
+      />,
+    );
 
     expect(onDraftChange).not.toHaveBeenCalled();
   });
 
   it.each([
-    [{ type: "text.send.result" as const, operationId: "op-a", succeeded: false, message: "Failed" }, true],
-    [{ type: "text.send.result" as const, operationId: "op-a", succeeded: false, code: "VAIR-TEXT-RESPONSE-TIMEOUT", message: "Timed out" }, true],
-    [{ type: "text.send.result" as const, operationId: "op-a", succeeded: true, message: "Sent" }, false]
+    [
+      {
+        type: "text.send.result" as const,
+        operationId: "op-a",
+        succeeded: false,
+        message: "Failed",
+      },
+      true,
+    ],
+    [
+      {
+        type: "text.send.result" as const,
+        operationId: "op-a",
+        succeeded: false,
+        code: "VAIR-TEXT-RESPONSE-TIMEOUT",
+        message: "Timed out",
+      },
+      true,
+    ],
+    [
+      { type: "text.send.result" as const, operationId: "op-a", succeeded: true, message: "Sent" },
+      false,
+    ],
   ])("preserves the draft for failure, timeout, or disabled clear", (result, clearAfterSending) => {
     const onDraftChange = vi.fn();
     const requestTextTransfer = vi.fn(() => "op-a");
-    const view = render(<TextTransferMode {...props} clearAfterSending={clearAfterSending} draft="Draft A" onDraftChange={onDraftChange} requestTextTransfer={requestTextTransfer} />);
+    const view = render(
+      <TextTransferMode
+        {...props}
+        clearAfterSending={clearAfterSending}
+        draft="Draft A"
+        onDraftChange={onDraftChange}
+        requestTextTransfer={requestTextTransfer}
+      />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Send text" }));
-    view.rerender(<TextTransferMode {...props} clearAfterSending={clearAfterSending} draft="Draft A" onDraftChange={onDraftChange} requestTextTransfer={requestTextTransfer} result={result} />);
+    view.rerender(
+      <TextTransferMode
+        {...props}
+        clearAfterSending={clearAfterSending}
+        draft="Draft A"
+        onDraftChange={onDraftChange}
+        requestTextTransfer={requestTextTransfer}
+        result={result}
+      />,
+    );
     expect(onDraftChange).not.toHaveBeenCalled();
   });
 
   it("ignores an old result after a newer send and clears a matching result once", () => {
     const onDraftChange = vi.fn();
     const requestTextTransfer = vi.fn().mockReturnValueOnce("op-a").mockReturnValueOnce("op-b");
-    const view = render(<TextTransferMode {...props} clearAfterSending draft="Draft A" onDraftChange={onDraftChange} requestTextTransfer={requestTextTransfer} />);
+    const view = render(
+      <TextTransferMode
+        {...props}
+        clearAfterSending
+        draft="Draft A"
+        onDraftChange={onDraftChange}
+        requestTextTransfer={requestTextTransfer}
+      />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Send text" }));
-    view.rerender(<TextTransferMode {...props} clearAfterSending draft="Draft B" onDraftChange={onDraftChange} requestTextTransfer={requestTextTransfer} />);
+    view.rerender(
+      <TextTransferMode
+        {...props}
+        clearAfterSending
+        draft="Draft B"
+        onDraftChange={onDraftChange}
+        requestTextTransfer={requestTextTransfer}
+      />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Send text" }));
 
-    view.rerender(<TextTransferMode {...props} clearAfterSending draft="Draft B" onDraftChange={onDraftChange} requestTextTransfer={requestTextTransfer} result={{ type: "text.send.result", operationId: "op-a", succeeded: true, message: "Old" }} />);
+    view.rerender(
+      <TextTransferMode
+        {...props}
+        clearAfterSending
+        draft="Draft B"
+        onDraftChange={onDraftChange}
+        requestTextTransfer={requestTextTransfer}
+        result={{ type: "text.send.result", operationId: "op-a", succeeded: true, message: "Old" }}
+      />,
+    );
     expect(onDraftChange).not.toHaveBeenCalled();
-    view.rerender(<TextTransferMode {...props} clearAfterSending draft="Draft B" onDraftChange={onDraftChange} requestTextTransfer={requestTextTransfer} result={{ type: "text.send.result", operationId: "op-b", succeeded: true, message: "Current" }} />);
+    view.rerender(
+      <TextTransferMode
+        {...props}
+        clearAfterSending
+        draft="Draft B"
+        onDraftChange={onDraftChange}
+        requestTextTransfer={requestTextTransfer}
+        result={{
+          type: "text.send.result",
+          operationId: "op-b",
+          succeeded: true,
+          message: "Current",
+        }}
+      />,
+    );
     expect(onDraftChange).toHaveBeenCalledExactlyOnceWith("");
-    view.rerender(<TextTransferMode {...props} clearAfterSending draft="Draft B" onDraftChange={onDraftChange} requestTextTransfer={requestTextTransfer} result={null} />);
-    view.rerender(<TextTransferMode {...props} clearAfterSending draft="Draft B" onDraftChange={onDraftChange} requestTextTransfer={requestTextTransfer} result={{ type: "text.send.result", operationId: "op-b", succeeded: true, message: "Duplicate" }} />);
+    view.rerender(
+      <TextTransferMode
+        {...props}
+        clearAfterSending
+        draft="Draft B"
+        onDraftChange={onDraftChange}
+        requestTextTransfer={requestTextTransfer}
+        result={null}
+      />,
+    );
+    view.rerender(
+      <TextTransferMode
+        {...props}
+        clearAfterSending
+        draft="Draft B"
+        onDraftChange={onDraftChange}
+        requestTextTransfer={requestTextTransfer}
+        result={{
+          type: "text.send.result",
+          operationId: "op-b",
+          succeeded: true,
+          message: "Duplicate",
+        }}
+      />,
+    );
     expect(onDraftChange).toHaveBeenCalledTimes(1);
   });
 
@@ -133,7 +325,7 @@ describe("TextTransferMode", () => {
 
   it.each([
     [0, 0, "PhoneHello"],
-    [5, 5, "HelloPhone"]
+    [5, 5, "HelloPhone"],
   ])("inserts phone text at selection %i-%i", async (start, end, expected) => {
     render(<TextTransferHarness initialDraft="Hello" />);
     const editor = screen.getByLabelText("Text to send") as HTMLTextAreaElement;
@@ -163,7 +355,7 @@ describe("TextTransferMode", () => {
   it.each([
     [{ status: "empty" as const }, "has no text"],
     [{ status: "denied" as const }, "did not allow"],
-    [{ status: "failed" as const }, "Could not read"]
+    [{ status: "failed" as const }, "Could not read"],
   ])("preserves the draft when clipboard reading fails", async (result, message) => {
     vi.mocked(readTextFromDeviceClipboard).mockResolvedValue(result);
     render(<TextTransferHarness initialDraft="Keep me" />);
@@ -176,7 +368,11 @@ describe("TextTransferMode", () => {
 
   it("does not apply a stale clipboard result after the draft changes", async () => {
     let resolveRead: ((value: { status: "success"; text: string }) => void) | undefined;
-    vi.mocked(readTextFromDeviceClipboard).mockReturnValue(new Promise((resolve) => { resolveRead = resolve; }));
+    vi.mocked(readTextFromDeviceClipboard).mockReturnValue(
+      new Promise((resolve) => {
+        resolveRead = resolve;
+      }),
+    );
     render(<TextTransferHarness initialDraft="Original" />);
     const editor = screen.getByLabelText("Text to send") as HTMLTextAreaElement;
 
@@ -204,14 +400,23 @@ describe("TextTransferMode", () => {
     fireEvent.click(pasteButton);
 
     expect(readTextFromDeviceClipboard).toHaveBeenCalledOnce();
-    expect(screen.getByRole("button", { name: "Reading this device's clipboard…" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Reading this device's clipboard…" })).toHaveProperty(
+      "disabled",
+      true,
+    );
   });
 
   it("ignores a clipboard result after unmount", async () => {
     let resolveRead: ((value: { status: "success"; text: string }) => void) | undefined;
-    vi.mocked(readTextFromDeviceClipboard).mockReturnValue(new Promise((resolve) => { resolveRead = resolve; }));
+    vi.mocked(readTextFromDeviceClipboard).mockReturnValue(
+      new Promise((resolve) => {
+        resolveRead = resolve;
+      }),
+    );
     const onDraftChange = vi.fn();
-    const view = render(<TextTransferHarness initialDraft="Original" onDraftChange={onDraftChange} />);
+    const view = render(
+      <TextTransferHarness initialDraft="Original" onDraftChange={onDraftChange} />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Paste from this device's clipboard" }));
     view.unmount();
@@ -222,10 +427,16 @@ describe("TextTransferMode", () => {
   });
 
   it("applies clipboard text after the StrictMode effect cycle", async () => {
-    render(<StrictMode><TextTransferHarness initialDraft="Hello " /></StrictMode>);
+    render(
+      <StrictMode>
+        <TextTransferHarness initialDraft="Hello " />
+      </StrictMode>,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Paste from this device's clipboard" }));
 
-    await waitFor(() => expect(screen.getByLabelText("Text to send")).toHaveProperty("value", "PhoneHello "));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Text to send")).toHaveProperty("value", "PhoneHello "),
+    );
   });
 });

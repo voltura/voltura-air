@@ -6,16 +6,35 @@ import { fileURLToPath } from "node:url";
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, "..");
 const sourcePath = path.join(repositoryRoot, "assets", "ui-tokens.json");
-const cssPath = path.join(repositoryRoot, "apps", "mobile-web", "src", "styles", "generated", "tokens.css");
+const cssPath = path.join(
+  repositoryRoot,
+  "apps",
+  "mobile-web",
+  "src",
+  "styles",
+  "generated",
+  "tokens.css",
+);
 const typescriptPath = path.join(repositoryRoot, "apps", "mobile-web", "src", "ui", "tokens.g.ts");
-const xamlPath = path.join(repositoryRoot, "apps", "windows-host", "Styles", "Generated", "UiTokens.xaml");
+const xamlPath = path.join(
+  repositoryRoot,
+  "apps",
+  "windows-host",
+  "Styles",
+  "Generated",
+  "UiTokens.xaml",
+);
 const csharpPath = path.join(repositoryRoot, "apps", "windows-host", "UiTokens.g.cs");
 const checkOnly = process.argv.includes("--check");
 
 const source = JSON.parse(await readFile(sourcePath, "utf8"));
 
 const toKebabCase = (value) => value.replaceAll(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
-const toPascalCase = (value) => value.split(/[^a-zA-Z0-9]+/).map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`).join("");
+const toPascalCase = (value) =>
+  value
+    .split(/[^a-zA-Z0-9]+/)
+    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
+    .join("");
 const cssColor = (value) => {
   if (/^#[0-9A-Fa-f]{8}$/.test(value)) {
     const alpha = Number.parseInt(value.slice(1, 3), 16) / 255;
@@ -29,12 +48,16 @@ const cssColor = (value) => {
 };
 
 function renderCssTheme(theme) {
-  return Object.entries(theme).map(([name, value]) => `  --${toKebabCase(name)}: ${cssColor(value)};`).join("\n");
+  return Object.entries(theme)
+    .map(([name, value]) => `  --${toKebabCase(name)}: ${cssColor(value)};`)
+    .join("\n");
 }
 
 function renderCssDimensions(group, suffix, prefix) {
   const tokenPrefix = prefix.length > 0 ? `${prefix}-` : "";
-  return Object.entries(group).map(([name, value]) => `  --${tokenPrefix}${toKebabCase(name)}: ${value}${suffix};`).join("\n");
+  return Object.entries(group)
+    .map(([name, value]) => `  --${tokenPrefix}${toKebabCase(name)}: ${value}${suffix};`)
+    .join("\n");
 }
 
 const css = `/* Generated from assets/ui-tokens.json. Do not edit directly. */
@@ -68,14 +91,23 @@ export const uiThemeColors = {
 } as const;
 
 export const uiDurations = {
-${Object.entries(source.duration).map(([name, value]) => `  ${name}: ${value}`).join(",\n")}
+${Object.entries(source.duration)
+  .map(([name, value]) => `  ${name}: ${value}`)
+  .join(",\n")}
 } as const;
 `;
 
 const xamlNumbers = [
-  ...Object.entries(source.space).map(([name, value]) => `    <system:Double x:Key="Space${toPascalCase(name)}">${value}</system:Double>`),
-  ...Object.entries(source.typography).map(([name, value]) => `    <system:Double x:Key="${toPascalCase(name)}">${value}</system:Double>`),
-  ...Object.entries(source.size).map(([name, value]) => `    <system:Double x:Key="${toPascalCase(name)}">${value}</system:Double>`)
+  ...Object.entries(source.space).map(
+    ([name, value]) =>
+      `    <system:Double x:Key="Space${toPascalCase(name)}">${value}</system:Double>`,
+  ),
+  ...Object.entries(source.typography).map(
+    ([name, value]) => `    <system:Double x:Key="${toPascalCase(name)}">${value}</system:Double>`,
+  ),
+  ...Object.entries(source.size).map(
+    ([name, value]) => `    <system:Double x:Key="${toPascalCase(name)}">${value}</system:Double>`,
+  ),
 ].join("\n");
 const xamlInsets = Object.entries(source.space)
   .map(([name, value]) => `    <Thickness x:Key="Inset${toPascalCase(name)}">${value}</Thickness>`)
@@ -84,10 +116,16 @@ const xamlSizeInsets = Object.entries(source.size)
   .map(([name, value]) => `    <Thickness x:Key="${toPascalCase(name)}Inset">${value}</Thickness>`)
   .join("\n");
 const xamlGridLengths = Object.entries(source.space)
-  .map(([name, value]) => `    <GridLength x:Key="GridSpace${toPascalCase(name)}">${value}</GridLength>`)
+  .map(
+    ([name, value]) =>
+      `    <GridLength x:Key="GridSpace${toPascalCase(name)}">${value}</GridLength>`,
+  )
   .join("\n");
 const xamlRadii = Object.entries(source.radius)
-  .map(([name, value]) => `    <CornerRadius x:Key="Radius${toPascalCase(name)}">${value}</CornerRadius>`)
+  .map(
+    ([name, value]) =>
+      `    <CornerRadius x:Key="Radius${toPascalCase(name)}">${value}</CornerRadius>`,
+  )
   .join("\n");
 
 const xaml = `<!-- Generated from assets/ui-tokens.json. Do not edit directly. -->
@@ -177,7 +215,9 @@ async function updateGeneratedFile(targetPath, contents) {
   }
 
   if (checkOnly) {
-    throw new Error(`${path.relative(repositoryRoot, targetPath)} is stale. Run npm run ui:tokens:generate.`);
+    throw new Error(
+      `${path.relative(repositoryRoot, targetPath)} is stale. Run npm run ui:tokens:generate.`,
+    );
   }
 
   await mkdir(path.dirname(targetPath), { recursive: true });
@@ -189,7 +229,7 @@ const changed = await Promise.all([
   updateGeneratedFile(cssPath, css),
   updateGeneratedFile(typescriptPath, typescript),
   updateGeneratedFile(xamlPath, xaml),
-  updateGeneratedFile(csharpPath, csharp)
+  updateGeneratedFile(csharpPath, csharp),
 ]);
 
 if (!checkOnly && changed.some(Boolean)) {

@@ -11,7 +11,14 @@ interface InfoDialogProps {
   tone?: "default" | "error";
 }
 
-export function InfoDialog({ description, isOpen, onClose, size = "compact", title, tone = "default" }: InfoDialogProps) {
+export function InfoDialog({
+  description,
+  isOpen,
+  onClose,
+  size = "compact",
+  title,
+  tone = "default",
+}: InfoDialogProps) {
   const descriptionId = useId();
   return (
     <ModalDialog
@@ -23,7 +30,11 @@ export function InfoDialog({ description, isOpen, onClose, size = "compact", tit
       isOpen={isOpen}
       onClose={onClose}
       title={title}
-      titleAccessory={tone === "error" ? <CircleAlert className="info-dialog-error-icon" aria-hidden="true" /> : undefined}
+      titleAccessory={
+        tone === "error" ? (
+          <CircleAlert className="info-dialog-error-icon" aria-hidden="true" />
+        ) : undefined
+      }
     >
       <p id={descriptionId}>{description}</p>
     </ModalDialog>

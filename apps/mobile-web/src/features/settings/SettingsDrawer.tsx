@@ -4,7 +4,7 @@ import {
   CustomPointerSettingsSection,
   KeyboardSettingsSection,
   RemoteSettingsSection,
-  TrackpadSettingsSection
+  TrackpadSettingsSection,
 } from "./ControlSettingsSections";
 import { AppSettingsSection, AppearanceSettingsSection } from "./AppSettingsSections";
 import { ConnectionSettingsSection } from "./ConnectionSettingsSection";
@@ -27,7 +27,8 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
     }
 
     if (props.isOpen && !dialog.open) {
-      returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      returnFocusRef.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
       if (typeof dialog.showModal === "function") {
         dialog.showModal();
       } else {
@@ -51,7 +52,9 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
     }
 
     const scrollRegion = scrollRegionRef.current;
-    const section = scrollRegion?.querySelector<HTMLDetailsElement>(`[data-settings-section="${openSection}"]`);
+    const section = scrollRegion?.querySelector<HTMLDetailsElement>(
+      `[data-settings-section="${openSection}"]`,
+    );
     if (scrollRegion && section) {
       revealOpenedSection(scrollRegion, section);
     }
@@ -59,7 +62,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
 
   const toggleSection = (event: MouseEvent<HTMLElement>, section: SettingsSection) => {
     event.preventDefault();
-    setOpenSection((current) => current === section ? null : section);
+    setOpenSection((current) => (current === section ? null : section));
   };
 
   const closeDialog = () => {
@@ -114,141 +117,246 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
         onClick={closeDialog}
       />
       <div className="settings-drawer-panel">
-      <header className="drawer-header">
-        <div className="drawer-title">
-          <h2 id={titleId}>Menu</h2>
-          <span>v{__APP_VERSION__}</span>
-        </div>
-        <button className="icon-button" type="button" aria-label="Close menu" onClick={closeDialog}>
-          <X aria-hidden="true" />
-        </button>
-      </header>
-
-      <div ref={scrollRegionRef} className="settings-drawer-scroll-region">
-        <section className="drawer-group" aria-labelledby="drawer-tools-title">
-          <h3 id="drawer-tools-title">Tools</h3>
-          <div className="drawer-tool-list">
-            {props.screenViewCapability && <button type="button" onClick={() => {closeThen(props.onOpenScreenView);}}>
-              <MonitorUp aria-hidden="true" />
-              <span>View PC screen</span>
-            </button>}
-            {props.phoneWebcamCapability && <button type="button" onClick={() => {closeThen(props.onOpenPhoneWebcam);}}>
-              <Camera aria-hidden="true" />
-              <span>Phone webcam</span>
-            </button>}
-            <button type="button" onClick={() => {closeThen(props.onOpenGyroMouse);}}>
-              <Orbit aria-hidden="true" />
-              <span>Gyro mouse</span>
-            </button>
-            {props.toolOptions.filter(({ id }) => id !== "presentation" || props.presentationAvailable).map(({ id, Icon, label }) => {
-              return (
-                <button key={id} type="button" onClick={() => {closeThen(() => props.onOpenMode?.(id));}}>
-                  <Icon aria-hidden="true" />
-                  <span>{label}</span>
-                </button>
-              );
-            })}
+        <header className="drawer-header">
+          <div className="drawer-title">
+            <h2 id={titleId}>Menu</h2>
+            <span>v{__APP_VERSION__}</span>
           </div>
-        </section>
+          <button
+            className="icon-button"
+            type="button"
+            aria-label="Close menu"
+            onClick={closeDialog}
+          >
+            <X aria-hidden="true" />
+          </button>
+        </header>
 
-        {(props.customScreens?.length ?? 0) > 0 && (
-          <section className="drawer-group" aria-labelledby="drawer-custom-screens-title">
-            <h3 id="drawer-custom-screens-title">Custom screens</h3>
+        <div ref={scrollRegionRef} className="settings-drawer-scroll-region">
+          <section className="drawer-group" aria-labelledby="drawer-tools-title">
+            <h3 id="drawer-tools-title">Tools</h3>
             <div className="drawer-tool-list">
-              {props.customScreens?.map((screen) => (
-              <button key={screen.id} type="button" onClick={() => {closeThen(() => props.onOpenCustomScreen?.(screen.id));}}>
-                  <span aria-hidden="true">▦</span>
-                  <span>{screen.name}</span>
+              {props.screenViewCapability && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeThen(props.onOpenScreenView);
+                  }}
+                >
+                  <MonitorUp aria-hidden="true" />
+                  <span>View PC screen</span>
                 </button>
-              ))}
+              )}
+              {props.phoneWebcamCapability && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeThen(props.onOpenPhoneWebcam);
+                  }}
+                >
+                  <Camera aria-hidden="true" />
+                  <span>Phone webcam</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  closeThen(props.onOpenGyroMouse);
+                }}
+              >
+                <Orbit aria-hidden="true" />
+                <span>Gyro mouse</span>
+              </button>
+              {props.toolOptions
+                .filter(({ id }) => id !== "presentation" || props.presentationAvailable)
+                .map(({ id, Icon, label }) => {
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => {
+                        closeThen(() => props.onOpenMode?.(id));
+                      }}
+                    >
+                      <Icon aria-hidden="true" />
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
             </div>
           </section>
-        )}
 
-        <h3 className="drawer-settings-title">Settings</h3>
+          {(props.customScreens?.length ?? 0) > 0 && (
+            <section className="drawer-group" aria-labelledby="drawer-custom-screens-title">
+              <h3 id="drawer-custom-screens-title">Custom screens</h3>
+              <div className="drawer-tool-list">
+                {props.customScreens?.map((screen) => (
+                  <button
+                    key={screen.id}
+                    type="button"
+                    onClick={() => {
+                      closeThen(() => props.onOpenCustomScreen?.(screen.id));
+                    }}
+                  >
+                    <span aria-hidden="true">▦</span>
+                    <span>{screen.name}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
 
-        <SettingsSectionDetails section="connection" label="Connection" isOpen={openSection === "connection"} onToggle={toggleSection}>
-          <ConnectionSettingsSection
-            activePc={props.activePc}
-            deviceName={props.deviceName}
-            diagnostics={props.diagnostics}
-            disconnectActivePc={props.disconnectActivePc}
-            forgetPc={props.forgetPc}
-            isPairingQrReading={props.isPairingQrReading ?? false}
-            onManualHostSubmit={props.onManualHostSubmit}
-            onPairingQrSelected={props.onPairingQrSelected}
-            pairedPcs={props.pairedPcs}
-            pairingQrInputRef={props.pairingQrInputRef}
-            pairingScanMessage={props.pairingScanMessage}
-            renameDevice={props.renameDevice}
-            renamePc={props.renamePc}
-            scanPairingQr={props.scanPairingQr}
-            selectPc={props.selectPc}
-            usesLivePairingQr={props.usesLivePairingQr}
-          />
-        </SettingsSectionDetails>
+          <h3 className="drawer-settings-title">Settings</h3>
 
-        <SettingsSectionDetails section="trackpad" label="Trackpad" isOpen={openSection === "trackpad"} onToggle={toggleSection}>
-          <TrackpadSettingsSection
-            onOpenGestureDebug={props.onOpenGestureDebug}
-            showGestureDebug={props.showGestureDebug}
-            trackpadSettings={props.trackpadSettings}
-            updateTrackpadSetting={props.updateTrackpadSetting}
-          />
-        </SettingsSectionDetails>
+          <SettingsSectionDetails
+            section="connection"
+            label="Connection"
+            isOpen={openSection === "connection"}
+            onToggle={toggleSection}
+          >
+            <ConnectionSettingsSection
+              activePc={props.activePc}
+              deviceName={props.deviceName}
+              diagnostics={props.diagnostics}
+              disconnectActivePc={props.disconnectActivePc}
+              forgetPc={props.forgetPc}
+              isPairingQrReading={props.isPairingQrReading ?? false}
+              onManualHostSubmit={props.onManualHostSubmit}
+              onPairingQrSelected={props.onPairingQrSelected}
+              pairedPcs={props.pairedPcs}
+              pairingQrInputRef={props.pairingQrInputRef}
+              pairingScanMessage={props.pairingScanMessage}
+              renameDevice={props.renameDevice}
+              renamePc={props.renamePc}
+              scanPairingQr={props.scanPairingQr}
+              selectPc={props.selectPc}
+              usesLivePairingQr={props.usesLivePairingQr}
+            />
+          </SettingsSectionDetails>
 
-        <SettingsSectionDetails section="keyboard" label="Keyboard" isOpen={openSection === "keyboard"} onToggle={toggleSection}>
-          <KeyboardSettingsSection keyboardSettings={props.keyboardSettings} updateKeyboardSetting={props.updateKeyboardSetting} />
-        </SettingsSectionDetails>
+          <SettingsSectionDetails
+            section="trackpad"
+            label="Trackpad"
+            isOpen={openSection === "trackpad"}
+            onToggle={toggleSection}
+          >
+            <TrackpadSettingsSection
+              onOpenGestureDebug={props.onOpenGestureDebug}
+              showGestureDebug={props.showGestureDebug}
+              trackpadSettings={props.trackpadSettings}
+              updateTrackpadSetting={props.updateTrackpadSetting}
+            />
+          </SettingsSectionDetails>
 
-        <SettingsSectionDetails section="remote" label="Remote" isOpen={openSection === "remote"} onToggle={toggleSection}>
-          <RemoteSettingsSection
-            remoteSettings={props.remoteSettings}
-            supportsRemoteLaunch={props.supportsRemoteLaunch}
-            updateRemoteSetting={props.updateRemoteSetting}
-          />
-        </SettingsSectionDetails>
+          <SettingsSectionDetails
+            section="keyboard"
+            label="Keyboard"
+            isOpen={openSection === "keyboard"}
+            onToggle={toggleSection}
+          >
+            <KeyboardSettingsSection
+              keyboardSettings={props.keyboardSettings}
+              updateKeyboardSetting={props.updateKeyboardSetting}
+            />
+          </SettingsSectionDetails>
 
-        <SettingsSectionDetails section="app" label="App" isOpen={openSection === "app"} onToggle={toggleSection}>
-          <AppSettingsSection
-            appSettings={props.appSettings}
-            installApp={props.installApp}
-            installPrompt={props.installPrompt}
-            isInstalled={props.isInstalled}
-            refreshInstalledApp={props.refreshInstalledApp}
-            refreshMessage={props.refreshMessage}
-            presentationAvailable={props.presentationAvailable}
-            filesAvailable={props.filesAvailable ?? false}
-            updateAppSetting={props.updateAppSetting}
-          />
-        </SettingsSectionDetails>
+          <SettingsSectionDetails
+            section="remote"
+            label="Remote"
+            isOpen={openSection === "remote"}
+            onToggle={toggleSection}
+          >
+            <RemoteSettingsSection
+              remoteSettings={props.remoteSettings}
+              supportsRemoteLaunch={props.supportsRemoteLaunch}
+              updateRemoteSetting={props.updateRemoteSetting}
+            />
+          </SettingsSectionDetails>
 
-        <SettingsSectionDetails section="appearance" label="Appearance" isOpen={openSection === "appearance"} onToggle={toggleSection}>
-          <AppearanceSettingsSection controlDepth={props.controlDepth} setHostControlDepth={props.setHostControlDepth} setHostShowModeButtons={props.setHostShowModeButtons} setThemeMode={props.setThemeMode} showModeButtons={props.showModeButtons} themeMode={props.themeMode} />
-        </SettingsSectionDetails>
+          <SettingsSectionDetails
+            section="app"
+            label="App"
+            isOpen={openSection === "app"}
+            onToggle={toggleSection}
+          >
+            <AppSettingsSection
+              appSettings={props.appSettings}
+              installApp={props.installApp}
+              installPrompt={props.installPrompt}
+              isInstalled={props.isInstalled}
+              refreshInstalledApp={props.refreshInstalledApp}
+              refreshMessage={props.refreshMessage}
+              presentationAvailable={props.presentationAvailable}
+              filesAvailable={props.filesAvailable ?? false}
+              updateAppSetting={props.updateAppSetting}
+            />
+          </SettingsSectionDetails>
 
-        <SettingsSectionDetails section="split" label="Split mode" isOpen={openSection === "split"} onToggle={toggleSection}>
-          <SplitModeSettings settings={props.trackpadSettings} updateSetting={props.updateTrackpadSetting} />
-        </SettingsSectionDetails>
+          <SettingsSectionDetails
+            section="appearance"
+            label="Appearance"
+            isOpen={openSection === "appearance"}
+            onToggle={toggleSection}
+          >
+            <AppearanceSettingsSection
+              controlDepth={props.controlDepth}
+              setHostControlDepth={props.setHostControlDepth}
+              setHostShowModeButtons={props.setHostShowModeButtons}
+              setThemeMode={props.setThemeMode}
+              showModeButtons={props.showModeButtons}
+              themeMode={props.themeMode}
+            />
+          </SettingsSectionDetails>
 
-        <SettingsSectionDetails section="custom-pointer" label="Custom pointer" isOpen={openSection === "custom-pointer"} onToggle={toggleSection}>
-          <CustomPointerSettingsSection customPointerEnabled={props.customPointerEnabled} setHostCustomPointer={props.setHostCustomPointer} />
-        </SettingsSectionDetails>
+          <SettingsSectionDetails
+            section="split"
+            label="Split mode"
+            isOpen={openSection === "split"}
+            onToggle={toggleSection}
+          >
+            <SplitModeSettings
+              settings={props.trackpadSettings}
+              updateSetting={props.updateTrackpadSetting}
+            />
+          </SettingsSectionDetails>
 
-        <section className="drawer-group" aria-labelledby="drawer-support-title">
-          <h3 id="drawer-support-title">Support</h3>
-          <div className="drawer-tool-list">
-            <button type="button" onClick={() => {closeThen(props.onOpenDiagnostics);}}>
-              <Activity aria-hidden="true" />
-              <span>Diagnostics</span>
+          <SettingsSectionDetails
+            section="custom-pointer"
+            label="Custom pointer"
+            isOpen={openSection === "custom-pointer"}
+            onToggle={toggleSection}
+          >
+            <CustomPointerSettingsSection
+              customPointerEnabled={props.customPointerEnabled}
+              setHostCustomPointer={props.setHostCustomPointer}
+            />
+          </SettingsSectionDetails>
+
+          <section className="drawer-group" aria-labelledby="drawer-support-title">
+            <h3 id="drawer-support-title">Support</h3>
+            <div className="drawer-tool-list">
+              <button
+                type="button"
+                onClick={() => {
+                  closeThen(props.onOpenDiagnostics);
+                }}
+              >
+                <Activity aria-hidden="true" />
+                <span>Diagnostics</span>
+              </button>
+            </div>
+          </section>
+
+          <footer className="drawer-legal-links">
+            <button
+              className="drawer-legal-link"
+              type="button"
+              onClick={props.onOpenThirdPartyNotices}
+            >
+              Third-party notices
             </button>
-          </div>
-        </section>
-
-        <footer className="drawer-legal-links">
-          <button className="drawer-legal-link" type="button" onClick={props.onOpenThirdPartyNotices}>Third-party notices</button>
-        </footer>
-      </div>
+          </footer>
+        </div>
       </div>
     </dialog>
   );
@@ -259,7 +367,9 @@ const assistedScrollPadding = 16;
 function revealOpenedSection(scrollRegion: HTMLElement, section: HTMLDetailsElement): void {
   const summary = section.querySelector<HTMLElement>("summary");
   const body = section.querySelector<HTMLElement>(".settings-section-body");
-  const firstControl = body?.querySelector<HTMLElement>("button, input, select, textarea, a[href], [tabindex]");
+  const firstControl = body?.querySelector<HTMLElement>(
+    "button, input, select, textarea, a[href], [tabindex]",
+  );
   const revealTarget = firstControl ?? body;
   if (!summary || !revealTarget) {
     return;
@@ -294,6 +404,6 @@ function scrollAssisted(scrollRegion: HTMLElement, scrollDistance: number): void
   const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
   scrollRegion.scrollBy({
     top: scrollDistance,
-    behavior: reduceMotion ? "auto" : "smooth"
+    behavior: reduceMotion ? "auto" : "smooth",
   });
 }

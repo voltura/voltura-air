@@ -7,7 +7,7 @@ import {
   loadLiveKeyboardDefault,
   loadThemeMode,
   resolveTheme,
-  saveThemeMode
+  saveThemeMode,
 } from "./appStorage";
 
 function createStorage(): Storage {
@@ -16,7 +16,9 @@ function createStorage(): Storage {
     get length() {
       return items.size;
     },
-    clear: () => { items.clear(); },
+    clear: () => {
+      items.clear();
+    },
     getItem: (key: string) => items.get(key) ?? null,
     key: (index: number) => Array.from(items.keys())[index] ?? null,
     removeItem: (key: string) => {
@@ -24,7 +26,7 @@ function createStorage(): Storage {
     },
     setItem: (key: string, value: string) => {
       items.set(key, String(value));
-    }
+    },
   };
 }
 
@@ -41,11 +43,14 @@ describe("appStorage", () => {
   });
 
   it("loads valid app settings and falls back for invalid stored JSON", () => {
-    localStorage.setItem(appSettingsKey("client-a", "pc-a"), JSON.stringify({ autoRefresh: false }));
+    localStorage.setItem(
+      appSettingsKey("client-a", "pc-a"),
+      JSON.stringify({ autoRefresh: false }),
+    );
     expect(loadAppSettings("client-a", "pc-a")).toEqual({
       autoRefresh: false,
       clearTextAfterSending: true,
-      fourthMode: "presentation"
+      fourthMode: "presentation",
     });
 
     localStorage.setItem(appSettingsKey("client-a", "pc-a"), "{not-json");
@@ -63,18 +68,32 @@ describe("appStorage", () => {
   });
 
   it("scopes auto refresh by web build ID", () => {
-    expect(getAutoRefreshSessionKey("client-a", "pc-a", "build-a")).toBe("voltura-air.autoRefresh.client-a.pc-a.build.build-a");
+    expect(getAutoRefreshSessionKey("client-a", "pc-a", "build-a")).toBe(
+      "voltura-air.autoRefresh.client-a.pc-a.build.build-a",
+    );
   });
 
   it("continues with in-memory preferences when browser storage throws", () => {
     expect(loadThemeMode()).toBe("system");
     vi.stubGlobal("localStorage", {
-      get length(): number { throw new DOMException("Blocked", "SecurityError"); },
-      clear(): void { throw new DOMException("Blocked", "SecurityError"); },
-      getItem(): string | null { throw new DOMException("Blocked", "SecurityError"); },
-      key(): string | null { throw new DOMException("Blocked", "SecurityError"); },
-      removeItem(): void { throw new DOMException("Blocked", "SecurityError"); },
-      setItem(): void { throw new DOMException("Blocked", "SecurityError"); }
+      get length(): number {
+        throw new DOMException("Blocked", "SecurityError");
+      },
+      clear(): void {
+        throw new DOMException("Blocked", "SecurityError");
+      },
+      getItem(): string | null {
+        throw new DOMException("Blocked", "SecurityError");
+      },
+      key(): string | null {
+        throw new DOMException("Blocked", "SecurityError");
+      },
+      removeItem(): void {
+        throw new DOMException("Blocked", "SecurityError");
+      },
+      setItem(): void {
+        throw new DOMException("Blocked", "SecurityError");
+      },
     } satisfies Storage);
     saveThemeMode("dark");
     expect(loadThemeMode()).toBe("dark");

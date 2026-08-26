@@ -12,13 +12,13 @@ Mouse and keyboard control, media playback controls, Files for Windows PC or
 mapped-drive storage, and one-file transfers are implemented. The following
 capabilities from the broader mobile-app list are not implemented:
 
-| Missing capability | Possible direction |
-| --- | --- |
-| Running-process management | Consider a bounded process list with explicit, safe actions only after defining identity, elevation, confirmation, stale results, and cancellation behavior. |
-| Terminal or shell access | Keep this research-gated until authentication, command policy, output limits, working-directory restrictions, lifetime, privacy, and audit behavior are defined. |
-| PC screenshots | Consider an explicit action to capture a selected PC display or current view and deliver it to the mobile app, with permission, size, transient-storage, and cleanup limits. |
-| Clipboard synchronization | One-shot clipboard reads and writes are supported, but continuous or background synchronization is not. Any future sharing must remain explicit, foreground, and privacy-bounded. |
-| Reusable custom macros | Custom Screens provide individual configured actions, not a general multi-step macro runner. Consider bounded workflows only with explicit confirmation, cancellation, and no arbitrary code execution. |
+| Missing capability         | Possible direction                                                                                                                                                                                      |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Running-process management | Consider a bounded process list with explicit, safe actions only after defining identity, elevation, confirmation, stale results, and cancellation behavior.                                            |
+| Terminal or shell access   | Keep this research-gated until authentication, command policy, output limits, working-directory restrictions, lifetime, privacy, and audit behavior are defined.                                        |
+| PC screenshots             | Consider an explicit action to capture a selected PC display or current view and deliver it to the mobile app, with permission, size, transient-storage, and cleanup limits.                            |
+| Clipboard synchronization  | One-shot clipboard reads and writes are supported, but continuous or background synchronization is not. Any future sharing must remain explicit, foreground, and privacy-bounded.                       |
+| Reusable custom macros     | Custom Screens provide individual configured actions, not a general multi-step macro runner. Consider bounded workflows only with explicit confirmation, cancellation, and no arbitrary code execution. |
 
 ### HTTPS-enabled controller opportunities
 
@@ -29,12 +29,12 @@ every browser API, require explicit user activation for sensitive access, keep
 captured data transient by default, and validate permission and lifecycle behavior
 on real target devices.
 
-| Candidate | Direction and evidence needed |
-| --- | --- |
-| Motion gestures | Extend the existing motion owner with a small set such as Shake and left/right Flick, mapped locally to existing actions. Prove useful thresholds, false-positive resistance, orientation behavior, cancellation, and real-iPhone operation before adding Tilt scroll or Custom Screen integration; do not send or persist raw sensor samples. |
-| Share to Voltura Air | Evaluate installed-PWA share intake as an entry point to existing Send text/Open URL behavior. Confirm target-platform support, launch/session behavior, input bounds, and an understandable fallback; do not add history, inboxes, or cloud storage. |
-| Capture or scan directly to PC | Reuse the existing one-file upload destination, progress, cancellation, and cleanup while the existing camera owner supplies one transient photo or document capture. Prove real-device capture, review, retake, page lifecycle, and camera-track cleanup before considering multi-page scanning, correction, or OCR. |
-| Current location | Consider only a direct user action that sends the current location to an existing text or URL destination. Define a concrete workflow and validate permission, precision disclosure, cancellation, and cleanup; do not add tracking, geofencing, or background automation. |
+| Candidate                      | Direction and evidence needed                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Motion gestures                | Extend the existing motion owner with a small set such as Shake and left/right Flick, mapped locally to existing actions. Prove useful thresholds, false-positive resistance, orientation behavior, cancellation, and real-iPhone operation before adding Tilt scroll or Custom Screen integration; do not send or persist raw sensor samples. |
+| Share to Voltura Air           | Evaluate installed-PWA share intake as an entry point to existing Send text/Open URL behavior. Confirm target-platform support, launch/session behavior, input bounds, and an understandable fallback; do not add history, inboxes, or cloud storage.                                                                                          |
+| Capture or scan directly to PC | Reuse the existing one-file upload destination, progress, cancellation, and cleanup while the existing camera owner supplies one transient photo or document capture. Prove real-device capture, review, retake, page lifecycle, and camera-track cleanup before considering multi-page scanning, correction, or OCR.                          |
+| Current location               | Consider only a direct user action that sends the current location to an existing text or URL destination. Define a concrete workflow and validate permission, precision disclosure, cancellation, and cleanup; do not add tracking, geofencing, or background automation.                                                                     |
 
 #### Share to Voltura Air
 
@@ -115,19 +115,19 @@ browser-local unless a cross-device workflow justifies host ownership.
 
 ## Public project and release
 
-| Candidate | Decision boundary |
-| --- | --- |
-| Demo video/GIF | Isolated capture, captions, privacy-safe content, and licensed media. |
-| Code signing | Certificate, cost, key custody, CI signing, timestamps, renewal, revocation, and asset coverage. |
-| Microsoft Store | Packaging, signing, account, policy, update channel, and demonstrated benefit. |
+| Candidate       | Decision boundary                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------ |
+| Demo video/GIF  | Isolated capture, captions, privacy-safe content, and licensed media.                            |
+| Code signing    | Certificate, cost, key custody, CI signing, timestamps, renewal, revocation, and asset coverage. |
+| Microsoft Store | Packaging, signing, account, policy, update channel, and demonstrated benefit.                   |
 
 ## Research-gated capabilities
 
-| Candidate | Evidence needed |
-| --- | --- |
-| Wake-on-LAN | An available LAN sender, hardware/network prerequisites, validated target data, and explicit confirmation. |
-| Screen preview | Consent, capture behavior, protected content, encoding, limits, authorization, and cleanup. |
-| Gamepad mode | Driver, signing, elevation, install/remove, anti-cheat behavior, neutral disconnect, and latency. |
+| Candidate          | Evidence needed                                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------- |
+| Wake-on-LAN        | An available LAN sender, hardware/network prerequisites, validated target data, and explicit confirmation.    |
+| Screen preview     | Consent, capture behavior, protected content, encoding, limits, authorization, and cleanup.                   |
+| Gamepad mode       | Driver, signing, elevation, install/remove, anti-cheat behavior, neutral disconnect, and latency.             |
 | Native mobile apps | Demonstrated PWA gap, platform scope, protocol parity, accessibility, privacy, distribution, and maintenance. |
 
 ## Platform and compatibility

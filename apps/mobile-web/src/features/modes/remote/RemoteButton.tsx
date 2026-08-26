@@ -1,6 +1,15 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
-export type RepeatablePressProps = Pick<ButtonHTMLAttributes<HTMLButtonElement>, "onPointerDown" | "onPointerMove" | "onPointerUp" | "onPointerCancel" | "onPointerLeave" | "onLostPointerCapture" | "onClick">;
+export type RepeatablePressProps = Pick<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  | "onPointerDown"
+  | "onPointerMove"
+  | "onPointerUp"
+  | "onPointerCancel"
+  | "onPointerLeave"
+  | "onLostPointerCapture"
+  | "onClick"
+>;
 
 interface RemoteButtonProps {
   label: string;
@@ -12,9 +21,24 @@ interface RemoteButtonProps {
   title?: string | undefined;
 }
 
-export function RemoteButton({ label, onClick, pressProps, children, className, disabled = false, title }: RemoteButtonProps) {
+export function RemoteButton({
+  label,
+  onClick,
+  pressProps,
+  children,
+  className,
+  disabled = false,
+  title,
+}: RemoteButtonProps) {
   return (
-    <button type="button" aria-label={label} className={className} disabled={disabled} title={title} {...(pressProps ?? { onClick })}>
+    <button
+      type="button"
+      aria-label={label}
+      className={className}
+      disabled={disabled}
+      title={title}
+      {...(pressProps ?? { onClick })}
+    >
       {children ?? <span>{label}</span>}
     </button>
   );

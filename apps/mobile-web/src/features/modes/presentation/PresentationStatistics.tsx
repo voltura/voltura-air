@@ -1,17 +1,26 @@
-import { BarChart3, CircleStop, Coffee, Maximize2, Minimize2, Pause, Play, Timer } from "lucide-react";
+import {
+  BarChart3,
+  CircleStop,
+  Coffee,
+  Maximize2,
+  Minimize2,
+  Pause,
+  Play,
+  Timer,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ModalDialog } from "../../../ui/overlays/ModalDialog";
 import type { PresentationTarget } from "../../../foundation/protocol/messages";
 import {
   formatPresentationTime,
   type PresentationBreak,
-  type PresentationSlide
+  type PresentationSlide,
 } from "./presentationTimer";
 
 const targetLabels: Record<PresentationTarget, string> = {
   powerpoint: "PowerPoint",
   "google-slides": "Google Slides",
-  pdf: "PDF / browser"
+  pdf: "PDF / browser",
 };
 
 interface PresentationStatisticsProps {
@@ -51,7 +60,7 @@ interface PresentationLogRow {
 function formatRecordedDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
-    timeStyle: "medium"
+    timeStyle: "medium",
   }).format(new Date(value));
 }
 
@@ -71,7 +80,7 @@ function buildTimeline(
   breaks: PresentationBreak[],
   elapsedSeconds: number,
   currentSessionSlideMinimum: number | null,
-  currentSessionSlideMaximum: number | null
+  currentSessionSlideMaximum: number | null,
 ): TimelineEntry[] {
   const entries: TimelineEntry[] = [];
   let previousPresentationElapsed = 0;
@@ -82,14 +91,17 @@ function buildTimeline(
       label: `Session ${presentationBreak.breakNumber}`,
       slideLabel: formatSlideSpan(
         presentationBreak.sessionSlideMinimum,
-        presentationBreak.sessionSlideMaximum
+        presentationBreak.sessionSlideMaximum,
       ),
-      seconds: Math.max(0, presentationBreak.presentationElapsedSeconds - previousPresentationElapsed)
+      seconds: Math.max(
+        0,
+        presentationBreak.presentationElapsedSeconds - previousPresentationElapsed,
+      ),
     });
     entries.push({
       kind: "break",
       label: `Break ${presentationBreak.breakNumber}`,
-      seconds: presentationBreak.elapsedSeconds
+      seconds: presentationBreak.elapsedSeconds,
     });
     previousPresentationElapsed = presentationBreak.presentationElapsedSeconds;
   }
@@ -99,7 +111,7 @@ function buildTimeline(
       kind: "presentation",
       label: `Session ${breaks.length + 1}`,
       slideLabel: formatSlideSpan(currentSessionSlideMinimum, currentSessionSlideMaximum),
-      seconds: elapsedSeconds - previousPresentationElapsed
+      seconds: elapsedSeconds - previousPresentationElapsed,
     });
   }
 
@@ -113,18 +125,15 @@ function buildPresentationLogRows(breaks: PresentationBreak[]): PresentationLogR
       breakEntry,
       presentationSeconds: Math.max(
         0,
-        breakEntry.presentationElapsedSeconds - previousPresentationElapsed
-      )
+        breakEntry.presentationElapsedSeconds - previousPresentationElapsed,
+      ),
     };
     previousPresentationElapsed = breakEntry.presentationElapsedSeconds;
     return row;
   });
 }
 
-function getCurrentSessionSeconds(
-  breaks: PresentationBreak[],
-  elapsedSeconds: number
-): number {
+function getCurrentSessionSeconds(breaks: PresentationBreak[], elapsedSeconds: number): number {
   const latestBreak = breaks.at(-1);
   if (!latestBreak) {
     return elapsedSeconds;
@@ -157,7 +166,7 @@ export function PresentationStatistics({
   sessionStartedAt,
   sessionTarget,
   slides,
-  totalBreakSeconds
+  totalBreakSeconds,
 }: PresentationStatisticsProps) {
   const [selectedBreakNumber, setSelectedBreakNumber] = useState<number | null>(null);
   const expandButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -166,17 +175,13 @@ export function PresentationStatistics({
   const presentationLogRows = useMemo(() => buildPresentationLogRows(breaks), [breaks]);
   const compactRows = presentationLogRows.slice(-10).reverse();
   const timeline = useMemo(
-    () => buildTimeline(
-      breaks,
-      elapsedSeconds,
-      currentSessionSlideMinimum,
-      currentSessionSlideMaximum
-    ),
-    [breaks, currentSessionSlideMaximum, currentSessionSlideMinimum, elapsedSeconds]
+    () =>
+      buildTimeline(breaks, elapsedSeconds, currentSessionSlideMinimum, currentSessionSlideMaximum),
+    [breaks, currentSessionSlideMaximum, currentSessionSlideMinimum, elapsedSeconds],
   );
   const totalTimelineSeconds = Math.max(
     1,
-    timeline.reduce((total, entry) => total + entry.seconds, 0)
+    timeline.reduce((total, entry) => total + entry.seconds, 0),
   );
   const totalElapsedSeconds = elapsedSeconds + totalBreakSeconds;
   const currentSessionSeconds = getCurrentSessionSeconds(breaks, elapsedSeconds);
@@ -189,7 +194,9 @@ export function PresentationStatistics({
 
   const closeExpanded = () => {
     onExpandedChange(false);
-    window.requestAnimationFrame(() => { expandButtonRef.current?.focus(); });
+    window.requestAnimationFrame(() => {
+      expandButtonRef.current?.focus();
+    });
   };
 
   const currentStatus = isResetPending
@@ -209,7 +216,9 @@ export function PresentationStatistics({
           type="button"
           aria-label="Expand presentation statistics"
           title="Expand presentation statistics"
-          onClick={() => { onExpandedChange(true); }}
+          onClick={() => {
+            onExpandedChange(true);
+          }}
         >
           <Maximize2 aria-hidden="true" />
         </button>
@@ -219,8 +228,12 @@ export function PresentationStatistics({
         <section className="presentation-break-history" aria-label="Presentation log">
           <div className="presentation-break-history-heading">
             <div className="presentation-break-columns" aria-hidden="true">
-              <span title="Presentation time"><Timer /></span>
-              <span title="Break duration"><Coffee /></span>
+              <span title="Presentation time">
+                <Timer />
+              </span>
+              <span title="Break duration">
+                <Coffee />
+              </span>
             </div>
             <button
               ref={expandButtonRef}
@@ -228,7 +241,9 @@ export function PresentationStatistics({
               type="button"
               aria-label="Expand presentation statistics"
               title="Expand presentation statistics"
-              onClick={() => { onExpandedChange(true); }}
+              onClick={() => {
+                onExpandedChange(true);
+              }}
             >
               <Maximize2 aria-hidden="true" />
             </button>
@@ -240,10 +255,16 @@ export function PresentationStatistics({
                 key={breakEntry.breakNumber}
                 type="button"
                 aria-label={`Presentation session ${breakEntry.breakNumber}: ${formatPresentationTime(presentationSeconds)}, followed by break ${breakEntry.breakNumber}: ${formatPresentationTime(breakEntry.elapsedSeconds)}`}
-                onClick={() => { setSelectedBreakNumber(breakEntry.breakNumber); }}
+                onClick={() => {
+                  setSelectedBreakNumber(breakEntry.breakNumber);
+                }}
               >
-                <span className="presentation-segment-value">{formatPresentationTime(presentationSeconds)}</span>
-                <span className="presentation-break-value">{formatPresentationTime(breakEntry.elapsedSeconds)}</span>
+                <span className="presentation-segment-value">
+                  {formatPresentationTime(presentationSeconds)}
+                </span>
+                <span className="presentation-break-value">
+                  {formatPresentationTime(breakEntry.elapsedSeconds)}
+                </span>
               </button>
             ))}
           </div>
@@ -251,7 +272,10 @@ export function PresentationStatistics({
       )}
 
       {isExpanded && (
-        <section className="presentation-statistics-fullscreen" aria-labelledby="presentation-statistics-title">
+        <section
+          className="presentation-statistics-fullscreen"
+          aria-labelledby="presentation-statistics-title"
+        >
           <header className="presentation-statistics-fullscreen-header">
             <div>
               <p>Live statistics</p>
@@ -281,13 +305,36 @@ export function PresentationStatistics({
 
           <div className="presentation-statistics-scroll">
             <dl className="presentation-statistics-summary">
-              <div className="primary"><dt>Session time</dt><dd>{formatPresentationTime(currentSessionSeconds)}</dd></div>
-              <div><dt>Presentation total</dt><dd>{formatPresentationTime(elapsedSeconds)}</dd></div>
-              <div><dt>Slides</dt><dd>{slides.length}</dd></div>
-              <div><dt>Sessions</dt><dd>{presentationSessionCount}</dd></div>
-              <div><dt>Total elapsed</dt><dd>{formatPresentationTime(totalElapsedSeconds)}</dd></div>
-              <div><dt>Breaks</dt><dd>{breaks.length} · {formatPresentationTime(totalBreakSeconds)}</dd></div>
-              <div><dt>Type</dt><dd>{sessionTarget ? targetLabels[sessionTarget] : "Not started"}</dd></div>
+              <div className="primary">
+                <dt>Session time</dt>
+                <dd>{formatPresentationTime(currentSessionSeconds)}</dd>
+              </div>
+              <div>
+                <dt>Presentation total</dt>
+                <dd>{formatPresentationTime(elapsedSeconds)}</dd>
+              </div>
+              <div>
+                <dt>Slides</dt>
+                <dd>{slides.length}</dd>
+              </div>
+              <div>
+                <dt>Sessions</dt>
+                <dd>{presentationSessionCount}</dd>
+              </div>
+              <div>
+                <dt>Total elapsed</dt>
+                <dd>{formatPresentationTime(totalElapsedSeconds)}</dd>
+              </div>
+              <div>
+                <dt>Breaks</dt>
+                <dd>
+                  {breaks.length} · {formatPresentationTime(totalBreakSeconds)}
+                </dd>
+              </div>
+              <div>
+                <dt>Type</dt>
+                <dd>{sessionTarget ? targetLabels[sessionTarget] : "Not started"}</dd>
+              </div>
               <div className="presentation-statistics-status-card">
                 <dt>Status</dt>
                 <dd>
@@ -313,7 +360,10 @@ export function PresentationStatistics({
               </p>
             )}
 
-            <section className="presentation-statistics-timeline-section" aria-labelledby="presentation-statistics-timeline-title">
+            <section
+              className="presentation-statistics-timeline-section"
+              aria-labelledby="presentation-statistics-timeline-title"
+            >
               <div className="presentation-statistics-section-heading">
                 <BarChart3 aria-hidden="true" />
                 <h3 id="presentation-statistics-timeline-title">Presentation flow</h3>
@@ -321,7 +371,12 @@ export function PresentationStatistics({
               <div
                 className="presentation-statistics-timeline"
                 role="img"
-                aria-label={timeline.map((entry) => `${entry.label}${entry.slideLabel ? `, ${entry.slideLabel}` : ""}, ${formatPresentationTime(entry.seconds)}`).join(", ")}
+                aria-label={timeline
+                  .map(
+                    (entry) =>
+                      `${entry.label}${entry.slideLabel ? `, ${entry.slideLabel}` : ""}, ${formatPresentationTime(entry.seconds)}`,
+                  )
+                  .join(", ")}
               >
                 {timeline.map((entry) => (
                   <span
@@ -333,13 +388,22 @@ export function PresentationStatistics({
                 ))}
               </div>
               <div className="presentation-statistics-legend">
-                <span className="presentation"><Timer aria-hidden="true" />Presentation</span>
-                <span className="break"><Coffee aria-hidden="true" />Break</span>
+                <span className="presentation">
+                  <Timer aria-hidden="true" />
+                  Presentation
+                </span>
+                <span className="break">
+                  <Coffee aria-hidden="true" />
+                  Break
+                </span>
               </div>
             </section>
 
             {slides.length > 0 && (
-              <section className="presentation-statistics-details" aria-labelledby="presentation-slide-breakdown-title">
+              <section
+                className="presentation-statistics-details"
+                aria-labelledby="presentation-slide-breakdown-title"
+              >
                 <div className="presentation-slide-breakdown-heading">
                   <h3 id="presentation-slide-breakdown-title">Slide breakdown</h3>
                   <p>Estimated from presentation controls</p>
@@ -355,7 +419,9 @@ export function PresentationStatistics({
                         aria-label={`Slide ${slide.slideNumber}: ${formatSlideDuration(slide.elapsedSeconds)}${isCurrent ? ", current slide" : ""}`}
                         key={slide.slideNumber}
                       >
-                        <span className="presentation-statistics-log-icon" aria-hidden="true"><Timer /></span>
+                        <span className="presentation-statistics-log-icon" aria-hidden="true">
+                          <Timer />
+                        </span>
                         <strong>
                           Slide #{slide.slideNumber}
                           {isCurrent && <span className="presentation-slide-current">Current</span>}
@@ -368,17 +434,26 @@ export function PresentationStatistics({
               </section>
             )}
 
-            <section className="presentation-statistics-details" aria-labelledby="presentation-statistics-details-title">
+            <section
+              className="presentation-statistics-details"
+              aria-labelledby="presentation-statistics-details-title"
+            >
               <h3 id="presentation-statistics-details-title">Sessions and breaks</h3>
               <div className="presentation-statistics-table" role="list">
                 {timeline.map((entry) => (
-                  <div className={`presentation-statistics-log-entry ${entry.kind}`} role="listitem" key={`${entry.kind}-${entry.label}`}>
+                  <div
+                    className={`presentation-statistics-log-entry ${entry.kind}`}
+                    role="listitem"
+                    key={`${entry.kind}-${entry.label}`}
+                  >
                     <span className="presentation-statistics-log-icon" aria-hidden="true">
                       {entry.kind === "presentation" ? <Timer /> : <Coffee />}
                     </span>
                     <strong>
                       {entry.label}
-                      {entry.slideLabel && <span className="presentation-session-slides">{entry.slideLabel}</span>}
+                      {entry.slideLabel && (
+                        <span className="presentation-session-slides">{entry.slideLabel}</span>
+                      )}
                     </strong>
                     <span>{formatPresentationTime(entry.seconds)}</span>
                   </div>
@@ -394,16 +469,35 @@ export function PresentationStatistics({
         dismissLabel="OK"
         focusDismissAction
         isOpen={selectedBreak !== null}
-        onClose={() => { setSelectedBreakNumber(null); }}
+        onClose={() => {
+          setSelectedBreakNumber(null);
+        }}
         title={selectedBreak ? `Break ${selectedBreak.breakNumber}` : "Break"}
       >
         {selectedBreak && (
           <dl className="presentation-break-dialog-details">
-            <div><dt>Presentation checkpoint</dt><dd>{formatPresentationTime(selectedBreak.presentationElapsedSeconds)}</dd></div>
-            <div><dt>Break duration</dt><dd>{formatPresentationTime(selectedBreak.elapsedSeconds)}</dd></div>
-            <div><dt>Started</dt><dd>{formatRecordedDate(selectedBreak.startedAt)}</dd></div>
-            <div><dt>Status</dt><dd>{selectedBreak.endedAt === null ? "In progress" : "Completed"}</dd></div>
-            {selectedBreak.endedAt && <div><dt>Ended</dt><dd>{formatRecordedDate(selectedBreak.endedAt)}</dd></div>}
+            <div>
+              <dt>Presentation checkpoint</dt>
+              <dd>{formatPresentationTime(selectedBreak.presentationElapsedSeconds)}</dd>
+            </div>
+            <div>
+              <dt>Break duration</dt>
+              <dd>{formatPresentationTime(selectedBreak.elapsedSeconds)}</dd>
+            </div>
+            <div>
+              <dt>Started</dt>
+              <dd>{formatRecordedDate(selectedBreak.startedAt)}</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>{selectedBreak.endedAt === null ? "In progress" : "Completed"}</dd>
+            </div>
+            {selectedBreak.endedAt && (
+              <div>
+                <dt>Ended</dt>
+                <dd>{formatRecordedDate(selectedBreak.endedAt)}</dd>
+              </div>
+            )}
           </dl>
         )}
       </ModalDialog>

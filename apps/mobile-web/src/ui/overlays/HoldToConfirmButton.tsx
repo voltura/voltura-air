@@ -1,13 +1,21 @@
-import { forwardRef, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 import "./hold-to-confirm.css";
 
 const holdDurationMs = 1600;
 const holdTickMs = 40;
 
-export const HoldToConfirmButton = forwardRef<HTMLButtonElement, { disabled: boolean; label: string; onConfirm: () => void }>(function HoldToConfirmButton(
-  { disabled, label, onConfirm },
-  ref
-) {
+export const HoldToConfirmButton = forwardRef<
+  HTMLButtonElement,
+  { disabled: boolean; label: string; onConfirm: () => void }
+>(function HoldToConfirmButton({ disabled, label, onConfirm }, ref) {
   const [progress, setProgress] = useState(0);
   const intervalRef = useRef<number | null>(null);
   const timeoutRef = useRef<number | null>(null);
@@ -29,7 +37,9 @@ export const HoldToConfirmButton = forwardRef<HTMLButtonElement, { disabled: boo
   };
 
   useEffect(() => {
-    const cancelOnWindowBlur = () => { clearHold(); };
+    const cancelOnWindowBlur = () => {
+      clearHold();
+    };
     const cancelWhenHidden = () => {
       if (document.visibilityState === "hidden") {
         clearHold();
@@ -86,7 +96,9 @@ export const HoldToConfirmButton = forwardRef<HTMLButtonElement, { disabled: boo
     }
   };
 
-  const cancelHold = () => { clearHold(); };
+  const cancelHold = () => {
+    clearHold();
+  };
   const style = { "--hold-progress": `${Math.round(progress * 100)}%` } as CSSProperties;
 
   return (
@@ -97,7 +109,9 @@ export const HoldToConfirmButton = forwardRef<HTMLButtonElement, { disabled: boo
       disabled={disabled}
       style={style}
       aria-label={`Hold to ${label.toLocaleLowerCase()}`}
-      onClick={(event) => { event.preventDefault(); }}
+      onClick={(event) => {
+        event.preventDefault();
+      }}
       onKeyDown={onKeyDown}
       onKeyUp={cancelHold}
       onBlur={cancelHold}
@@ -106,7 +120,13 @@ export const HoldToConfirmButton = forwardRef<HTMLButtonElement, { disabled: boo
       onPointerLeave={cancelHold}
       onPointerUp={cancelHold}
     >
-      <span>{disabled ? "Wait for the current power request to finish." : progress > 0 ? "Keep holding…" : `Hold to ${label.toLocaleLowerCase()}`}</span>
+      <span>
+        {disabled
+          ? "Wait for the current power request to finish."
+          : progress > 0
+            ? "Keep holding…"
+            : `Hold to ${label.toLocaleLowerCase()}`}
+      </span>
     </button>
   );
 });

@@ -46,17 +46,23 @@ export function DiagnosticsWorkspace(props: DiagnosticsWorkspaceProps) {
     }
   }, [pending, permission, requestDiagnostics, state]);
 
-  const groups = useMemo(() => buildDiagnosticsGroups(props.state, props.snapshot), [props.snapshot, props.state]);
+  const groups = useMemo(
+    () => buildDiagnosticsGroups(props.state, props.snapshot),
+    [props.snapshot, props.state],
+  );
   const rows = groups.flatMap((group) => group.rows);
   const copy = async (text: string, success: string) => {
     setManualCopy("");
-    if (await copyTextToClipboard(text) === "copied") {
+    if ((await copyTextToClipboard(text)) === "copied") {
       props.onCopyFeedback(success, "success");
       return;
     }
 
     setManualCopy(text);
-    props.onCopyFeedback("Could not copy automatically. Select the text below and copy it manually.", "error");
+    props.onCopyFeedback(
+      "Could not copy automatically. Select the text below and copy it manually.",
+      "error",
+    );
   };
 
   const generated = props.snapshot
@@ -65,7 +71,11 @@ export function DiagnosticsWorkspace(props: DiagnosticsWorkspaceProps) {
   const unavailableState = getUnavailableState(props);
 
   return (
-    <section className="diagnostics-workspace" aria-labelledby="diagnostics-title" aria-busy={props.pending}>
+    <section
+      className="diagnostics-workspace"
+      aria-labelledby="diagnostics-title"
+      aria-busy={props.pending}
+    >
       <header className="diagnostics-header">
         <button type="button" className="diagnostics-back" onClick={props.onBack}>
           <ChevronLeft aria-hidden="true" />
@@ -84,22 +94,42 @@ export function DiagnosticsWorkspace(props: DiagnosticsWorkspaceProps) {
             <span>Generated</span>
             <strong>{generated}</strong>
           </div>
-          <button type="button" onClick={props.requestDiagnostics} disabled={props.state !== "paired" || props.permission !== true || props.pending}>
-            <RefreshCw aria-hidden="true" className={props.pending ? "diagnostics-refreshing" : undefined} />
+          <button
+            type="button"
+            onClick={props.requestDiagnostics}
+            disabled={props.state !== "paired" || props.permission !== true || props.pending}
+          >
+            <RefreshCw
+              aria-hidden="true"
+              className={props.pending ? "diagnostics-refreshing" : undefined}
+            />
             <span>Refresh</span>
           </button>
         </div>
 
         {unavailableState && (
-          <div className={`diagnostics-state diagnostics-state-${unavailableState.tone}`} role={unavailableState.tone === "error" ? "alert" : "status"}>
+          <div
+            className={`diagnostics-state diagnostics-state-${unavailableState.tone}`}
+            role={unavailableState.tone === "error" ? "alert" : "status"}
+          >
             <p>{unavailableState.message}</p>
-            {unavailableState.retry && <button type="button" onClick={props.requestDiagnostics}>Retry</button>}
+            {unavailableState.retry && (
+              <button type="button" onClick={props.requestDiagnostics}>
+                Retry
+              </button>
+            )}
           </div>
         )}
 
         {groups.map((group) => (
-          <section className="diagnostics-group" aria-labelledby={`diagnostics-${group.title.toLowerCase().replaceAll(" ", "-")}`} key={group.title}>
-            <h2 id={`diagnostics-${group.title.toLowerCase().replaceAll(" ", "-")}`}>{group.title}</h2>
+          <section
+            className="diagnostics-group"
+            aria-labelledby={`diagnostics-${group.title.toLowerCase().replaceAll(" ", "-")}`}
+            key={group.title}
+          >
+            <h2 id={`diagnostics-${group.title.toLowerCase().replaceAll(" ", "-")}`}>
+              {group.title}
+            </h2>
             <div className="diagnostics-rows">
               {group.rows.map((row) => {
                 const line = formatDiagnosticRow(row);
@@ -109,7 +139,14 @@ export function DiagnosticsWorkspace(props: DiagnosticsWorkspaceProps) {
                       <span>{row.label}</span>
                       <strong className="selectable-text">{row.value}</strong>
                     </div>
-                    <button type="button" className="icon-button" aria-label={`Copy ${row.label}`} onClick={() => { void copy(line, `${row.label} copied.`); }}>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label={`Copy ${row.label}`}
+                      onClick={() => {
+                        void copy(line, `${row.label} copied.`);
+                      }}
+                    >
                       <Clipboard aria-hidden="true" />
                     </button>
                   </div>
@@ -120,25 +157,44 @@ export function DiagnosticsWorkspace(props: DiagnosticsWorkspaceProps) {
         ))}
 
         <div className="diagnostics-copy-all">
-          <button type="button" onClick={() => { void copy(buildDiagnosticsText(rows), "Diagnostics copied."); }}>
+          <button
+            type="button"
+            onClick={() => {
+              void copy(buildDiagnosticsText(rows), "Diagnostics copied.");
+            }}
+          >
             <Clipboard aria-hidden="true" />
             <span>Copy all</span>
           </button>
-          {manualCopy && <textarea aria-label="Diagnostics text" className="text-input selectable-text" onFocus={(event) => { event.currentTarget.select(); }} readOnly rows={8} value={manualCopy} />}
+          {manualCopy && (
+            <textarea
+              aria-label="Diagnostics text"
+              className="text-input selectable-text"
+              onFocus={(event) => {
+                event.currentTarget.select();
+              }}
+              readOnly
+              rows={8}
+              value={manualCopy}
+            />
+          )}
         </div>
       </div>
     </section>
   );
 }
 
-export function buildDiagnosticsGroups(state: ConnectionState, snapshot: MobileHostDiagnosticsSnapshot | null): DiagnosticGroup[] {
+export function buildDiagnosticsGroups(
+  state: ConnectionState,
+  snapshot: MobileHostDiagnosticsSnapshot | null,
+): DiagnosticGroup[] {
   const groups: DiagnosticGroup[] = [
     {
       title: "Voltura Air",
       rows: [
         { label: "Web client version", value: __APP_VERSION__ },
-        ...(snapshot ? [{ label: "Host version", value: snapshot.hostVersion }] : [])
-      ]
+        ...(snapshot ? [{ label: "Host version", value: snapshot.hostVersion }] : []),
+      ],
     },
     {
       title: "Connection",
@@ -146,23 +202,25 @@ export function buildDiagnosticsGroups(state: ConnectionState, snapshot: MobileH
         { label: "Connection state", value: state },
         { label: "Browser", value: getBrowserName() },
         { label: "Display mode", value: getDisplayMode() },
-        ...(snapshot ? buildHostConnectionRows(snapshot) : [])
-      ]
+        ...(snapshot ? buildHostConnectionRows(snapshot) : []),
+      ],
     },
     {
       title: "Computer",
-      rows: snapshot ? [
-        { label: "Windows", value: snapshot.computer.windows },
-        { label: "System", value: snapshot.computer.system },
-        { label: "Processor", value: snapshot.computer.processor },
-        { label: "Logical processors", value: snapshot.computer.logicalProcessors },
-        { label: "Primary display", value: snapshot.computer.primaryDisplay },
-        { label: "Installed memory", value: snapshot.computer.installedMemory },
-        { label: "Available memory", value: snapshot.computer.availableMemory },
-        { label: "System disk", value: snapshot.computer.systemDisk },
-        { label: "System uptime", value: snapshot.computer.systemUptime }
-      ] : []
-    }
+      rows: snapshot
+        ? [
+            { label: "Windows", value: snapshot.computer.windows },
+            { label: "System", value: snapshot.computer.system },
+            { label: "Processor", value: snapshot.computer.processor },
+            { label: "Logical processors", value: snapshot.computer.logicalProcessors },
+            { label: "Primary display", value: snapshot.computer.primaryDisplay },
+            { label: "Installed memory", value: snapshot.computer.installedMemory },
+            { label: "Available memory", value: snapshot.computer.availableMemory },
+            { label: "System disk", value: snapshot.computer.systemDisk },
+            { label: "System uptime", value: snapshot.computer.systemUptime },
+          ]
+        : [],
+    },
   ];
 
   return groups.filter((group) => group.rows.length > 0);
@@ -188,8 +246,8 @@ function buildHostConnectionRows(snapshot: MobileHostDiagnosticsSnapshot): Diagn
     ...snapshot.advisories.flatMap((advisory) => [
       { label: advisory.name, value: advisory.summary },
       { label: `${advisory.name} details`, value: advisory.details },
-      { label: `${advisory.name} code`, value: advisory.code }
-    ])
+      { label: `${advisory.name} code`, value: advisory.code },
+    ]),
   ];
 }
 
@@ -206,15 +264,30 @@ function formatGeneratedAt(value: string): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
-function getUnavailableState(props: DiagnosticsWorkspaceProps): { message: string; tone: "neutral" | "error"; retry: boolean } | null {
+function getUnavailableState(
+  props: DiagnosticsWorkspaceProps,
+): { message: string; tone: "neutral" | "error"; retry: boolean } | null {
   if (props.state !== "paired") {
-    return { message: "Connect to a PC to include host and computer information.", tone: "neutral", retry: false };
+    return {
+      message: "Connect to a PC to include host and computer information.",
+      tone: "neutral",
+      retry: false,
+    };
   }
   if (props.permission === false) {
-    return { message: "View diagnostics is blocked for this device. Change its access profile on the PC to allow it.", tone: "neutral", retry: false };
+    return {
+      message:
+        "View diagnostics is blocked for this device. Change its access profile on the PC to allow it.",
+      tone: "neutral",
+      retry: false,
+    };
   }
   if (props.permission === undefined) {
-    return { message: "This PC does not support mobile diagnostics.", tone: "neutral", retry: false };
+    return {
+      message: "This PC does not support mobile diagnostics.",
+      tone: "neutral",
+      retry: false,
+    };
   }
   if (props.failure) {
     return { message: props.failure.message, tone: "error", retry: true };

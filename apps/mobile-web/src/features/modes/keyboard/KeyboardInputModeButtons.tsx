@@ -5,7 +5,10 @@ interface KeyboardInputModeButtonsProps {
   onInputModeChange: (inputMode: KeyboardInputMode) => void;
 }
 
-export function KeyboardInputModeButtons({ inputMode, onInputModeChange }: KeyboardInputModeButtonsProps) {
+export function KeyboardInputModeButtons({
+  inputMode,
+  onInputModeChange,
+}: KeyboardInputModeButtonsProps) {
   return (
     <div className="keyboard-input-mode-buttons" role="tablist" aria-label="Device keyboard type">
       <button
@@ -14,7 +17,9 @@ export function KeyboardInputModeButtons({ inputMode, onInputModeChange }: Keybo
         aria-label="Show regular keyboard"
         aria-selected={inputMode === "text"}
         role="tab"
-        onClick={() => { onInputModeChange("text"); }}
+        onClick={() => {
+          onInputModeChange("text");
+        }}
       >
         ABC
       </button>
@@ -24,7 +29,9 @@ export function KeyboardInputModeButtons({ inputMode, onInputModeChange }: Keybo
         aria-label="Show numeric keyboard"
         aria-selected={inputMode === "numeric"}
         role="tab"
-        onClick={() => { onInputModeChange("numeric"); }}
+        onClick={() => {
+          onInputModeChange("numeric");
+        }}
       >
         123
       </button>

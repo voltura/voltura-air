@@ -6,78 +6,112 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 
 export const commandDescriptions = {
   "actions:restore": "Install the checked-in GitHub Actions workflow files.",
-  "ai:init": "Install the newest ChatGPT/Codex package if needed, then configure the daily task and desktop shortcut.",
-  "ai:schedule:create": "Create or refresh the hidden daily ChatGPT/Codex update task; accepts --time HH:mm:ss.",
-  "ai:schedule:remove": "Remove every ChatGPT/Codex updater scheduled task created by this repository.",
-  "ai:shortcut:create": "Create or refresh the desktop shortcut for a visible ChatGPT/Codex update check.",
-  "ai:shortcut:remove": "Remove the ChatGPT/Codex updater desktop shortcut created by this repository.",
-  "ai:update": "Check the official ChatGPT/Codex package version and silently install it when newer.",
+  "ai:init":
+    "Install the newest ChatGPT/Codex package if needed, then configure the daily task and desktop shortcut.",
+  "ai:schedule:create":
+    "Create or refresh the hidden daily ChatGPT/Codex update task; accepts --time HH:mm:ss.",
+  "ai:schedule:remove":
+    "Remove every ChatGPT/Codex updater scheduled task created by this repository.",
+  "ai:shortcut:create":
+    "Create or refresh the desktop shortcut for a visible ChatGPT/Codex update check.",
+  "ai:shortcut:remove":
+    "Remove the ChatGPT/Codex updater desktop shortcut created by this repository.",
+  "ai:update":
+    "Check the official ChatGPT/Codex package version and silently install it when newer.",
   "branch:sync": "Synchronize the current branch with its configured upstream.",
   build: "Run the full cross-runtime production build gate for broad/shared or release work.",
-  "branding:generate": "Generate application icons, NSIS installer artwork, and public-site screenshots.",
+  "branding:generate":
+    "Generate application icons, NSIS installer artwork, and public-site screenshots.",
   "cache:purge": "Clear stale Windows icon cache entries and restart Explorer.",
   "clean:git": "Compact the local Git object database and prune unreachable objects.",
   "clean:temp": "Remove ignored build and cache files while preserving local editor settings.",
   "clean:temp:preview": "Show which ignored build and cache files clean:temp would remove.",
-  "code:statistics": "Print source statistics; append -- --report to refresh apps/public-site/stats.html and open it.",
-  "deps:check": "Audit npm, NuGet, container, and native dependency currency without changing files.",
+  "code:statistics":
+    "Print source statistics; append -- --report to refresh apps/public-site/stats.html and open it.",
+  "deps:check":
+    "Audit npm, NuGet, container, and native dependency currency without changing files.",
   "deps:update": "Update dependencies within their declared version ranges.",
-  "dev": "Start the normal checked development loop for the host and mobile client.",
+  dev: "Start the normal checked development loop for the host and mobile client.",
   "dev:bare-source": "Create a source archive without repository metadata or development files.",
   "dev:host": "Start only the Windows host development server.",
-  "dev:quick": "Build changed sources quickly when needed and start the host with normal production settings for human device validation.",
+  "dev:quick":
+    "Build changed sources quickly when needed and start the host with normal production settings for human device validation.",
   "dev:source": "Create a clean source archive for development handoff.",
   "dev:ui": "Open an isolated Chrome device-mode session against the real pairing flow.",
   "dev:web": "Start only the mobile web development server.",
   "docs:check": "Verify the documentation catalog and internal document links.",
+  format: "Format maintained first-party text with Oxfmt.",
+  "format:check": "Verify maintained first-party text already matches Oxfmt.",
   help: "List every root npm command with its purpose and implementation.",
-  "host:ownership:check": "Check that Windows host partial classes retain clear ownership boundaries.",
+  "host:ownership:check":
+    "Check that Windows host partial classes retain clear ownership boundaries.",
   "icons:generate": "Generate application icons from the authoritative branding artwork.",
   lint: "Lint the mobile web application.",
-  "maintenance:full": "Run icon-cache cleanup, temporary-file cleanup, Git maintenance, and dependency updates.",
+  "maintenance:full":
+    "Run icon-cache cleanup, temporary-file cleanup, Git maintenance, and dependency updates.",
   "package:source": "Create a clean source-code ZIP archive.",
   "package:source:bare": "Create a minimal source-code ZIP archive.",
   "package:win": "Build the full Windows installer package.",
   "package:win:small": "Build only the framework-dependent Windows installer package.",
   "package:win:test": "Build an uncompressed Windows installer for testing.",
-  "powershell:check": "Parse each script with its declared PowerShell edition and run the pinned analyzer.",
-  "site:dev:init": "Install/check local PHP and MariaDB, then initialize the development catalog database.",
+  "powershell:check":
+    "Parse each script with its declared PowerShell edition and run the pinned analyzer.",
+  "site:dev:init":
+    "Install/check local PHP and MariaDB, then initialize the development catalog database.",
   "site:dev:admin": "Promote an existing local catalog account to administrator.",
-  "site:check": "Verify PHP 8.5, required extensions, and every maintained PHP entry point.",
+  "site:check": "Verify PHP 8.5.9+, required extensions, and every maintained PHP entry point.",
   "site:dev": "Run the PHP public site locally against the development catalog database.",
   "site:hosted:build": "Build the separately scoped hosted Relay PWA under apps/public-site/app.",
-  "site:hosted:dev-build": "Build the isolated HTTPS development PWA under apps/public-site/dev-app.",
+  "site:hosted:dev-build":
+    "Build the isolated HTTPS development PWA under apps/public-site/dev-app.",
   "site:preview:build": "Build the catalog preview from the real mobile custom-screen renderer.",
-  "third-party:check": "Verify shipped dependency versions, native provenance, and generated browser notices.",
-  "third-party:generate": "Regenerate the mobile PWA's complete third-party license notice from installed production packages.",
+  "third-party:check":
+    "Verify shipped dependency versions, native provenance, and generated browser notices.",
+  "third-party:generate":
+    "Regenerate the mobile PWA's complete third-party license notice from installed production packages.",
   release: "Prepare a versioned release and update its authoritative version values.",
-  "release:bump": "Advance version values only through the project's one-digit patch and minor sequence.",
-  "release:draft": "Build, test, package, push, and create an audited GitHub draft; accepts an optional version.",
-  "release:finalize-published": "Verify the exact published release and GitHub Latest state, then remove its completed local checkpoint.",
-  "release:full": "Build, test, package, push, and publish GitHub Latest; hosted service deployment is owned privately.",
-  "release:sync-release-notes": "Synchronize a published GitHub release's marked editorial notes into the matching local section.",
-  "release:verify-draft": "Verify the reviewed GitHub draft, public commit, packaged artifacts, sizes, and digests without changing it.",
-  "release:publish-audited": "Publish only the existing exact audited GitHub draft as Latest; never create, repair, or upload release assets.",
-  "release:verify-published": "Verify the reviewed published release, packaged artifacts, and GitHub Latest state without changing them.",
+  "release:bump":
+    "Advance version values only through the project's one-digit patch and minor sequence.",
+  "release:draft":
+    "Build, test, package, push, and create an audited GitHub draft; accepts an optional version.",
+  "release:finalize-published":
+    "Verify the exact published release and GitHub Latest state, then remove its completed local checkpoint.",
+  "release:full":
+    "Build, test, package, push, and publish GitHub Latest; hosted service deployment is owned privately.",
+  "release:sync-release-notes":
+    "Synchronize a published GitHub release's marked editorial notes into the matching local section.",
+  "release:verify-draft":
+    "Verify the reviewed GitHub draft, public commit, packaged artifacts, sizes, and digests without changing it.",
+  "release:publish-audited":
+    "Publish only the existing exact audited GitHub draft as Latest; never create, repair, or upload release assets.",
+  "release:verify-published":
+    "Verify the reviewed published release, packaged artifacts, and GitHub Latest state without changing them.",
   "relay:check": "Build and test the portable relay core and adapters without deploying.",
   "screenshots:site": "Capture screenshots for the public site.",
-  "screens:check": "Validate generated official screens with the current host reader and responsive portrait/landscape rendering.",
+  "screens:check":
+    "Validate generated official screens with the current host reader and responsive portrait/landscape rendering.",
   "screens:generate": "Generate the 14 official custom-screen packages and catalog metadata.",
-  "screens:layout-check": "Render all 14 official custom screens at phone portrait and landscape sizes and reject overflow.",
-  "screens:official": "Generate the official custom-screen packages and deterministic import bundle.",
-  "screen-view:layout-check": "Render the direct Screen View control in a real browser and verify its video hit target.",
+  "screens:layout-check":
+    "Render all 14 official custom screens at phone portrait and landscape sizes and reject overflow.",
+  "screens:official":
+    "Generate the official custom-screen packages and deterministic import bundle.",
+  "screen-view:layout-check":
+    "Render the direct Screen View control in a real browser and verify its video hit target.",
   "size:check": "Fail if strong source-size warnings lack current review rationales.",
   "size:report": "Report source-file size and ownership signals.",
   test: "Run the full repository test gate for release or repository-wide shared-contract work.",
   "test:host": "Run the Windows host test suite.",
   "test:scripts": "Run tests for repository automation scripts.",
-  "test:site-import-integration": "Exercise official-screen import success, rollback boundaries, and stable updates against isolated local MariaDB.",
-  "test:site-telemetry-integration": "Exercise telemetry ingest, retention, cleanup, and catalog isolation against the configured local MariaDB database.",
+  "test:site-import-integration":
+    "Exercise official-screen import success, rollback boundaries, and stable updates against isolated local MariaDB.",
+  "test:site-telemetry-integration":
+    "Exercise telemetry ingest, retention, cleanup, and catalog isolation against the configured local MariaDB database.",
   "test:ui": "Run the isolated browser device-mode smoke test through the real pairing flow.",
   "test:web": "Run the mobile web unit suite and real-browser Screen View layout check.",
-  "tools:check": "Verify the pinned Node, npm, .NET, PowerShell, PHP, Visual Studio, and NSIS toolchain.",
+  "tools:check":
+    "Verify the pinned Node, npm, .NET, PowerShell, PHP, Visual Studio, and NSIS toolchain.",
   "ui:tokens:check": "Verify generated UI tokens are current.",
-  "ui:tokens:generate": "Regenerate UI tokens from their source definitions."
+  "ui:tokens:generate": "Regenerate UI tokens from their source definitions.",
 };
 
 export function findUndocumentedCommands(scripts) {
@@ -89,7 +123,7 @@ export function findStaleDescriptions(scripts) {
 }
 
 export function formatCommandHelp(scripts, filterText = "", { useColor = false } = {}) {
-  const paint = (code, text) => useColor ? `\u001b[${code}m${text}\u001b[0m` : text;
+  const paint = (code, text) => (useColor ? `\u001b[${code}m${text}\u001b[0m` : text);
   const normalizedFilter = filterText.toLocaleLowerCase();
   const commands = Object.keys(scripts)
     .filter((name) => name.toLocaleLowerCase().includes(normalizedFilter))
@@ -100,7 +134,13 @@ export function formatCommandHelp(scripts, filterText = "", { useColor = false }
     : "Voltura Air npm commands";
 
   if (commands.length === 0) {
-    return [heading, "", "No npm commands matched the filter.", "", "Run a command with: npm run <name>"].join("\n");
+    return [
+      heading,
+      "",
+      "No npm commands matched the filter.",
+      "",
+      "Run a command with: npm run <name>",
+    ].join("\n");
   }
 
   return [
@@ -110,9 +150,9 @@ export function formatCommandHelp(scripts, filterText = "", { useColor = false }
       paint("1;33", `npm run ${name}`),
       `  ${paint("36", "Purpose:")} ${commandDescriptions[name]}`,
       `  ${paint("2", "Runs:")}    ${scripts[name]}`,
-      ""
+      "",
     ]),
-    paint("2", "Filter this list with: npm run help -- <name-fragment>")
+    paint("2", "Filter this list with: npm run help -- <name-fragment>"),
   ].join("\n");
 }
 
@@ -125,16 +165,16 @@ async function main() {
   if (undocumented.length > 0 || stale.length > 0) {
     const issues = [
       undocumented.length > 0 && `Missing descriptions: ${undocumented.join(", ")}`,
-      stale.length > 0 && `Descriptions for missing scripts: ${stale.join(", ")}`
+      stale.length > 0 && `Descriptions for missing scripts: ${stale.join(", ")}`,
     ].filter(Boolean);
     throw new Error(`Command help is out of date. ${issues.join(". ")}`);
   }
 
-  console.log(formatCommandHelp(
-    packageJson.scripts,
-    process.argv.slice(2).join(" "),
-    { useColor: Boolean(process.stdout.isTTY && !process.env.NO_COLOR) }
-  ));
+  console.log(
+    formatCommandHelp(packageJson.scripts, process.argv.slice(2).join(" "), {
+      useColor: Boolean(process.stdout.isTTY && !process.env.NO_COLOR),
+    }),
+  );
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

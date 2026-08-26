@@ -1,8 +1,20 @@
 import { defaultAppSettings, normalizeAppSettings, type AppSettings } from "./appSettings";
-import { defaultKeyboardSettings, normalizeKeyboardSettings, type KeyboardSettings } from "./keyboardSettings";
-import { defaultTrackpadSettings, normalizeTrackpadSettings, type TrackpadSettings } from "../input/gestures";
+import {
+  defaultKeyboardSettings,
+  normalizeKeyboardSettings,
+  type KeyboardSettings,
+} from "./keyboardSettings";
+import {
+  defaultTrackpadSettings,
+  normalizeTrackpadSettings,
+  type TrackpadSettings,
+} from "../input/gestures";
 import { resolveRemoteSettings, type RemoteModeId, type RemoteSettings } from "./remoteSettings";
-import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../platform/browserStorage";
+import {
+  readLocalStorage,
+  removeLocalStorage,
+  writeLocalStorage,
+} from "../platform/browserStorage";
 
 export type ThemeMode = "system" | "light" | "dark";
 
@@ -11,7 +23,9 @@ const themeModeKey = "voltura-air.themeMode";
 const autoRefreshSessionPrefix = "voltura-air.autoRefresh";
 
 export function trackpadSettingsKey(clientId: string, pcId: string | null): string {
-  return pcId ? `voltura-air.trackpadSettings.${clientId}.${pcId}` : baseTrackpadSettingsKey(clientId);
+  return pcId
+    ? `voltura-air.trackpadSettings.${clientId}.${pcId}`
+    : baseTrackpadSettingsKey(clientId);
 }
 
 export function remoteSettingsKey(clientId: string, pcId: string | null): string {
@@ -64,8 +78,15 @@ export function clearTrackpadSettings(clientId: string, pcId: string): void {
   removeLocalStorage(trackpadSettingsKey(clientId, pcId));
 }
 
-export function loadRemoteSettings(clientId: string, pcId: string | null, hostDefaultMode?: RemoteModeId): { settings: RemoteSettings; isStored: boolean } {
-  return resolveRemoteSettings(readLocalStorage(remoteSettingsKey(clientId, pcId)), hostDefaultMode);
+export function loadRemoteSettings(
+  clientId: string,
+  pcId: string | null,
+  hostDefaultMode?: RemoteModeId,
+): { settings: RemoteSettings; isStored: boolean } {
+  return resolveRemoteSettings(
+    readLocalStorage(remoteSettingsKey(clientId, pcId)),
+    hostDefaultMode,
+  );
 }
 
 export function clearRemoteSettings(clientId: string, pcId: string): void {
@@ -102,7 +123,11 @@ export function loadKeyboardSettings(clientId: string): KeyboardSettings {
   }
 }
 
-export function getAutoRefreshSessionKey(clientId: string, pcId: string, webClientBuildId: string): string {
+export function getAutoRefreshSessionKey(
+  clientId: string,
+  pcId: string,
+  webClientBuildId: string,
+): string {
   return `${autoRefreshSessionPrefix}.${clientId}.${pcId}.build.${webClientBuildId}`;
 }
 

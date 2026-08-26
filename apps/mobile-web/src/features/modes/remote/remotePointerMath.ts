@@ -4,5 +4,8 @@ export function roundRemoteDelta(value: number): number {
 }
 
 export function isInteractiveRemoteTarget(target: EventTarget): boolean {
-  return target instanceof Element && target.closest("button, a, input, textarea, select, [role='button']") !== null;
+  return (
+    target instanceof Element &&
+    target.closest("button, a, input, textarea, select, [role='button']") !== null
+  );
 }

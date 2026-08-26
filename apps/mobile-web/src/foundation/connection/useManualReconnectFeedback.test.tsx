@@ -13,15 +13,21 @@ describe("useManualReconnectFeedback", () => {
       return { activePcId, reconnectFeedback, setState };
     });
 
-    act(() => { result.current.reconnectFeedback.reconnect("pc-a"); });
+    act(() => {
+      result.current.reconnectFeedback.reconnect("pc-a");
+    });
 
     expect(result.current.activePcId).toBe("pc-a");
     expect(result.current.reconnectFeedback.progress).toBe("reconnecting");
 
-    act(() => { result.current.setState("connecting"); });
+    act(() => {
+      result.current.setState("connecting");
+    });
     expect(result.current.reconnectFeedback.progress).toBe("reconnecting");
 
-    act(() => { result.current.setState("paired"); });
+    act(() => {
+      result.current.setState("paired");
+    });
     expect(result.current.reconnectFeedback.progress).toBe("connected");
   });
 
@@ -33,9 +39,15 @@ describe("useManualReconnectFeedback", () => {
       return { reconnectFeedback, setState };
     });
 
-    act(() => { result.current.reconnectFeedback.reconnect("pc-a"); });
-    act(() => { result.current.setState("connecting"); });
-    act(() => { result.current.setState("needs-pairing"); });
+    act(() => {
+      result.current.reconnectFeedback.reconnect("pc-a");
+    });
+    act(() => {
+      result.current.setState("connecting");
+    });
+    act(() => {
+      result.current.setState("needs-pairing");
+    });
 
     expect(result.current.reconnectFeedback.progress).toBeUndefined();
   });

@@ -2,7 +2,11 @@ import { p256 } from "@noble/curves/nist.js";
 import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import type { PairAcceptedMessage, PairBootstrapChallengeMessage } from "../protocol/messages";
-import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../platform/browserStorage";
+import {
+  readLocalStorage,
+  removeLocalStorage,
+  writeLocalStorage,
+} from "../platform/browserStorage";
 
 const reconnectSigningPrefix = "VolturaAir reconnect:v1";
 const pairingHostProofPrefix = "VolturaAir pairing host:v1";
@@ -32,7 +36,7 @@ export function createPairingKeyMaterial(): PairingKeyMaterial | null {
   const { secretKey } = p256.keygen();
   return {
     privateKey: base64Url(secretKey),
-    reconnectPublicKey: base64Url(p256.getPublicKey(secretKey, false))
+    reconnectPublicKey: base64Url(p256.getPublicKey(secretKey, false)),
   };
 }
 
@@ -45,7 +49,7 @@ export function createPairingBootstrapMaterial(token: string): PairingBootstrapM
   return {
     clientNonce: base64Url(nonce),
     pairTokenId: base64Url(sha256(new TextEncoder().encode(token))),
-    token
+    token,
   };
 }
 
@@ -53,10 +57,13 @@ export function verifyPairingBootstrapChallenge(
   challenge: PairBootstrapChallengeMessage,
   material: PairingBootstrapMaterial,
   clientId: string,
-  reconnectPublicKey: string
+  reconnectPublicKey: string,
 ): VerifiedPairingBootstrap | null {
-  if (challenge.clientId !== clientId || challenge.clientNonce !== material.clientNonce ||
-      !isValidHostIdentity(challenge.hostIdentity)) {
+  if (
+    challenge.clientId !== clientId ||
+    challenge.clientNonce !== material.clientNonce ||
+    !isValidHostIdentity(challenge.hostIdentity)
+  ) {
     return null;
   }
 
@@ -68,7 +75,7 @@ export function verifyPairingBootstrapChallenge(
     challenge.serverNonce,
     reconnectPublicKey,
     challenge.hostIdentity.publicKey,
-    challenge.hostIdentity.fingerprint
+    challenge.hostIdentity.fingerprint,
   );
   if (!constantTimeEqual(expectedHostProof, challenge.proof)) {
     return null;
@@ -83,13 +90,17 @@ export function verifyPairingBootstrapChallenge(
       challenge.serverNonce,
       reconnectPublicKey,
       challenge.hostIdentity.publicKey,
-      challenge.hostIdentity.fingerprint
+      challenge.hostIdentity.fingerprint,
     ),
-    hostIdentity: challenge.hostIdentity
+    hostIdentity: challenge.hostIdentity,
   };
 }
 
-export function handlePairAccepted(message: PairAcceptedMessage, pcId: string, pendingKey: string | null): void {
+export function handlePairAccepted(
+  message: PairAcceptedMessage,
+  pcId: string,
+  pendingKey: string | null,
+): void {
   if (!pendingKey) {
     return;
   }
@@ -97,7 +108,10 @@ export function handlePairAccepted(message: PairAcceptedMessage, pcId: string, p
   writeLocalStorage(privateKeyStoreKey(message.clientId, pcId), pendingKey);
 }
 
-export function isExpectedHostIdentity(message: PairAcceptedMessage, expectedFingerprint: string | undefined): boolean {
+export function isExpectedHostIdentity(
+  message: PairAcceptedMessage,
+  expectedFingerprint: string | undefined,
+): boolean {
   if (!expectedFingerprint) {
     return true;
   }
@@ -109,7 +123,11 @@ export function isExpectedHostIdentity(message: PairAcceptedMessage, expectedFin
 
   try {
     const encoded = decodeBase64Url(identity.publicKey);
-    return encoded.length === 65 && encoded[0] === 0x04 && base64Url(sha256(encoded).slice(0, 16)) === expectedFingerprint;
+    return (
+      encoded.length === 65 &&
+      encoded[0] === 0x04 &&
+      base64Url(sha256(encoded).slice(0, 16)) === expectedFingerprint
+    );
   } catch {
     return false;
   }
@@ -118,8 +136,11 @@ export function isExpectedHostIdentity(message: PairAcceptedMessage, expectedFin
 function isValidHostIdentity(identity: { publicKey: string; fingerprint: string }): boolean {
   try {
     const encoded = decodeBase64Url(identity.publicKey);
-    return encoded.length === 65 && encoded[0] === 0x04 &&
-      base64Url(sha256(encoded).slice(0, 16)) === identity.fingerprint;
+    return (
+      encoded.length === 65 &&
+      encoded[0] === 0x04 &&
+      base64Url(sha256(encoded).slice(0, 16)) === identity.fingerprint
+    );
   } catch {
     return false;
   }
@@ -133,7 +154,7 @@ function createPairingProof(
   serverNonce: string,
   reconnectPublicKey: string,
   hostPublicKey: string,
-  hostFingerprint: string
+  hostFingerprint: string,
 ): string {
   const encodedClientId = base64Url(new TextEncoder().encode(clientId));
   const transcript = [
@@ -143,9 +164,11 @@ function createPairingProof(
     serverNonce,
     reconnectPublicKey,
     hostPublicKey,
-    hostFingerprint
+    hostFingerprint,
   ].join("\n");
-  return base64Url(hmac(sha256, new TextEncoder().encode(token), new TextEncoder().encode(transcript)));
+  return base64Url(
+    hmac(sha256, new TextEncoder().encode(token), new TextEncoder().encode(transcript)),
+  );
 }
 
 function constantTimeEqual(left: string, right: string): boolean {
@@ -164,7 +187,11 @@ export function hasStoredReconnectKey(clientId: string, pcId: string): boolean {
   return readLocalStorage(privateKeyStoreKey(clientId, pcId)) !== null;
 }
 
-export function signReconnectChallenge(clientId: string, pcId: string, challenge: string): string | null {
+export function signReconnectChallenge(
+  clientId: string,
+  pcId: string,
+  challenge: string,
+): string | null {
   const privateKey = getStoredPrivateKey(clientId, pcId);
   if (!privateKey) {
     return null;
@@ -173,7 +200,7 @@ export function signReconnectChallenge(clientId: string, pcId: string, challenge
   const signature = p256.sign(
     new TextEncoder().encode(`${reconnectSigningPrefix}:${clientId}:${challenge}`),
     privateKey,
-    { lowS: false }
+    { lowS: false },
   );
   return base64Url(signature);
 }
@@ -227,7 +254,10 @@ function base64Url(bytes: Uint8Array): string {
 }
 
 function decodeBase64Url(value: string): Uint8Array {
-  const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(value.length + ((4 - value.length % 4) % 4), "=");
+  const padded = value
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .padEnd(value.length + ((4 - (value.length % 4)) % 4), "=");
   const binary = atob(padded);
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {

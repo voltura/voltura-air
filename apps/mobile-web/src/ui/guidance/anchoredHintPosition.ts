@@ -53,7 +53,7 @@ const defaultPlacementOrder: AnchoredHintPlacement[] = [
   "above-start",
   "above-end",
   "right",
-  "left"
+  "left",
 ];
 
 const minimumPointerInset = 16;
@@ -70,7 +70,7 @@ export function getVisibleViewportBounds(): VisibleViewportBounds {
     left,
     right: left + width,
     top,
-    width
+    width,
   };
 }
 
@@ -81,14 +81,14 @@ export function computeAnchoredHintLayout({
   hintSize,
   preferredPlacement = "below-center",
   viewport,
-  viewportPadding = 12
+  viewportPadding = 12,
 }: ComputeAnchoredHintLayoutOptions): AnchoredHintLayout {
   const placements = getPlacementOrder(preferredPlacement, fallbackPlacements);
   const fitBounds = {
     bottom: viewport.bottom - viewportPadding,
     left: viewport.left + viewportPadding,
     right: viewport.right - viewportPadding,
-    top: viewport.top + viewportPadding
+    top: viewport.top + viewportPadding,
   };
 
   for (const placement of placements) {
@@ -101,20 +101,25 @@ export function computeAnchoredHintLayout({
   const placement = placements[0] ?? preferredPlacement;
   const point = getPlacementPoint(placement, anchorRect, hintSize, gap);
   const clampedPoint = {
-    left: clamp(point.left, fitBounds.left, Math.max(fitBounds.left, fitBounds.right - hintSize.width)),
-    top: clamp(point.top, fitBounds.top, Math.max(fitBounds.top, fitBounds.bottom - hintSize.height))
+    left: clamp(
+      point.left,
+      fitBounds.left,
+      Math.max(fitBounds.left, fitBounds.right - hintSize.width),
+    ),
+    top: clamp(
+      point.top,
+      fitBounds.top,
+      Math.max(fitBounds.top, fitBounds.bottom - hintSize.height),
+    ),
   };
   return createLayout(placement, clampedPoint, anchorRect, hintSize, true);
 }
 
 function getPlacementOrder(
   preferredPlacement: AnchoredHintPlacement,
-  fallbackPlacements: AnchoredHintPlacement[] | undefined
+  fallbackPlacements: AnchoredHintPlacement[] | undefined,
 ): AnchoredHintPlacement[] {
-  const ordered = [
-    preferredPlacement,
-    ...(fallbackPlacements ?? defaultPlacementOrder)
-  ];
+  const ordered = [preferredPlacement, ...(fallbackPlacements ?? defaultPlacementOrder)];
   return ordered.filter((placement, index) => ordered.indexOf(placement) === index);
 }
 
@@ -122,7 +127,7 @@ function getPlacementPoint(
   placement: AnchoredHintPlacement,
   anchorRect: DOMRectReadOnly,
   hintSize: Size,
-  gap: number
+  gap: number,
 ): Point {
   const anchorCenterX = anchorRect.left + anchorRect.width / 2;
   const anchorCenterY = anchorRect.top + anchorRect.height / 2;
@@ -133,26 +138,41 @@ function getPlacementPoint(
     case "below-end":
       return { left: anchorRect.right - hintSize.width, top: anchorRect.bottom + gap };
     case "above-center":
-      return { left: anchorCenterX - hintSize.width / 2, top: anchorRect.top - hintSize.height - gap };
+      return {
+        left: anchorCenterX - hintSize.width / 2,
+        top: anchorRect.top - hintSize.height - gap,
+      };
     case "above-start":
       return { left: anchorRect.left, top: anchorRect.top - hintSize.height - gap };
     case "above-end":
-      return { left: anchorRect.right - hintSize.width, top: anchorRect.top - hintSize.height - gap };
+      return {
+        left: anchorRect.right - hintSize.width,
+        top: anchorRect.top - hintSize.height - gap,
+      };
     case "right":
       return { left: anchorRect.right + gap, top: anchorCenterY - hintSize.height / 2 };
     case "left":
-      return { left: anchorRect.left - hintSize.width - gap, top: anchorCenterY - hintSize.height / 2 };
+      return {
+        left: anchorRect.left - hintSize.width - gap,
+        top: anchorCenterY - hintSize.height / 2,
+      };
     case "below-center":
     default:
       return { left: anchorCenterX - hintSize.width / 2, top: anchorRect.bottom + gap };
   }
 }
 
-function fits(point: Point, hintSize: Size, bounds: Omit<VisibleViewportBounds, "height" | "width">): boolean {
-  return point.left >= bounds.left
-    && point.top >= bounds.top
-    && point.left + hintSize.width <= bounds.right
-    && point.top + hintSize.height <= bounds.bottom;
+function fits(
+  point: Point,
+  hintSize: Size,
+  bounds: Omit<VisibleViewportBounds, "height" | "width">,
+): boolean {
+  return (
+    point.left >= bounds.left &&
+    point.top >= bounds.top &&
+    point.left + hintSize.width <= bounds.right &&
+    point.top + hintSize.height <= bounds.bottom
+  );
 }
 
 function createLayout(
@@ -160,12 +180,20 @@ function createLayout(
   point: Point,
   anchorRect: DOMRectReadOnly,
   hintSize: Size,
-  clamped: boolean
+  clamped: boolean,
 ): AnchoredHintLayout {
   const anchorCenterX = anchorRect.left + anchorRect.width / 2;
   const anchorCenterY = anchorRect.top + anchorRect.height / 2;
-  const arrowX = clamp(anchorCenterX - point.left, minimumPointerInset, Math.max(minimumPointerInset, hintSize.width - minimumPointerInset));
-  const arrowY = clamp(anchorCenterY - point.top, minimumPointerInset, Math.max(minimumPointerInset, hintSize.height - minimumPointerInset));
+  const arrowX = clamp(
+    anchorCenterX - point.left,
+    minimumPointerInset,
+    Math.max(minimumPointerInset, hintSize.width - minimumPointerInset),
+  );
+  const arrowY = clamp(
+    anchorCenterY - point.top,
+    minimumPointerInset,
+    Math.max(minimumPointerInset, hintSize.height - minimumPointerInset),
+  );
 
   return {
     clamped,
@@ -174,8 +202,8 @@ function createLayout(
       "--anchored-hint-arrow-x": `${arrowX}px`,
       "--anchored-hint-arrow-y": `${arrowY}px`,
       left: `${point.left}px`,
-      top: `${point.top}px`
-    } as CSSProperties
+      top: `${point.top}px`,
+    } as CSSProperties,
   };
 }
 

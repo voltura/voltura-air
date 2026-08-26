@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, type HTMLAttributes, type KeyboardEvent, type PointerEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  type HTMLAttributes,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 import { isInteractiveRemoteTarget, roundRemoteDelta } from "./remotePointerMath";
 import type { RepeatablePressProps } from "./RemoteButton";
 
@@ -38,7 +45,7 @@ export function useRemoteInteractions({
   navigationRing,
   onPointerButtonClick,
   onPointerMove,
-  sendSpecial
+  sendSpecial,
 }: RemoteInteractionOptions) {
   const repeatTimeoutRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
@@ -67,7 +74,9 @@ export function useRemoteInteractions({
 
   useEffect(() => {
     const stopWhenHidden = () => {
-      if (document.visibilityState === "hidden") { stopRepeatingPress(); }
+      if (document.visibilityState === "hidden") {
+        stopRepeatingPress();
+      }
     };
     window.addEventListener("blur", stopRepeatingPress);
     document.addEventListener("visibilitychange", stopWhenHidden);
@@ -99,13 +108,19 @@ export function useRemoteInteractions({
     onPointerLeave: stopRepeatingPress,
     onLostPointerCapture: stopRepeatingPress,
     onClick: (event) => {
-      if (event.detail === 0) { action(); }
-    }
+      if (event.detail === 0) {
+        action();
+      }
+    },
   });
 
   const queuePointerTap = (x: number, y: number, time: number) => {
     const previousTap = pendingTapRef.current;
-    if (previousTap && time - previousTap.time <= doubleTapMs && Math.hypot(x - previousTap.x, y - previousTap.y) <= doubleTapDistance) {
+    if (
+      previousTap &&
+      time - previousTap.time <= doubleTapMs &&
+      Math.hypot(x - previousTap.x, y - previousTap.y) <= doubleTapDistance
+    ) {
       clearPendingTap();
       onPointerButtonClick("right");
       return;
@@ -119,7 +134,7 @@ export function useRemoteInteractions({
       timeout: window.setTimeout(() => {
         pendingTapRef.current = null;
         onPointerButtonClick("left");
-      }, doubleTapMs)
+      }, doubleTapMs),
     };
   };
 
@@ -129,7 +144,7 @@ export function useRemoteInteractions({
     startY: event.clientY,
     lastX: event.clientX,
     lastY: event.clientY,
-    maxDistance: 0
+    maxDistance: 0,
   });
 
   const movePointer = (event: PointerEvent<HTMLDivElement>, pointer: PointerState) => {
@@ -138,7 +153,10 @@ export function useRemoteInteractions({
     const dy = event.clientY - pointer.lastY;
     pointer.lastX = event.clientX;
     pointer.lastY = event.clientY;
-    pointer.maxDistance = Math.max(pointer.maxDistance, Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY));
+    pointer.maxDistance = Math.max(
+      pointer.maxDistance,
+      Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY),
+    );
     if (Math.abs(dx) >= 0.01 || Math.abs(dy) >= 0.01) {
       onPointerMove(roundRemoteDelta(dx * trackpadScale), roundRemoteDelta(dy * trackpadScale));
     }
@@ -151,7 +169,9 @@ export function useRemoteInteractions({
   };
 
   const miniTrackpadProps: HTMLAttributes<HTMLDivElement> = {
-    onClick: (event) => { event.preventDefault(); },
+    onClick: (event) => {
+      event.preventDefault();
+    },
     onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
       if (event.key !== "Enter" && event.key !== " ") {
         return;
@@ -212,7 +232,7 @@ export function useRemoteInteractions({
         event.stopPropagation();
         miniTrackpadPointerRef.current = null;
       }
-    }
+    },
   };
 
   const navigationPanelProps: HTMLAttributes<HTMLDivElement> = {
@@ -253,7 +273,7 @@ export function useRemoteInteractions({
       if (navigationPanelPointerRef.current?.id === event.pointerId) {
         navigationPanelPointerRef.current = null;
       }
-    }
+    },
   };
 
   return { getRepeatablePressProps, miniTrackpadProps, navigationPanelProps };

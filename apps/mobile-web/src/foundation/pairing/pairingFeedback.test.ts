@@ -22,7 +22,11 @@ describe("getPairingFeedback", () => {
   });
 
   it("maps unavailable relay hosts to internet, VPN, and work-network guidance", () => {
-    const feedback = getPairingFeedback("PC is currently not available. Retrying...", true, "relay");
+    const feedback = getPairingFeedback(
+      "PC is currently not available. Retrying...",
+      true,
+      "relay",
+    );
 
     expect(feedback.reason).toBe("host-unreachable");
     expect(feedback.title).toBe("Relay connection unavailable");

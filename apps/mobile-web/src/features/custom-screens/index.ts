@@ -2,5 +2,5 @@ export { CustomScreenWorkspace } from "./CustomScreenWorkspace";
 export {
   CustomScreenBrowserPreview,
   readCustomScreenPreviewControlDepth,
-  readCustomScreenPreviewId
+  readCustomScreenPreviewId,
 } from "./CustomScreenBrowserPreview";

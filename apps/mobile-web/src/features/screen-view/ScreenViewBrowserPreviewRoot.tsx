@@ -5,35 +5,67 @@ import { publishScreenViewResult } from "../../foundation/connection/screenViewR
 
 export default function ScreenViewBrowserPreviewRoot() {
   const requestedState = new URL(window.location.href).searchParams.get("mouseState");
-  const mouseState = requestedState === "active" || requestedState === "permission-blocked"
-    ? requestedState
-    : "inactive";
+  const mouseState =
+    requestedState === "active" || requestedState === "permission-blocked"
+      ? requestedState
+      : "inactive";
   const send = (message: ClientMessage) => {
     if (message.type === "screen.view.sources.get") {
-      queueMicrotask(() => publishScreenViewResult({
-        type: "screen.view.sources.result",
-        operationId: message.operationId,
-        succeeded: true,
-        message: "Displays are available.",
-        sources: [
-          { id: "display-1", label: "Main display", width: 1920, height: 1080, isPrimary: true },
-          { id: "display-2", label: "Portrait display", width: 1080, height: 1920, isPrimary: false }
-        ]
-      }));
+      queueMicrotask(() =>
+        publishScreenViewResult({
+          type: "screen.view.sources.result",
+          operationId: message.operationId,
+          succeeded: true,
+          message: "Displays are available.",
+          sources: [
+            { id: "display-1", label: "Main display", width: 1920, height: 1080, isPrimary: true },
+            {
+              id: "display-2",
+              label: "Portrait display",
+              width: 1080,
+              height: 1920,
+              isPrimary: false,
+            },
+          ],
+        }),
+      );
     }
   };
 
-  return <main className="app-shell control-depth screen-view-browser-preview">
-    <ScreenViewWorkspace
-      activePc={{ customName: false, id: "preview", name: "Studio PC", url: "http://127.0.0.1:51395", hostIdentityFingerprint: "AAAAAAAAAAAAAAAAAAAAAA", hostIdentityPublicKey: `B${"A".repeat(86)}` }}
-      browserPreviewState={mouseState}
-      capability={{ enabled: true, permissionGranted: true, canView: true, requiresRepair: false, encrypted: true, maxWidth: 1920, maxHeight: 1080, maxFramesPerSecond: 30, directPointer: { permissionGranted: mouseState !== "permission-blocked" } }}
-      clientId="preview-client"
-      onBack={() => { /* Preview only. */ }}
-      onOpenKeyboard={() => { /* Preview only. */ }}
-      send={send}
-      state="paired"
-      trackpadSettings={defaultTrackpadSettings}
-    />
-  </main>;
+  return (
+    <main className="app-shell control-depth screen-view-browser-preview">
+      <ScreenViewWorkspace
+        activePc={{
+          customName: false,
+          id: "preview",
+          name: "Studio PC",
+          url: "http://127.0.0.1:51395",
+          hostIdentityFingerprint: "AAAAAAAAAAAAAAAAAAAAAA",
+          hostIdentityPublicKey: `B${"A".repeat(86)}`,
+        }}
+        browserPreviewState={mouseState}
+        capability={{
+          enabled: true,
+          permissionGranted: true,
+          canView: true,
+          requiresRepair: false,
+          encrypted: true,
+          maxWidth: 1920,
+          maxHeight: 1080,
+          maxFramesPerSecond: 30,
+          directPointer: { permissionGranted: mouseState !== "permission-blocked" },
+        }}
+        clientId="preview-client"
+        onBack={() => {
+          /* Preview only. */
+        }}
+        onOpenKeyboard={() => {
+          /* Preview only. */
+        }}
+        send={send}
+        state="paired"
+        trackpadSettings={defaultTrackpadSettings}
+      />
+    </main>
+  );
 }

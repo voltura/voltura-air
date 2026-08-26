@@ -1,5 +1,12 @@
 import { encodeEnvelope, sessionIdKey } from "./envelope";
-import { maximumBufferedBytes, maximumDevicesPerRoom, maximumPendingDevicesPerRoom, maximumPendingDevicesPerSource, maximumRelayPayloadBytes, relayClose } from "./constants";
+import {
+  maximumBufferedBytes,
+  maximumDevicesPerRoom,
+  maximumPendingDevicesPerRoom,
+  maximumPendingDevicesPerSource,
+  maximumRelayPayloadBytes,
+  relayClose,
+} from "./constants";
 import { consumeRelayRate, type RelayRateRole, type RelayRateState } from "./rateLimit";
 
 export interface RelaySocket {
@@ -10,11 +17,18 @@ export interface RelaySocket {
 
 export class RelayRoom {
   private host: RelaySocket | null = null;
-  private readonly devices = new Map<string, { socket: RelaySocket; sessionId: Uint8Array; sourceKey?: Uint8Array; authenticated: boolean }>();
+  private readonly devices = new Map<
+    string,
+    { socket: RelaySocket; sessionId: Uint8Array; sourceKey?: Uint8Array; authenticated: boolean }
+  >();
   private readonly rateStates = new WeakMap<RelaySocket, RelayRateState>();
 
-  get deviceCount(): number { return this.devices.size; }
-  get hasHost(): boolean { return this.host !== null; }
+  get deviceCount(): number {
+    return this.devices.size;
+  }
+  get hasHost(): boolean {
+    return this.host !== null;
+  }
 
   attachHost(socket: RelaySocket): boolean {
     if (this.host) {
@@ -28,7 +42,8 @@ export class RelayRoom {
   detachHost(socket: RelaySocket): void {
     if (this.host !== socket) return;
     this.host = null;
-    for (const device of this.devices.values()) device.socket.close(relayClose.unavailable, "Host disconnected");
+    for (const device of this.devices.values())
+      device.socket.close(relayClose.unavailable, "Host disconnected");
     this.devices.clear();
   }
 
@@ -36,13 +51,30 @@ export class RelayRoom {
     const key = sessionIdKey(sessionId);
     const pending = [...this.devices.values()].filter((device) => !device.authenticated);
     const pendingForSource = sourceKey
-      ? pending.filter((device) => device.sourceKey?.every((value, index) => value === sourceKey[index]) && device.sourceKey.length === sourceKey.length)
+      ? pending.filter(
+          (device) =>
+            device.sourceKey?.every((value, index) => value === sourceKey[index]) &&
+            device.sourceKey.length === sourceKey.length,
+        )
       : [];
     const authenticated = this.devices.size - pending.length;
-    const maximumDevices = sourceKey === undefined ? maximumDevicesPerRoom : maximumDevicesPerRoom + maximumPendingDevicesPerRoom;
-    if (!this.host || authenticated >= maximumDevicesPerRoom || this.devices.size >= maximumDevices ||
-        (sourceKey !== undefined && (pending.length >= maximumPendingDevicesPerRoom || pendingForSource.length >= maximumPendingDevicesPerSource)) || this.devices.has(key)) {
-      socket.close(this.host ? relayClose.overloaded : relayClose.unavailable, this.host ? "Room is full" : "Host unavailable");
+    const maximumDevices =
+      sourceKey === undefined
+        ? maximumDevicesPerRoom
+        : maximumDevicesPerRoom + maximumPendingDevicesPerRoom;
+    if (
+      !this.host ||
+      authenticated >= maximumDevicesPerRoom ||
+      this.devices.size >= maximumDevices ||
+      (sourceKey !== undefined &&
+        (pending.length >= maximumPendingDevicesPerRoom ||
+          pendingForSource.length >= maximumPendingDevicesPerSource)) ||
+      this.devices.has(key)
+    ) {
+      socket.close(
+        this.host ? relayClose.overloaded : relayClose.unavailable,
+        this.host ? "Room is full" : "Host unavailable",
+      );
       return false;
     }
     const device = { socket, sessionId: sessionId.slice(), authenticated: false } as {
@@ -75,7 +107,9 @@ export class RelayRoom {
       socket.close(relayClose.tooLarge, "Message is too large");
       return false;
     }
-    const device = Array.from(this.devices.values()).find((candidate) => candidate.socket === socket);
+    const device = Array.from(this.devices.values()).find(
+      (candidate) => candidate.socket === socket,
+    );
     if (!device || !this.host || !this.consumeRate(socket, "device", payload.length)) return false;
     const envelope = encodeEnvelope(device.sessionId, payload, 3);
     if (!this.canSend(this.host, envelope.length)) return false;
@@ -86,7 +120,13 @@ export class RelayRoom {
   forwardHostPayload(sessionId: Uint8Array, payload: Uint8Array): boolean {
     if (payload.length > maximumRelayPayloadBytes) return false;
     const device = this.devices.get(sessionIdKey(sessionId));
-    if (!device || !this.host || !this.consumeRate(this.host, "host", payload.length) || !this.canSend(device.socket, payload.length)) return false;
+    if (
+      !device ||
+      !this.host ||
+      !this.consumeRate(this.host, "host", payload.length) ||
+      !this.canSend(device.socket, payload.length)
+    )
+      return false;
     device.socket.send(payload);
     return true;
   }

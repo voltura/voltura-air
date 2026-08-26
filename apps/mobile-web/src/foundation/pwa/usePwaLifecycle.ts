@@ -24,10 +24,18 @@ interface PwaLifecycleOptions {
   state: ConnectionState;
 }
 
-export function usePwaLifecycle({ activePc, autoRefresh, clientId, hostStatus, state }: PwaLifecycleOptions) {
+export function usePwaLifecycle({
+  activePc,
+  autoRefresh,
+  clientId,
+  hostStatus,
+  state,
+}: PwaLifecycleOptions) {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(() => isRunningStandalone());
-  const [refreshMessage, setRefreshMessage] = useState("Reload from the PC if the home screen app looks stale.");
+  const [refreshMessage, setRefreshMessage] = useState(
+    "Reload from the PC if the home screen app looks stale.",
+  );
   const refreshAttemptRef = useRef<Promise<FreshAppRefreshResult> | null>(null);
   const refreshKeysRef = useRef(new Set<string>());
   const refreshGuardsCommittedRef = useRef(false);
@@ -35,7 +43,9 @@ export function usePwaLifecycle({ activePc, autoRefresh, clientId, hostStatus, s
 
   useEffect(() => {
     isMountedRef.current = true;
-    return () => { isMountedRef.current = false; };
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -97,7 +107,9 @@ export function usePwaLifecycle({ activePc, autoRefresh, clientId, hostStatus, s
         result = {
           navigationStarted: false,
           navigationMethod: null,
-          warnings: [`refresh boundary failed: ${error instanceof Error ? error.message : String(error)}`]
+          warnings: [
+            `refresh boundary failed: ${error instanceof Error ? error.message : String(error)}`,
+          ],
         };
       }
 
@@ -123,7 +135,9 @@ export function usePwaLifecycle({ activePc, autoRefresh, clientId, hostStatus, s
     setRefreshMessage("Refreshing app...");
     const result = await runRefreshAttempt();
     if (!result.navigationStarted && isMountedRef.current) {
-      setRefreshMessage("Could not refresh the app. Check this browser's site permissions and try again.");
+      setRefreshMessage(
+        "Could not refresh the app. Check this browser's site permissions and try again.",
+      );
     }
   }, [runRefreshAttempt]);
 
@@ -152,12 +166,20 @@ export function usePwaLifecycle({ activePc, autoRefresh, clientId, hostStatus, s
   return { installApp, installPrompt, isInstalled, refreshInstalledApp, refreshMessage };
 }
 
-export function shouldRefreshWebClient(activePc: PcProfile, webClientBuildId: string | undefined): webClientBuildId is string {
-  return activePc.transportMode === undefined && Boolean(webClientBuildId && webClientBuildId !== __WEB_BUILD_ID__);
+export function shouldRefreshWebClient(
+  activePc: PcProfile,
+  webClientBuildId: string | undefined,
+): webClientBuildId is string {
+  return (
+    activePc.transportMode === undefined &&
+    Boolean(webClientBuildId && webClientBuildId !== __WEB_BUILD_ID__)
+  );
 }
 
 function isRunningStandalone(): boolean {
-  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  return (
+    window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true
+  );
 }
 
 function hasRefreshGuard(key: string): boolean {

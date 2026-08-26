@@ -1,8 +1,15 @@
-import { useEffect, useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import {
   parsePairingLink,
   type ManualConnectionTarget,
-  type PairingLink
+  type PairingLink,
 } from "../../foundation/pairing/pairingLink";
 import { getDefaultDeviceName } from "../../foundation/platform/clientEnvironment";
 import { canUseLivePairingQrScanner, decodePairingQrImage } from "./pairingQrCapability";
@@ -18,14 +25,23 @@ interface PairingControllerOptions {
 }
 
 export function usePairingController(options: PairingControllerOptions) {
-  const { beginNewPairing, connectManualPc, deviceName, initialPairing, message, pairWithToken, setIsSettingsOpen } = options;
+  const {
+    beginNewPairing,
+    connectManualPc,
+    deviceName,
+    initialPairing,
+    message,
+    pairWithToken,
+    setIsSettingsOpen,
+  } = options;
   const [pendingPairing, setPendingPairing] = useState<PairingLink | null>(initialPairing);
   const defaultScanMessage = "Scan the QR code shown on your PC to pair this device.";
   const [pairingFeedback, setPairingFeedback] = useState({
     sourceMessage: message,
-    scanMessage: null as string | null
+    scanMessage: null as string | null,
   });
-  const currentScanMessage = pairingFeedback.sourceMessage === message ? pairingFeedback.scanMessage : null;
+  const currentScanMessage =
+    pairingFeedback.sourceMessage === message ? pairingFeedback.scanMessage : null;
   const pairingScanMessage = currentScanMessage ?? defaultScanMessage;
   const pairingStatusMessage = (currentScanMessage ?? message.trim()) || defaultScanMessage;
   const setPairingScanMessage = (scanMessage: string) => {
@@ -33,16 +49,23 @@ export function usePairingController(options: PairingControllerOptions) {
   };
   const pairingDeviceNamePlaceholder = getDefaultDeviceName();
   const [pairingDeviceName, setPairingDeviceName] = useState(
-    deviceName === pairingDeviceNamePlaceholder ? "" : deviceName
+    deviceName === pairingDeviceNamePlaceholder ? "" : deviceName,
   );
   const pairingQrInputRef = useRef<HTMLInputElement | null>(null);
   const scanGenerationRef = useRef(0);
   const readingQrRef = useRef(false);
   const [isPairingQrReading, setIsPairingQrReading] = useState(false);
-  const [livePairingScannerAttempt, setLivePairingScannerAttempt] = useState<number | null | false>(null);
+  const [livePairingScannerAttempt, setLivePairingScannerAttempt] = useState<number | null | false>(
+    null,
+  );
   const usesLivePairingQr = canUseLivePairingQrScanner() && livePairingScannerAttempt !== false;
 
-  useEffect(() => () => { scanGenerationRef.current += 1; }, []);
+  useEffect(
+    () => () => {
+      scanGenerationRef.current += 1;
+    },
+    [],
+  );
 
   const acceptScannedPairingText = (scannedText: string, scanGeneration: number): boolean => {
     if (scanGenerationRef.current !== scanGeneration) {
@@ -81,7 +104,9 @@ export function usePairingController(options: PairingControllerOptions) {
       beginNewPairing();
       setPendingPairing({ pairToken: target.pairToken, pcUrl: target.pcUrl });
       setPairingDeviceName(deviceName === pairingDeviceNamePlaceholder ? "" : deviceName);
-      setPairingScanMessage("Confirm the device name shown on the PC, or change it before pairing.");
+      setPairingScanMessage(
+        "Confirm the device name shown on the PC, or change it before pairing.",
+      );
       setIsSettingsOpen(false);
       return;
     }
@@ -110,7 +135,11 @@ export function usePairingController(options: PairingControllerOptions) {
   const acceptLivePairingQr = (attemptId: number, scannedText: string): boolean =>
     acceptScannedPairingText(scannedText, attemptId);
 
-  const fallbackFromLivePairingQr = (attemptId: number, scanMessage: string, openPhoto: boolean) => {
+  const fallbackFromLivePairingQr = (
+    attemptId: number,
+    scanMessage: string,
+    openPhoto: boolean,
+  ) => {
     if (scanGenerationRef.current !== attemptId) {
       return;
     }
@@ -145,7 +174,9 @@ export function usePairingController(options: PairingControllerOptions) {
           return;
         }
         console.error("QR decode error", decodeError, { name: file.name, type: file.type });
-        setPairingScanMessage("Could not read the QR code. Try zooming in, retaking the picture, or scanning a new code.");
+        setPairingScanMessage(
+          "Could not read the QR code. Try zooming in, retaking the picture, or scanning a new code.",
+        );
         return;
       }
 
@@ -154,7 +185,9 @@ export function usePairingController(options: PairingControllerOptions) {
       }
 
       if (!scannedText) {
-        setPairingScanMessage("Could not read the QR code. Try zooming in, retaking the picture, or scanning a new code.");
+        setPairingScanMessage(
+          "Could not read the QR code. Try zooming in, retaking the picture, or scanning a new code.",
+        );
         return;
       }
 
@@ -164,7 +197,9 @@ export function usePairingController(options: PairingControllerOptions) {
         return;
       }
       console.error("Pairing QR scan failed", error, { name: file.name, type: file.type });
-      setPairingScanMessage("Could not read the QR code. Try zooming in, retaking the picture, or scanning a new code.");
+      setPairingScanMessage(
+        "Could not read the QR code. Try zooming in, retaking the picture, or scanning a new code.",
+      );
     } finally {
       if (scanGenerationRef.current === scanGeneration) {
         readingQrRef.current = false;
@@ -180,7 +215,8 @@ export function usePairingController(options: PairingControllerOptions) {
     fallbackFromLivePairingQr,
     onPairingQrSelected,
     isPairingQrReading,
-    livePairingScannerAttempt: typeof livePairingScannerAttempt === "number" ? livePairingScannerAttempt : null,
+    livePairingScannerAttempt:
+      typeof livePairingScannerAttempt === "number" ? livePairingScannerAttempt : null,
     pairingDeviceName,
     pairingDeviceNamePlaceholder,
     pairingQrInputRef,
@@ -189,6 +225,6 @@ export function usePairingController(options: PairingControllerOptions) {
     pendingPairing,
     scanPairingQr,
     setPairingDeviceName,
-    usesLivePairingQr
+    usesLivePairingQr,
   };
 }

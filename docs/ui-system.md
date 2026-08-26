@@ -206,17 +206,17 @@ control-message state.
 
 ## Interaction states
 
-| State | Required outcome |
-| --- | --- |
-| Ready | Primary action and current status are unambiguous. |
-| Pending | Repeat activation is bounded and local progress is visible. |
-| Success | Local confirmation does not block continued use. |
-| Empty | Explain absence and offer a useful next action if one exists. |
+| State        | Required outcome                                                             |
+| ------------ | ---------------------------------------------------------------------------- |
+| Ready        | Primary action and current status are unambiguous.                           |
+| Pending      | Repeat activation is bounded and local progress is visible.                  |
+| Success      | Local confirmation does not block continued use.                             |
+| Empty        | Explain absence and offer a useful next action if one exists.                |
 | Disconnected | Control surfaces stop implying control and offer reconnect/pairing recovery. |
-| Denied | Name the responsible permission or policy and recovery path. |
-| Unsupported | Omit or mark unavailable according to capability semantics. |
-| Invalid | Preserve the value and explain the valid input. |
-| Failed | Restore partial state and offer retry or diagnostics. |
+| Denied       | Name the responsible permission or policy and recovery path.                 |
+| Unsupported  | Omit or mark unavailable according to capability semantics.                  |
+| Invalid      | Preserve the value and explain the valid input.                              |
+| Failed       | Restore partial state and offer retry or diagnostics.                        |
 
 Model applicable states before layout so recovery is not fitted into a
 happy-path-only surface.

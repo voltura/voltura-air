@@ -9,7 +9,11 @@ interface SavedPcReconnectChoiceProps {
   selectedPcId?: string | undefined;
 }
 
-export function SavedPcReconnectChoice({ onChange, options, selectedPcId }: SavedPcReconnectChoiceProps) {
+export function SavedPcReconnectChoice({
+  onChange,
+  options,
+  selectedPcId,
+}: SavedPcReconnectChoiceProps) {
   if (options.length <= 1) {
     return null;
   }
@@ -20,9 +24,15 @@ export function SavedPcReconnectChoice({ onChange, options, selectedPcId }: Save
       <select
         className="text-input"
         value={selectedPcId}
-        onChange={(event) => { onChange(event.target.value); }}
+        onChange={(event) => {
+          onChange(event.target.value);
+        }}
       >
-        {options.map((pc) => <option key={pc.id} value={pc.id}>{pc.label}</option>)}
+        {options.map((pc) => (
+          <option key={pc.id} value={pc.id}>
+            {pc.label}
+          </option>
+        ))}
       </select>
     </label>
   );

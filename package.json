@@ -1,13 +1,8 @@
 {
   "name": "voltura-air",
-  "private": true,
   "version": "1.1.1",
+  "private": true,
   "license": "MIT",
-  "packageManager": "npm@11.18.0",
-  "engines": {
-    "node": ">=24.18.1 <25",
-    "npm": "11.18.0"
-  },
   "workspaces": [
     "apps/mobile-web",
     "services/relay"
@@ -31,6 +26,8 @@
     "deps:check": "node scripts/check-dependencies.mjs",
     "deps:update": "npm update --workspaces --include-workspace-root",
     "docs:check": "node scripts/check-documentation-map.mjs",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
     "icons:generate": "node scripts/generate-icons.mjs",
     "host:ownership:check": "node scripts/check-host-partial-ownership.mjs",
     "help": "node scripts/command-help.mjs",
@@ -88,12 +85,20 @@
     "ui:tokens:generate": "node scripts/generate-ui-tokens.mjs"
   },
   "devDependencies": {
+    "oxfmt": "0.65.0",
+    "oxlint": "1.80.0",
+    "oxlint-tsgolint": "7.0.2001",
     "sharp": "^0.35.3",
-    "typescript": "npm:@typescript/typescript6@^6.0.2"
+    "typescript": "7.0.2"
   },
+  "engines": {
+    "node": ">=24.19.0 <25",
+    "npm": "11.19.0"
+  },
+  "packageManager": "npm@11.19.0",
   "allowScripts": {
     "unrs-resolver@1.12.2": true,
     "esbuild@0.28.1": true,
-    "workerd@1.20260804.1": true
+    "workerd@1.20260825.1": true
   }
 }

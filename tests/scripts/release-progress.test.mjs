@@ -14,9 +14,13 @@ test("release progress separates steps and reports successful total time", () =>
   const times = [0, 0, 0, 65_000, 125_000];
   const progress = createReleaseProgress({
     totalSteps: 2,
-    stream: { write: (value) => { output += value; } },
+    stream: {
+      write: (value) => {
+        output += value;
+      },
+    },
     clock: () => times.shift() ?? 125_000,
-    useColor: false
+    useColor: false,
   });
 
   progress.start("Creating installation packages", "Building both installers.");
@@ -27,7 +31,10 @@ test("release progress separates steps and reports successful total time", () =>
   assert.match(output, /Step 1 completed in 1m 05s/u);
   assert.match(output, /║  SUCCESS                                                 ║/u);
   const statusRows = output.split("\n").filter((line) => /[╔║╚]/u.test(line));
-  assert.deepEqual(statusRows.map((line) => line.length), [60, 60, 60]);
+  assert.deepEqual(
+    statusRows.map((line) => line.length),
+    [60, 60, 60],
+  );
   assert.match(output, /Total release time: 2m 05s/u);
 });
 
@@ -35,9 +42,13 @@ test("release progress identifies the failed step in red issue output", () => {
   let output = "";
   const progress = createReleaseProgress({
     totalSteps: 6,
-    stream: { write: (value) => { output += value; } },
+    stream: {
+      write: (value) => {
+        output += value;
+      },
+    },
     clock: () => 0,
-    useColor: false
+    useColor: false,
   });
 
   progress.start("Testing release", "Running checks.");
@@ -45,7 +56,10 @@ test("release progress identifies the failed step in red issue output", () => {
 
   assert.match(output, /║  ISSUE                                                   ║/u);
   const statusRows = output.split("\n").filter((line) => /[╔║╚]/u.test(line));
-  assert.deepEqual(statusRows.map((line) => line.length), [60, 60, 60]);
+  assert.deepEqual(
+    statusRows.map((line) => line.length),
+    [60, 60, 60],
+  );
   assert.match(output, /Stopped during step 1 of 6: Testing release/u);
   assert.match(output, /Tests failed\./u);
 });

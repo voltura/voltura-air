@@ -1,6 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 import { createLocalId } from "../identity/localId";
-import type { ClientMessage, DiagnosticsGetResultMessage, MobileHostDiagnosticsSnapshot } from "../protocol/messages";
+import type {
+  ClientMessage,
+  DiagnosticsGetResultMessage,
+  MobileHostDiagnosticsSnapshot,
+} from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
 
 export interface DiagnosticsFailure {
@@ -8,10 +12,22 @@ export interface DiagnosticsFailure {
   message: string;
 }
 
-export function useDiagnostics(state: ConnectionState, connectionEpoch: number, send: (payload: ClientMessage) => void) {
-  const [snapshotState, setSnapshotState] = useState<{ epoch: number; value: MobileHostDiagnosticsSnapshot } | null>(null);
-  const [failureState, setFailureState] = useState<{ epoch: number; value: DiagnosticsFailure } | null>(null);
-  const [pendingState, setPendingState] = useState<{ epoch: number; operationId: string } | null>(null);
+export function useDiagnostics(
+  state: ConnectionState,
+  connectionEpoch: number,
+  send: (payload: ClientMessage) => void,
+) {
+  const [snapshotState, setSnapshotState] = useState<{
+    epoch: number;
+    value: MobileHostDiagnosticsSnapshot;
+  } | null>(null);
+  const [failureState, setFailureState] = useState<{
+    epoch: number;
+    value: DiagnosticsFailure;
+  } | null>(null);
+  const [pendingState, setPendingState] = useState<{ epoch: number; operationId: string } | null>(
+    null,
+  );
   const pendingOperationRef = useRef<{ epoch: number; operationId: string } | null>(null);
 
   const requestDiagnostics = useCallback((): string | null => {
@@ -39,18 +55,24 @@ export function useDiagnostics(state: ConnectionState, connectionEpoch: number, 
       setSnapshotState({ epoch: pending.epoch, value: result.snapshot });
       setFailureState(null);
     } else {
-      setFailureState({ epoch: pending.epoch, value: {
-        code: result.code ?? "diagnostics-unavailable", message: result.message
-      } });
+      setFailureState({
+        epoch: pending.epoch,
+        value: {
+          code: result.code ?? "diagnostics-unavailable",
+          message: result.message,
+        },
+      });
     }
     return true;
   }, []);
 
   return {
     completeDiagnostics,
-    failure: state === "paired" && failureState?.epoch === connectionEpoch ? failureState.value : null,
+    failure:
+      state === "paired" && failureState?.epoch === connectionEpoch ? failureState.value : null,
     pending: state === "paired" && pendingState?.epoch === connectionEpoch,
     requestDiagnostics,
-    snapshot: state === "paired" && snapshotState?.epoch === connectionEpoch ? snapshotState.value : null
+    snapshot:
+      state === "paired" && snapshotState?.epoch === connectionEpoch ? snapshotState.value : null,
   };
 }

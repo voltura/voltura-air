@@ -10,7 +10,11 @@ export function getKeyboardDeltaMessages(previous: string, next: string): Keyboa
   }
 
   let prefixLength = 0;
-  while (prefixLength < previous.length && prefixLength < next.length && previous[prefixLength] === next[prefixLength]) {
+  while (
+    prefixLength < previous.length &&
+    prefixLength < next.length &&
+    previous[prefixLength] === next[prefixLength]
+  ) {
     prefixLength += 1;
   }
 
@@ -47,7 +51,10 @@ export function didDeleteLiveKeyboardSentinel(previousText: string, nextRawValue
   return previousText.length === 0 && nextRawValue.length === 0;
 }
 
-export function getEmptyDeleteMessage(inputTypeOrKey: string, currentText: string): KeyboardSpecialMessage | null {
+export function getEmptyDeleteMessage(
+  inputTypeOrKey: string,
+  currentText: string,
+): KeyboardSpecialMessage | null {
   if (currentText.length > 0) {
     return null;
   }
@@ -83,7 +90,7 @@ function textToMessages(text: string, preferShortcutKeys: boolean): KeyboardInpu
       messages.push(
         character === "F"
           ? { type: "keyboard.special", key: "F", modifiers: ["Shift"] }
-          : { type: "keyboard.special", key: "F" }
+          : { type: "keyboard.special", key: "F" },
       );
     } else {
       buffer += character;

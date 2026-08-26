@@ -14,7 +14,9 @@ const unsupportedArguments = arguments_.filter((argument) => !supportedArguments
 const reportPath = path.join(root, "apps", "public-site", "stats.html");
 
 if (unsupportedArguments.length > 0) {
-  throw new Error(`Unsupported option: ${unsupportedArguments.join(", ")}. Use --report [--no-open] [--quiet].`);
+  throw new Error(
+    `Unsupported option: ${unsupportedArguments.join(", ")}. Use --report [--no-open] [--quiet].`,
+  );
 }
 
 const reportLines = [];
@@ -24,31 +26,54 @@ const reports = [
     locations: ["apps/mobile-web"],
     directories: ["apps/mobile-web"],
     extensions: new Set([
-      ".css", ".html", ".js", ".json", ".jsx", ".mjs", ".ts", ".tsx", ".webmanifest"
+      ".css",
+      ".html",
+      ".js",
+      ".json",
+      ".jsx",
+      ".mjs",
+      ".ts",
+      ".tsx",
+      ".webmanifest",
     ]),
-    excludePattern: /\.(?:test|spec)\.(?:js|jsx|mjs|ts|tsx)$/i
+    excludePattern: /\.(?:test|spec)\.(?:js|jsx|mjs|ts|tsx)$/i,
   },
   {
     title: "Windows host",
-    locations: ["apps/windows-host", "apps/cursor-watchdog", "VolturaAir.slnx", "Directory.Build.props"],
+    locations: [
+      "apps/windows-host",
+      "apps/cursor-watchdog",
+      "VolturaAir.slnx",
+      "Directory.Build.props",
+    ],
     directories: ["apps/windows-host", "apps/cursor-watchdog"],
     additionalFiles: ["VolturaAir.slnx", "Directory.Build.props"],
     extensions: new Set([
-      ".c", ".config", ".cs", ".csproj", ".json", ".props", ".resx", ".slnx", ".targets", ".xaml", ".xml"
-    ])
+      ".c",
+      ".config",
+      ".cs",
+      ".csproj",
+      ".json",
+      ".props",
+      ".resx",
+      ".slnx",
+      ".targets",
+      ".xaml",
+      ".xml",
+    ]),
   },
   {
     title: "Mobile client tests",
     locations: ["apps/mobile-web"],
     directories: ["apps/mobile-web"],
     extensions: new Set([".js", ".jsx", ".mjs", ".ts", ".tsx"]),
-    includePattern: /\.(?:test|spec)\.(?:js|jsx|mjs|ts|tsx)$/i
+    includePattern: /\.(?:test|spec)\.(?:js|jsx|mjs|ts|tsx)$/i,
   },
   {
     title: "Windows host tests",
     locations: ["tests/VolturaAir.Host.Tests"],
     directories: ["tests/VolturaAir.Host.Tests"],
-    extensions: new Set([".cs", ".csproj"])
+    extensions: new Set([".cs", ".csproj"]),
   },
   {
     title: "Relay service",
@@ -56,83 +81,94 @@ const reports = [
     directories: ["services/relay"],
     additionalFiles: ["services/relay/Dockerfile"],
     extensions: new Set([".json", ".jsonc", ".template", ".ts", ".yml"]),
-    excludePattern: /\.test\.ts$/i
+    excludePattern: /\.test\.ts$/i,
   },
   {
     title: "Relay service tests",
     locations: ["services/relay/tests"],
     directories: ["services/relay/tests"],
     extensions: new Set([".ts"]),
-    includePattern: /\.test\.ts$/i
+    includePattern: /\.test\.ts$/i,
   },
   {
     title: "Public website",
     locations: ["apps/public-site"],
     directories: ["apps/public-site"],
-    extensions: new Set([".css", ".js", ".php", ".sql"])
+    extensions: new Set([".css", ".js", ".php", ".sql"]),
   },
   {
     title: "Repository automation",
     locations: ["scripts"],
     directories: ["scripts"],
-    extensions: new Set([".cjs", ".js", ".mjs", ".ps1", ".sh", ".vbs", ".yml"])
+    extensions: new Set([".cjs", ".js", ".mjs", ".ps1", ".sh", ".vbs", ".yml"]),
   },
   {
     title: "GitHub automation",
     locations: [".github"],
     directories: [".github"],
-    extensions: new Set([".yml", ".yaml"])
+    extensions: new Set([".yml", ".yaml"]),
   },
   {
     title: "Repository automation tests",
     locations: ["tests/scripts"],
     directories: ["tests/scripts"],
     extensions: new Set([".mjs"]),
-    includePattern: /\.test\.mjs$/i
+    includePattern: /\.test\.mjs$/i,
   },
   {
     title: "Installers",
     locations: ["installer"],
     directories: ["installer"],
-    extensions: new Set([".nsi", ".ps1"])
-  }
+    extensions: new Set([".nsi", ".ps1"]),
+  },
 ];
 const assetCategories = [
   { title: "Documents", extensions: [".md"] },
   { title: "Images", extensions: [".png", ".ico", ".svg"] },
-  { title: "Cursors", extensions: [".cur"] }
+  { title: "Cursors", extensions: [".cur"] },
 ];
 const assetExtensions = new Set(assetCategories.flatMap(({ extensions }) => extensions));
-const scriptExtensions = [".bat", ".cjs", ".cmd", ".js", ".mjs", ".nsi", ".ps1", ".sh", ".vbs", ".yml"];
+const scriptExtensions = [
+  ".bat",
+  ".cjs",
+  ".cmd",
+  ".js",
+  ".mjs",
+  ".nsi",
+  ".ps1",
+  ".sh",
+  ".vbs",
+  ".yml",
+];
 const testReports = [
   {
     title: "Mobile client",
     directories: ["apps/mobile-web"],
     extensions: new Set([".js", ".jsx", ".mjs", ".ts", ".tsx"]),
     filePattern: /\.(?:test|spec)\.(?:js|jsx|mjs|ts|tsx)$/i,
-    countCases: createVitestCaseCounter("apps/mobile-web")
+    countCases: createVitestCaseCounter("apps/mobile-web"),
   },
   {
     title: "Windows host",
     directories: ["tests/VolturaAir.Host.Tests"],
     extensions: new Set([".cs"]),
     filePattern: /Tests?\.cs$/i,
-    countCases: countHostTestCases
+    countCases: countHostTestCases,
   },
   {
     title: "Repository automation",
     directories: ["tests/scripts"],
     extensions: new Set([".mjs"]),
     filePattern: /\.test\.mjs$/i,
-    countCases: countJavaScriptTestCases
+    countCases: countJavaScriptTestCases,
   },
   {
     title: "Relay service",
     directories: ["services/relay/tests"],
     extensions: new Set([".ts"]),
     filePattern: /\.test\.ts$/i,
-    countCases: createVitestCaseCounter("services/relay")
-  }
+    countCases: createVitestCaseCounter("services/relay"),
+  },
 ];
 
 function countLines(contents) {
@@ -149,37 +185,63 @@ async function collectRepositoryFiles() {
     cwd: root,
     encoding: "utf8",
     maxBuffer: 32 * 1024 * 1024,
-    windowsHide: true
+    windowsHide: true,
   });
   if (result.error) throw result.error;
   if (result.status !== 0) {
-    throw new Error(`Git tracked-file discovery failed: ${(result.stderr || result.stdout).trim()}`);
+    throw new Error(
+      `Git tracked-file discovery failed: ${(result.stderr || result.stdout).trim()}`,
+    );
   }
 
   const candidates = result.stdout
     .split("\0")
     .filter(Boolean)
     .map((file) => path.join(root, file));
-  const existingFiles = await Promise.all(candidates.map(async (file) => {
-    try {
-      return (await stat(file)).isFile() ? file : null;
-    } catch {
-      return null;
-    }
-  }));
+  const existingFiles = await Promise.all(
+    candidates.map(async (file) => {
+      try {
+        return (await stat(file)).isFile() ? file : null;
+      } catch {
+        return null;
+      }
+    }),
+  );
   return existingFiles.filter(Boolean).filter((file) => file !== reportPath);
 }
 
 function isInDirectory(file, directory) {
   const relative = path.relative(path.join(root, directory), file);
-  return relative !== "" && !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative);
+  return (
+    relative !== "" &&
+    !relative.startsWith(`..${path.sep}`) &&
+    relative !== ".." &&
+    !path.isAbsolute(relative)
+  );
 }
 
-async function createSourceReport({ title, locations, directories, additionalFiles = [], extensions, includePattern, excludePattern }, repositoryFiles) {
+async function createSourceReport(
+  {
+    title,
+    locations,
+    directories,
+    additionalFiles = [],
+    extensions,
+    includePattern,
+    excludePattern,
+  },
+  repositoryFiles,
+) {
   const additionalFilePaths = new Set(additionalFiles.map((file) => path.join(root, file)));
   const files = repositoryFiles
-    .filter((file) => directories.some((directory) => isInDirectory(file, directory)) || additionalFilePaths.has(file))
-    .filter((file) => additionalFilePaths.has(file) || extensions.has(path.extname(file).toLowerCase()))
+    .filter(
+      (file) =>
+        directories.some((directory) => isInDirectory(file, directory)) ||
+        additionalFilePaths.has(file),
+    )
+    .filter(
+      (file) => additionalFilePaths.has(file) || extensions.has(path.extname(file).toLowerCase()),
+    )
     .filter((file) => !includePattern || includePattern.test(path.basename(file)))
     .filter((file) => !excludePattern || !excludePattern.test(path.basename(file)));
   const byExtension = new Map();
@@ -197,16 +259,18 @@ async function createSourceReport({ title, locations, directories, additionalFil
   const totals = [...byExtension.values()].reduce(
     (result, statistics) => ({
       files: result.files + statistics.files,
-      lines: result.lines + statistics.lines
+      lines: result.lines + statistics.lines,
     }),
-    { files: 0, lines: 0 }
+    { files: 0, lines: 0 },
   );
 
   return { title, locations, totals, byExtension, files };
 }
 
 async function createAssetsReport(repositoryFiles) {
-  const files = repositoryFiles.filter((file) => assetExtensions.has(path.extname(file).toLowerCase()));
+  const files = repositoryFiles.filter((file) =>
+    assetExtensions.has(path.extname(file).toLowerCase()),
+  );
   const counts = new Map();
 
   for (const file of files) {
@@ -219,52 +283,66 @@ async function createAssetsReport(repositoryFiles) {
 
 function createVitestCaseCounter(projectDirectory) {
   return function countVitestCases(files) {
-  const vitestCli = path.join(repositoryToolRoot, "node_modules", "vitest", "vitest.mjs");
-  const projectRoot = path.join(root, projectDirectory);
-  const result = spawnSync(process.execPath, [vitestCli, "list", "--root", projectRoot, "--json"], {
-    cwd: root,
-    encoding: "utf8",
-    maxBuffer: 32 * 1024 * 1024,
-    windowsHide: true
-  });
-  if (result.error) throw result.error;
-  if (result.status !== 0) {
-    throw new Error(`Vitest discovery failed: ${(result.stderr || result.stdout).trim()}`);
-  }
-  const discovered = JSON.parse(result.stdout);
-  if (!Array.isArray(discovered)) throw new Error("Vitest discovery returned an invalid case list.");
-  const trackedFiles = new Set(files.map((file) => path.resolve(file)));
-  const trackedCases = discovered.filter(({ file }) => typeof file === "string" && (
-    trackedFiles.has(path.resolve(root, file)) || trackedFiles.has(path.resolve(projectRoot, file))
-  ));
-  return {
-    cases: trackedCases.length,
-    fileCount: new Set(trackedCases.map(({ file }) => path.resolve(root, file))).size
-  };
+    const vitestCli = path.join(repositoryToolRoot, "node_modules", "vitest", "vitest.mjs");
+    const projectRoot = path.join(root, projectDirectory);
+    const result = spawnSync(
+      process.execPath,
+      [vitestCli, "list", "--root", projectRoot, "--json"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        maxBuffer: 32 * 1024 * 1024,
+        windowsHide: true,
+      },
+    );
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      throw new Error(`Vitest discovery failed: ${(result.stderr || result.stdout).trim()}`);
+    }
+    const discovered = JSON.parse(result.stdout);
+    if (!Array.isArray(discovered))
+      throw new Error("Vitest discovery returned an invalid case list.");
+    const trackedFiles = new Set(files.map((file) => path.resolve(file)));
+    const trackedCases = discovered.filter(
+      ({ file }) =>
+        typeof file === "string" &&
+        (trackedFiles.has(path.resolve(root, file)) ||
+          trackedFiles.has(path.resolve(projectRoot, file))),
+    );
+    return {
+      cases: trackedCases.length,
+      fileCount: new Set(trackedCases.map(({ file }) => path.resolve(root, file))).size,
+    };
   };
 }
 
 function countHostTestCases(files) {
-  return Promise.all(files.map(async (file) => {
-    const contents = await readFile(file, "utf8");
-    let cases = [...contents.matchAll(/\[Fact\]/g)].length;
-    for (const theory of contents.matchAll(/\[Theory\]([\s\S]*?)(?=\b(?:public|internal|private|protected)\s+(?:async\s+)?[\w<>,?.\[\]]+\s+\w+\s*\()/g)) {
-      const attributes = theory[1];
-      const inlineCases = [...attributes.matchAll(/\[InlineData\(/g)].length;
-      if (inlineCases > 0) {
-        cases += inlineCases;
-        continue;
+  return Promise.all(
+    files.map(async (file) => {
+      const contents = await readFile(file, "utf8");
+      let cases = [...contents.matchAll(/\[Fact\]/g)].length;
+      for (const theory of contents.matchAll(
+        /\[Theory\]([\s\S]*?)(?=\b(?:public|internal|private|protected)\s+(?:async\s+)?[\w<>,?.\[\]]+\s+\w+\s*\()/g,
+      )) {
+        const attributes = theory[1];
+        const inlineCases = [...attributes.matchAll(/\[InlineData\(/g)].length;
+        if (inlineCases > 0) {
+          cases += inlineCases;
+          continue;
+        }
+        const member = attributes.match(/\[MemberData\(nameof\((\w+)\)\)\]/);
+        cases += member ? countTheoryDataItems(contents, member[1]) : 1;
       }
-      const member = attributes.match(/\[MemberData\(nameof\((\w+)\)\)\]/);
-      cases += member ? countTheoryDataItems(contents, member[1]) : 1;
-    }
-    return cases;
-  })).then((counts) => counts.reduce((sum, count) => sum + count, 0));
+      return cases;
+    }),
+  ).then((counts) => counts.reduce((sum, count) => sum + count, 0));
 }
 
 function countTheoryDataItems(contents, memberName) {
   const escapedName = memberName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const declaration = new RegExp(`\\b${escapedName}\\s*=>\\s*new\\s*\\([^)]*\\)\\s*\\{`, "g").exec(contents);
+  const declaration = new RegExp(`\\b${escapedName}\\s*=>\\s*new\\s*\\([^)]*\\)\\s*\\{`, "g").exec(
+    contents,
+  );
   if (!declaration) return 1;
   const openBrace = contents.indexOf("{", declaration.index);
   const closeBrace = findMatchingBrace(contents, openBrace);
@@ -302,23 +380,29 @@ function countTopLevelItems(contents) {
     else if (character === "}" || character === ")" || character === "]") depth--;
     else if (character === "," && depth === 0) count++;
   }
-  return count + (contents.trim().replace(/,+\s*$/u, "").length > 0 && !contents.trim().endsWith(",") ? 1 : 0);
+  return (
+    count +
+    (contents.trim().replace(/,+\s*$/u, "").length > 0 && !contents.trim().endsWith(",") ? 1 : 0)
+  );
 }
 
 function stripJavaScriptCommentsAndLiterals(contents) {
   return contents.replace(
     /\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|`(?:\\[\s\S]|[^`\\])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g,
-    (match) => " ".repeat(match.length)
+    (match) => " ".repeat(match.length),
   );
 }
 
 async function countJavaScriptTestCases(files) {
   const selfTestFiles = files.filter((file) => path.basename(file) === "code-statistics.test.mjs");
   const runnableFiles = files.filter((file) => !selfTestFiles.includes(file));
-  const countDeclaredCases = async (declaredFiles) => Promise.all(declaredFiles.map(async (file) => {
-    const contents = stripJavaScriptCommentsAndLiterals(await readFile(file, "utf8"));
-    return [...contents.matchAll(/\btest(?:\.(?:each|only|skip|todo))*\s*\(/g)].length;
-  })).then((counts) => counts.reduce((sum, count) => sum + count, 0));
+  const countDeclaredCases = async (declaredFiles) =>
+    Promise.all(
+      declaredFiles.map(async (file) => {
+        const contents = stripJavaScriptCommentsAndLiterals(await readFile(file, "utf8"));
+        return [...contents.matchAll(/\btest(?:\.(?:each|only|skip|todo))*\s*\(/g)].length;
+      }),
+    ).then((counts) => counts.reduce((sum, count) => sum + count, 0));
   const selfTestCount = await countDeclaredCases(selfTestFiles);
   if (runnableFiles.length === 0) return selfTestCount;
 
@@ -326,30 +410,33 @@ async function countJavaScriptTestCases(files) {
     cwd: root,
     encoding: "utf8",
     maxBuffer: 32 * 1024 * 1024,
-    windowsHide: true
+    windowsHide: true,
   });
   if (result.error) throw result.error;
   if (result.status !== 0) {
     throw new Error(`Repository test discovery failed: ${(result.stderr || result.stdout).trim()}`);
   }
-  const summary = [...result.stdout.matchAll(/^# tests (\d+)\s*$/gm)].at(-1) ??
+  const summary =
+    [...result.stdout.matchAll(/^# tests (\d+)\s*$/gm)].at(-1) ??
     [...result.stdout.matchAll(/^1\.\.(\d+)\s*$/gm)].at(-1);
   if (!summary) return countDeclaredCases(files);
   return Number(summary[1]) + selfTestCount;
 }
 
 async function createTestsReport(repositoryFiles) {
-  return Promise.all(testReports.map(async ({ title, directories, extensions, filePattern, countCases }) => {
-    const files = repositoryFiles
-      .filter((file) => directories.some((directory) => isInDirectory(file, directory)))
-      .filter((file) => extensions.has(path.extname(file).toLowerCase()))
-      .filter((file) => filePattern.test(path.basename(file)));
-    const countResult = await countCases(files);
-    const cases = typeof countResult === "number" ? countResult : countResult.cases;
-    const fileCount = typeof countResult === "number" ? files.length : countResult.fileCount;
+  return Promise.all(
+    testReports.map(async ({ title, directories, extensions, filePattern, countCases }) => {
+      const files = repositoryFiles
+        .filter((file) => directories.some((directory) => isInDirectory(file, directory)))
+        .filter((file) => extensions.has(path.extname(file).toLowerCase()))
+        .filter((file) => filePattern.test(path.basename(file)));
+      const countResult = await countCases(files);
+      const cases = typeof countResult === "number" ? countResult : countResult.cases;
+      const fileCount = typeof countResult === "number" ? files.length : countResult.fileCount;
 
-    return { title, files: fileCount, cases };
-  }));
+      return { title, files: fileCount, cases };
+    }),
+  );
 }
 
 function createScriptsReport(repositoryFiles) {
@@ -368,36 +455,46 @@ function createScriptsReport(repositoryFiles) {
 
 async function createNpmCommandsReport(repositoryFiles) {
   const packageFiles = repositoryFiles.filter((file) => path.basename(file) === "package.json");
-  const packages = await Promise.all(packageFiles.map(async (file) => {
-    const { scripts = {} } = JSON.parse(await readFile(file, "utf8"));
-    return { file, commandCount: Object.keys(scripts).length };
-  }));
+  const packages = await Promise.all(
+    packageFiles.map(async (file) => {
+      const { scripts = {} } = JSON.parse(await readFile(file, "utf8"));
+      return { file, commandCount: Object.keys(scripts).length };
+    }),
+  );
 
   return {
     total: packages.reduce((sum, { commandCount }) => sum + commandCount, 0),
-    packages: packages.sort((left, right) => relativePath(left.file).localeCompare(relativePath(right.file)))
+    packages: packages.sort((left, right) =>
+      relativePath(left.file).localeCompare(relativePath(right.file)),
+    ),
   };
 }
 
 async function createFileDetailsReport(repositoryFiles) {
-  const files = await Promise.all(repositoryFiles.map(async (file) => {
-    const metadata = await stat(file);
-    return { file, modified: metadata.mtime, size: metadata.size };
-  }));
+  const files = await Promise.all(
+    repositoryFiles.map(async (file) => {
+      const metadata = await stat(file);
+      return { file, modified: metadata.mtime, size: metadata.size };
+    }),
+  );
   const byModifiedDate = [...files].sort((left, right) => left.modified - right.modified);
 
   return {
     oldest: byModifiedDate[0],
     newest: byModifiedDate.at(-1),
-    largest: [...files].sort((left, right) => right.size - left.size).slice(0, 10)
+    largest: [...files].sort((left, right) => right.size - left.size).slice(0, 10),
   };
 }
 
 async function createCodeFileDetailsReport(codeReports) {
-  const files = await Promise.all(codeReports.flatMap(({ files: reportFiles }) => reportFiles).map(async (file) => {
-    const metadata = await stat(file);
-    return { file, size: metadata.size };
-  }));
+  const files = await Promise.all(
+    codeReports
+      .flatMap(({ files: reportFiles }) => reportFiles)
+      .map(async (file) => {
+        const metadata = await stat(file);
+        return { file, size: metadata.size };
+      }),
+  );
 
   return files.sort((left, right) => right.size - left.size).slice(0, 10);
 }
@@ -406,9 +503,9 @@ function createGrandTotal(reports_) {
   return reports_.reduce(
     (result, { totals }) => ({
       files: result.files + totals.files,
-      lines: result.lines + totals.lines
+      lines: result.lines + totals.lines,
     }),
-    { files: 0, lines: 0 }
+    { files: 0, lines: 0 },
   );
 }
 
@@ -439,8 +536,12 @@ function printSourceReport({ title, locations, totals, byExtension }) {
   writeLine(`${title} (${locations.join(", ")})`);
   writeLine(`  Total: ${formatNumber(totals.files)} files, ${formatNumber(totals.lines)} lines`);
 
-  for (const [extension, statistics] of [...byExtension.entries()].sort(([left], [right]) => left.localeCompare(right))) {
-    writeLine(`  ${extension.padEnd(12)} ${formatNumber(statistics.files).padStart(4)} files  ${formatNumber(statistics.lines).padStart(8)} lines`);
+  for (const [extension, statistics] of [...byExtension.entries()].sort(([left], [right]) =>
+    left.localeCompare(right),
+  )) {
+    writeLine(
+      `  ${extension.padEnd(12)} ${formatNumber(statistics.files).padStart(4)} files  ${formatNumber(statistics.lines).padStart(8)} lines`,
+    );
   }
 }
 
@@ -475,7 +576,9 @@ function printScriptsReport({ total, counts }) {
 
 function printNpmCommandsReport({ total, packages }) {
   writeLine("NPM commands");
-  writeLine(`  Total: ${formatNumber(total)} commands across ${formatNumber(packages.length)} package files`);
+  writeLine(
+    `  Total: ${formatNumber(total)} commands across ${formatNumber(packages.length)} package files`,
+  );
   for (const { file, commandCount } of packages) {
     writeLine(`  ${relativePath(file).padEnd(30)} ${formatNumber(commandCount)} commands`);
   }
@@ -499,13 +602,20 @@ function printLargestCodeFiles(largestCodeFiles) {
 }
 
 function escapeHtml(value) {
-  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
 }
 
 function renderSourceReport({ title, locations, totals, byExtension }) {
   const rows = [...byExtension.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([extension, statistics]) => `<tr><td><code>${escapeHtml(extension)}</code></td><td>${formatNumber(statistics.files)}</td><td>${formatNumber(statistics.lines)}</td></tr>`)
+    .map(
+      ([extension, statistics]) =>
+        `<tr><td><code>${escapeHtml(extension)}</code></td><td>${formatNumber(statistics.files)}</td><td>${formatNumber(statistics.lines)}</td></tr>`,
+    )
     .join("");
 
   return `<section class="source-section">
@@ -518,22 +628,35 @@ function renderSourceReport({ title, locations, totals, byExtension }) {
 }
 
 function formatPercentage(value, total) {
-  return `${total === 0 ? 0 : Math.round(value / total * 100)}%`;
+  return `${total === 0 ? 0 : Math.round((value / total) * 100)}%`;
 }
 
 function createDonut(segments, total, unit) {
   const colors = [
-    "var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)",
-    "var(--chart-5)", "var(--chart-6)", "var(--chart-7)", "var(--chart-8)"
+    "var(--chart-1)",
+    "var(--chart-2)",
+    "var(--chart-3)",
+    "var(--chart-4)",
+    "var(--chart-5)",
+    "var(--chart-6)",
+    "var(--chart-7)",
+    "var(--chart-8)",
   ];
   let position = 0;
-  const gradient = segments.map(({ value }, index) => {
-    const end = position + (total === 0 ? 0 : value / total * 100);
-    const value_ = `${colors[index % colors.length]} ${position.toFixed(2)}% ${end.toFixed(2)}%`;
-    position = end;
-    return value_;
-  }).join(", ");
-  const legend = segments.map(({ title, value }, index) => `<li><span class="legend-swatch" style="--swatch: ${colors[index % colors.length]}"></span><span>${escapeHtml(title)}</span><strong>${formatPercentage(value, total)}</strong></li>`).join("");
+  const gradient = segments
+    .map(({ value }, index) => {
+      const end = position + (total === 0 ? 0 : (value / total) * 100);
+      const value_ = `${colors[index % colors.length]} ${position.toFixed(2)}% ${end.toFixed(2)}%`;
+      position = end;
+      return value_;
+    })
+    .join(", ");
+  const legend = segments
+    .map(
+      ({ title, value }, index) =>
+        `<li><span class="legend-swatch" style="--swatch: ${colors[index % colors.length]}"></span><span>${escapeHtml(title)}</span><strong>${formatPercentage(value, total)}</strong></li>`,
+    )
+    .join("");
 
   return `<div class="donut-layout">
   <div class="donut" style="--chart: conic-gradient(${gradient})"><div><strong>${formatNumber(total)}</strong><span>${escapeHtml(unit)}</span></div></div>
@@ -545,38 +668,97 @@ function renderVisualOverview(codeReports, assets) {
   const codeSegments = codeReports.map(({ title, totals }) => ({ title, value: totals.lines }));
   const assetSegments = assetCategories.map(({ title, extensions }) => ({
     title,
-    value: extensions.reduce((total, extension) => total + (assets.counts.get(extension) ?? 0), 0)
+    value: extensions.reduce((total, extension) => total + (assets.counts.get(extension) ?? 0), 0),
   }));
   const largestSource = Math.max(...codeSegments.map(({ value }) => value));
-  const bars = codeSegments.map(({ title, value }) => `<li>
+  const bars = codeSegments
+    .map(
+      ({ title, value }) => `<li>
   <div><span>${escapeHtml(title)}</span><strong>${formatNumber(value)} lines</strong></div>
-  <span class="bar-track"><span class="bar-fill" style="--value: ${(value / largestSource * 100).toFixed(2)}%"></span></span>
-</li>`).join("");
+  <span class="bar-track"><span class="bar-fill" style="--value: ${((value / largestSource) * 100).toFixed(2)}%"></span></span>
+</li>`,
+    )
+    .join("");
   const primaryCode = [...codeSegments].sort((left, right) => right.value - left.value)[0];
   const primaryAssets = [...assetSegments].sort((left, right) => right.value - left.value)[0];
 
   return `<section class="visual-grid" aria-label="Repository composition">
-  <div class="visual-panel"><h2>Source lines by area</h2>${createDonut(codeSegments, codeSegments.reduce((total, { value }) => total + value, 0), "lines")}</div>
-  <div class="visual-panel"><h2>Assets by group</h2>${createDonut(assetSegments, assetSegments.reduce((total, { value }) => total + value, 0), "files")}</div>
+  <div class="visual-panel"><h2>Source lines by area</h2>${createDonut(
+    codeSegments,
+    codeSegments.reduce((total, { value }) => total + value, 0),
+    "lines",
+  )}</div>
+  <div class="visual-panel"><h2>Assets by group</h2>${createDonut(
+    assetSegments,
+    assetSegments.reduce((total, { value }) => total + value, 0),
+    "files",
+  )}</div>
   <div class="visual-panel source-bars"><h2>Source line comparison</h2><ul>${bars}</ul></div>
-  <p class="insight">${escapeHtml(primaryCode.title)} contains ${formatPercentage(primaryCode.value, codeSegments.reduce((total, { value }) => total + value, 0))} of the maintained source lines. ${escapeHtml(primaryAssets.title)} make up ${formatPercentage(primaryAssets.value, assetSegments.reduce((total, { value }) => total + value, 0))} of counted assets.</p>
+  <p class="insight">${escapeHtml(primaryCode.title)} contains ${formatPercentage(
+    primaryCode.value,
+    codeSegments.reduce((total, { value }) => total + value, 0),
+  )} of the maintained source lines. ${escapeHtml(primaryAssets.title)} make up ${formatPercentage(
+    primaryAssets.value,
+    assetSegments.reduce((total, { value }) => total + value, 0),
+  )} of counted assets.</p>
 </section>`;
 }
 
-function createHtmlReport({ codeReports, grandTotal, assets, tests, scripts, npmCommands, fileDetails, largestCodeFiles }) {
+function createHtmlReport({
+  codeReports,
+  grandTotal,
+  assets,
+  tests,
+  scripts,
+  npmCommands,
+  fileDetails,
+  largestCodeFiles,
+}) {
   const totalTestCases = tests.reduce((total, { cases }) => total + cases, 0);
   const scriptRows = scriptExtensions
     .filter((extension) => scripts.counts.get(extension) > 0)
-    .map((extension) => `<tr><td><code>${escapeHtml(extension)}</code></td><td>${formatNumber(scripts.counts.get(extension))}</td></tr>`)
+    .map(
+      (extension) =>
+        `<tr><td><code>${escapeHtml(extension)}</code></td><td>${formatNumber(scripts.counts.get(extension))}</td></tr>`,
+    )
     .join("");
-  const assetRows = assetCategories.flatMap(({ title, extensions }) => extensions.map((extension) => `<tr><td>${escapeHtml(title)}</td><td><code>${escapeHtml(extension)}</code></td><td>${formatNumber(assets.counts.get(extension) ?? 0)}</td></tr>`)).join("");
-  const testRows = tests.map(({ title, files, cases }) => `<tr><td>${escapeHtml(title)}</td><td>${formatNumber(files)}</td><td>${formatNumber(cases)}</td></tr>`).join("");
-  const npmRows = npmCommands.packages.map(({ file, commandCount }) => `<tr><td><code>${escapeHtml(relativePath(file))}</code></td><td>${formatNumber(commandCount)}</td></tr>`).join("");
+  const assetRows = assetCategories
+    .flatMap(({ title, extensions }) =>
+      extensions.map(
+        (extension) =>
+          `<tr><td>${escapeHtml(title)}</td><td><code>${escapeHtml(extension)}</code></td><td>${formatNumber(assets.counts.get(extension) ?? 0)}</td></tr>`,
+      ),
+    )
+    .join("");
+  const testRows = tests
+    .map(
+      ({ title, files, cases }) =>
+        `<tr><td>${escapeHtml(title)}</td><td>${formatNumber(files)}</td><td>${formatNumber(cases)}</td></tr>`,
+    )
+    .join("");
+  const npmRows = npmCommands.packages
+    .map(
+      ({ file, commandCount }) =>
+        `<tr><td><code>${escapeHtml(relativePath(file))}</code></td><td>${formatNumber(commandCount)}</td></tr>`,
+    )
+    .join("");
   const largestSize = fileDetails.largest[0]?.size ?? 1;
-  const largestRows = fileDetails.largest.map(({ file, size }) => `<li><div><code>${escapeHtml(relativePath(file))}</code><strong>${formatSize(size)}</strong></div><span style="--size: ${Math.max(2, size / largestSize * 100).toFixed(2)}%"></span></li>`).join("");
+  const largestRows = fileDetails.largest
+    .map(
+      ({ file, size }) =>
+        `<li><div><code>${escapeHtml(relativePath(file))}</code><strong>${formatSize(size)}</strong></div><span style="--size: ${Math.max(2, (size / largestSize) * 100).toFixed(2)}%"></span></li>`,
+    )
+    .join("");
   const largestCodeSize = largestCodeFiles[0]?.size ?? 1;
-  const largestCodeRows = largestCodeFiles.map(({ file, size }) => `<li><div><code>${escapeHtml(relativePath(file))}</code><strong>${formatSize(size)}</strong></div><span style="--size: ${Math.max(2, size / largestCodeSize * 100).toFixed(2)}%"></span></li>`).join("");
-  const generatedAt = fileDetails.newest.modified.toLocaleDateString("en-US", { dateStyle: "medium" });
+  const largestCodeRows = largestCodeFiles
+    .map(
+      ({ file, size }) =>
+        `<li><div><code>${escapeHtml(relativePath(file))}</code><strong>${formatSize(size)}</strong></div><span style="--size: ${Math.max(2, (size / largestCodeSize) * 100).toFixed(2)}%"></span></li>`,
+    )
+    .join("");
+  const generatedAt = fileDetails.newest.modified.toLocaleDateString("en-US", {
+    dateStyle: "medium",
+  });
 
   return `<!doctype html>
 <html lang="en">
@@ -684,14 +866,21 @@ function createHtmlReport({ codeReports, grandTotal, assets, tests, scripts, npm
 
 function openInDefaultBrowser(reportPath) {
   const url = pathToFileURL(reportPath).href;
-  const command = process.platform === "win32" ? "cmd.exe" : process.platform === "darwin" ? "open" : "xdg-open";
+  const command =
+    process.platform === "win32" ? "cmd.exe" : process.platform === "darwin" ? "open" : "xdg-open";
   const argumentsForCommand = process.platform === "win32" ? ["/c", "start", "", url] : [url];
-  const process_ = spawn(command, argumentsForCommand, { detached: true, stdio: "ignore", windowsHide: true });
+  const process_ = spawn(command, argumentsForCommand, {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true,
+  });
   process_.unref();
 }
 
 const repositoryFiles = await collectRepositoryFiles();
-const codeReports = await Promise.all(reports.map((report) => createSourceReport(report, repositoryFiles)));
+const codeReports = await Promise.all(
+  reports.map((report) => createSourceReport(report, repositoryFiles)),
+);
 const grandTotal = createGrandTotal(codeReports);
 const largestCodeFiles = await createCodeFileDetailsReport(codeReports);
 const assets = await createAssetsReport(repositoryFiles);
@@ -707,7 +896,9 @@ if (!quietMode) {
     writeLine();
   }
   writeLine("Grand total source code");
-  writeLine(`  Total: ${formatNumber(grandTotal.files)} files, ${formatNumber(grandTotal.lines)} lines`);
+  writeLine(
+    `  Total: ${formatNumber(grandTotal.files)} files, ${formatNumber(grandTotal.lines)} lines`,
+  );
   writeLine();
   printAssetsReport(assets);
   writeLine();
@@ -723,7 +914,20 @@ if (!quietMode) {
 }
 
 if (reportMode) {
-  await writeFile(reportPath, createHtmlReport({ codeReports, grandTotal, assets, tests, scripts, npmCommands, fileDetails, largestCodeFiles }), "utf8");
+  await writeFile(
+    reportPath,
+    createHtmlReport({
+      codeReports,
+      grandTotal,
+      assets,
+      tests,
+      scripts,
+      npmCommands,
+      fileDetails,
+      largestCodeFiles,
+    }),
+    "utf8",
+  );
   if (openReport) {
     openInDefaultBrowser(reportPath);
   }

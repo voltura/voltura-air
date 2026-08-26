@@ -13,38 +13,35 @@ const ignoredDirectories = new Set([
   "coverage",
   "dist",
   "node_modules",
-  "obj"
+  "obj",
 ]);
 
-export async function checkDocumentationMap({
-  root = process.cwd(),
-  publicSurfaces
-} = {}) {
+export async function checkDocumentationMap({ root = process.cwd(), publicSurfaces } = {}) {
   const markdownFiles = await collectMarkdownFiles(root, root);
-  const resolvedPublicSurfaces = publicSurfaces ?? await collectPublicDocumentationSurfaces(root);
+  const resolvedPublicSurfaces = publicSurfaces ?? (await collectPublicDocumentationSurfaces(root));
   const publicIntakeSurfaces = await collectPublicIntakeSurfaces(root);
-  const documentationFiles = [...new Set([
-    ...markdownFiles,
-    ...resolvedPublicSurfaces,
-    ...publicIntakeSurfaces
-  ])].sort();
-  const requiredFiles = [...new Set(
-    markdownFiles
-      .filter((file) => file !== catalogRelativePath)
-      .concat(resolvedPublicSurfaces, publicIntakeSurfaces)
-  )].sort();
+  const documentationFiles = [
+    ...new Set([...markdownFiles, ...resolvedPublicSurfaces, ...publicIntakeSurfaces]),
+  ].sort();
+  const requiredFiles = [
+    ...new Set(
+      markdownFiles
+        .filter((file) => file !== catalogRelativePath)
+        .concat(resolvedPublicSurfaces, publicIntakeSurfaces),
+    ),
+  ].sort();
   const errors = [];
 
   if (!markdownFiles.includes(catalogRelativePath)) {
     return {
       checkedLinks: 0,
       errors: [`Missing canonical documentation map: ${catalogRelativePath}`],
-      requiredFiles
+      requiredFiles,
     };
   }
 
   for (const publicSurface of resolvedPublicSurfaces) {
-    if (!await exists(path.join(root, publicSurface))) {
+    if (!(await exists(path.join(root, publicSurface)))) {
       errors.push(`Missing required public documentation surface: ${publicSurface}`);
     }
   }
@@ -65,7 +62,9 @@ export async function checkDocumentationMap({
     if (count === 0) {
       errors.push(`Documentation map does not catalog: ${requiredFile}`);
     } else if (count > 1) {
-      errors.push(`Documentation map catalogs '${requiredFile}' ${count} times; keep one authoritative row.`);
+      errors.push(
+        `Documentation map catalogs '${requiredFile}' ${count} times; keep one authoritative row.`,
+      );
     }
   }
 
@@ -92,7 +91,7 @@ export async function checkDocumentationMap({
         }
 
         checkedLinks += 1;
-        if (!await exists(path.join(root, resolved))) {
+        if (!(await exists(path.join(root, resolved)))) {
           errors.push(`${sourceFile} links to missing local target: ${target}`);
         }
       }
@@ -117,27 +116,34 @@ export async function checkDocumentationMap({
 
 async function collectPublicDocumentationSurfaces(root) {
   const siteRoot = path.join(root, "apps", "public-site");
-  if (!await exists(siteRoot)) {
+  if (!(await exists(siteRoot))) {
     return [];
   }
 
   return (await collectFiles(siteRoot, root))
     .filter((file) => {
-      if (file.startsWith("apps/public-site/app/") || file.startsWith("apps/public-site/dev-app/")) {
+      if (
+        file.startsWith("apps/public-site/app/") ||
+        file.startsWith("apps/public-site/dev-app/")
+      ) {
         return false;
       }
       if (file === "apps/public-site/config.php") {
         return false;
       }
       const extension = path.extname(file).toLowerCase();
-      return extension === ".html" || extension === ".php" || path.basename(file).toLowerCase() === "llms.txt";
+      return (
+        extension === ".html" ||
+        extension === ".php" ||
+        path.basename(file).toLowerCase() === "llms.txt"
+      );
     })
     .sort();
 }
 
 async function collectPublicIntakeSurfaces(root) {
   const issueTemplateRoot = path.join(root, ".github", "ISSUE_TEMPLATE");
-  if (!await exists(issueTemplateRoot)) {
+  if (!(await exists(issueTemplateRoot))) {
     return [];
   }
 
@@ -156,7 +162,7 @@ async function collectFiles(directory, root) {
   for (const entry of entries) {
     const absolutePath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
-      files.push(...await collectFiles(absolutePath, root));
+      files.push(...(await collectFiles(absolutePath, root)));
     } else if (entry.isFile()) {
       files.push(toRepoPath(path.relative(root, absolutePath)));
     }
@@ -176,7 +182,7 @@ async function collectMarkdownFiles(directory, root) {
 
     const absolutePath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
-      files.push(...await collectMarkdownFiles(absolutePath, root));
+      files.push(...(await collectMarkdownFiles(absolutePath, root)));
     } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) {
       files.push(toRepoPath(path.relative(root, absolutePath)));
     }
@@ -213,8 +219,11 @@ async function collectNpmScriptNames(root) {
   const rootPackageJson = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
   const workspaces = Array.isArray(rootPackageJson.workspaces)
     ? rootPackageJson.workspaces
-    : rootPackageJson.workspaces?.packages ?? [];
-  const packageFiles = ["package.json", ...workspaces.map((workspace) => path.join(workspace, "package.json"))];
+    : (rootPackageJson.workspaces?.packages ?? []);
+  const packageFiles = [
+    "package.json",
+    ...workspaces.map((workspace) => path.join(workspace, "package.json")),
+  ];
 
   for (const packageFile of packageFiles) {
     const packageJson = JSON.parse(await readFile(path.join(root, packageFile), "utf8"));
@@ -285,7 +294,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === currentFile) {
     process.exitCode = 1;
   } else {
     console.log(
-      `Documentation map covers ${result.requiredFiles.length} maintained files and ${result.checkedLinks} local links.`
+      `Documentation map covers ${result.requiredFiles.length} maintained files and ${result.checkedLinks} local links.`,
     );
   }
 }

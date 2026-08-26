@@ -12,7 +12,7 @@ import {
   resolveCommand,
   stopChild,
   stopExistingHost,
-  stopWindowsNodeListenersOnDevPorts
+  stopWindowsNodeListenersOnDevPorts,
 } from "./dev-shared.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -32,7 +32,7 @@ const childEnv = {
   ...process.env,
   VOLTURA_AIR_CLIENT_PORT: String(clientPort),
   VOLTURA_AIR_CLIENT_URL: clientUrl,
-  VOLTURA_AIR_USE_VITE_CLIENT: "1"
+  VOLTURA_AIR_USE_VITE_CLIENT: "1",
 };
 const children = [];
 let browserContext = null;
@@ -49,7 +49,9 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 
 async function main() {
   if (process.platform !== "win32") {
-    throw new Error("Voltura Air UI debug sessions must run on Windows because they launch the WPF host.");
+    throw new Error(
+      "Voltura Air UI debug sessions must run on Windows because they launch the WPF host.",
+    );
   }
 
   await fs.mkdir(tempNodeDir, { recursive: true });
@@ -69,11 +71,21 @@ async function main() {
   console.log(`Chrome device: ${debugDevice.title}`);
   console.log(`Debug storage: ${tempDir}`);
 
-  children.push(spawnCommand(
-    "node",
-    ["../../node_modules/vite/bin/vite.js", "--host", clientHost, "--strictPort", "--port", String(clientPort)],
-    childEnv,
-    { cwd: path.join(repoRoot, "apps", "mobile-web") }));
+  children.push(
+    spawnCommand(
+      "node",
+      [
+        "../../node_modules/vite/bin/vite.js",
+        "--host",
+        clientHost,
+        "--strictPort",
+        "--port",
+        String(clientPort),
+      ],
+      childEnv,
+      { cwd: path.join(repoRoot, "apps", "mobile-web") },
+    ),
+  );
 
   await waitForHttp(clientUrl, 30000);
 
@@ -91,16 +103,23 @@ async function main() {
     tempAppDataDir,
     "--pairing-url-file",
     pairingUrlFile,
-    "--isolated-test-mode"
+    "--isolated-test-mode",
   ];
   if (smokeTest) {
     hostArguments.push("--minimized");
   }
 
-  children.push(spawnCommand("dotnet", hostArguments, {
-    ...childEnv,
-    APPDATA: tempAppDataDir
-  }, { cwd: repoRoot }));
+  children.push(
+    spawnCommand(
+      "dotnet",
+      hostArguments,
+      {
+        ...childEnv,
+        APPDATA: tempAppDataDir,
+      },
+      { cwd: repoRoot },
+    ),
+  );
 
   const pairingUrl = await waitForTextFile(pairingUrlFile, hostStartupTimeoutMs);
   const requireFromTemp = createRequire(path.join(tempNodeDir, "package.json"));
@@ -118,7 +137,9 @@ async function main() {
     await verifyResponsivePresentationLayout(page);
     await verifyResponsiveUrlOpenLayout(page);
     await verifyDisconnectedSavedPcReconnect(page);
-    console.log("Voltura Air UI smoke test connected and passed settings drawer lifecycle, trackpad, keyboard and landscape safe-area layout, responsive Power sheet, text transfer, Presentation, URL opening, and saved-PC reconnect checks.");
+    console.log(
+      "Voltura Air UI smoke test connected and passed settings drawer lifecycle, trackpad, keyboard and landscape safe-area layout, responsive Power sheet, text transfer, Presentation, URL opening, and saved-PC reconnect checks.",
+    );
     shutdown("SIGTERM", 0);
     return;
   }
@@ -136,30 +157,42 @@ async function ensureDebugDependencies() {
     await fs.writeFile(packageJson, JSON.stringify({ private: true, type: "commonjs" }, null, 2));
   }
 
-  if (existsSync(path.join(tempNodeDir, "node_modules", "playwright")) &&
-      existsSync(path.join(tempNodeDir, "node_modules", "qrcode"))) {
+  if (
+    existsSync(path.join(tempNodeDir, "node_modules", "playwright")) &&
+    existsSync(path.join(tempNodeDir, "node_modules", "qrcode"))
+  ) {
     return;
   }
 
-  await run("npm", ["install", "--no-audit", "--no-fund", "--no-save", "playwright", "qrcode"], { cwd: tempNodeDir });
+  await run("npm", ["install", "--no-audit", "--no-fund", "--no-save", "playwright", "qrcode"], {
+    cwd: tempNodeDir,
+  });
 }
 
 async function launchBrowser(chromium, qrCode, pairingUrl) {
   const url = new URL(pairingUrl);
 
   browserContext = await launchPersistentContext(chromium);
-  const page = browserContext.pages()[0] ?? await browserContext.newPage();
+  const page = browserContext.pages()[0] ?? (await browserContext.newPage());
   await applyDeviceEmulation(page, debugDevice);
   await page.goto(url.href, { waitUntil: "networkidle" });
   if (smokeTest) {
-    await page.getByRole("button", { name: "Pair", exact: true }).waitFor({ state: "visible", timeout: 10000 });
+    await page
+      .getByRole("button", { name: "Pair", exact: true })
+      .waitFor({ state: "visible", timeout: 10000 });
     const qrImageFile = path.join(tempDir, "pairing-qr.png");
-    await qrCode.toFile(qrImageFile, pairingUrl, { errorCorrectionLevel: "H", margin: 4, width: 1024 });
+    await qrCode.toFile(qrImageFile, pairingUrl, {
+      errorCorrectionLevel: "H",
+      margin: 4,
+      width: 1024,
+    });
     const ordinaryUrl = new URL(clientUrl);
     ordinaryUrl.searchParams.set("debug", "1");
     await page.goto(ordinaryUrl.href, { waitUntil: "networkidle" });
     await page.locator('input[type="file"][accept="image/*"]').first().setInputFiles(qrImageFile);
-    await page.getByRole("button", { name: "Pair", exact: true }).waitFor({ state: "visible", timeout: 10000 });
+    await page
+      .getByRole("button", { name: "Pair", exact: true })
+      .waitFor({ state: "visible", timeout: 10000 });
     await clickPairIfPresent(page);
     await waitForConnected(page);
   } else {
@@ -171,7 +204,7 @@ async function launchBrowser(chromium, qrCode, pairingUrl) {
 async function verifyTrackpadButtonLayout(page) {
   const viewports = [
     { name: "phone portrait", width: 393, height: 852 },
-    { name: "phone landscape", width: 852, height: 393 }
+    { name: "phone landscape", width: 852, height: 393 },
   ];
 
   for (const viewport of viewports) {
@@ -190,13 +223,23 @@ async function verifyTrackpadButtonLayout(page) {
       return {
         equalButtonWidths: Math.abs(buttonBounds[0].width - buttonBounds[1].width) <= 1,
         fillsModeWidth: Math.abs(rowBounds.width - modeBounds.width) <= 1,
-        fillsRowWidth: Math.abs(buttonBounds[0].left - rowBounds.left) <= 1 && Math.abs(buttonBounds[1].right - rowBounds.right) <= 1,
-        rowDisplay: getComputedStyle(row).display
+        fillsRowWidth:
+          Math.abs(buttonBounds[0].left - rowBounds.left) <= 1 &&
+          Math.abs(buttonBounds[1].right - rowBounds.right) <= 1,
+        rowDisplay: getComputedStyle(row).display,
       };
     });
 
-    if ("error" in result || !result.equalButtonWidths || !result.fillsModeWidth || !result.fillsRowWidth || result.rowDisplay !== "grid") {
-      throw new Error(`Trackpad click button layout failed for ${viewport.name}: ${JSON.stringify(result)}`);
+    if (
+      "error" in result ||
+      !result.equalButtonWidths ||
+      !result.fillsModeWidth ||
+      !result.fillsRowWidth ||
+      result.rowDisplay !== "grid"
+    ) {
+      throw new Error(
+        `Trackpad click button layout failed for ${viewport.name}: ${JSON.stringify(result)}`,
+      );
     }
   }
 }
@@ -215,9 +258,15 @@ async function verifyKeyboardLayout(page) {
     const selector = document.querySelector(".keyboard-input-mode-buttons");
     const selectorButtons = selector ? Array.from(selector.querySelectorAll("button")) : [];
     const primaryButtons = primaryKeys ? Array.from(primaryKeys.querySelectorAll("button")) : [];
-    if (!(mode instanceof HTMLElement) || !(primaryKeys instanceof HTMLElement) ||
-        !(input instanceof HTMLTextAreaElement) || !(liveTyping instanceof HTMLElement) ||
-        !(selector instanceof HTMLElement) || selectorButtons.length !== 2 || primaryButtons.length < 7) {
+    if (
+      !(mode instanceof HTMLElement) ||
+      !(primaryKeys instanceof HTMLElement) ||
+      !(input instanceof HTMLTextAreaElement) ||
+      !(liveTyping instanceof HTMLElement) ||
+      !(selector instanceof HTMLElement) ||
+      selectorButtons.length !== 2 ||
+      primaryButtons.length < 7
+    ) {
       return { error: "Keyboard controls were not visible." };
     }
 
@@ -236,19 +285,26 @@ async function verifyKeyboardLayout(page) {
       primaryDisplay: getComputedStyle(primaryKeys).display,
       primaryRowCount: rowTops.size,
       selectorDisplay: getComputedStyle(selector).display,
-      selectorGap: selectorButtonBounds[1].left - selectorButtonBounds[0].right
+      selectorGap: selectorButtonBounds[1].left - selectorButtonBounds[0].right,
     };
   });
 
-  if ("error" in portrait || !portrait.inputFocused ||
-      (portrait.inputOutlineWidth !== "0px" && portrait.inputOutlineStyle !== "none") ||
-      !portrait.inputTopAligned || !portrait.inputBottomAligned || portrait.primaryDisplay !== "grid" ||
-      portrait.primaryRowCount < 2 || portrait.selectorDisplay !== "grid" || Math.abs(portrait.selectorGap) > 1) {
+  if (
+    "error" in portrait ||
+    !portrait.inputFocused ||
+    (portrait.inputOutlineWidth !== "0px" && portrait.inputOutlineStyle !== "none") ||
+    !portrait.inputTopAligned ||
+    !portrait.inputBottomAligned ||
+    portrait.primaryDisplay !== "grid" ||
+    portrait.primaryRowCount < 2 ||
+    portrait.selectorDisplay !== "grid" ||
+    Math.abs(portrait.selectorGap) > 1
+  ) {
     throw new Error(`Keyboard portrait layout failed: ${JSON.stringify(portrait)}`);
   }
 
   const sleepButton = page.getByRole("button", { name: "Sleep", exact: true });
-  if (await sleepButton.count() === 1) {
+  if ((await sleepButton.count()) === 1) {
     await sleepButton.click();
     const sleepDialog = page.getByRole("dialog", { name: "Put PC to sleep?", exact: true });
     const confirmation = await sleepDialog.evaluate((dialog) => {
@@ -262,11 +318,16 @@ async function verifyKeyboardLayout(page) {
         cancelFocused: document.activeElement === cancel,
         cancelBorder: getComputedStyle(cancel).borderTopColor,
         confirmBorder: getComputedStyle(confirm).borderTopColor,
-        confirmOutlineWidth: getComputedStyle(confirm).outlineWidth
+        confirmOutlineWidth: getComputedStyle(confirm).outlineWidth,
       };
     });
 
-    if ("error" in confirmation || !confirmation.cancelFocused || confirmation.cancelBorder === confirmation.confirmBorder || confirmation.confirmOutlineWidth !== "0px") {
+    if (
+      "error" in confirmation ||
+      !confirmation.cancelFocused ||
+      confirmation.cancelBorder === confirmation.confirmBorder ||
+      confirmation.confirmOutlineWidth !== "0px"
+    ) {
       throw new Error(`Sleep confirmation default failed: ${JSON.stringify(confirmation)}`);
     }
     await sleepDialog.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -281,10 +342,13 @@ async function verifyKeyboardLayout(page) {
     }
 
     const shellStyle = getComputedStyle(shell);
-    const availableWidth = shell.clientWidth - Number.parseFloat(shellStyle.paddingLeft) - Number.parseFloat(shellStyle.paddingRight);
+    const availableWidth =
+      shell.clientWidth -
+      Number.parseFloat(shellStyle.paddingLeft) -
+      Number.parseFloat(shellStyle.paddingRight);
     return {
       availableWidth,
-      modeWidth: mode.getBoundingClientRect().width
+      modeWidth: mode.getBoundingClientRect().width,
     };
   });
 
@@ -298,8 +362,11 @@ async function verifyLandscapeSafeAreaLayouts(page) {
   await page.getByRole("button", { name: "Open menu", exact: true }).click();
   const splitSection = page.locator('[data-settings-section="split"]');
   await splitSection.locator("> summary").click();
-  const splitCheckbox = splitSection.getByRole("checkbox", { name: "Enable split mode", exact: true });
-  if (!await splitCheckbox.isChecked()) {
+  const splitCheckbox = splitSection.getByRole("checkbox", {
+    name: "Enable split mode",
+    exact: true,
+  });
+  if (!(await splitCheckbox.isChecked())) {
     await splitCheckbox.click();
   }
   await page.getByRole("button", { name: "Close menu", exact: true }).click();
@@ -309,12 +376,19 @@ async function verifyLandscapeSafeAreaLayouts(page) {
     const shell = document.querySelector(".app-shell");
     const keyboardPane = document.querySelector(".split-keyboard-pane");
     const keyboard = keyboardPane?.querySelector(".keyboard-mode");
-    const finalButtons = keyboardPane ? Array.from(keyboardPane.querySelectorAll(".app-switch-row button")) : [];
+    const finalButtons = keyboardPane
+      ? Array.from(keyboardPane.querySelectorAll(".app-switch-row button"))
+      : [];
     const trackpadSurface = document.querySelector(".split-trackpad-pane .trackpad-surface");
     const expandButton = trackpadSurface?.querySelector(".trackpad-expand-button");
-    if (!(shell instanceof HTMLElement) || !(keyboardPane instanceof HTMLElement) ||
-        !(keyboard instanceof HTMLElement) || finalButtons.length !== 2 ||
-        !(trackpadSurface instanceof HTMLElement) || !(expandButton instanceof HTMLElement)) {
+    if (
+      !(shell instanceof HTMLElement) ||
+      !(keyboardPane instanceof HTMLElement) ||
+      !(keyboard instanceof HTMLElement) ||
+      finalButtons.length !== 2 ||
+      !(trackpadSurface instanceof HTMLElement) ||
+      !(expandButton instanceof HTMLElement)
+    ) {
       return { error: "Split keyboard or trackpad controls were not visible." };
     }
 
@@ -329,22 +403,30 @@ async function verifyLandscapeSafeAreaLayouts(page) {
     const expandBounds = expandButton.getBoundingClientRect();
     return {
       expandRightGap: surfaceBounds.right - expandBounds.right,
-      finalButtonBottomGap: paneBounds.bottom - Math.max(...finalButtonBounds.map((bounds) => bounds.bottom)),
+      finalButtonBottomGap:
+        paneBounds.bottom - Math.max(...finalButtonBounds.map((bounds) => bounds.bottom)),
       finalButtonMinHeight: Number.parseFloat(getComputedStyle(finalButtons[0]).minHeight),
       keyboardPaddingBottom: Number.parseFloat(getComputedStyle(keyboard).paddingBottom),
-      panePaddingBottom: Number.parseFloat(getComputedStyle(keyboardPane).paddingBottom)
+      panePaddingBottom: Number.parseFloat(getComputedStyle(keyboardPane).paddingBottom),
     };
   });
 
-  if ("error" in splitLayout || Math.abs(splitLayout.expandRightGap - 10) > 1 ||
-      Math.abs(splitLayout.finalButtonBottomGap) > 1 || splitLayout.finalButtonMinHeight < 80 ||
-      splitLayout.keyboardPaddingBottom !== 0 || splitLayout.panePaddingBottom !== 0) {
+  if (
+    "error" in splitLayout ||
+    Math.abs(splitLayout.expandRightGap - 10) > 1 ||
+    Math.abs(splitLayout.finalButtonBottomGap) > 1 ||
+    splitLayout.finalButtonMinHeight < 80 ||
+    splitLayout.keyboardPaddingBottom !== 0 ||
+    splitLayout.panePaddingBottom !== 0
+  ) {
     throw new Error(`Split landscape safe-area layout failed: ${JSON.stringify(splitLayout)}`);
   }
 
   await page.getByRole("button", { name: "Expand trackpad", exact: true }).click();
   const expandedLayout = await page.evaluate(() => {
-    const button = document.querySelector(".split-trackpad-pane .trackpad-mode.expanded .trackpad-expand-button");
+    const button = document.querySelector(
+      ".split-trackpad-pane .trackpad-mode.expanded .trackpad-expand-button",
+    );
     if (!(button instanceof HTMLElement)) {
       return { error: "Expanded split trackpad toggle was not visible." };
     }
@@ -352,7 +434,9 @@ async function verifyLandscapeSafeAreaLayouts(page) {
     return { rightGap: window.innerWidth - button.getBoundingClientRect().right };
   });
   if ("error" in expandedLayout || Math.abs(expandedLayout.rightGap - 10) > 1) {
-    throw new Error(`Expanded split trackpad safe-area layout failed: ${JSON.stringify(expandedLayout)}`);
+    throw new Error(
+      `Expanded split trackpad safe-area layout failed: ${JSON.stringify(expandedLayout)}`,
+    );
   }
   await page.getByRole("button", { name: "Restore trackpad", exact: true }).click();
 
@@ -364,8 +448,12 @@ async function verifyLandscapeSafeAreaLayouts(page) {
     const section = document.querySelector(".remote-volume-section");
     const grid = section?.querySelector(".remote-volume-grid");
     const buttons = grid ? Array.from(grid.querySelectorAll("button")) : [];
-    if (!(shell instanceof HTMLElement) || !(section instanceof HTMLElement) ||
-        !(grid instanceof HTMLElement) || buttons.length !== 3) {
+    if (
+      !(shell instanceof HTMLElement) ||
+      !(section instanceof HTMLElement) ||
+      !(grid instanceof HTMLElement) ||
+      buttons.length !== 3
+    ) {
       return { error: "Remote landscape volume controls were not visible." };
     }
 
@@ -374,14 +462,27 @@ async function verifyLandscapeSafeAreaLayouts(page) {
     const gridBounds = grid.getBoundingClientRect();
     const buttonBounds = buttons.map((button) => button.getBoundingClientRect());
     return {
-      equalButtonWidths: Math.max(...buttonBounds.map((bounds) => bounds.width)) - Math.min(...buttonBounds.map((bounds) => bounds.width)) <= 1,
-      gridRightGap: section.getBoundingClientRect().right - Number.parseFloat(sectionStyle.borderRightWidth) - Number.parseFloat(sectionStyle.paddingRight) - gridBounds.right,
-      sectionPaddingRight: Number.parseFloat(sectionStyle.paddingRight)
+      equalButtonWidths:
+        Math.max(...buttonBounds.map((bounds) => bounds.width)) -
+          Math.min(...buttonBounds.map((bounds) => bounds.width)) <=
+        1,
+      gridRightGap:
+        section.getBoundingClientRect().right -
+        Number.parseFloat(sectionStyle.borderRightWidth) -
+        Number.parseFloat(sectionStyle.paddingRight) -
+        gridBounds.right,
+      sectionPaddingRight: Number.parseFloat(sectionStyle.paddingRight),
     };
   });
-  if ("error" in remoteVolumeLayout || !remoteVolumeLayout.equalButtonWidths ||
-      Math.abs(remoteVolumeLayout.gridRightGap) > 1 || Math.abs(remoteVolumeLayout.sectionPaddingRight - 9) > 1) {
-    throw new Error(`Remote landscape volume safe-area layout failed: ${JSON.stringify(remoteVolumeLayout)}`);
+  if (
+    "error" in remoteVolumeLayout ||
+    !remoteVolumeLayout.equalButtonWidths ||
+    Math.abs(remoteVolumeLayout.gridRightGap) > 1 ||
+    Math.abs(remoteVolumeLayout.sectionPaddingRight - 9) > 1
+  ) {
+    throw new Error(
+      `Remote landscape volume safe-area layout failed: ${JSON.stringify(remoteVolumeLayout)}`,
+    );
   }
 
   await page.evaluate(() => {
@@ -398,15 +499,18 @@ async function verifyLandscapeSafeAreaLayouts(page) {
 async function verifySettingsDrawerLifecycle(page) {
   await page.setViewportSize({ width: 393, height: 852 });
   const drawer = page.locator(".settings-drawer");
-  const readState = () => drawer.evaluate((dialog) => ({
-    display: getComputedStyle(dialog).display,
-    open: dialog instanceof HTMLDialogElement && dialog.open,
-    width: dialog.getBoundingClientRect().width
-  }));
+  const readState = () =>
+    drawer.evaluate((dialog) => ({
+      display: getComputedStyle(dialog).display,
+      open: dialog instanceof HTMLDialogElement && dialog.open,
+      width: dialog.getBoundingClientRect().width,
+    }));
 
   const initiallyClosed = await readState();
   if (initiallyClosed.open || initiallyClosed.display !== "none" || initiallyClosed.width !== 0) {
-    throw new Error(`Settings drawer should start closed and hidden: ${JSON.stringify(initiallyClosed)}`);
+    throw new Error(
+      `Settings drawer should start closed and hidden: ${JSON.stringify(initiallyClosed)}`,
+    );
   }
 
   await page.getByRole("button", { name: "Open menu", exact: true }).click();
@@ -420,7 +524,7 @@ async function verifySettingsDrawerLifecycle(page) {
     const backdrop = document.querySelector(".settings-drawer-light-dismiss");
     return {
       backdropTabIndex: backdrop instanceof HTMLElement ? backdrop.tabIndex : null,
-      drawerFocused: document.activeElement === dialog
+      drawerFocused: document.activeElement === dialog,
     };
   });
   if (!initialFocus.drawerFocused || initialFocus.backdropTabIndex !== -1) {
@@ -428,9 +532,13 @@ async function verifySettingsDrawerLifecycle(page) {
   }
 
   await page.keyboard.press("Tab");
-  const firstTabTarget = await page.evaluate(() => document.activeElement?.getAttribute("aria-label"));
+  const firstTabTarget = await page.evaluate(() =>
+    document.activeElement?.getAttribute("aria-label"),
+  );
   if (firstTabTarget !== "Close menu") {
-    throw new Error(`Settings drawer first Tab target should be the close button, received: ${JSON.stringify(firstTabTarget)}`);
+    throw new Error(
+      `Settings drawer first Tab target should be the close button, received: ${JSON.stringify(firstTabTarget)}`,
+    );
   }
 
   const connectionSection = page.locator('[data-settings-section="connection"]');
@@ -444,24 +552,30 @@ async function verifySettingsDrawerLifecycle(page) {
     const connection = document.querySelector('[data-settings-section="connection"]');
     const trackpad = document.querySelector('[data-settings-section="trackpad"]');
     const summary = trackpad?.querySelector("summary");
-    const firstControl = trackpad?.querySelector(".settings-section-body button, .settings-section-body input, .settings-section-body select, .settings-section-body textarea, .settings-section-body a[href], .settings-section-body [tabindex]");
-    if (!(scrollRegion instanceof HTMLElement)
-      || !(connection instanceof HTMLDetailsElement)
-      || !(trackpad instanceof HTMLDetailsElement)
-      || !(summary instanceof HTMLElement)
-      || !(firstControl instanceof HTMLElement)
-      || connection.open
-      || !trackpad.open) {
+    const firstControl = trackpad?.querySelector(
+      ".settings-section-body button, .settings-section-body input, .settings-section-body select, .settings-section-body textarea, .settings-section-body a[href], .settings-section-body [tabindex]",
+    );
+    if (
+      !(scrollRegion instanceof HTMLElement) ||
+      !(connection instanceof HTMLDetailsElement) ||
+      !(trackpad instanceof HTMLDetailsElement) ||
+      !(summary instanceof HTMLElement) ||
+      !(firstControl instanceof HTMLElement) ||
+      connection.open ||
+      !trackpad.open
+    ) {
       return false;
     }
 
     const regionBounds = scrollRegion.getBoundingClientRect();
     const summaryBounds = summary.getBoundingClientRect();
     const controlBounds = firstControl.getBoundingClientRect();
-    return summaryBounds.top >= regionBounds.top - 1
-      && summaryBounds.bottom <= regionBounds.bottom + 1
-      && controlBounds.top >= regionBounds.top - 1
-      && controlBounds.bottom <= regionBounds.bottom + 1;
+    return (
+      summaryBounds.top >= regionBounds.top - 1 &&
+      summaryBounds.bottom <= regionBounds.bottom + 1 &&
+      controlBounds.top >= regionBounds.top - 1 &&
+      controlBounds.bottom <= regionBounds.bottom + 1
+    );
   });
 
   const accordionState = await page.evaluate(() => {
@@ -469,12 +583,16 @@ async function verifySettingsDrawerLifecycle(page) {
     const connection = document.querySelector('[data-settings-section="connection"]');
     const trackpad = document.querySelector('[data-settings-section="trackpad"]');
     const summary = trackpad?.querySelector("summary");
-    const firstControl = trackpad?.querySelector(".settings-section-body button, .settings-section-body input, .settings-section-body select, .settings-section-body textarea, .settings-section-body a[href], .settings-section-body [tabindex]");
-    if (!(scrollRegion instanceof HTMLElement)
-      || !(connection instanceof HTMLDetailsElement)
-      || !(trackpad instanceof HTMLDetailsElement)
-      || !(summary instanceof HTMLElement)
-      || !(firstControl instanceof HTMLElement)) {
+    const firstControl = trackpad?.querySelector(
+      ".settings-section-body button, .settings-section-body input, .settings-section-body select, .settings-section-body textarea, .settings-section-body a[href], .settings-section-body [tabindex]",
+    );
+    if (
+      !(scrollRegion instanceof HTMLElement) ||
+      !(connection instanceof HTMLDetailsElement) ||
+      !(trackpad instanceof HTMLDetailsElement) ||
+      !(summary instanceof HTMLElement) ||
+      !(firstControl instanceof HTMLElement)
+    ) {
       return { error: "Settings accordion controls were not visible." };
     }
 
@@ -483,32 +601,46 @@ async function verifySettingsDrawerLifecycle(page) {
     const controlBounds = firstControl.getBoundingClientRect();
     return {
       connectionOpen: connection.open,
-      firstControlVisible: controlBounds.top >= regionBounds.top - 1 && controlBounds.bottom <= regionBounds.bottom + 1,
+      firstControlVisible:
+        controlBounds.top >= regionBounds.top - 1 &&
+        controlBounds.bottom <= regionBounds.bottom + 1,
       summaryFocused: document.activeElement === summary,
-      summaryVisible: summaryBounds.top >= regionBounds.top - 1 && summaryBounds.bottom <= regionBounds.bottom + 1,
-      trackpadOpen: trackpad.open
+      summaryVisible:
+        summaryBounds.top >= regionBounds.top - 1 &&
+        summaryBounds.bottom <= regionBounds.bottom + 1,
+      trackpadOpen: trackpad.open,
     };
   });
-  if ("error" in accordionState
-    || accordionState.connectionOpen
-    || !accordionState.trackpadOpen
-    || !accordionState.summaryVisible
-    || !accordionState.firstControlVisible
-    || !accordionState.summaryFocused) {
+  if (
+    "error" in accordionState ||
+    accordionState.connectionOpen ||
+    !accordionState.trackpadOpen ||
+    !accordionState.summaryVisible ||
+    !accordionState.firstControlVisible ||
+    !accordionState.summaryFocused
+  ) {
     throw new Error(`Settings accordion assisted reveal failed: ${JSON.stringify(accordionState)}`);
   }
 
   await page.mouse.click(380, 426);
   const closedByBackdrop = await readState();
-  if (closedByBackdrop.open || closedByBackdrop.display !== "none" || closedByBackdrop.width !== 0) {
-    throw new Error(`Settings drawer did not close from its backdrop: ${JSON.stringify(closedByBackdrop)}`);
+  if (
+    closedByBackdrop.open ||
+    closedByBackdrop.display !== "none" ||
+    closedByBackdrop.width !== 0
+  ) {
+    throw new Error(
+      `Settings drawer did not close from its backdrop: ${JSON.stringify(closedByBackdrop)}`,
+    );
   }
 
   await page.getByRole("button", { name: "Open menu", exact: true }).click();
   await page.getByRole("button", { name: "Close menu", exact: true }).click();
   const closedByButton = await readState();
   if (closedByButton.open || closedByButton.display !== "none" || closedByButton.width !== 0) {
-    throw new Error(`Settings drawer did not close from its close button: ${JSON.stringify(closedByButton)}`);
+    throw new Error(
+      `Settings drawer did not close from its close button: ${JSON.stringify(closedByButton)}`,
+    );
   }
 
   await page.getByRole("button", { name: "Open menu", exact: true }).click();
@@ -528,7 +660,7 @@ async function verifyResponsivePowerLayout(page) {
     { name: "compact phone portrait", width: 375, height: 667 },
     { name: "phone landscape", width: 852, height: 393 },
     { name: "tablet portrait", width: 768, height: 1024 },
-    { name: "tablet landscape", width: 1024, height: 768 }
+    { name: "tablet landscape", width: 1024, height: 768 },
   ];
 
   for (const viewport of viewports) {
@@ -545,14 +677,27 @@ async function verifyResponsivePowerLayout(page) {
       return {
         actionCount: rows.length,
         contentScrolls: content.scrollHeight > content.clientHeight + 1,
-        horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+        horizontalOverflow:
+          document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
         minActionHeight: Math.min(...rows.map((row) => row.getBoundingClientRect().height)),
-        outsideViewport: bounds.left < -1 || bounds.top < -1 || bounds.right > window.innerWidth + 1 || bounds.bottom > window.innerHeight + 1
+        outsideViewport:
+          bounds.left < -1 ||
+          bounds.top < -1 ||
+          bounds.right > window.innerWidth + 1 ||
+          bounds.bottom > window.innerHeight + 1,
       };
     });
 
-    if ("error" in result || result.actionCount !== 8 || result.horizontalOverflow || result.minActionHeight < 44 || result.outsideViewport) {
-      throw new Error(`Responsive Power sheet check failed for ${viewport.name}: ${JSON.stringify(result)}`);
+    if (
+      "error" in result ||
+      result.actionCount !== 8 ||
+      result.horizontalOverflow ||
+      result.minActionHeight < 44 ||
+      result.outsideViewport
+    ) {
+      throw new Error(
+        `Responsive Power sheet check failed for ${viewport.name}: ${JSON.stringify(result)}`,
+      );
     }
   }
 }
@@ -566,16 +711,24 @@ async function verifyResponsiveTextTransferLayout(page) {
   const fourthModeMetrics = await fourthModeControl.evaluate((control) => ({
     fontSize: Number.parseFloat(getComputedStyle(control).fontSize),
     height: control.getBoundingClientRect().height,
-    width: control.getBoundingClientRect().width
+    width: control.getBoundingClientRect().width,
   }));
-  if (fourthModeMetrics.fontSize < 16 || fourthModeMetrics.height < 48 || fourthModeMetrics.width < 240) {
-    throw new Error(`Fourth mode button selector is too small: ${JSON.stringify(fourthModeMetrics)}`);
+  if (
+    fourthModeMetrics.fontSize < 16 ||
+    fourthModeMetrics.height < 48 ||
+    fourthModeMetrics.width < 240
+  ) {
+    throw new Error(
+      `Fourth mode button selector is too small: ${JSON.stringify(fourthModeMetrics)}`,
+    );
   }
   await page.getByRole("button", { name: "Send text to PC", exact: true }).click();
   await page.getByRole("button", { name: "Use device keyboard", exact: true }).click();
   await page.getByLabel("Text to send").fill("Responsive text transfer check");
   const savedSnippets = page.locator(".saved-snippets");
-  const snippetsStartFolded = await savedSnippets.evaluate((details) => details instanceof HTMLDetailsElement && !details.open);
+  const snippetsStartFolded = await savedSnippets.evaluate(
+    (details) => details instanceof HTMLDetailsElement && !details.open,
+  );
   await page.locator(".saved-snippets > summary").click();
   await page.getByLabel("Snippet name").fill("Smoke snippet");
   await page.getByRole("button", { name: "Save current text", exact: true }).click();
@@ -583,7 +736,7 @@ async function verifyResponsiveTextTransferLayout(page) {
   const viewports = [
     { name: "phone portrait", width: 393, height: 852 },
     { name: "phone landscape", width: 852, height: 393 },
-    { name: "tablet landscape", width: 1024, height: 768 }
+    { name: "tablet landscape", width: 1024, height: 768 },
   ];
 
   for (const viewport of viewports) {
@@ -597,10 +750,19 @@ async function verifyResponsiveTextTransferLayout(page) {
       const sendButtons = Array.from(document.querySelectorAll(".text-transfer-actions button"));
       const snippetInput = document.querySelector(".snippet-save-row input");
       const saveButton = document.querySelector(".snippet-save-row button");
-      const snippetActions = Array.from(document.querySelectorAll(".saved-snippets li button:not(.snippet-load)"));
-      if (!(editor instanceof HTMLTextAreaElement) || !(editorSurface instanceof HTMLElement) || !(editorField instanceof HTMLElement) ||
-          !(editorLabel instanceof HTMLElement) || !(actions instanceof HTMLElement) || sendButtons.length !== 2 ||
-          !(snippetInput instanceof HTMLInputElement) || !(saveButton instanceof HTMLButtonElement)) {
+      const snippetActions = Array.from(
+        document.querySelectorAll(".saved-snippets li button:not(.snippet-load)"),
+      );
+      if (
+        !(editor instanceof HTMLTextAreaElement) ||
+        !(editorSurface instanceof HTMLElement) ||
+        !(editorField instanceof HTMLElement) ||
+        !(editorLabel instanceof HTMLElement) ||
+        !(actions instanceof HTMLElement) ||
+        sendButtons.length !== 2 ||
+        !(snippetInput instanceof HTMLInputElement) ||
+        !(saveButton instanceof HTMLButtonElement)
+      ) {
         return { error: "Text transfer controls were not visible." };
       }
 
@@ -612,21 +774,39 @@ async function verifyResponsiveTextTransferLayout(page) {
       return {
         backButtonPresent: document.querySelector(".text-transfer-mode .tool-back-button") !== null,
         editorLabelGap: editorSurfaceBounds.top - editorLabelBounds.bottom,
-        editorMisaligned: Math.abs(editorSurfaceBounds.left - editorFieldBounds.left) > 1 || Math.abs(editorSurfaceBounds.width - editorFieldBounds.width) > 2,
+        editorMisaligned:
+          Math.abs(editorSurfaceBounds.left - editorFieldBounds.left) > 1 ||
+          Math.abs(editorSurfaceBounds.width - editorFieldBounds.width) > 2,
         editorOverlapsActions: editorSurfaceBounds.bottom > actionBounds.top + 1,
         editorUsesTrackpadGrid: getComputedStyle(editorSurface).backgroundImage !== "none",
-        horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
-        maxSnippetActionHeight: Math.max(...snippetActions.map((button) => button.getBoundingClientRect().height)),
+        horizontalOverflow:
+          document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+        maxSnippetActionHeight: Math.max(
+          ...snippetActions.map((button) => button.getBoundingClientRect().height),
+        ),
         sendButtonsShareRow: Math.abs(sendButtonBounds[0].top - sendButtonBounds[1].top) <= 1,
         snippetInputOpaque: getComputedStyle(snippetInput).backgroundColor !== "rgba(0, 0, 0, 0)",
-        snippetInputWidth: snippetInput.getBoundingClientRect().width
+        snippetInputWidth: snippetInput.getBoundingClientRect().width,
       };
     });
 
-    if (!snippetsStartFolded || "error" in result || result.backButtonPresent || (viewport.name === "phone portrait" && result.editorLabelGap > 5) || result.editorMisaligned || result.editorOverlapsActions ||
-        result.editorUsesTrackpadGrid || result.horizontalOverflow || result.maxSnippetActionHeight > 45 || !result.sendButtonsShareRow ||
-        !result.snippetInputOpaque || result.snippetInputWidth < 160) {
-      throw new Error(`Responsive text transfer check failed for ${viewport.name}: ${JSON.stringify(result)}`);
+    if (
+      !snippetsStartFolded ||
+      "error" in result ||
+      result.backButtonPresent ||
+      (viewport.name === "phone portrait" && result.editorLabelGap > 5) ||
+      result.editorMisaligned ||
+      result.editorOverlapsActions ||
+      result.editorUsesTrackpadGrid ||
+      result.horizontalOverflow ||
+      result.maxSnippetActionHeight > 45 ||
+      !result.sendButtonsShareRow ||
+      !result.snippetInputOpaque ||
+      result.snippetInputWidth < 160
+    ) {
+      throw new Error(
+        `Responsive text transfer check failed for ${viewport.name}: ${JSON.stringify(result)}`,
+      );
     }
   }
 
@@ -638,21 +818,34 @@ async function verifyResponsiveTextTransferLayout(page) {
     const input = dialog.querySelector("input");
     const buttons = Array.from(dialog.querySelectorAll(".modal-dialog-actions button"));
     const closeButton = dialog.querySelector(".modal-dialog-close");
-    if (!(standardInput instanceof HTMLInputElement) || !(input instanceof HTMLInputElement) ||
-        !(closeButton instanceof HTMLButtonElement) || buttons.length !== 2) {
+    if (
+      !(standardInput instanceof HTMLInputElement) ||
+      !(input instanceof HTMLInputElement) ||
+      !(closeButton instanceof HTMLButtonElement) ||
+      buttons.length !== 2
+    ) {
       return { error: "Themed snippet dialog controls were not visible." };
     }
     return {
       buttonsUseElements: buttons.every((button) => button instanceof HTMLButtonElement),
       closeButtonAccessible: closeButton.getAttribute("aria-label") === "Close Rename snippet",
-      fontMatchesApp: getComputedStyle(dialog).fontFamily === getComputedStyle(document.body).fontFamily,
-      inputMatchesTheme: getComputedStyle(input).backgroundColor === getComputedStyle(standardInput).backgroundColor,
+      fontMatchesApp:
+        getComputedStyle(dialog).fontFamily === getComputedStyle(document.body).fontFamily,
+      inputMatchesTheme:
+        getComputedStyle(input).backgroundColor === getComputedStyle(standardInput).backgroundColor,
       minButtonHeight: Math.min(...buttons.map((button) => button.getBoundingClientRect().height)),
-      opaqueBackground: getComputedStyle(dialog).backgroundColor !== "rgba(0, 0, 0, 0)"
+      opaqueBackground: getComputedStyle(dialog).backgroundColor !== "rgba(0, 0, 0, 0)",
     };
   });
-  if ("error" in dialogMetrics || !dialogMetrics.buttonsUseElements || !dialogMetrics.closeButtonAccessible || !dialogMetrics.fontMatchesApp ||
-      !dialogMetrics.inputMatchesTheme || dialogMetrics.minButtonHeight < 48 || !dialogMetrics.opaqueBackground) {
+  if (
+    "error" in dialogMetrics ||
+    !dialogMetrics.buttonsUseElements ||
+    !dialogMetrics.closeButtonAccessible ||
+    !dialogMetrics.fontMatchesApp ||
+    !dialogMetrics.inputMatchesTheme ||
+    dialogMetrics.minButtonHeight < 48 ||
+    !dialogMetrics.opaqueBackground
+  ) {
     throw new Error(`Themed snippet dialog check failed: ${JSON.stringify(dialogMetrics)}`);
   }
   await renameDialog.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -666,17 +859,25 @@ async function verifyResponsiveUrlOpenLayout(page) {
   const urlDialog = page.getByRole("dialog", { name: "Open URL on PC", exact: true });
   const input = urlDialog.getByRole("textbox", { name: "Web address", exact: true });
 
-  if (await input.count() === 0) {
-    const permissionMessage = urlDialog.getByText("Allow URL opening in the PC permissions first.", { exact: true });
-    if (await permissionMessage.count() !== 1 || await urlDialog.getByRole("button", { name: "Open", exact: true }).count() !== 0) {
+  if ((await input.count()) === 0) {
+    const permissionMessage = urlDialog.getByText(
+      "Allow URL opening in the PC permissions first.",
+      { exact: true },
+    );
+    if (
+      (await permissionMessage.count()) !== 1 ||
+      (await urlDialog.getByRole("button", { name: "Open", exact: true }).count()) !== 0
+    ) {
       throw new Error("URL controls were not hidden with the PC permission disabled.");
     }
     return;
   }
 
   await input.fill("javascript:alert(1)");
-  if (!await urlDialog.getByRole("button", { name: "Open", exact: true }).isDisabled() ||
-      await urlDialog.getByText("Use an HTTP or HTTPS web address.", { exact: true }).count() !== 1) {
+  if (
+    !(await urlDialog.getByRole("button", { name: "Open", exact: true }).isDisabled()) ||
+    (await urlDialog.getByText("Use an HTTP or HTTPS web address.", { exact: true }).count()) !== 1
+  ) {
     throw new Error("Invalid URL drafts did not disable Open with clear feedback.");
   }
 
@@ -692,11 +893,15 @@ async function verifyResponsiveUrlOpenLayout(page) {
     return {
       height: dialogBounds.height,
       okOffsetLeft: ok.getBoundingClientRect().left - dialogBounds.left,
-      text: dialog.textContent ?? ""
+      text: dialog.textContent ?? "",
     };
   });
-  if ("error" in infoMetrics || infoMetrics.height < 250 || infoMetrics.okOffsetLeft > 40 ||
-      !infoMetrics.text.includes("Addresses without a scheme use HTTPS")) {
+  if (
+    "error" in infoMetrics ||
+    infoMetrics.height < 250 ||
+    infoMetrics.okOffsetLeft > 40 ||
+    !infoMetrics.text.includes("Addresses without a scheme use HTTPS")
+  ) {
     throw new Error(`URL information dialog check failed: ${JSON.stringify(infoMetrics)}`);
   }
   await infoDialog.getByRole("button", { name: "OK", exact: true }).click();
@@ -706,7 +911,7 @@ async function verifyResponsiveUrlOpenLayout(page) {
     { name: "phone portrait", width: 393, height: 852 },
     { name: "compact phone portrait", width: 375, height: 667 },
     { name: "phone landscape", width: 852, height: 393 },
-    { name: "tablet landscape", width: 1024, height: 768 }
+    { name: "tablet landscape", width: 1024, height: 768 },
   ];
 
   for (const viewport of viewports) {
@@ -716,7 +921,11 @@ async function verifyResponsiveUrlOpenLayout(page) {
       const form = document.querySelector(".remote-url-dialog form");
       const field = document.querySelector("#remote-url-draft");
       const button = document.querySelector(".remote-url-dialog-primary");
-      if (!(form instanceof HTMLElement) || !(field instanceof HTMLInputElement) || !(button instanceof HTMLButtonElement)) {
+      if (
+        !(form instanceof HTMLElement) ||
+        !(field instanceof HTMLInputElement) ||
+        !(button instanceof HTMLButtonElement)
+      ) {
         return { error: "URL opening controls were not visible." };
       }
 
@@ -731,15 +940,26 @@ async function verifyResponsiveUrlOpenLayout(page) {
         fieldOutlineColor: fieldStyle.outlineColor,
         fieldOutlineOffset: fieldStyle.outlineOffset,
         formBackground: getComputedStyle(form).backgroundColor,
-        horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
-        outsideViewport: bounds.left < -1 || bounds.right > window.innerWidth + 1
+        horizontalOverflow:
+          document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+        outsideViewport: bounds.left < -1 || bounds.right > window.innerWidth + 1,
       };
     });
 
-    if ("error" in result || result.buttonHeight < 44 || result.fieldWidth < 160 || result.fieldBackground === result.formBackground ||
-        result.fieldBorderColor !== result.fieldOutlineColor || result.fieldOutlineOffset !== "0px" || result.horizontalOverflow || result.outsideViewport ||
-        result.draft !== "example.com/page?q=responsive-test") {
-      throw new Error(`Responsive URL opening check failed for ${viewport.name}: ${JSON.stringify(result)}`);
+    if (
+      "error" in result ||
+      result.buttonHeight < 44 ||
+      result.fieldWidth < 160 ||
+      result.fieldBackground === result.formBackground ||
+      result.fieldBorderColor !== result.fieldOutlineColor ||
+      result.fieldOutlineOffset !== "0px" ||
+      result.horizontalOverflow ||
+      result.outsideViewport ||
+      result.draft !== "example.com/page?q=responsive-test"
+    ) {
+      throw new Error(
+        `Responsive URL opening check failed for ${viewport.name}: ${JSON.stringify(result)}`,
+      );
     }
   }
 }
@@ -759,33 +979,59 @@ async function verifyDisconnectedSavedPcReconnect(page) {
   await page.getByRole("button", { name: "Close menu", exact: true }).click();
 
   const reconnectPanel = page.locator(".pairing-required");
-  await reconnectPanel.getByRole("heading", { name: "PC disconnected", exact: true }).waitFor({ state: "visible" });
+  await reconnectPanel
+    .getByRole("heading", { name: "PC disconnected", exact: true })
+    .waitFor({ state: "visible" });
   const blockingState = await page.evaluate(() => {
     const panel = document.querySelector(".pairing-required");
     const backdrop = document.querySelector(".pairing-backdrop");
     const menuButton = document.querySelector('[aria-label="Open menu"]');
-    if (!(panel instanceof HTMLElement) || !(backdrop instanceof HTMLElement) || !(menuButton instanceof HTMLElement)) {
+    if (
+      !(panel instanceof HTMLElement) ||
+      !(backdrop instanceof HTMLElement) ||
+      !(menuButton instanceof HTMLElement)
+    ) {
       return { error: "Blocking reconnect panel was incomplete." };
     }
 
     const menuBounds = menuButton.getBoundingClientRect();
-    const hitTarget = document.elementFromPoint(menuBounds.left + menuBounds.width / 2, menuBounds.top + menuBounds.height / 2);
+    const hitTarget = document.elementFromPoint(
+      menuBounds.left + menuBounds.width / 2,
+      menuBounds.top + menuBounds.height / 2,
+    );
     const backdropBounds = backdrop.getBoundingClientRect();
     return {
       appChromeBlocked: hitTarget === backdrop,
-      backdropCoversViewport: backdropBounds.left <= 0 && backdropBounds.top <= 0 && backdropBounds.right >= window.innerWidth && backdropBounds.bottom >= window.innerHeight,
-      modal: panel.getAttribute("aria-modal") === "true" && panel.getAttribute("role") === "dialog"
+      backdropCoversViewport:
+        backdropBounds.left <= 0 &&
+        backdropBounds.top <= 0 &&
+        backdropBounds.right >= window.innerWidth &&
+        backdropBounds.bottom >= window.innerHeight,
+      modal: panel.getAttribute("aria-modal") === "true" && panel.getAttribute("role") === "dialog",
     };
   });
-  if ("error" in blockingState || !blockingState.appChromeBlocked || !blockingState.backdropCoversViewport || !blockingState.modal) {
-    throw new Error(`Disconnected saved-PC reconnect blocking state failed: ${JSON.stringify(blockingState)}`);
+  if (
+    "error" in blockingState ||
+    !blockingState.appChromeBlocked ||
+    !blockingState.backdropCoversViewport ||
+    !blockingState.modal
+  ) {
+    throw new Error(
+      `Disconnected saved-PC reconnect blocking state failed: ${JSON.stringify(blockingState)}`,
+    );
   }
-  const reconnectButton = reconnectPanel.getByRole("button", { name: "Try reconnect", exact: true });
-  const qrButton = reconnectPanel.getByRole("button", { name: "Take photo of QR code", exact: true });
+  const reconnectButton = reconnectPanel.getByRole("button", {
+    name: "Try reconnect",
+    exact: true,
+  });
+  const qrButton = reconnectPanel.getByRole("button", {
+    name: "Take photo of QR code",
+    exact: true,
+  });
 
   const viewports = [
     { name: "regular portrait", width: 393, height: 852 },
-    { name: "short landscape", width: 640, height: 360 }
+    { name: "short landscape", width: 640, height: 360 },
   ];
   for (const viewport of viewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
@@ -796,15 +1042,28 @@ async function verifyDisconnectedSavedPcReconnect(page) {
       const bounds = panel.getBoundingClientRect();
       return {
         actionCount: actions.length,
-        horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
-        minActionHeight: Math.min(...actions.map((button) => button.getBoundingClientRect().height)),
+        horizontalOverflow:
+          document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+        minActionHeight: Math.min(
+          ...actions.map((button) => button.getBoundingClientRect().height),
+        ),
         outsideViewport: bounds.left < -1 || bounds.right > window.innerWidth + 1,
-        scrollableWhenNeeded: panel.scrollHeight <= panel.clientHeight + 1 || getComputedStyle(panel).overflowY === "auto"
+        scrollableWhenNeeded:
+          panel.scrollHeight <= panel.clientHeight + 1 ||
+          getComputedStyle(panel).overflowY === "auto",
       };
     });
 
-    if (result.actionCount !== 2 || result.horizontalOverflow || result.minActionHeight < 48 || result.outsideViewport || !result.scrollableWhenNeeded) {
-      throw new Error(`Disconnected saved-PC reconnect layout failed for ${viewport.name}: ${JSON.stringify(result)}`);
+    if (
+      result.actionCount !== 2 ||
+      result.horizontalOverflow ||
+      result.minActionHeight < 48 ||
+      result.outsideViewport ||
+      !result.scrollableWhenNeeded
+    ) {
+      throw new Error(
+        `Disconnected saved-PC reconnect layout failed for ${viewport.name}: ${JSON.stringify(result)}`,
+      );
     }
   }
 
@@ -819,8 +1078,12 @@ async function launchPersistentContext(chromium) {
     channel: "chrome",
     headless: smokeTest,
     devtools: !smokeTest,
-    viewport: smokeTest ? { width: debugDevice.screen.vertical.width, height: debugDevice.screen.vertical.height } : null,
-    args: smokeTest ? ["--test-type"] : ["--start-maximized", "--auto-open-devtools-for-tabs", "--test-type"]
+    viewport: smokeTest
+      ? { width: debugDevice.screen.vertical.width, height: debugDevice.screen.vertical.height }
+      : null,
+    args: smokeTest
+      ? ["--test-type"]
+      : ["--start-maximized", "--auto-open-devtools-for-tabs", "--test-type"],
   };
 
   try {
@@ -837,8 +1100,8 @@ async function seedBrowserProfile(device) {
   const preferences = {
     browser: {
       window_placement: {
-        maximized: true
-      }
+        maximized: true,
+      },
     },
     devtools: {
       preferences: {
@@ -848,12 +1111,12 @@ async function seedBrowserProfile(device) {
         "emulation.device-mode-value": JSON.stringify({
           device: device.title,
           orientation: "vertical",
-          mode: ""
+          mode: "",
         }),
         "emulation.device-scale": "0.86",
-        "emulation.show-device-mode": "true"
-      }
-    }
+        "emulation.show-device-mode": "true",
+      },
+    },
   };
 
   await writeJson(path.join(browserProfileDir, "Preferences"), preferences);
@@ -869,11 +1132,11 @@ async function applyDeviceEmulation(page, device) {
     deviceScaleFactor: device.screen["device-pixel-ratio"],
     mobile: device.capabilities.includes("mobile"),
     screenWidth: vertical.width,
-    screenHeight: vertical.height
+    screenHeight: vertical.height,
   });
   await client.send("Emulation.setTouchEmulationEnabled", {
     enabled: device.capabilities.includes("touch"),
-    maxTouchPoints: device.capabilities.includes("touch") ? 1 : 0
+    maxTouchPoints: device.capabilities.includes("touch") ? 1 : 0,
   });
 }
 
@@ -911,8 +1174,7 @@ async function waitForHttp(url, timeoutMs) {
       if (response.ok) {
         return;
       }
-    } catch {
-    }
+    } catch {}
     await delay(250);
   }
 
@@ -921,9 +1183,15 @@ async function waitForHttp(url, timeoutMs) {
 
 function spawnCommand(command, args, env, options = {}) {
   const commandLine = [command, ...args].join(" ");
-  const child = process.platform === "win32"
-    ? spawn("cmd.exe", ["/d", "/s", "/c", commandLine], { stdio: "inherit", env, windowsHide: false, ...options })
-    : spawn(command, args, { stdio: "inherit", env, ...options });
+  const child =
+    process.platform === "win32"
+      ? spawn("cmd.exe", ["/d", "/s", "/c", commandLine], {
+          stdio: "inherit",
+          env,
+          windowsHide: false,
+          ...options,
+        })
+      : spawn(command, args, { stdio: "inherit", env, ...options });
 
   child.commandLine = commandLine;
   child.on("error", (error) => {
@@ -951,13 +1219,14 @@ async function run(command, args, options = {}) {
   const executable = resolveCommand(command);
   console.log(`> ${command} ${args.join(" ")}`);
   await new Promise((resolve, reject) => {
-    const [spawnFile, spawnArgs] = process.platform === "win32"
-      ? ["cmd.exe", ["/d", "/s", "/c", [executable, ...args].join(" ")]]
-      : [executable, args];
+    const [spawnFile, spawnArgs] =
+      process.platform === "win32"
+        ? ["cmd.exe", ["/d", "/s", "/c", [executable, ...args].join(" ")]]
+        : [executable, args];
     const child = spawn(spawnFile, spawnArgs, {
       cwd: options.cwd ?? repoRoot,
       stdio: "inherit",
-      windowsHide: true
+      windowsHide: true,
     });
     child.once("exit", (code) => {
       if (code === 0) {

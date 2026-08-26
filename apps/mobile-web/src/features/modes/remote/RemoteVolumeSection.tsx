@@ -14,12 +14,24 @@ interface RemoteVolumeSectionProps {
   onVolumeUp: () => void;
 }
 
-export function RemoteVolumeSection({ audioState, getRepeatablePressProps, mode, modeCopy, onMute, onVolumeDown, onVolumeUp }: RemoteVolumeSectionProps) {
+export function RemoteVolumeSection({
+  audioState,
+  getRepeatablePressProps,
+  mode,
+  modeCopy,
+  onMute,
+  onVolumeDown,
+  onVolumeUp,
+}: RemoteVolumeSectionProps) {
   return (
     <div className="remote-section remote-volume-section">
       <div className="remote-section-title">
         <span>Volume</span>
-        <small>{mode === "standard" && audioState ? `${audioState.volume}%${audioState.muted ? " muted" : ""}` : modeCopy.volume}</small>
+        <small>
+          {mode === "standard" && audioState
+            ? `${audioState.volume}%${audioState.muted ? " muted" : ""}`
+            : modeCopy.volume}
+        </small>
       </div>
       <div className="remote-volume-grid" aria-label="Volume controls">
         <RemoteButton label="Volume down" pressProps={getRepeatablePressProps(onVolumeDown)}>

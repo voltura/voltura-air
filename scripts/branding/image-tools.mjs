@@ -150,7 +150,12 @@ export function assertIco(buffer, expectedSizes, label) {
       const dimensions = getPngDimensions(frame, `${label} ${width}px frame`);
       const bitDepth = frame.readUInt8(24);
       const colourType = frame.readUInt8(25);
-      if (dimensions.width !== width || dimensions.height !== height || bitDepth !== 8 || colourType !== 6) {
+      if (
+        dimensions.width !== width ||
+        dimensions.height !== height ||
+        bitDepth !== 8 ||
+        colourType !== 6
+      ) {
         throw new Error(`${label} has an invalid ${width}px RGBA PNG frame.`);
       }
       continue;
@@ -191,7 +196,9 @@ export function assertIco(buffer, expectedSizes, label) {
   }
 
   if (actualSizes.join(",") !== expectedSizes.join(",")) {
-    throw new Error(`${label} has sizes ${actualSizes.join(",")}; expected ${expectedSizes.join(",")}.`);
+    throw new Error(
+      `${label} has sizes ${actualSizes.join(",")}; expected ${expectedSizes.join(",")}.`,
+    );
   }
   if (expectedSizes.includes(256) && Math.max(...actualSizes) !== 256) {
     throw new Error(`${label} must stop at a 256px largest frame.`);

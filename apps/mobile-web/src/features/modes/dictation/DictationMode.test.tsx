@@ -3,7 +3,13 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { DictationMode } from "./DictationMode";
 
-function DictationModeHarness({ canUseSpeech = true, sendText = vi.fn() }: { canUseSpeech?: boolean; sendText?: (text: string) => void }) {
+function DictationModeHarness({
+  canUseSpeech = true,
+  sendText = vi.fn(),
+}: {
+  canUseSpeech?: boolean;
+  sendText?: (text: string) => void;
+}) {
   const [dictationText, setDictationText] = useState("Hello Windows");
 
   return (

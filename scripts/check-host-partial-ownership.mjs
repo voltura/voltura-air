@@ -2,7 +2,8 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-const partialTypePattern = /^\s*(?:(?:public|internal|private|protected|sealed|abstract|static|readonly|ref|unsafe|new)\s+)*partial\s+(?:class|struct|record(?:\s+(?:class|struct))?)\s+([A-Za-z_]\w*)/gmu;
+const partialTypePattern =
+  /^\s*(?:(?:public|internal|private|protected|sealed|abstract|static|readonly|ref|unsafe|new)\s+)*partial\s+(?:class|struct|record(?:\s+(?:class|struct))?)\s+([A-Za-z_]\w*)/gmu;
 const namespacePattern = /^\s*namespace\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*[;{]/mu;
 const excludedDirectories = new Set(["bin", "obj"]);
 
@@ -34,7 +35,7 @@ async function collectCSharpFiles(directory) {
 
     const absolutePath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
-      files.push(...await collectCSharpFiles(absolutePath));
+      files.push(...(await collectCSharpFiles(absolutePath)));
     } else if (entry.isFile() && entry.name.endsWith(".cs") && !isGeneratedSource(entry.name)) {
       files.push(absolutePath);
     }
@@ -64,7 +65,9 @@ async function main() {
     }
   }
 
-  console.error("Use a named owner for each responsibility; reserve partial for framework or generated code in one maintained file.");
+  console.error(
+    "Use a named owner for each responsibility; reserve partial for framework or generated code in one maintained file.",
+  );
   process.exitCode = 1;
 }
 

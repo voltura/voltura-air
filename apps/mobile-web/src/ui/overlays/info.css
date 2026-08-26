@@ -37,9 +37,8 @@
   height: fit-content;
   min-height: 0;
   max-height: calc(
-    var(--app-viewport-height)
-    - max(var(--space-lg), env(safe-area-inset-top))
-    - max(var(--space-lg), env(safe-area-inset-bottom))
+    var(--app-viewport-height) - max(var(--space-lg), env(safe-area-inset-top)) -
+      max(var(--space-lg), env(safe-area-inset-bottom))
   );
   display: grid;
   align-content: start;
@@ -76,9 +75,8 @@
   width: min(360px, calc(var(--modal-visual-viewport-width) - var(--space-2xl)));
   height: auto;
   max-height: calc(
-    var(--modal-visual-viewport-height)
-    - max(var(--space-sm), env(safe-area-inset-top))
-    - max(var(--space-sm), env(safe-area-inset-bottom))
+    var(--modal-visual-viewport-height) - max(var(--space-sm), env(safe-area-inset-top)) -
+      max(var(--space-sm), env(safe-area-inset-bottom))
   );
   display: flex;
   flex-direction: column;
@@ -187,9 +185,8 @@ dialog::backdrop {
     width: min(
       520px,
       calc(
-        var(--modal-visual-viewport-width)
-        - max(var(--space-lg), env(safe-area-inset-left, 0px))
-        - max(var(--space-lg), env(safe-area-inset-right, 0px))
+        var(--modal-visual-viewport-width) - max(var(--space-lg), env(safe-area-inset-left, 0px)) -
+          max(var(--space-lg), env(safe-area-inset-right, 0px))
       )
     );
     flex-flow: row wrap;
@@ -200,9 +197,8 @@ dialog::backdrop {
     width: min(
       760px,
       calc(
-        var(--modal-visual-viewport-width)
-        - max(var(--space-lg), env(safe-area-inset-left, 0px))
-        - max(var(--space-lg), env(safe-area-inset-right, 0px))
+        var(--modal-visual-viewport-width) - max(var(--space-lg), env(safe-area-inset-left, 0px)) -
+          max(var(--space-lg), env(safe-area-inset-right, 0px))
       )
     );
   }
@@ -236,14 +232,16 @@ dialog::backdrop {
   }
 
   .modal-dialog[data-visual-viewport-bottom-constrained] {
-    inset: auto auto var(--modal-visual-viewport-bottom-offset) var(--modal-visual-viewport-center-x);
+    inset: auto auto var(--modal-visual-viewport-bottom-offset)
+      var(--modal-visual-viewport-center-x);
     transform: translateX(-50%);
   }
 }
 
 @media (orientation: landscape) and (width >= 640px) and (height <= 320px) {
   .modal-dialog {
-    inset: auto auto var(--modal-visual-viewport-bottom-offset) var(--modal-visual-viewport-center-x);
+    inset: auto auto var(--modal-visual-viewport-bottom-offset)
+      var(--modal-visual-viewport-center-x);
     transform: translateX(-50%);
   }
 }

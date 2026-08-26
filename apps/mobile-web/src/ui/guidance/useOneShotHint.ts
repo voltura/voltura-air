@@ -9,11 +9,11 @@ export function useOneShotHint({ autoHideMs }: UseOneShotHintOptions = {}) {
   const open = state === 1;
 
   const dismiss = useCallback(() => {
-    setState((current) => current === 1 ? 2 : current);
+    setState((current) => (current === 1 ? 2 : current));
   }, []);
 
   const showOnce = useCallback(() => {
-    setState((current) => current === 0 ? 1 : current);
+    setState((current) => (current === 0 ? 1 : current));
   }, []);
 
   useEffect(() => {
@@ -21,14 +21,18 @@ export function useOneShotHint({ autoHideMs }: UseOneShotHintOptions = {}) {
       return;
     }
 
-    const timeout = window.setTimeout(() => { setState(2); }, autoHideMs);
-    return () => { window.clearTimeout(timeout); };
+    const timeout = window.setTimeout(() => {
+      setState(2);
+    }, autoHideMs);
+    return () => {
+      window.clearTimeout(timeout);
+    };
   }, [autoHideMs, open]);
 
   return {
     dismiss,
     hasShown: state !== 0,
     open,
-    showOnce
+    showOnce,
   };
 }

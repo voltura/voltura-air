@@ -37,7 +37,7 @@ export const remoteShortcutMaps: Record<RemoteModeId, RemoteShortcutMap> = {
     back: { key: "Escape" },
     appFullscreen: { key: "F" },
     browserFullscreen: { key: "F11" },
-    space: { key: "Space" }
+    space: { key: "Space" },
   },
   youtube: {
     previous: { key: "P", modifiers: ["Shift"] },
@@ -51,7 +51,7 @@ export const remoteShortcutMaps: Record<RemoteModeId, RemoteShortcutMap> = {
     back: { key: "Escape" },
     appFullscreen: { key: "F" },
     browserFullscreen: { key: "F11" },
-    space: { key: "Space" }
+    space: { key: "Space" },
   },
   kodi: {
     previous: { key: "MediaPreviousTrack" },
@@ -69,6 +69,6 @@ export const remoteShortcutMaps: Record<RemoteModeId, RemoteShortcutMap> = {
     stop: { key: "X" },
     info: { key: "I" },
     subtitles: { key: "T" },
-    powerMenu: { key: "S" }
-  }
+    powerMenu: { key: "S" },
+  },
 };

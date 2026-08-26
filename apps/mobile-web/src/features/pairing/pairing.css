@@ -349,7 +349,9 @@
     grid-auto-rows: 1fr;
   }
 
-  .pairing-required:not(.connection-blocking) .pairing-secondary-actions > :last-child:nth-child(odd) {
+  .pairing-required:not(.connection-blocking)
+    .pairing-secondary-actions
+    > :last-child:nth-child(odd) {
     grid-column: 1 / -1;
   }
 }
@@ -385,11 +387,8 @@
 @media (orientation: landscape) {
   .pairing-required.connection-blocking {
     inset: 3px;
-    padding:
-      max(12px, env(safe-area-inset-top))
-      max(12px, env(safe-area-inset-right))
-      max(12px, env(safe-area-inset-bottom))
-      max(12px, env(safe-area-inset-left));
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+      max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   }
 }
 

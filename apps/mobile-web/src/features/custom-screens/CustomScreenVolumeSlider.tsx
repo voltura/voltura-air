@@ -1,9 +1,6 @@
 import { useState } from "react";
 import { Volume2, VolumeX } from "lucide-react";
-import type {
-  AudioStateMessage,
-  ClientMessage
-} from "../../foundation/protocol/messages";
+import type { AudioStateMessage, ClientMessage } from "../../foundation/protocol/messages";
 import type { ConnectionState } from "../../foundation/connection/connectionTypes";
 
 interface CustomScreenVolumeSliderProps {
@@ -21,15 +18,16 @@ export function CustomScreenVolumeSlider({
   name,
   reason,
   send,
-  state
+  state,
 }: CustomScreenVolumeSliderProps) {
   const [optimistic, setOptimistic] = useState<{
     source: AudioStateMessage | null;
     value: AudioStateMessage;
   } | null>(null);
-  const current = optimistic?.source === audioState
-    ? optimistic.value
-    : audioState ?? { type: "audio.state", volume: 50, muted: false };
+  const current =
+    optimistic?.source === audioState
+      ? optimistic.value
+      : (audioState ?? { type: "audio.state", volume: 50, muted: false });
   const interactive = enabled && state === "paired";
 
   const setVolume = (volume: number) => {
@@ -39,7 +37,7 @@ export function CustomScreenVolumeSlider({
     const nextVolume = Math.max(0, Math.min(100, Math.round(volume)));
     setOptimistic({
       source: audioState,
-      value: { type: "audio.state", volume: nextVolume, muted: false }
+      value: { type: "audio.state", volume: nextVolume, muted: false },
     });
     send({ type: "audio.volume.set", inputContext: "custom-screens", volume: nextVolume });
   };
@@ -48,19 +46,19 @@ export function CustomScreenVolumeSlider({
     <div
       aria-disabled={!enabled}
       className={`volume-control custom-screen-volume${current.muted ? " muted" : ""}`}
-      title={enabled ? name : reason ?? "Volume control is unavailable."}
+      title={enabled ? name : (reason ?? "Volume control is unavailable.")}
     >
       <button
         aria-label={current.muted ? "Unmute PC" : "Mute PC"}
         className="icon-button"
         disabled={!interactive}
-        onClick={() => { send({ type: "audio.mute.toggle", inputContext: "custom-screens" }); }}
+        onClick={() => {
+          send({ type: "audio.mute.toggle", inputContext: "custom-screens" });
+        }}
         title={current.muted ? "Unmute PC" : "Mute PC"}
         type="button"
       >
-        {current.muted
-          ? <VolumeX aria-hidden="true" />
-          : <Volume2 aria-hidden="true" />}
+        {current.muted ? <VolumeX aria-hidden="true" /> : <Volume2 aria-hidden="true" />}
       </button>
       <div className="range-row">
         <input
@@ -68,7 +66,9 @@ export function CustomScreenVolumeSlider({
           disabled={!interactive}
           max="100"
           min="0"
-          onChange={(event) => { setVolume(Number(event.target.value)); }}
+          onChange={(event) => {
+            setVolume(Number(event.target.value));
+          }}
           step="1"
           type="range"
           value={current.volume}

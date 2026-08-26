@@ -3,7 +3,11 @@ import { getAvailableToolModeIds, getEffectiveFourthMode, getModeTabs } from "./
 
 describe("capability-aware app modes", () => {
   it("removes Presentation and uses Dictation for a stale choice when its capability is unavailable", () => {
-    expect(getAvailableToolModeIds(false)).toEqual(["dictation", "text-transfer", "clipboard-read"]);
+    expect(getAvailableToolModeIds(false)).toEqual([
+      "dictation",
+      "text-transfer",
+      "clipboard-read",
+    ]);
     expect(getEffectiveFourthMode("presentation", false)).toBe("dictation");
     expect(getModeTabs("presentation", false).at(-1)?.id).toBe("dictation");
   });

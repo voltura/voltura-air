@@ -296,7 +296,7 @@ public sealed partial class HostUiLayoutTests
                 window,
                 new InstalledPhoneWebcamFeature("streaming", ready, hasMicrophone: true),
                 static () => { },
-                audioMonitorFactory: _ => monitor);
+                audioMonitorFactory: _ => Task.FromResult<IPhoneWebcamAudioMonitor>(monitor));
 
             PhoneWebcamPageView view = controller.CreateView();
             Assert.Equal(Visibility.Visible, view.AudioTestButton.Visibility);
@@ -348,7 +348,7 @@ public sealed partial class HostUiLayoutTests
                 window,
                 new InstalledPhoneWebcamFeature("streaming", ready, hasMicrophone: true),
                 static () => { },
-                audioMonitorFactory: _ => monitor);
+                audioMonitorFactory: _ => Task.FromResult<IPhoneWebcamAudioMonitor>(monitor));
 
             PhoneWebcamPageView view = controller.CreateView();
             view.AudioTestButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -378,7 +378,7 @@ public sealed partial class HostUiLayoutTests
                 audioMonitorFactory: _ =>
                 {
                     monitorCreates++;
-                    return new ControlledAudioMonitor();
+                    return Task.FromResult<IPhoneWebcamAudioMonitor>(new ControlledAudioMonitor());
                 });
 
             PhoneWebcamPageView view = controller.CreateView();
@@ -411,7 +411,7 @@ public sealed partial class HostUiLayoutTests
                 {
                     var monitor = new ControlledAudioMonitor(failure: failure);
                     monitors.Add(monitor);
-                    return monitor;
+                    return Task.FromResult<IPhoneWebcamAudioMonitor>(monitor);
                 });
 
             PhoneWebcamPageView view = controller.CreateView();
@@ -457,7 +457,7 @@ public sealed partial class HostUiLayoutTests
                 window,
                 new InstalledPhoneWebcamFeature("streaming", ready, hasMicrophone: true),
                 static () => { },
-                audioMonitorFactory: _ => monitor);
+                audioMonitorFactory: _ => Task.FromResult<IPhoneWebcamAudioMonitor>(monitor));
 
             PhoneWebcamPageView view = controller.CreateView();
             view.AudioTestButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -493,7 +493,7 @@ public sealed partial class HostUiLayoutTests
                     var monitor = new ControlledAudioMonitor(
                         disposeGate: monitors.Count == 0 ? disposeGate.Task : null);
                     monitors.Add(monitor);
-                    return monitor;
+                    return Task.FromResult<IPhoneWebcamAudioMonitor>(monitor);
                 });
 
             PhoneWebcamPageView view = controller.CreateView();
@@ -530,7 +530,7 @@ public sealed partial class HostUiLayoutTests
                 audioMonitorFactory: _ =>
                 {
                     monitorCreates++;
-                    return monitor;
+                    return Task.FromResult<IPhoneWebcamAudioMonitor>(monitor);
                 });
 
             PhoneWebcamPageView first = controller.CreateView();

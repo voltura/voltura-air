@@ -9,7 +9,7 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - A Windows 11 host accepts a paired browser-based PWA on a phone, tablet, or
   computer over local Wi-Fi/LAN or the internet. Standard Local serves the PWA
   from the host; Enhanced Direct and Relay use the first-party hosted PWA.
-- No app-store install, account, subscription, or trial is required. 
+- No app-store install, account, subscription, or trial is required.
   Standard Local connections use no cloud service. Enhanced Direct uses the
   first-party hosted PWA and bounded setup signaling before established control
   traffic stays on the selected private LAN. The optional Cloud Relay connects

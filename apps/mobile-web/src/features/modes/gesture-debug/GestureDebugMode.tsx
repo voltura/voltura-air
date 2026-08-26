@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
-import { GestureRecognizer, touchesFromList, type GestureOutput, type TouchPoint, type TrackpadSettings } from "../../../foundation/input/gestures";
+import {
+  GestureRecognizer,
+  touchesFromList,
+  type GestureOutput,
+  type TouchPoint,
+  type TrackpadSettings,
+} from "../../../foundation/input/gestures";
 
 interface GestureDebugModeProps {
   trackpadSettings: TrackpadSettings;
@@ -24,14 +30,27 @@ export function GestureDebugMode({ trackpadSettings }: GestureDebugModeProps) {
   const recognizerRef = useRef(new GestureRecognizer());
   const previousPointsRef = useRef<TouchPoint[]>([]);
   const nextLogIdRef = useRef(1);
-  const [frame, setFrame] = useState<DebugFrame>({ outputDx: 0, outputDy: 0, rawDx: 0, rawDy: 0, touchCount: 0 });
+  const [frame, setFrame] = useState<DebugFrame>({
+    outputDx: 0,
+    outputDy: 0,
+    rawDx: 0,
+    rawDy: 0,
+    touchCount: 0,
+  });
   const [log, setLog] = useState<DebugLogEntry[]>([]);
 
   useEffect(() => {
     const resetActiveGesture = () => {
       recognizerRef.current.cancel();
       previousPointsRef.current = [];
-      setFrame((current) => ({ ...current, outputDx: 0, outputDy: 0, rawDx: 0, rawDy: 0, touchCount: 0 }));
+      setFrame((current) => ({
+        ...current,
+        outputDx: 0,
+        outputDy: 0,
+        rawDx: 0,
+        rawDy: 0,
+        touchCount: 0,
+      }));
     };
 
     window.addEventListener("orientationchange", resetActiveGesture);
@@ -50,9 +69,9 @@ export function GestureDebugMode({ trackpadSettings }: GestureDebugModeProps) {
       {
         id: nextLogIdRef.current++,
         label,
-        outputs
+        outputs,
       },
-      ...current.slice(0, 19)
+      ...current.slice(0, 19),
     ]);
   };
 
@@ -72,7 +91,13 @@ export function GestureDebugMode({ trackpadSettings }: GestureDebugModeProps) {
     const outputs = recognizerRef.current.move(points, event.timeStamp, trackpadSettings);
     const outputDelta = getOutputDelta(outputs);
     previousPointsRef.current = points;
-    setFrame({ outputDx: outputDelta.dx, outputDy: outputDelta.dy, rawDx: rawDelta.dx, rawDy: rawDelta.dy, touchCount: points.length });
+    setFrame({
+      outputDx: outputDelta.dx,
+      outputDy: outputDelta.dy,
+      rawDx: rawDelta.dx,
+      rawDy: rawDelta.dy,
+      touchCount: points.length,
+    });
     appendLog("move", outputs);
   };
 
@@ -112,15 +137,29 @@ export function GestureDebugMode({ trackpadSettings }: GestureDebugModeProps) {
         <DebugValue label="Output dy" value={formatNumber(frame.outputDy)} />
         <DebugValue label="Pointer speed" value={`${trackpadSettings.pointerSpeed}%`} />
         <DebugValue label="Smoothing" value={trackpadSettings.pointerSmoothing ? "On" : "Off"} />
-        <DebugValue label="Pointer accel" value={trackpadSettings.pointerAcceleration ? "On" : "Off"} />
-        <DebugValue label="Scroll accel" value={trackpadSettings.scrollAcceleration ? "On" : "Off"} />
-        <DebugValue label="Scroll mode" value={trackpadSettings.scrollDirection === "normal" ? "Natural" : "Traditional"} />
+        <DebugValue
+          label="Pointer accel"
+          value={trackpadSettings.pointerAcceleration ? "On" : "Off"}
+        />
+        <DebugValue
+          label="Scroll accel"
+          value={trackpadSettings.scrollAcceleration ? "On" : "Off"}
+        />
+        <DebugValue
+          label="Scroll mode"
+          value={trackpadSettings.scrollDirection === "normal" ? "Natural" : "Traditional"}
+        />
       </div>
 
       <div className="gesture-debug-log">
         <div className="gesture-debug-log-header">
           <h2>Gesture log</h2>
-          <button type="button" onClick={() => { setLog([]); }}>
+          <button
+            type="button"
+            onClick={() => {
+              setLog([]);
+            }}
+          >
             <Trash2 aria-hidden="true" />
             <span>Clear</span>
           </button>
@@ -156,20 +195,24 @@ function getRawDelta(previous: TouchPoint[], current: TouchPoint[]): { dx: numbe
   const currentCenter = getCenter(current);
   return {
     dx: currentCenter.x - previousCenter.x,
-    dy: currentCenter.y - previousCenter.y
+    dy: currentCenter.y - previousCenter.y,
   };
 }
 
 function getOutputDelta(outputs: GestureOutput[]): { dx: number; dy: number } {
-  const output = outputs.find((entry) => entry.type === "pointer.move" || entry.type === "pointer.wheel");
-  return output && "dx" in output && "dy" in output ? { dx: output.dx, dy: output.dy } : { dx: 0, dy: 0 };
+  const output = outputs.find(
+    (entry) => entry.type === "pointer.move" || entry.type === "pointer.wheel",
+  );
+  return output && "dx" in output && "dy" in output
+    ? { dx: output.dx, dy: output.dy }
+    : { dx: 0, dy: 0 };
 }
 
 function getCenter(points: TouchPoint[]): TouchPoint {
   return {
     id: -1,
     x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
-    y: points.reduce((sum, point) => sum + point.y, 0) / points.length
+    y: points.reduce((sum, point) => sum + point.y, 0) / points.length,
   };
 }
 

@@ -14,7 +14,9 @@ interface SpeechRecognition {
 
 interface SpeechRecognitionEvent {
   resultIndex: number;
-  results: ArrayLike<ArrayLike<{ transcript: string } & { isFinal?: boolean }> & { isFinal?: boolean }>;
+  results: ArrayLike<
+    ArrayLike<{ transcript: string } & { isFinal?: boolean }> & { isFinal?: boolean }
+  >;
 }
 
 interface SpeechRecognitionErrorEvent {
@@ -129,7 +131,15 @@ export function useSpeechDictation(sendText: (text: string) => void, enabled = t
     stopRecognition(speechRef, setIsListening);
   };
 
-  return { canUseSpeech, dictationText, isListening, setDictationText, speechError, startSpeech, stopSpeech };
+  return {
+    canUseSpeech,
+    dictationText,
+    isListening,
+    setDictationText,
+    speechError,
+    startSpeech,
+    stopSpeech,
+  };
 }
 
 function getSpeechErrorMessage(error: string | undefined): string {
@@ -142,7 +152,7 @@ function getSpeechErrorMessage(error: string | undefined): string {
 
 function stopRecognition(
   speechRef: React.RefObject<SpeechRecognition | null>,
-  setIsListening: React.Dispatch<React.SetStateAction<boolean>>
+  setIsListening: React.Dispatch<React.SetStateAction<boolean>>,
 ) {
   const recognition = speechRef.current;
   speechRef.current = null;

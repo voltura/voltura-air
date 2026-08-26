@@ -7,7 +7,7 @@ import {
   renamePcProfile,
   selectPcProfile,
   upsertPcProfile,
-  getWebSocketUrl
+  getWebSocketUrl,
 } from "./pcProfiles";
 
 describe("pcProfiles", () => {
@@ -16,7 +16,7 @@ describe("pcProfiles", () => {
       customName: false,
       id: "http://192.168.1.50:51395",
       name: "PC",
-      url: "http://192.168.1.50:51395"
+      url: "http://192.168.1.50:51395",
     });
   });
 
@@ -25,13 +25,13 @@ describe("pcProfiles", () => {
       normalizePcProfile({
         customName: true,
         name: "Living room PC",
-        url: "http://192.168.1.50:51395/ws"
-      })
+        url: "http://192.168.1.50:51395/ws",
+      }),
     ).toEqual({
       customName: true,
       id: "http://192.168.1.50:51395",
       name: "Living room PC",
-      url: "http://192.168.1.50:51395"
+      url: "http://192.168.1.50:51395",
     });
   });
 
@@ -43,9 +43,11 @@ describe("pcProfiles", () => {
       id: `relay:voltura-cloud-v1:${route}`,
       transportMode: "relay",
       relayRouteId: route,
-      relayServiceId: "voltura-cloud-v1"
+      relayServiceId: "voltura-cloud-v1",
     });
-    expect(getWebSocketUrl(profile)).toBe(`wss://voltura-air-relay.voltura-air.workers.dev/v1/device/${route}`);
+    expect(getWebSocketUrl(profile)).toBe(
+      `wss://voltura-air-relay.voltura-air.workers.dev/v1/device/${route}`,
+    );
   });
 
   it("shares the hosted identity while preserving explicit Secure Direct transport", () => {
@@ -64,7 +66,7 @@ describe("pcProfiles", () => {
     const relay = {
       ...createPcProfile(`https://voltura.se/a/${route}`),
       hostIdentityFingerprint: "f".repeat(22),
-      hostIdentityPublicKey: "p".repeat(87)
+      hostIdentityPublicKey: "p".repeat(87),
     };
 
     const [secure] = upsertPcProfile([relay], createPcProfile(`https://voltura.se/s/${route}`));
@@ -79,7 +81,10 @@ describe("pcProfiles", () => {
     const encoded = btoa("https://relay.example").replace(/=+$/u, "");
     const profile = createPcProfile(`https://voltura.se/a/${route}?e=${encoded}`);
 
-    expect(profile).toMatchObject({ relayServiceId: "custom-v1", relayEndpoint: "https://relay.example" });
+    expect(profile).toMatchObject({
+      relayServiceId: "custom-v1",
+      relayEndpoint: "https://relay.example",
+    });
     expect(getWebSocketUrl(profile)).toBe(`wss://relay.example/v1/device/${route}`);
   });
 
@@ -88,7 +93,7 @@ describe("pcProfiles", () => {
     "data:text/plain,hello",
     "file:///C:/Windows/System32",
     "ftp://pc.local:51395",
-    "http://user:password@pc.local:51395"
+    "http://user:password@pc.local:51395",
   ])("rejects an unsafe stored profile URL %s", (url) => {
     expect(normalizePcProfile({ customName: false, name: "PC", url })).toBeNull();
     expect(() => createPcProfile(url)).toThrow(TypeError);
@@ -99,8 +104,8 @@ describe("pcProfiles", () => {
       normalizePcProfile({
         customName: false,
         name: "192.168.1.50",
-        url: "http://192.168.1.50:51395"
-      })?.name
+        url: "http://192.168.1.50:51395",
+      })?.name,
     ).toBe("PC");
   });
 
@@ -115,7 +120,7 @@ describe("pcProfiles", () => {
     const existing = {
       ...createPcProfile("http://192.168.1.50:51395"),
       customName: true,
-      name: "Sofa PC"
+      name: "Sofa PC",
     };
 
     const profiles = upsertPcProfile([existing], createPcProfile("http://192.168.1.50:51395/new"));
@@ -139,7 +144,7 @@ describe("pcProfiles", () => {
 
     expect(profiles[0]).toMatchObject({
       customName: true,
-      name: "TV PC"
+      name: "TV PC",
     });
   });
 

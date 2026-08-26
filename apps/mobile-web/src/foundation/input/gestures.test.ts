@@ -15,7 +15,10 @@ describe("GestureRecognizer", () => {
     const recognizer = new GestureRecognizer();
 
     recognizer.start([{ id: 1, x: 100, y: 100 }], 0);
-    const events = recognizer.move([{ id: 1, x: 110, y: 96 }], 20, { ...defaultTrackpadSettings, pointerSpeed: 50 });
+    const events = recognizer.move([{ id: 1, x: 110, y: 96 }], 20, {
+      ...defaultTrackpadSettings,
+      pointerSpeed: 50,
+    });
 
     expect(events).toEqual([{ type: "pointer.move", dx: 6.75, dy: -2.7 }]);
   });
@@ -24,20 +27,29 @@ describe("GestureRecognizer", () => {
     const recognizer = new GestureRecognizer();
 
     recognizer.start([{ id: 1, x: 100, y: 100 }], 0);
-    expect(recognizer.move([{ id: 1, x: 110, y: 100 }], 20, { ...defaultTrackpadSettings, pointerSmoothing: true })).toEqual([
-      { type: "pointer.move", dx: 13.5, dy: 0 }
-    ]);
+    expect(
+      recognizer.move([{ id: 1, x: 110, y: 100 }], 20, {
+        ...defaultTrackpadSettings,
+        pointerSmoothing: true,
+      }),
+    ).toEqual([{ type: "pointer.move", dx: 13.5, dy: 0 }]);
 
-    expect(recognizer.move([{ id: 1, x: 110, y: 110 }], 40, { ...defaultTrackpadSettings, pointerSmoothing: true })).toEqual([
-      { type: "pointer.move", dx: 8.78, dy: 4.73 }
-    ]);
+    expect(
+      recognizer.move([{ id: 1, x: 110, y: 110 }], 40, {
+        ...defaultTrackpadSettings,
+        pointerSmoothing: true,
+      }),
+    ).toEqual([{ type: "pointer.move", dx: 8.78, dy: 4.73 }]);
   });
 
   it("can accelerate faster pointer movement", () => {
     const recognizer = new GestureRecognizer();
 
     recognizer.start([{ id: 1, x: 100, y: 100 }], 0);
-    const events = recognizer.move([{ id: 1, x: 120, y: 100 }], 20, { ...defaultTrackpadSettings, pointerAcceleration: true });
+    const events = recognizer.move([{ id: 1, x: 120, y: 100 }], 20, {
+      ...defaultTrackpadSettings,
+      pointerAcceleration: true,
+    });
 
     expect(events).toEqual([{ type: "pointer.move", dx: 35.68, dy: 0 }]);
   });
@@ -47,7 +59,9 @@ describe("GestureRecognizer", () => {
 
     recognizer.start([{ id: 1, x: 100, y: 100 }], 0);
 
-    expect(recognizer.end(120)).toEqual([{ type: "pointer.button", button: "left", action: "click" }]);
+    expect(recognizer.end(120)).toEqual([
+      { type: "pointer.button", button: "left", action: "click" },
+    ]);
   });
 
   it("turns a long press into a right click", () => {
@@ -55,7 +69,9 @@ describe("GestureRecognizer", () => {
 
     recognizer.start([{ id: 1, x: 100, y: 100 }], 0);
 
-    expect(recognizer.end(700)).toEqual([{ type: "pointer.button", button: "right", action: "click" }]);
+    expect(recognizer.end(700)).toEqual([
+      { type: "pointer.button", button: "right", action: "click" },
+    ]);
   });
 
   it("turns two-finger movement into vertical and horizontal wheel events", () => {
@@ -64,16 +80,16 @@ describe("GestureRecognizer", () => {
     recognizer.start(
       [
         { id: 1, x: 100, y: 100 },
-        { id: 2, x: 160, y: 100 }
+        { id: 2, x: 160, y: 100 },
       ],
-      0
+      0,
     );
     const events = recognizer.move(
       [
         { id: 1, x: 92, y: 120 },
-        { id: 2, x: 152, y: 120 }
+        { id: 2, x: 152, y: 120 },
       ],
-      20
+      20,
     );
 
     expect(events).toEqual([{ type: "pointer.wheel", dx: 8.8, dy: -22 }]);
@@ -85,18 +101,18 @@ describe("GestureRecognizer", () => {
     recognizer.start(
       [
         { id: 1, x: 100, y: 100 },
-        { id: 2, x: 160, y: 100 }
+        { id: 2, x: 160, y: 100 },
       ],
-      0
+      0,
     );
     const events = recognizer.move(
       [
         { id: 1, x: 97, y: 100 },
-        { id: 2, x: 163, y: 100 }
+        { id: 2, x: 163, y: 100 },
       ],
       20,
       { ...defaultTrackpadSettings, zoomGestures: true },
-      "zoom"
+      "zoom",
     );
 
     expect(events).toEqual([{ type: "pointer.zoom", direction: "in" }]);
@@ -108,18 +124,18 @@ describe("GestureRecognizer", () => {
     recognizer.start(
       [
         { id: 1, x: 100, y: 100 },
-        { id: 2, x: 160, y: 100 }
+        { id: 2, x: 160, y: 100 },
       ],
-      0
+      0,
     );
     const events = recognizer.move(
       [
         { id: 1, x: 103, y: 100 },
-        { id: 2, x: 157, y: 100 }
+        { id: 2, x: 157, y: 100 },
       ],
       20,
       { ...defaultTrackpadSettings, zoomGestures: true },
-      "zoom"
+      "zoom",
     );
 
     expect(events).toEqual([{ type: "pointer.zoom", direction: "out" }]);
@@ -131,18 +147,18 @@ describe("GestureRecognizer", () => {
     recognizer.start(
       [
         { id: 1, x: 100, y: 100 },
-        { id: 2, x: 160, y: 100 }
+        { id: 2, x: 160, y: 100 },
       ],
-      0
+      0,
     );
     const events = recognizer.move(
       [
         { id: 1, x: 94, y: 120 },
-        { id: 2, x: 166, y: 120 }
+        { id: 2, x: 166, y: 120 },
       ],
       20,
       { ...defaultTrackpadSettings, zoomGestures: true },
-      "scroll"
+      "scroll",
     );
 
     expect(events).toEqual([{ type: "pointer.wheel", dx: 0, dy: -22 }]);
@@ -155,29 +171,33 @@ describe("GestureRecognizer", () => {
     recognizer.start(
       [
         { id: 1, x: 100, y: 100 },
-        { id: 2, x: 160, y: 100 }
+        { id: 2, x: 160, y: 100 },
       ],
-      0
+      0,
     );
-    expect(recognizer.move(
-      [
-        { id: 1, x: 100, y: 120 },
-        { id: 2, x: 160, y: 120 }
-      ],
-      20,
-      settings,
-      "scroll"
-    )).toEqual([{ type: "pointer.wheel", dx: 0, dy: -22 }]);
+    expect(
+      recognizer.move(
+        [
+          { id: 1, x: 100, y: 120 },
+          { id: 2, x: 160, y: 120 },
+        ],
+        20,
+        settings,
+        "scroll",
+      ),
+    ).toEqual([{ type: "pointer.wheel", dx: 0, dy: -22 }]);
 
-    expect(recognizer.move(
-      [
-        { id: 1, x: 90, y: 130 },
-        { id: 2, x: 170, y: 130 }
-      ],
-      40,
-      settings,
-      "scroll"
-    )).toEqual([{ type: "pointer.wheel", dx: 0, dy: -11 }]);
+    expect(
+      recognizer.move(
+        [
+          { id: 1, x: 90, y: 130 },
+          { id: 2, x: 170, y: 130 },
+        ],
+        40,
+        settings,
+        "scroll",
+      ),
+    ).toEqual([{ type: "pointer.wheel", dx: 0, dy: -11 }]);
   });
 
   it("keeps shared movement out of explicit Zoom mode", () => {
@@ -187,29 +207,33 @@ describe("GestureRecognizer", () => {
     recognizer.start(
       [
         { id: 1, x: 100, y: 100 },
-        { id: 2, x: 160, y: 100 }
+        { id: 2, x: 160, y: 100 },
       ],
-      0
+      0,
     );
-    expect(recognizer.move(
-      [
-        { id: 1, x: 90, y: 100 },
-        { id: 2, x: 170, y: 100 }
-      ],
-      20,
-      settings,
-      "zoom"
-    )).toEqual([{ type: "pointer.zoom", direction: "in" }]);
+    expect(
+      recognizer.move(
+        [
+          { id: 1, x: 90, y: 100 },
+          { id: 2, x: 170, y: 100 },
+        ],
+        20,
+        settings,
+        "zoom",
+      ),
+    ).toEqual([{ type: "pointer.zoom", direction: "in" }]);
 
-    expect(recognizer.move(
-      [
-        { id: 1, x: 90, y: 125 },
-        { id: 2, x: 170, y: 125 }
-      ],
-      40,
-      settings,
-      "zoom"
-    )).toEqual([]);
+    expect(
+      recognizer.move(
+        [
+          { id: 1, x: 90, y: 125 },
+          { id: 2, x: 170, y: 125 },
+        ],
+        40,
+        settings,
+        "zoom",
+      ),
+    ).toEqual([]);
   });
 
   it("does not emit zoom events when zoom gestures are disabled", () => {
@@ -218,18 +242,18 @@ describe("GestureRecognizer", () => {
     recognizer.start(
       [
         { id: 1, x: 100, y: 100 },
-        { id: 2, x: 160, y: 100 }
+        { id: 2, x: 160, y: 100 },
       ],
-      0
+      0,
     );
     const events = recognizer.move(
       [
         { id: 1, x: 95, y: 100 },
-        { id: 2, x: 165, y: 100 }
+        { id: 2, x: 165, y: 100 },
       ],
       20,
       { ...defaultTrackpadSettings, zoomGestures: false },
-      "zoom"
+      "zoom",
     );
 
     expect(events).toEqual([]);
@@ -241,17 +265,17 @@ describe("GestureRecognizer", () => {
     recognizer.start(
       [
         { id: 1, x: 100, y: 100 },
-        { id: 2, x: 160, y: 100 }
+        { id: 2, x: 160, y: 100 },
       ],
-      0
+      0,
     );
     const events = recognizer.move(
       [
         { id: 1, x: 92, y: 120 },
-        { id: 2, x: 152, y: 120 }
+        { id: 2, x: 152, y: 120 },
       ],
       20,
-      { ...defaultTrackpadSettings, horizontalScroll: false, scrollDirection: "inverted" }
+      { ...defaultTrackpadSettings, horizontalScroll: false, scrollDirection: "inverted" },
     );
 
     expect(events).toEqual([{ type: "pointer.wheel", dx: 0, dy: 22 }]);
@@ -263,17 +287,17 @@ describe("GestureRecognizer", () => {
     recognizer.start(
       [
         { id: 1, x: 100, y: 100 },
-        { id: 2, x: 160, y: 100 }
+        { id: 2, x: 160, y: 100 },
       ],
-      0
+      0,
     );
     const events = recognizer.move(
       [
         { id: 1, x: 100, y: 132 },
-        { id: 2, x: 160, y: 132 }
+        { id: 2, x: 160, y: 132 },
       ],
       20,
-      { ...defaultTrackpadSettings, scrollAcceleration: true }
+      { ...defaultTrackpadSettings, scrollAcceleration: true },
     );
 
     expect(events).toEqual([{ type: "pointer.wheel", dx: 0, dy: -59.84 }]);
@@ -285,12 +309,14 @@ describe("GestureRecognizer", () => {
     recognizer.start(
       [
         { id: 1, x: 100, y: 100 },
-        { id: 2, x: 160, y: 100 }
+        { id: 2, x: 160, y: 100 },
       ],
-      0
+      0,
     );
 
-    expect(recognizer.end(140)).toEqual([{ type: "pointer.button", button: "right", action: "click" }]);
+    expect(recognizer.end(140)).toEqual([
+      { type: "pointer.button", button: "right", action: "click" },
+    ]);
   });
 
   it("can disable tap to click", () => {
@@ -309,10 +335,10 @@ describe("GestureRecognizer", () => {
       recognizer.move(
         [
           { id: 1, x: 100, y: 100 },
-          { id: 2, x: 120, y: 120 }
+          { id: 2, x: 120, y: 120 },
         ],
-        20
-      )
+        20,
+      ),
     ).toEqual([]);
 
     expect(recognizer.end(100)).toEqual([]);
@@ -325,7 +351,7 @@ describe("normalizeTrackpadSettings", () => {
       ...defaultTrackpadSettings,
       pointerSpeed: 40,
       showVolumeControl: true,
-      enableSplitMode: false
+      enableSplitMode: false,
     });
   });
 
@@ -344,12 +370,14 @@ describe("normalizeTrackpadSettings", () => {
   });
 
   it("preserves the current split layout preferences while discarding the replaced mode-button setting", () => {
-    expect(normalizeTrackpadSettings({
+    expect(
+      normalizeTrackpadSettings({
+        splitTrackpadPlacement: "left",
+        splitShowStatusRow: true,
+      }),
+    ).toMatchObject({
       splitTrackpadPlacement: "left",
-      splitShowStatusRow: true
-    })).toMatchObject({
-      splitTrackpadPlacement: "left",
-      splitShowStatusRow: true
+      splitShowStatusRow: true,
     });
   });
 });

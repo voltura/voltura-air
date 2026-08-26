@@ -10,12 +10,16 @@ describe("usePowerControl", () => {
     const send = vi.fn();
     const { result } = renderHook(() => usePowerControl("paired", send));
 
-    act(() => { result.current.requestPowerAction("lock"); });
+    act(() => {
+      result.current.requestPowerAction("lock");
+    });
     const firstRequest = send.mock.calls[0]![0] as { operationId?: string };
     expect(firstRequest.operationId).toMatch(/^[A-Za-z0-9-]+$/);
     await act(() => vi.advanceTimersByTime(5000));
 
-    act(() => { result.current.requestPowerAction("lock"); });
+    act(() => {
+      result.current.requestPowerAction("lock");
+    });
     const secondRequest = send.mock.calls[1]![0] as { operationId?: string };
     expect(secondRequest.operationId).not.toBe(firstRequest.operationId);
     expect(result.current.pendingPowerAction).toBe("lock");
@@ -23,8 +27,11 @@ describe("usePowerControl", () => {
     let oldMatched = true;
     act(() => {
       oldMatched = result.current.completePowerAction({
-        type: "system.power.result", operationId: firstRequest.operationId!, action: "lock",
-        succeeded: true, message: "Old result"
+        type: "system.power.result",
+        operationId: firstRequest.operationId!,
+        action: "lock",
+        succeeded: true,
+        message: "Old result",
       });
     });
     expect(oldMatched).toBe(false);
@@ -34,8 +41,11 @@ describe("usePowerControl", () => {
     let currentMatched = false;
     act(() => {
       currentMatched = result.current.completePowerAction({
-        type: "system.power.result", operationId: secondRequest.operationId!, action: "lock",
-        succeeded: true, message: "Current result"
+        type: "system.power.result",
+        operationId: secondRequest.operationId!,
+        action: "lock",
+        succeeded: true,
+        message: "Current result",
       });
     });
     expect(currentMatched).toBe(true);

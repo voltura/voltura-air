@@ -12,6 +12,7 @@
   search.
 - One maintained file declares each host type. XAML/generated interop may use
   required partials; `npm run host:ownership:check` enforces the boundary.
+
 ## Runtime contract
 
 - UI-affine work stays on the dispatcher; network, filesystem, and blocking
@@ -33,14 +34,14 @@
 
 ## Validation by risk
 
-| Change | Default check |
-| --- | --- |
-| Ordinary host code | Warning-free `dotnet build VolturaAir.slnx`; focused `dotnet test --filter` only when behavior changes. |
-| Host source ownership | Add `npm run host:ownership:check`. |
-| Native/resource, filesystem, registry/persistence, process, network, protocol, or shared lifecycle boundary | Focused production-path tests for success, expected failure, and cleanup/restoration. |
-| Broad/shared host work | Full `npm run test:host`. |
-| WPF-only presentation | Warning-free build, useful focused state tests, and the root visual-checkpoint policy. |
-| Release or repository-wide shared contract | Sequential root `npm run build` and `npm test`. |
+| Change                                                                                                      | Default check                                                                                           |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Ordinary host code                                                                                          | Warning-free `dotnet build VolturaAir.slnx`; focused `dotnet test --filter` only when behavior changes. |
+| Host source ownership                                                                                       | Add `npm run host:ownership:check`.                                                                     |
+| Native/resource, filesystem, registry/persistence, process, network, protocol, or shared lifecycle boundary | Focused production-path tests for success, expected failure, and cleanup/restoration.                   |
+| Broad/shared host work                                                                                      | Full `npm run test:host`.                                                                               |
+| WPF-only presentation                                                                                       | Warning-free build, useful focused state tests, and the root visual-checkpoint policy.                  |
+| Release or repository-wide shared contract                                                                  | Sequential root `npm run build` and `npm test`.                                                         |
 
 `npm run package:win:test` is an installer-iteration check whose
 `artifacts/test` output is not releasable. Production packaging and release

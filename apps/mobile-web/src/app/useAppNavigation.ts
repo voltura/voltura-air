@@ -4,10 +4,7 @@ import type { AppSettings } from "../foundation/settings/appSettings";
 import type { TrackpadSettings } from "../foundation/input/gestures";
 import { getStableScreenOrientation, supportsSplitModeLayout } from "./splitModeLayout";
 
-type NavigationTrackpadSettings = Pick<
-  TrackpadSettings,
-  "enableSplitMode" | "splitShowStatusRow"
->;
+type NavigationTrackpadSettings = Pick<TrackpadSettings, "enableSplitMode" | "splitShowStatusRow">;
 
 interface AppNavigationOptions {
   fourthMode: AppSettings["fourthMode"];
@@ -59,7 +56,7 @@ export function useAppNavigation({
   showModeButtons = true,
   supportsGestureDebug,
   trackpadSettings,
-  suppressSplitMode = false
+  suppressSplitMode = false,
 }: AppNavigationOptions): AppNavigation {
   const [requestedTab, setRequestedTab] = useState<AppTab>("trackpad");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -67,10 +64,15 @@ export function useAppNavigation({
   const [areModeTabsCollapsed, setAreModeTabsCollapsed] = useState(false);
   const [modeSelectorAnchor, setModeSelectorAnchor] = useState<ModeSelectorAnchor | null>(null);
   const [isRemoteUtilityPanelOpen, setIsRemoteUtilityPanelOpen] = useState(false);
-  const modeTabs = useMemo(() => getModeTabs(fourthMode, presentationAvailable, filesAvailable), [filesAvailable, fourthMode, presentationAvailable]);
+  const modeTabs = useMemo(
+    () => getModeTabs(fourthMode, presentationAvailable, filesAvailable),
+    [filesAvailable, fourthMode, presentationAvailable],
+  );
 
   useEffect(() => {
-    const onResize = () => { setCanUseSplitMode(readSplitModeSupport()); };
+    const onResize = () => {
+      setCanUseSplitMode(readSplitModeSupport());
+    };
     const orientation = screen.orientation;
     onResize();
     window.addEventListener("resize", onResize);
@@ -81,19 +83,25 @@ export function useAppNavigation({
     };
   }, []);
 
-  const tab = requestedTab === "debug" && !supportsGestureDebug
-    ? "trackpad"
-    : requestedTab === "presentation" && !presentationAvailable
-      ? "dictation"
-      : requestedTab === "files" && !filesAvailable
-        ? presentationAvailable ? "presentation" : "dictation"
-        : requestedTab;
+  const tab =
+    requestedTab === "debug" && !supportsGestureDebug
+      ? "trackpad"
+      : requestedTab === "presentation" && !presentationAvailable
+        ? "dictation"
+        : requestedTab === "files" && !filesAvailable
+          ? presentationAvailable
+            ? "presentation"
+            : "dictation"
+          : requestedTab;
   const effectiveModeSelectorAnchor = tab === "debug" ? null : modeSelectorAnchor;
   const effectiveModeSelectorOpen = effectiveModeSelectorAnchor !== null;
   const effectiveModeTabsCollapsed = tab === "debug" ? false : areModeTabsCollapsed;
   const effectiveRemoteUtilityPanelOpen = tab === "remote" && isRemoteUtilityPanelOpen;
 
-  const selectModeTab = (nextTab: MainAppTab, source: "tabs" | "selector" | "settings" | "menu" = "tabs") => {
+  const selectModeTab = (
+    nextTab: MainAppTab,
+    source: "tabs" | "selector" | "settings" | "menu" = "tabs",
+  ) => {
     if (tab === nextTab) {
       if (source !== "settings" && source !== "menu") {
         setAreModeTabsCollapsed(source === "tabs");
@@ -137,11 +145,23 @@ export function useAppNavigation({
     setIsSettingsOpen(false);
   };
 
-  const shouldShowSplitMode = !suppressSplitMode && canUseSplitMode && trackpadSettings.enableSplitMode && (tab === "trackpad" || tab === "keyboard");
+  const shouldShowSplitMode =
+    !suppressSplitMode &&
+    canUseSplitMode &&
+    trackpadSettings.enableSplitMode &&
+    (tab === "trackpad" || tab === "keyboard");
   const canShowModeNavigation = isPaired;
-  const isModeButtonsVisible = canShowModeNavigation && showModeButtons && !effectiveModeTabsCollapsed && !effectiveRemoteUtilityPanelOpen;
+  const isModeButtonsVisible =
+    canShowModeNavigation &&
+    showModeButtons &&
+    !effectiveModeTabsCollapsed &&
+    !effectiveRemoteUtilityPanelOpen;
   const isBottomModeNavigationVisible = isModeButtonsVisible;
-  const showTrackpadCompactModeSelector = shouldShowSplitMode && !trackpadSettings.splitShowStatusRow && !isModeButtonsVisible && canShowModeNavigation;
+  const showTrackpadCompactModeSelector =
+    shouldShowSplitMode &&
+    !trackpadSettings.splitShowStatusRow &&
+    !isModeButtonsVisible &&
+    canShowModeNavigation;
   const shellClassName = [
     "app-shell",
     isBottomModeNavigationVisible && "has-mode-navigation",
@@ -158,13 +178,17 @@ export function useAppNavigation({
     effectiveModeTabsCollapsed && "mode-tabs-collapsed",
     shouldShowSplitMode && trackpadSettings.splitShowStatusRow && "split-show-header",
     shouldShowSplitMode && isModeButtonsVisible && "split-show-mode-buttons",
-    effectiveModeSelectorOpen && "mode-selector-open"
-  ].filter(Boolean).join(" ");
+    effectiveModeSelectorOpen && "mode-selector-open",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return {
     activeModeTab: tab === "debug" ? undefined : getModeDefinition(tab),
     canShowModeNavigation,
-    closeModeSelector: () => { setModeSelectorAnchor(null); },
+    closeModeSelector: () => {
+      setModeSelectorAnchor(null);
+    },
     closeTransientSurfaces,
     isBottomModeNavigationVisible,
     isModeButtonsVisible,
@@ -174,7 +198,9 @@ export function useAppNavigation({
     modeTabs,
     modeSelectorAnchor: effectiveModeSelectorAnchor,
     openGestureDebug,
-    openSettings: () => { setIsSettingsOpen(true); },
+    openSettings: () => {
+      setIsSettingsOpen(true);
+    },
     openModeFromMenu,
     selectModeTab,
     setIsRemoteUtilityPanelOpen,
@@ -184,8 +210,8 @@ export function useAppNavigation({
     showTrackpadCompactModeSelector,
     tab,
     toggleModeSelector: (anchor = "header") => {
-      setModeSelectorAnchor((current) => current === anchor ? null : anchor);
-    }
+      setModeSelectorAnchor((current) => (current === anchor ? null : anchor));
+    },
   };
 }
 
@@ -195,6 +221,6 @@ function readSplitModeSupport(): boolean {
     window.innerWidth,
     window.innerHeight,
     isTouchDevice ? getStableScreenOrientation(screen) : null,
-    isTouchDevice
+    isTouchDevice,
   );
 }

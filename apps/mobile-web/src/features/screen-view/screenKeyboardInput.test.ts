@@ -11,28 +11,59 @@ function keyEvent(key: string, overrides: Partial<KeyboardEvent> = {}) {
     key,
     metaKey: false,
     shiftKey: false,
-    ...overrides
-  } as Pick<KeyboardEvent, "altKey" | "code" | "ctrlKey" | "getModifierState" | "isComposing" | "key" | "metaKey" | "shiftKey">;
+    ...overrides,
+  } as Pick<
+    KeyboardEvent,
+    | "altKey"
+    | "code"
+    | "ctrlKey"
+    | "getModifierState"
+    | "isComposing"
+    | "key"
+    | "metaKey"
+    | "shiftKey"
+  >;
 }
 
 describe("screen keyboard input", () => {
   it("forwards resolved printable text without duplicating Shift", () => {
-    expect(screenKeyboardMessage(keyEvent("A", { code: "KeyA", shiftKey: true }))).toEqual({ type: "keyboard.text", text: "A" });
-    expect(screenKeyboardMessage(keyEvent("å", { code: "BracketLeft" }))).toEqual({ type: "keyboard.text", text: "å" });
-    expect(screenKeyboardMessage(keyEvent("😀", { code: "" }))).toEqual({ type: "keyboard.text", text: "😀" });
-    expect(screenKeyboardMessage(keyEvent("@", {
-      altKey: true,
-      code: "Digit2",
-      ctrlKey: true,
-      getModifierState: (modifier) => modifier === "AltGraph"
-    }))).toEqual({ type: "keyboard.text", text: "@" });
+    expect(screenKeyboardMessage(keyEvent("A", { code: "KeyA", shiftKey: true }))).toEqual({
+      type: "keyboard.text",
+      text: "A",
+    });
+    expect(screenKeyboardMessage(keyEvent("å", { code: "BracketLeft" }))).toEqual({
+      type: "keyboard.text",
+      text: "å",
+    });
+    expect(screenKeyboardMessage(keyEvent("😀", { code: "" }))).toEqual({
+      type: "keyboard.text",
+      text: "😀",
+    });
+    expect(
+      screenKeyboardMessage(
+        keyEvent("@", {
+          altKey: true,
+          code: "Digit2",
+          ctrlKey: true,
+          getModifierState: (modifier) => modifier === "AltGraph",
+        }),
+      ),
+    ).toEqual({ type: "keyboard.text", text: "@" });
   });
 
   it("forwards Escape, navigation keys, and shortcut chords", () => {
-    expect(screenKeyboardMessage(keyEvent("Escape"))).toEqual({ type: "keyboard.special", key: "Escape" });
-    expect(screenKeyboardMessage(keyEvent("ArrowLeft"))).toEqual({ type: "keyboard.special", key: "ArrowLeft" });
+    expect(screenKeyboardMessage(keyEvent("Escape"))).toEqual({
+      type: "keyboard.special",
+      key: "Escape",
+    });
+    expect(screenKeyboardMessage(keyEvent("ArrowLeft"))).toEqual({
+      type: "keyboard.special",
+      key: "ArrowLeft",
+    });
     expect(screenKeyboardMessage(keyEvent("c", { code: "KeyC", ctrlKey: true }))).toEqual({
-      type: "keyboard.special", key: "c", modifiers: ["Control"]
+      type: "keyboard.special",
+      key: "c",
+      modifiers: ["Control"],
     });
   });
 

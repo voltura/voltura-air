@@ -46,12 +46,15 @@ export function PairingGate({
   state,
   tryManualReconnect,
   tryReconnectPc,
-  usesLivePairingQr
+  usesLivePairingQr,
 }: PairingGateProps) {
   const pairingQrActionLabel = usesLivePairingQr ? "Scan QR code" : "Take photo of QR code";
-  const newPairingQrActionLabel = usesLivePairingQr ? "Scan new QR code" : "Take photo of new QR code";
+  const newPairingQrActionLabel = usesLivePairingQr
+    ? "Scan new QR code"
+    : "Take photo of new QR code";
   const [selectedReconnectPcId, setSelectedReconnectPcId] = useState("");
-  const selectedReconnectPc = reconnectablePcs.find((pc) => pc.id === selectedReconnectPcId) ?? reconnectablePcs[0] ?? null;
+  const selectedReconnectPc =
+    reconnectablePcs.find((pc) => pc.id === selectedReconnectPcId) ?? reconnectablePcs[0] ?? null;
 
   if (isSettingsOpen) {
     return null;
@@ -80,21 +83,33 @@ export function PairingGate({
         deviceName={pendingPairing ? pairingDeviceName : undefined}
         deviceNamePlaceholder={pendingPairing ? pairingDeviceNamePlaceholder : undefined}
         heading={state === "disconnected" ? "PC disconnected" : undefined}
-        message={pendingPairing ? "Confirm the device name shown on the PC, or change it before pairing." : pairingStatusMessage}
+        message={
+          pendingPairing
+            ? "Confirm the device name shown on the PC, or change it before pairing."
+            : pairingStatusMessage
+        }
         onDeviceNameChange={pendingPairing ? setPairingDeviceName : undefined}
-        onPrimaryAction={pendingPairing
-          ? confirmPendingPairing
-          : canReconnectSavedPc
-            ? () => { tryReconnectPc(selectedReconnectPc.id); }
-            : scanPairingQr}
+        onPrimaryAction={
+          pendingPairing
+            ? confirmPendingPairing
+            : canReconnectSavedPc
+              ? () => {
+                  tryReconnectPc(selectedReconnectPc.id);
+                }
+              : scanPairingQr
+        }
         primaryActionPending={!pendingPairing && !canReconnectSavedPc && isPairingQrReading}
         onSecondaryAction={canReconnectSavedPc ? scanPairingQr : undefined}
         secondaryActionDisabled={isPairingQrReading}
         onManualHostSubmit={connectManualHost}
-        primaryLabel={pendingPairing ? "Pair" : canReconnectSavedPc ? "Try reconnect" : pairingQrActionLabel}
-        savedPcOptions={canReconnectSavedPc
-          ? reconnectablePcs.map((pc) => ({ id: pc.id, label: getPcDisplayName(pc) }))
-          : undefined}
+        primaryLabel={
+          pendingPairing ? "Pair" : canReconnectSavedPc ? "Try reconnect" : pairingQrActionLabel
+        }
+        savedPcOptions={
+          canReconnectSavedPc
+            ? reconnectablePcs.map((pc) => ({ id: pc.id, label: getPcDisplayName(pc) }))
+            : undefined
+        }
         secondaryLabel={canReconnectSavedPc ? pairingQrActionLabel : undefined}
         selectedSavedPcId={selectedReconnectPc?.id}
         usesLivePairingQr={usesLivePairingQr}

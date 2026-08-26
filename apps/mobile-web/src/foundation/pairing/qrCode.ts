@@ -1,5 +1,8 @@
 export interface QrDecoderSession {
-  decode: (imageData: ImageData, inversionAttempts?: "dontInvert" | "onlyInvert") => Promise<string | null>;
+  decode: (
+    imageData: ImageData,
+    inversionAttempts?: "dontInvert" | "onlyInvert",
+  ) => Promise<string | null>;
   dispose: () => void;
 }
 
@@ -12,7 +15,11 @@ interface QrDecodeResponse {
 export function createQrDecoderSession(): QrDecoderSession {
   const worker = new Worker(new URL("./qrDecoder.worker.ts", import.meta.url), { type: "module" });
   let nextId = 0;
-  let pending: { id: number; reject: (error: Error) => void; resolve: (data: string | null) => void } | null = null;
+  let pending: {
+    id: number;
+    reject: (error: Error) => void;
+    resolve: (data: string | null) => void;
+  } | null = null;
   let disposed = false;
 
   worker.onmessage = (event: MessageEvent<QrDecodeResponse>) => {
@@ -47,13 +54,16 @@ export function createQrDecoderSession(): QrDecoderSession {
       const pixels = new Uint8ClampedArray(imageData.data);
       return new Promise<string | null>((resolve, reject) => {
         pending = { id, reject, resolve };
-        worker.postMessage({
-          id,
-          height: imageData.height,
-          inversionAttempts,
-          pixels: pixels.buffer,
-          width: imageData.width
-        }, [pixels.buffer]);
+        worker.postMessage(
+          {
+            id,
+            height: imageData.height,
+            inversionAttempts,
+            pixels: pixels.buffer,
+            width: imageData.width,
+          },
+          [pixels.buffer],
+        );
       });
     },
     dispose() {
@@ -65,7 +75,7 @@ export function createQrDecoderSession(): QrDecoderSession {
       const current = pending;
       pending = null;
       current?.reject(new Error("QR decoder was cancelled."));
-    }
+    },
   };
 }
 
@@ -142,8 +152,12 @@ function cropCenter(imageData: ImageData, ratio: number): ImageData {
 function loadImage(source: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
-    image.onload = () => { resolve(image); };
-    image.onerror = () => { reject(new Error("Image failed to load")); };
+    image.onload = () => {
+      resolve(image);
+    };
+    image.onerror = () => {
+      reject(new Error("Image failed to load"));
+    };
     image.crossOrigin = "anonymous";
     image.src = source;
   });

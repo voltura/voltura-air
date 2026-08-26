@@ -1,8 +1,59 @@
-import { screen, button, buttonGrid, trackpad, knownApp, shortcut, builtIn } from "../builders/screen-builder.mjs";
+import {
+  screen,
+  button,
+  buttonGrid,
+  trackpad,
+  knownApp,
+  shortcut,
+  builtIn,
+} from "../builders/screen-builder.mjs";
 const id = "official.browser";
-export default screen({ id, name: "Web Browser", revision: "official-browser-2", category: "Productivity", tags: ["Browser", "Web", "Windows"], shortDescription: "Tabs, address/search, scrolling, zoom, and fullscreen controls.", optionalTargetApplication: "browser", sections: [
-  buttonGrid(`${id}.navigation`, "Browser", [button(`${id}.launch`, "Open browser", knownApp("browser"), { icon: "app-window", size: "wide" }), button(`${id}.back`, "Back", builtIn("browser.back"), { icon: "arrow-left" }), button(`${id}.forward`, "Forward", builtIn("browser.forward"), { icon: "arrow-right" }), button(`${id}.reload`, "Reload", builtIn("browser.reload"), { icon: "refresh" })]),
-  buttonGrid(`${id}.tabs`, "Tabs and search", [button(`${id}.newTab`, "New tab", shortcut("T", ["Control"]), { icon: "app-window" }), button(`${id}.closeTab`, "Close tab", shortcut("W", ["Control"]), { icon: "square-x" }), button(`${id}.nextTab`, "Next tab", shortcut("Tab", ["Control"]), { icon: "arrow-right" }), button(`${id}.previousTab`, "Previous tab", shortcut("Tab", ["Control", "Shift"]), { icon: "arrow-left" }), button(`${id}.address`, "Address bar", shortcut("L", ["Control"]), { icon: "search", size: "wide" }), button(`${id}.find`, "Find", shortcut("F", ["Control"]), { icon: "search" })]),
-  buttonGrid(`${id}.view`, "View", [button(`${id}.pageUp`, "Page up", shortcut("PageUp"), { icon: "arrow-up", repeat: true }), button(`${id}.pageDown`, "Page down", shortcut("PageDown"), { icon: "arrow-down", repeat: true }), button(`${id}.zoomIn`, "Zoom in", shortcut("+", ["Control"]), { icon: "maximize" }), button(`${id}.zoomOut`, "Zoom out", shortcut("-", ["Control"]), { icon: "minimize" }), button(`${id}.fullscreen`, "Fullscreen", shortcut("F11"), { icon: "maximize" })], { collapsible: true }),
-  trackpad(`${id}.trackpad`, { collapsible: true, initiallyExpanded: false })
-] });
+export default screen({
+  id,
+  name: "Web Browser",
+  revision: "official-browser-2",
+  category: "Productivity",
+  tags: ["Browser", "Web", "Windows"],
+  shortDescription: "Tabs, address/search, scrolling, zoom, and fullscreen controls.",
+  optionalTargetApplication: "browser",
+  sections: [
+    buttonGrid(`${id}.navigation`, "Browser", [
+      button(`${id}.launch`, "Open browser", knownApp("browser"), {
+        icon: "app-window",
+        size: "wide",
+      }),
+      button(`${id}.back`, "Back", builtIn("browser.back"), { icon: "arrow-left" }),
+      button(`${id}.forward`, "Forward", builtIn("browser.forward"), { icon: "arrow-right" }),
+      button(`${id}.reload`, "Reload", builtIn("browser.reload"), { icon: "refresh" }),
+    ]),
+    buttonGrid(`${id}.tabs`, "Tabs and search", [
+      button(`${id}.newTab`, "New tab", shortcut("T", ["Control"]), { icon: "app-window" }),
+      button(`${id}.closeTab`, "Close tab", shortcut("W", ["Control"]), { icon: "square-x" }),
+      button(`${id}.nextTab`, "Next tab", shortcut("Tab", ["Control"]), { icon: "arrow-right" }),
+      button(`${id}.previousTab`, "Previous tab", shortcut("Tab", ["Control", "Shift"]), {
+        icon: "arrow-left",
+      }),
+      button(`${id}.address`, "Address bar", shortcut("L", ["Control"]), {
+        icon: "search",
+        size: "wide",
+      }),
+      button(`${id}.find`, "Find", shortcut("F", ["Control"]), { icon: "search" }),
+    ]),
+    buttonGrid(
+      `${id}.view`,
+      "View",
+      [
+        button(`${id}.pageUp`, "Page up", shortcut("PageUp"), { icon: "arrow-up", repeat: true }),
+        button(`${id}.pageDown`, "Page down", shortcut("PageDown"), {
+          icon: "arrow-down",
+          repeat: true,
+        }),
+        button(`${id}.zoomIn`, "Zoom in", shortcut("+", ["Control"]), { icon: "maximize" }),
+        button(`${id}.zoomOut`, "Zoom out", shortcut("-", ["Control"]), { icon: "minimize" }),
+        button(`${id}.fullscreen`, "Fullscreen", shortcut("F11"), { icon: "maximize" }),
+      ],
+      { collapsible: true },
+    ),
+    trackpad(`${id}.trackpad`, { collapsible: true, initiallyExpanded: false }),
+  ],
+});

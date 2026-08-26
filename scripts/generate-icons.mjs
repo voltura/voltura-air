@@ -191,12 +191,7 @@ async function generateWebAssets() {
       scale: 0.54,
     });
     assertOpaque(maskableIcon.rgba, `Maskable ${size}px icon`);
-    assertMaskableSafeZone(
-      maskableIcon.rgba,
-      size,
-      maskableBackground,
-      `Maskable ${size}px icon`,
-    );
+    assertMaskableSafeZone(maskableIcon.rgba, size, maskableBackground, `Maskable ${size}px icon`);
     await writePng(maskableIcon, size, size, [
       `apps/mobile-web/public/icons/icon-maskable-${size}.png`,
     ]);
@@ -215,11 +210,9 @@ async function generateWindowsAssets() {
   await writePng(hostIcon, 256, 256, ["apps/windows-host/Assets/VolturaAir-256.png"]);
 
   const applicationSizes = [16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256];
-  await writeIco(
-    await renderIco(applicationSizes, tightArtworkScale),
-    applicationSizes,
-    ["apps/windows-host/Assets/VolturaAir.ico"],
-  );
+  await writeIco(await renderIco(applicationSizes, tightArtworkScale), applicationSizes, [
+    "apps/windows-host/Assets/VolturaAir.ico",
+  ]);
 
   const traySizes = [16, 20, 24, 32, 40, 48, 64];
   const trayTargets = {
@@ -356,7 +349,12 @@ async function renderComposition(options) {
     };
 
     if (input.kind === "square") {
-      drawMaster(input.width / 2, input.height / 2, input.width * input.scale, input.height * input.scale);
+      drawMaster(
+        input.width / 2,
+        input.height / 2,
+        input.width * input.scale,
+        input.height * input.scale,
+      );
       if (input.badge) {
         const badgeStyle = input.badgeStyle;
         const centreX = Math.round(input.width * badgeStyle.centreX * 2) / 2;
@@ -383,8 +381,8 @@ async function renderComposition(options) {
         context.beginPath();
         if (input.badge === "connected") {
           context.moveTo(centreX - innerRadius * 0.36, centreY + innerRadius * 0.02);
-          context.lineTo(centreX - innerRadius * 0.10, centreY + innerRadius * 0.27);
-          context.lineTo(centreX + innerRadius * 0.40, centreY - innerRadius * 0.30);
+          context.lineTo(centreX - innerRadius * 0.1, centreY + innerRadius * 0.27);
+          context.lineTo(centreX + innerRadius * 0.4, centreY - innerRadius * 0.3);
         } else {
           context.moveTo(centreX - innerRadius * 0.32, centreY - innerRadius * 0.32);
           context.lineTo(centreX + innerRadius * 0.32, centreY + innerRadius * 0.32);
@@ -399,7 +397,7 @@ async function renderComposition(options) {
     } else if (input.kind === "installer-welcome") {
       drawMaster(input.width / 2, 125, 118, 118);
       context.fillStyle = input.foreground;
-      context.font = '600 19px Arial, sans-serif';
+      context.font = "600 19px Arial, sans-serif";
       context.textAlign = "center";
       context.textBaseline = "middle";
       context.fillText("Voltura Air", input.width / 2, 211);
@@ -418,7 +416,11 @@ async function renderComposition(options) {
       context.font = `600 ${fontSize}px Arial, sans-serif`;
       context.textAlign = "center";
       context.textBaseline = "middle";
-      context.fillText("Voltura Air", input.width / 2, iconCentreY + iconSize / 2 + gap + fontSize / 2);
+      context.fillText(
+        "Voltura Air",
+        input.width / 2,
+        iconCentreY + iconSize / 2 + gap + fontSize / 2,
+      );
     } else {
       throw new Error(`Unknown composition kind: ${input.kind}`);
     }
@@ -504,7 +506,9 @@ async function assertOpaquePngPixelEquivalent(source, optimized, width, height, 
   ]);
   for (const image of [sourcePixels, optimizedPixels]) {
     if (image.info.width !== width || image.info.height !== height || image.info.channels !== 3) {
-      throw new Error(`${label} pixel-equivalence check did not produce ${width}x${height} RGB data.`);
+      throw new Error(
+        `${label} pixel-equivalence check did not produce ${width}x${height} RGB data.`,
+      );
     }
   }
   if (!sourcePixels.data.equals(optimizedPixels.data)) {

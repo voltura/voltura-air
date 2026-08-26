@@ -41,8 +41,7 @@ export function formatPresentationTime(totalSeconds: number): string {
 }
 
 function readTimerSpeedMultiplier(): number {
-  return import.meta.env.VITE_PRESENTATION_TIMER_SPEED ===
-    acceleratedTimerMultiplier.toString()
+  return import.meta.env.VITE_PRESENTATION_TIMER_SPEED === acceleratedTimerMultiplier.toString()
     ? acceleratedTimerMultiplier
     : 1;
 }
@@ -62,7 +61,9 @@ export function usePresentationTimer() {
   const [sessionReportId, setSessionReportId] = useState<string | null>(null);
   const [completionEndedAt, setCompletionEndedAt] = useState<string | null>(null);
   const [isResetPending, setIsResetPending] = useState(false);
-  const [completionIntent, setCompletionIntent] = useState<PresentationCompletionIntent | null>(null);
+  const [completionIntent, setCompletionIntent] = useState<PresentationCompletionIntent | null>(
+    null,
+  );
   const [currentSlideNumber, setCurrentSlideNumber] = useState<number | null>(null);
   const [currentSessionSlideRange, setCurrentSessionSlideRange] = useState<{
     maximum: number | null;
@@ -92,8 +93,8 @@ export function usePresentationTimer() {
 
     const updateElapsed = () => {
       const now = Date.now();
-      const next = accumulatedSecondsRef.current +
-        ((now - startedAtRef.current!) / 1000) * speedMultiplier;
+      const next =
+        accumulatedSecondsRef.current + ((now - startedAtRef.current!) / 1000) * speedMultiplier;
       setElapsedSeconds(next);
       const activeSlide = currentSlideNumberRef.current;
       const activeSlideStartedAt = activeSlideStartedAtRef.current;
@@ -101,14 +102,20 @@ export function usePresentationTimer() {
         const activeSlideSeconds =
           (slideSecondsRef.current.get(activeSlide) ?? 0) +
           ((now - activeSlideStartedAt) / 1000) * speedMultiplier;
-        setSlides((current) => current.map((slide) => slide.slideNumber === activeSlide
-          ? { ...slide, elapsedSeconds: activeSlideSeconds }
-          : slide));
+        setSlides((current) =>
+          current.map((slide) =>
+            slide.slideNumber === activeSlide
+              ? { ...slide, elapsedSeconds: activeSlideSeconds }
+              : slide,
+          ),
+        );
       }
     };
     updateElapsed();
     const interval = window.setInterval(updateElapsed, timerRefreshMs);
-    return () => { window.clearInterval(interval); };
+    return () => {
+      window.clearInterval(interval);
+    };
   }, [isResetPending, isRunning, speedMultiplier]);
 
   useEffect(() => {
@@ -119,18 +126,24 @@ export function usePresentationTimer() {
     const updateBreakElapsed = () => {
       setBreakElapsedSeconds(
         breakAccumulatedSecondsRef.current +
-        ((Date.now() - breakStartedAtRef.current!) / 1000) * speedMultiplier
+          ((Date.now() - breakStartedAtRef.current!) / 1000) * speedMultiplier,
       );
     };
     updateBreakElapsed();
     const interval = window.setInterval(updateBreakElapsed, timerRefreshMs);
-    return () => { window.clearInterval(interval); };
+    return () => {
+      window.clearInterval(interval);
+    };
   }, [isPaused, isResetPending, speedMultiplier]);
 
   useEffect(() => {
     const durationSeconds = durationMinutes * 60;
     const fiveMinuteThreshold = durationSeconds - fiveMinutesSeconds;
-    if (!fiveMinuteMilestoneRef.current && previousElapsedRef.current < fiveMinuteThreshold && elapsedSeconds >= fiveMinuteThreshold) {
+    if (
+      !fiveMinuteMilestoneRef.current &&
+      previousElapsedRef.current < fiveMinuteThreshold &&
+      elapsedSeconds >= fiveMinuteThreshold
+    ) {
       fiveMinuteMilestoneRef.current = true;
       setMilestoneMessage("5 minutes remaining.");
       if (vibrationEnabled && supportsVibration) {
@@ -138,7 +151,11 @@ export function usePresentationTimer() {
       }
     }
 
-    if (!elapsedMilestoneRef.current && previousElapsedRef.current < durationSeconds && elapsedSeconds >= durationSeconds) {
+    if (
+      !elapsedMilestoneRef.current &&
+      previousElapsedRef.current < durationSeconds &&
+      elapsedSeconds >= durationSeconds
+    ) {
       elapsedMilestoneRef.current = true;
       setMilestoneMessage("Planned time elapsed.");
       if (vibrationEnabled && supportsVibration) {
@@ -149,18 +166,22 @@ export function usePresentationTimer() {
     previousElapsedRef.current = elapsedSeconds;
   }, [durationMinutes, elapsedSeconds, supportsVibration, vibrationEnabled]);
 
-  const readPresentationElapsed = (now: number) => accumulatedSecondsRef.current +
+  const readPresentationElapsed = (now: number) =>
+    accumulatedSecondsRef.current +
     (startedAtRef.current === null ? 0 : ((now - startedAtRef.current) / 1000) * speedMultiplier);
 
-  const readBreakElapsed = (now: number) => breakAccumulatedSecondsRef.current +
+  const readBreakElapsed = (now: number) =>
+    breakAccumulatedSecondsRef.current +
     (breakStartedAtRef.current === null
       ? 0
       : ((now - breakStartedAtRef.current) / 1000) * speedMultiplier);
 
   const publishSlides = () => {
-    setSlides([...slideSecondsRef.current.entries()]
-      .sort(([left], [right]) => left - right)
-      .map(([slideNumber, slideSeconds]) => ({ slideNumber, elapsedSeconds: slideSeconds })));
+    setSlides(
+      [...slideSecondsRef.current.entries()]
+        .sort(([left], [right]) => left - right)
+        .map(([slideNumber, slideSeconds]) => ({ slideNumber, elapsedSeconds: slideSeconds })),
+    );
   };
 
   const closeActiveSlide = (now: number) => {
@@ -173,7 +194,7 @@ export function usePresentationTimer() {
     slideSecondsRef.current.set(
       slideNumber,
       (slideSecondsRef.current.get(slideNumber) ?? 0) +
-      ((now - slideStartedAt) / 1000) * speedMultiplier
+        ((now - slideStartedAt) / 1000) * speedMultiplier,
     );
     activeSlideStartedAtRef.current = null;
     publishSlides();
@@ -189,14 +210,18 @@ export function usePresentationTimer() {
     if (isPaused) {
       const finalBreakElapsed = readBreakElapsed(now);
       setBreakElapsedSeconds(finalBreakElapsed);
-      setBreaks((current) => current.map((entry, index) => index === current.length - 1
-        ? {
-            ...entry,
-            elapsedSeconds: finalBreakElapsed,
-            endedAt: new Date(now).toISOString(),
-            slideNumberAtEnd: currentSlideNumberRef.current
-          }
-        : entry));
+      setBreaks((current) =>
+        current.map((entry, index) =>
+          index === current.length - 1
+            ? {
+                ...entry,
+                elapsedSeconds: finalBreakElapsed,
+                endedAt: new Date(now).toISOString(),
+                slideNumberAtEnd: currentSlideNumberRef.current,
+              }
+            : entry,
+        ),
+      );
     }
 
     breakStartedAtRef.current = null;
@@ -211,7 +236,7 @@ export function usePresentationTimer() {
       sessionSlideMaximumRef.current = currentSlideNumberRef.current;
       setCurrentSessionSlideRange({
         maximum: currentSlideNumberRef.current,
-        minimum: currentSlideNumberRef.current
+        minimum: currentSlideNumberRef.current,
       });
     }
   };
@@ -245,10 +270,7 @@ export function usePresentationTimer() {
     publishSlides();
   };
 
-  const changeSlide = (
-    direction: "next" | "previous",
-    target: PresentationTarget
-  ) => {
+  const changeSlide = (direction: "next" | "previous", target: PresentationTarget) => {
     if (!slideshowStartedRef.current && direction === "next" && !isResetPending) {
       const now = Date.now();
       if (!isRunning && !isPaused) {
@@ -262,9 +284,9 @@ export function usePresentationTimer() {
       activeSlideStartedAtRef.current = isPaused ? null : now;
       sessionSlideMinimumRef.current = isPaused ? null : 2;
       sessionSlideMaximumRef.current = isPaused ? null : 2;
-      setCurrentSessionSlideRange(isPaused
-        ? { maximum: null, minimum: null }
-        : { maximum: 2, minimum: 2 });
+      setCurrentSessionSlideRange(
+        isPaused ? { maximum: null, minimum: null } : { maximum: 2, minimum: 2 },
+      );
       setCurrentSlideNumber(2);
       publishSlides();
       return;
@@ -284,11 +306,17 @@ export function usePresentationTimer() {
     closeActiveSlide(now);
     currentSlideNumberRef.current = nextSlide;
     if (isRunning) {
-      sessionSlideMinimumRef.current = Math.min(sessionSlideMinimumRef.current ?? nextSlide, nextSlide);
-      sessionSlideMaximumRef.current = Math.max(sessionSlideMaximumRef.current ?? nextSlide, nextSlide);
+      sessionSlideMinimumRef.current = Math.min(
+        sessionSlideMinimumRef.current ?? nextSlide,
+        nextSlide,
+      );
+      sessionSlideMaximumRef.current = Math.max(
+        sessionSlideMaximumRef.current ?? nextSlide,
+        nextSlide,
+      );
       setCurrentSessionSlideRange({
         maximum: sessionSlideMaximumRef.current,
-        minimum: sessionSlideMinimumRef.current
+        minimum: sessionSlideMinimumRef.current,
       });
     }
     slideSecondsRef.current.set(nextSlide, slideSecondsRef.current.get(nextSlide) ?? 0);
@@ -322,8 +350,8 @@ export function usePresentationTimer() {
         slideNumberAtEnd: null,
         startedAt: new Date(now).toISOString(),
         endedAt: null,
-        elapsedSeconds: 0
-      }
+        elapsedSeconds: 0,
+      },
     ]);
     setIsRunning(false);
     setIsPaused(true);
@@ -356,8 +384,12 @@ export function usePresentationTimer() {
     setCompletionIntent(intent);
     setIsResetPending(true);
   };
-  const requestEnd = () => { requestCompletion("end"); };
-  const requestReset = () => { requestCompletion("reset"); };
+  const requestEnd = () => {
+    requestCompletion("end");
+  };
+  const requestReset = () => {
+    requestCompletion("reset");
+  };
 
   const cancelReset = () => {
     const resumeState = resetResumeStateRef.current;
@@ -423,15 +455,19 @@ export function usePresentationTimer() {
     setMilestoneMessage("");
   };
 
-  const displayedBreaks = breaks.map((entry, index) => (
+  const displayedBreaks = breaks.map((entry, index) =>
     index === breaks.length - 1 && entry.endedAt === null
       ? { ...entry, elapsedSeconds: breakElapsedSeconds }
-      : entry
-  ));
-  const totalBreakSeconds = displayedBreaks.reduce((total, entry) => total + entry.elapsedSeconds, 0);
-  const presentationSessionCount = sessionStartedAt === null
-    ? 0
-    : 1 + displayedBreaks.filter((entry) => entry.endedAt !== null).length;
+      : entry,
+  );
+  const totalBreakSeconds = displayedBreaks.reduce(
+    (total, entry) => total + entry.elapsedSeconds,
+    0,
+  );
+  const presentationSessionCount =
+    sessionStartedAt === null
+      ? 0
+      : 1 + displayedBreaks.filter((entry) => entry.endedAt !== null).length;
   return {
     breakElapsedSeconds,
     breaks: displayedBreaks,
@@ -465,6 +501,6 @@ export function usePresentationTimer() {
     speedMultiplier,
     totalBreakSeconds,
     vibrationEnabled,
-    setVibrationEnabled
+    setVibrationEnabled,
   };
 }

@@ -7,7 +7,7 @@ import {
   loadRemoteSettings,
   loadTrackpadSettings,
   remoteSettingsKey,
-  trackpadSettingsKey
+  trackpadSettingsKey,
 } from "./appStorage";
 import { defaultRemoteSettings, type RemoteModeId } from "./remoteSettings";
 import { writeLocalStorage } from "../platform/browserStorage";
@@ -16,18 +16,30 @@ export function usePcSettings(
   clientId: string,
   pcId: string | null,
   hostDefaultRemoteMode?: RemoteModeId,
-  hostPointerSpeed?: number
+  hostPointerSpeed?: number,
 ) {
   const [keyboardSettings, setKeyboardSettings] = useState(() => loadKeyboardSettings(clientId));
   const trackpadStorageKey = useMemo(() => trackpadSettingsKey(clientId, pcId), [clientId, pcId]);
-  const [trackpadState, setTrackpadState] = useState(() => ({ settings: loadTrackpadSettings(clientId, pcId), storageKey: trackpadStorageKey }));
+  const [trackpadState, setTrackpadState] = useState(() => ({
+    settings: loadTrackpadSettings(clientId, pcId),
+    storageKey: trackpadStorageKey,
+  }));
   const remoteStorageKey = useMemo(() => remoteSettingsKey(clientId, pcId), [clientId, pcId]);
-  const [remoteState, setRemoteState] = useState(() => ({ ...loadRemoteSettings(clientId, pcId, hostDefaultRemoteMode), storageKey: remoteStorageKey }));
+  const [remoteState, setRemoteState] = useState(() => ({
+    ...loadRemoteSettings(clientId, pcId, hostDefaultRemoteMode),
+    storageKey: remoteStorageKey,
+  }));
   const appStorageKey = useMemo(() => appSettingsKey(clientId, pcId), [clientId, pcId]);
-  const [appState, setAppState] = useState(() => ({ settings: loadAppSettings(clientId, pcId), storageKey: appStorageKey }));
+  const [appState, setAppState] = useState(() => ({
+    settings: loadAppSettings(clientId, pcId),
+    storageKey: appStorageKey,
+  }));
 
   if (trackpadState.storageKey !== trackpadStorageKey) {
-    setTrackpadState({ settings: loadTrackpadSettings(clientId, pcId), storageKey: trackpadStorageKey });
+    setTrackpadState({
+      settings: loadTrackpadSettings(clientId, pcId),
+      storageKey: trackpadStorageKey,
+    });
   }
 
   useEffect(() => {
@@ -36,8 +48,15 @@ export function usePcSettings(
     }
   }, [trackpadState, trackpadStorageKey]);
 
-  if (remoteState.storageKey !== remoteStorageKey || (!remoteState.isStored && remoteState.settings.mode !== (hostDefaultRemoteMode ?? defaultRemoteSettings.mode))) {
-    setRemoteState({ ...loadRemoteSettings(clientId, pcId, hostDefaultRemoteMode), storageKey: remoteStorageKey });
+  if (
+    remoteState.storageKey !== remoteStorageKey ||
+    (!remoteState.isStored &&
+      remoteState.settings.mode !== (hostDefaultRemoteMode ?? defaultRemoteSettings.mode))
+  ) {
+    setRemoteState({
+      ...loadRemoteSettings(clientId, pcId, hostDefaultRemoteMode),
+      storageKey: remoteStorageKey,
+    });
   }
 
   useEffect(() => {
@@ -64,9 +83,9 @@ export function usePcSettings(
   const effectiveTrackpadSettings = useMemo(
     () => ({
       ...trackpadSettings,
-      ...(typeof hostPointerSpeed === "number" ? { pointerSpeed: hostPointerSpeed } : {})
+      ...(typeof hostPointerSpeed === "number" ? { pointerSpeed: hostPointerSpeed } : {}),
     }),
-    [hostPointerSpeed, trackpadSettings]
+    [hostPointerSpeed, trackpadSettings],
   );
 
   return {
@@ -78,6 +97,6 @@ export function usePcSettings(
     setKeyboardSettings,
     setRemoteSettingsState: setRemoteState,
     setTrackpadSettingsState: setTrackpadState,
-    trackpadSettings
+    trackpadSettings,
   };
 }

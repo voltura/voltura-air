@@ -6,14 +6,14 @@ saved-PC, manual-host behavior:
 
 ## States
 
-| State | User-visible meaning |
-| --- | --- |
-| `needs-pairing` | No active paired PC; scan, choose a saved PC, or enter a host. |
-| `connecting` | Opening the connection and authenticating. |
-| `paired` | Authenticated and ready for commands. |
-| `rejected` | The host rejected pairing or reconnect. |
-| `unavailable` | The active PC cannot be reached or recent input/health checks failed. |
-| `disconnected` | The user intentionally disconnected. |
+| State           | User-visible meaning                                                  |
+| --------------- | --------------------------------------------------------------------- |
+| `needs-pairing` | No active paired PC; scan, choose a saved PC, or enter a host.        |
+| `connecting`    | Opening the connection and authenticating.                            |
+| `paired`        | Authenticated and ready for commands.                                 |
+| `rejected`      | The host rejected pairing or reconnect.                               |
+| `unavailable`   | The active PC cannot be reached or recent input/health checks failed. |
+| `disconnected`  | The user intentionally disconnected.                                  |
 
 A valid Direct pairing link imports its token and removes `t` from the visible address.
 An official Relay or Secure Direct link keeps the token only in the URL
@@ -49,29 +49,29 @@ authenticated after opening rather than increasing QR density.
 
 ## Failure map
 
-| Reason or condition | Meaning and recovery |
-| --- | --- |
-| `qr-unreadable` | No readable QR code; retake with the code clear and current. |
-| `qr-not-pairing-link` | Not a Voltura Air link; scan the PC Connect code. |
-| `expired-token` | Code expired; click **New code** and scan again. |
-| `stale-token` | No active code state; scan the code currently on the PC. |
-| `invalid-token` | Code does not match; scan the current PC code. |
-| `device-revoked` | Pairing was removed; pair again with a fresh code. |
-| `invalid-proof` | Saved reconnect proof failed; pair again to replace it. |
-| `host-identity-missing` or identity mismatch | The saved PC has no valid pinned identity; scan that PC's fresh short QR and verify it again. |
-| `rate-limited` | Too many failures; wait, create a new code, and retry. |
-| `invalid-message` or `pair-first` | Refresh the mobile app from the PC and pair again. |
-| Unknown rejection | Show a `VAIR-PAIR-*` code and offer copied diagnostics. |
-| `host-unreachable` in Standard Local mode | The browser cannot reach the PC; reconnect, rescan, enter the current host, and check LAN/firewall. |
-| `host-unreachable` in Relay mode | The browser cannot reach the PC through the configured relay; keep the unavailable panel stable while retrying, and check the running host, PC internet access, and permitted VPN/work-network restrictions. |
-| Secure Direct signaling or capacity failure | Keep the chosen `/s` transport, retry normally, and offer explicit Standard Local or Cloud Relay recovery without activating either automatically. |
-| Secure Direct ICE/LAN validation failure | The browser did not establish the required private path on the selected adapter; check same-LAN reachability or explicitly choose Standard Local or Cloud Relay. |
-| Secure Direct signaling loss after answer | Do not mark the controller unavailable while the DataChannel remains healthy; DataChannel loss uses the normal socket-closed lifecycle. |
-| `relay-encryption-failed` or Relay identity mismatch | The encrypted session did not authenticate; reconnect, then scan a fresh QR if repeated. |
-| `turn-unavailable` | Screen relay credentials are unavailable or quota-blocked; commands remain connected and Screen can be retried later. |
-| `socket-closed` | Host/network closed an authenticated connection; show available close details and reconnect without replaying input. |
-| `input-ack-timeout` | Input delivery is unconfirmed; enter unavailable/retrying and reconnect. |
-| `input-dispatch-failed` | Windows rejected one action; show it and keep the authenticated connection for later actions. |
+| Reason or condition                                  | Meaning and recovery                                                                                                                                                                                         |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `qr-unreadable`                                      | No readable QR code; retake with the code clear and current.                                                                                                                                                 |
+| `qr-not-pairing-link`                                | Not a Voltura Air link; scan the PC Connect code.                                                                                                                                                            |
+| `expired-token`                                      | Code expired; click **New code** and scan again.                                                                                                                                                             |
+| `stale-token`                                        | No active code state; scan the code currently on the PC.                                                                                                                                                     |
+| `invalid-token`                                      | Code does not match; scan the current PC code.                                                                                                                                                               |
+| `device-revoked`                                     | Pairing was removed; pair again with a fresh code.                                                                                                                                                           |
+| `invalid-proof`                                      | Saved reconnect proof failed; pair again to replace it.                                                                                                                                                      |
+| `host-identity-missing` or identity mismatch         | The saved PC has no valid pinned identity; scan that PC's fresh short QR and verify it again.                                                                                                                |
+| `rate-limited`                                       | Too many failures; wait, create a new code, and retry.                                                                                                                                                       |
+| `invalid-message` or `pair-first`                    | Refresh the mobile app from the PC and pair again.                                                                                                                                                           |
+| Unknown rejection                                    | Show a `VAIR-PAIR-*` code and offer copied diagnostics.                                                                                                                                                      |
+| `host-unreachable` in Standard Local mode            | The browser cannot reach the PC; reconnect, rescan, enter the current host, and check LAN/firewall.                                                                                                          |
+| `host-unreachable` in Relay mode                     | The browser cannot reach the PC through the configured relay; keep the unavailable panel stable while retrying, and check the running host, PC internet access, and permitted VPN/work-network restrictions. |
+| Secure Direct signaling or capacity failure          | Keep the chosen `/s` transport, retry normally, and offer explicit Standard Local or Cloud Relay recovery without activating either automatically.                                                           |
+| Secure Direct ICE/LAN validation failure             | The browser did not establish the required private path on the selected adapter; check same-LAN reachability or explicitly choose Standard Local or Cloud Relay.                                             |
+| Secure Direct signaling loss after answer            | Do not mark the controller unavailable while the DataChannel remains healthy; DataChannel loss uses the normal socket-closed lifecycle.                                                                      |
+| `relay-encryption-failed` or Relay identity mismatch | The encrypted session did not authenticate; reconnect, then scan a fresh QR if repeated.                                                                                                                     |
+| `turn-unavailable`                                   | Screen relay credentials are unavailable or quota-blocked; commands remain connected and Screen can be retried later.                                                                                        |
+| `socket-closed`                                      | Host/network closed an authenticated connection; show available close details and reconnect without replaying input.                                                                                         |
+| `input-ack-timeout`                                  | Input delivery is unconfirmed; enter unavailable/retrying and reconnect.                                                                                                                                     |
+| `input-dispatch-failed`                              | Windows rejected one action; show it and keep the authenticated connection for later actions.                                                                                                                |
 
 The browser cannot identify the underlying cause of `host-unreachable`. Direct
 mode therefore names LAN, firewall, stale address, and port as possibilities;

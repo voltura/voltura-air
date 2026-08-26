@@ -16,14 +16,14 @@ export default {
     "property-no-vendor-prefix": [
       true,
       {
-        ignoreProperties: ["-webkit-appearance", "-webkit-user-select"]
-      }
+        ignoreProperties: ["-webkit-appearance", "-webkit-user-select"],
+      },
     ],
     "selector-id-pattern": "^root$",
     "selector-max-id": 1,
     "selector-max-specificity": "0,5,3",
     "selector-max-universal": 1,
     "selector-not-notation": "complex",
-    "selector-pseudo-element-colon-notation": "double"
-  }
+    "selector-pseudo-element-colon-notation": "double",
+  },
 };

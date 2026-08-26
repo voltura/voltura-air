@@ -16,7 +16,7 @@ public sealed class WebHostDiagnosticsTests : WebHostServiceTestBase
 
         Assert.True(result.GetProperty("succeeded").GetBoolean());
         var snapshot = result.GetProperty("snapshot");
-        Assert.Equal("1.1.0", snapshot.GetProperty("hostVersion").GetString());
+        Assert.Equal(AppVersion.Display, snapshot.GetProperty("hostVersion").GetString());
         Assert.Equal(
             fixture.WebHost.EnhancedCapabilitiesEnabled ? "enabled" : "disabled",
             snapshot.GetProperty("enhancedCapabilities").GetString());

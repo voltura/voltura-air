@@ -21,13 +21,15 @@ describe("useClipboardRead", () => {
     }
     const operationId = sentRequest.operationId;
 
-    act(() => { result.current.completeClipboardRead({
-      type: "clipboard.get.result",
-      operationId,
-      succeeded: true,
-      message: "Read",
-      text: "Fresh PC text"
-    }); });
+    act(() => {
+      result.current.completeClipboardRead({
+        type: "clipboard.get.result",
+        operationId,
+        succeeded: true,
+        message: "Read",
+        text: "Fresh PC text",
+      });
+    });
 
     await expect(deviceResult).resolves.toMatchObject({ succeeded: true, text: "Fresh PC text" });
     expect(result.current.clipboardText).toBe("");
@@ -45,34 +47,46 @@ describe("useClipboardRead", () => {
       second = result.current.requestClipboardReadForDevice();
     });
 
-    await expect(first).resolves.toMatchObject({ succeeded: false, code: "VAIR-CLIPBOARD-SUPERSEDED" });
+    await expect(first).resolves.toMatchObject({
+      succeeded: false,
+      code: "VAIR-CLIPBOARD-SUPERSEDED",
+    });
     const sentRequest = send.mock.calls[1]![0];
     if (sentRequest.type !== "clipboard.get") {
       throw new Error("Expected a clipboard.get request.");
     }
     const secondOperationId = sentRequest.operationId;
-    act(() => { result.current.completeClipboardRead({
-      type: "clipboard.get.result",
-      operationId: secondOperationId,
-      succeeded: true,
-      message: "Read",
-      text: "Newest"
-    }); });
+    act(() => {
+      result.current.completeClipboardRead({
+        type: "clipboard.get.result",
+        operationId: secondOperationId,
+        succeeded: true,
+        message: "Read",
+        text: "Newest",
+      });
+    });
     await expect(second).resolves.toMatchObject({ succeeded: true, text: "Newest" });
   });
 
   it("settles a device clipboard read on timeout and disconnect", async () => {
     vi.useFakeTimers();
     const send = vi.fn<(payload: ClientMessage) => void>();
-    const { result, rerender } = renderHook(({ state }: { state: ConnectionState }) => useClipboardRead(state, send), { initialProps: { state: "paired" as ConnectionState } });
+    const { result, rerender } = renderHook(
+      ({ state }: { state: ConnectionState }) => useClipboardRead(state, send),
+      { initialProps: { state: "paired" as ConnectionState } },
+    );
 
     let timedOut: ReturnType<typeof result.current.requestClipboardReadForDevice> = null;
-    act(() => { timedOut = result.current.requestClipboardReadForDevice(); });
+    act(() => {
+      timedOut = result.current.requestClipboardReadForDevice();
+    });
     await act(() => vi.advanceTimersByTime(5000));
     await expect(timedOut).resolves.toMatchObject({ code: "VAIR-CLIPBOARD-RESPONSE-TIMEOUT" });
 
     let disconnected: ReturnType<typeof result.current.requestClipboardReadForDevice> = null;
-    act(() => { disconnected = result.current.requestClipboardReadForDevice(); });
+    act(() => {
+      disconnected = result.current.requestClipboardReadForDevice();
+    });
     rerender({ state: "disconnected" });
     await expect(disconnected).resolves.toMatchObject({ code: "VAIR-CLIPBOARD-DISCONNECTED" });
   });
@@ -81,9 +95,13 @@ describe("useClipboardRead", () => {
     const send = vi.fn<(payload: ClientMessage) => void>();
     const { result } = renderHook(() => useClipboardRead("paired", send));
     let pending: ReturnType<typeof result.current.requestClipboardReadForDevice> = null;
-    act(() => { pending = result.current.requestClipboardReadForDevice(); });
+    act(() => {
+      pending = result.current.requestClipboardReadForDevice();
+    });
 
-    act(() => { result.current.cancelClipboardReadForDevice(); });
+    act(() => {
+      result.current.cancelClipboardReadForDevice();
+    });
 
     await expect(pending).resolves.toMatchObject({ code: "VAIR-CLIPBOARD-CANCELED" });
   });

@@ -9,7 +9,7 @@ import {
   maximumInnerMessageBytes,
   maximumDevicesPerRoom,
   relayClose,
-  relayEnvelopeKind
+  relayEnvelopeKind,
 } from "../src/core/index";
 
 vi.mock("cloudflare:workers", () => ({
@@ -21,7 +21,7 @@ vi.mock("cloudflare:workers", () => ({
       this.ctx = ctx;
       this.env = env;
     }
-  }
+  },
 }));
 
 type WorkerModule = typeof import("../src/cloudflare/worker");
@@ -39,14 +39,20 @@ class TestSocket {
   closeReason: string | undefined;
   private attachment: unknown;
 
-  send(value: string | ArrayBuffer | Uint8Array): void { this.sent.push(value); }
+  send(value: string | ArrayBuffer | Uint8Array): void {
+    this.sent.push(value);
+  }
   close(code?: number, reason?: string): void {
     this.closeCode = code;
     this.closeReason = reason;
     this.readyState = TestSocket.CLOSED;
   }
-  serializeAttachment(value: unknown): void { this.attachment = structuredClone(value); }
-  deserializeAttachment(): unknown { return structuredClone(this.attachment); }
+  serializeAttachment(value: unknown): void {
+    this.attachment = structuredClone(value);
+  }
+  deserializeAttachment(): unknown {
+    return structuredClone(this.attachment);
+  }
 }
 
 class TestWebSocketPair {
@@ -63,21 +69,31 @@ class TestResponse {
     this.webSocket = init.webSocket;
   }
 
-  static json(): TestResponse { return new TestResponse(null, { status: 200 }); }
+  static json(): TestResponse {
+    return new TestResponse(null, { status: 200 });
+  }
 }
 
 class TestContext {
   private readonly sockets: { socket: TestSocket; tags: string[] }[] = [];
   readonly storage = {
     alarm: null as number | null,
-    deleteAlarm: vi.fn(async () => { this.storage.alarm = null; }),
-    setAlarm: vi.fn(async (deadline: number) => { this.storage.alarm = deadline; })
+    deleteAlarm: vi.fn(async () => {
+      this.storage.alarm = null;
+    }),
+    setAlarm: vi.fn(async (deadline: number) => {
+      this.storage.alarm = deadline;
+    }),
   };
 
-  acceptWebSocket(socket: TestSocket, tags: string[]): void { this.sockets.push({ socket, tags }); }
+  acceptWebSocket(socket: TestSocket, tags: string[]): void {
+    this.sockets.push({ socket, tags });
+  }
   getWebSockets(tag?: string): TestSocket[] {
     return this.sockets
-      .filter(({ socket, tags }) => socket.readyState === TestSocket.OPEN && (!tag || tags.includes(tag)))
+      .filter(
+        ({ socket, tags }) => socket.readyState === TestSocket.OPEN && (!tag || tags.includes(tag)),
+      )
       .map(({ socket }) => socket);
   }
 }
@@ -113,8 +129,16 @@ describe("Secure Direct room", () => {
     expect(connected.payload).toHaveLength(16);
 
     const offer = JSON.stringify({ type: "secure.offer", sdp: "v=0\r\n" });
-    await room.webSocketMessage(host as unknown as WebSocket,
-      Uint8Array.from(encodeEnvelope(connected.sessionId, new TextEncoder().encode(offer), relayEnvelopeKind.text)).buffer);
+    await room.webSocketMessage(
+      host as unknown as WebSocket,
+      Uint8Array.from(
+        encodeEnvelope(
+          connected.sessionId,
+          new TextEncoder().encode(offer),
+          relayEnvelopeKind.text,
+        ),
+      ).buffer,
+    );
     expect(device.sent).toEqual([offer]);
 
     const answer = JSON.stringify({ type: "secure.answer", sdp: "v=0\r\n" });
@@ -140,8 +164,12 @@ describe("Secure Direct room", () => {
     for (let index = 0; index < maximumDevicesPerRoom; index += 1) {
       expect((await room.fetch(internalRequest("secure-device", routeId))).status).toBe(101);
       const connected = decodeSentEnvelope(host.sent.pop());
-      await room.webSocketMessage(host as unknown as WebSocket,
-        Uint8Array.from(encodeEnvelope(connected.sessionId, new Uint8Array(), relayEnvelopeKind.authenticated)).buffer);
+      await room.webSocketMessage(
+        host as unknown as WebSocket,
+        Uint8Array.from(
+          encodeEnvelope(connected.sessionId, new Uint8Array(), relayEnvelopeKind.authenticated),
+        ).buffer,
+      );
     }
     expect((await room.fetch(internalRequest("secure-device", routeId))).status).toBe(503);
     expect(host.readyState).toBe(TestSocket.OPEN);
@@ -153,7 +181,10 @@ describe("Secure Direct room", () => {
     const room = new worker.SecureDirectRoomObject(context as never, {} as never);
     await room.fetch(internalRequest("secure-host", "A".repeat(22)));
     const host = context.getWebSockets("secure-host")[0]!;
-    await room.webSocketMessage(host as unknown as WebSocket, "x".repeat(maximumControlMessageBytes + 1));
+    await room.webSocketMessage(
+      host as unknown as WebSocket,
+      "x".repeat(maximumControlMessageBytes + 1),
+    );
     expect(host.closeCode).toBe(relayClose.tooLarge);
 
     const authenticated = await authenticatedRoom();
@@ -161,7 +192,8 @@ describe("Secure Direct room", () => {
     const device = authenticated.context.getWebSockets("secure-device")[0]!;
     await authenticated.room.webSocketMessage(
       device as unknown as WebSocket,
-      "x".repeat(maximumInnerMessageBytes + 1));
+      "x".repeat(maximumInnerMessageBytes + 1),
+    );
     expect(device.closeCode).toBe(relayClose.tooLarge);
   });
 
@@ -188,8 +220,13 @@ describe("Secure Direct room", () => {
 
 describe("Worker route isolation", () => {
   it("keeps bounded pending Relay hosts until the first valid proof", async () => {
-    const keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
-    const publicKey = encodeBase64Url(new Uint8Array(await crypto.subtle.exportKey("raw", keys.publicKey)));
+    const keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
+      "sign",
+      "verify",
+    ]);
+    const publicKey = encodeBase64Url(
+      new Uint8Array(await crypto.subtle.exportKey("raw", keys.publicKey)),
+    );
     const routeId = await deriveRouteId(publicKey);
     const context = new TestContext();
     const room = new worker.RelayRoomObject(context as never, {} as never);
@@ -197,16 +234,29 @@ describe("Worker route isolation", () => {
     expect((await room.fetch(relayHostRequest(routeId, "203.0.113.1"))).status).toBe(101);
     expect((await room.fetch(relayHostRequest(routeId, "203.0.113.2"))).status).toBe(101);
     const [first, second] = context.getWebSockets("host") as [TestSocket, TestSocket];
-    await room.webSocketMessage(first as unknown as WebSocket,
-      JSON.stringify({ type: "relay.host.hello", routeId, publicKey }));
+    await room.webSocketMessage(
+      first as unknown as WebSocket,
+      JSON.stringify({ type: "relay.host.hello", routeId, publicKey }),
+    );
     const challenge = JSON.parse(first.sent.pop() as string) as { challenge: string };
-    const signature = encodeBase64Url(new Uint8Array(await crypto.subtle.sign(
-      { name: "ECDSA", hash: "SHA-256" }, keys.privateKey,
-      Uint8Array.from(createHostTranscript(routeId, challenge.challenge)).buffer)));
-    await room.webSocketMessage(first as unknown as WebSocket,
-      JSON.stringify({ type: "relay.host.proof", signature }));
+    const signature = encodeBase64Url(
+      new Uint8Array(
+        await crypto.subtle.sign(
+          { name: "ECDSA", hash: "SHA-256" },
+          keys.privateKey,
+          Uint8Array.from(createHostTranscript(routeId, challenge.challenge)).buffer,
+        ),
+      ),
+    );
+    await room.webSocketMessage(
+      first as unknown as WebSocket,
+      JSON.stringify({ type: "relay.host.proof", signature }),
+    );
 
-    expect(JSON.parse(first.sent.pop() as string)).toEqual({ type: "relay.host.accepted", protocol: 1 });
+    expect(JSON.parse(first.sent.pop() as string)).toEqual({
+      type: "relay.host.accepted",
+      protocol: 1,
+    });
     expect(second.closeCode).toBe(relayClose.conflict);
   });
 
@@ -214,26 +264,39 @@ describe("Worker route isolation", () => {
     const context = new TestContext();
     const room = new worker.RelayRoomObject(context as never, {} as never);
     const routeId = "A".repeat(22);
-    const response = await room.fetch({ url: `https://relay.internal/connect?role=host&route=${routeId}` } as Request);
+    const response = await room.fetch({
+      url: `https://relay.internal/connect?role=host&route=${routeId}`,
+    } as Request);
     expect(response.status).toBe(101);
     const host = context.getWebSockets("host")[0]!;
 
-    await room.webSocketMessage(host as unknown as WebSocket, "x".repeat(maximumControlMessageBytes + 1));
+    await room.webSocketMessage(
+      host as unknown as WebSocket,
+      "x".repeat(maximumControlMessageBytes + 1),
+    );
 
     expect(host.closeCode).toBe(relayClose.tooLarge);
   });
 
   it("keeps the existing Relay route on RELAY_ROOMS", async () => {
-    const relayFetch = vi.fn(async () => new TestResponse(null, { status: 101 }) as unknown as Response);
-    const secureFetch = vi.fn(async () => new TestResponse(null, { status: 101 }) as unknown as Response);
+    const relayFetch = vi.fn(
+      async () => new TestResponse(null, { status: 101 }) as unknown as Response,
+    );
+    const secureFetch = vi.fn(
+      async () => new TestResponse(null, { status: 101 }) as unknown as Response,
+    );
     const environment = {
       ALLOWED_DEVICE_ORIGIN: "https://voltura.se",
       RELAY_ROOMS: { getByName: vi.fn(() => ({ fetch: relayFetch })) },
-      SECURE_DIRECT_ROOMS: { getByName: vi.fn(() => ({ fetch: secureFetch })) }
+      SECURE_DIRECT_ROOMS: { getByName: vi.fn(() => ({ fetch: secureFetch })) },
     };
     const routeId = "A".repeat(22);
     const request = new Request(`https://relay.example/v1/device/${routeId}`, {
-      headers: { "CF-Connecting-IP": "192.0.2.1", Origin: "https://voltura.se", Upgrade: "websocket" }
+      headers: {
+        "CF-Connecting-IP": "192.0.2.1",
+        Origin: "https://voltura.se",
+        Upgrade: "websocket",
+      },
     });
 
     expect((await worker.default.fetch(request, environment as never)).status).toBe(101);
@@ -244,34 +307,54 @@ describe("Worker route isolation", () => {
 
 async function authenticatedRoom() {
   const context = new TestContext();
-  const keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
-  const publicKey = encodeBase64Url(new Uint8Array(await crypto.subtle.exportKey("raw", keys.publicKey)));
+  const keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
+    "sign",
+    "verify",
+  ]);
+  const publicKey = encodeBase64Url(
+    new Uint8Array(await crypto.subtle.exportKey("raw", keys.publicKey)),
+  );
   const routeId = await deriveRouteId(publicKey);
   const room = new worker.SecureDirectRoomObject(context as never, {} as never);
   expect((await room.fetch(internalRequest("secure-host", routeId))).status).toBe(101);
   const host = context.getWebSockets("secure-host")[0]!;
 
-  await room.webSocketMessage(host as unknown as WebSocket,
-    JSON.stringify({ type: "relay.host.hello", routeId, publicKey }));
+  await room.webSocketMessage(
+    host as unknown as WebSocket,
+    JSON.stringify({ type: "relay.host.hello", routeId, publicKey }),
+  );
   const challenge = JSON.parse(host.sent.pop() as string) as { challenge: string };
-  const signature = encodeBase64Url(new Uint8Array(await crypto.subtle.sign(
-    { name: "ECDSA", hash: "SHA-256" }, keys.privateKey,
-    Uint8Array.from(createHostTranscript(routeId, challenge.challenge)).buffer)));
-  await room.webSocketMessage(host as unknown as WebSocket,
-    JSON.stringify({ type: "relay.host.proof", signature }));
-  expect(JSON.parse(host.sent.pop() as string)).toEqual({ type: "relay.host.accepted", protocol: 1 });
+  const signature = encodeBase64Url(
+    new Uint8Array(
+      await crypto.subtle.sign(
+        { name: "ECDSA", hash: "SHA-256" },
+        keys.privateKey,
+        Uint8Array.from(createHostTranscript(routeId, challenge.challenge)).buffer,
+      ),
+    ),
+  );
+  await room.webSocketMessage(
+    host as unknown as WebSocket,
+    JSON.stringify({ type: "relay.host.proof", signature }),
+  );
+  expect(JSON.parse(host.sent.pop() as string)).toEqual({
+    type: "relay.host.accepted",
+    protocol: 1,
+  });
   return { room, context, host, routeId };
 }
 
 function internalRequest(role: "secure-host" | "secure-device", routeId: string): Request {
   const source = role === "secure-device" ? `&source=${"B".repeat(22)}` : "";
-  return { url: `https://relay.internal/secure-connect?role=${role}&route=${routeId}${source}` } as Request;
+  return {
+    url: `https://relay.internal/secure-connect?role=${role}&route=${routeId}${source}`,
+  } as Request;
 }
 
 function relayHostRequest(routeId: string, source: string): Request {
   return {
     url: `https://relay.internal/connect?role=host&route=${routeId}`,
-    headers: new Headers({ "CF-Connecting-IP": source })
+    headers: new Headers({ "CF-Connecting-IP": source }),
   } as Request;
 }
 

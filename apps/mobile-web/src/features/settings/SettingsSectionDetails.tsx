@@ -9,10 +9,20 @@ interface SettingsSectionDetailsProps {
   section: SettingsSection;
 }
 
-export function SettingsSectionDetails({ children, isOpen, label, onToggle, section }: SettingsSectionDetailsProps) {
+export function SettingsSectionDetails({
+  children,
+  isOpen,
+  label,
+  onToggle,
+  section,
+}: SettingsSectionDetailsProps) {
   return (
     <details className="settings-section" data-settings-section={section} open={isOpen}>
-      <summary onClick={(event) => { onToggle(event, section); }}>
+      <summary
+        onClick={(event) => {
+          onToggle(event, section);
+        }}
+      >
         <span>{label}</span>
       </summary>
       <div className="settings-section-body">{children}</div>

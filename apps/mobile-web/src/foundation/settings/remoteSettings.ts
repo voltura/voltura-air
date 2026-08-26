@@ -17,20 +17,36 @@ export const defaultRemoteSettings: RemoteSettings = {
   openYoutube: true,
   showBrowserHelpers: true,
   showWindowHelpers: true,
-  startKodi: true
+  startKodi: true,
 };
 
 export function normalizeRemoteSettings(value: unknown = {}): RemoteSettings {
-  const candidate = typeof value === "object" && value !== null
-    ? value as Partial<Record<keyof RemoteSettings | "youtubeMode", unknown>>
-    : {};
+  const candidate =
+    typeof value === "object" && value !== null
+      ? (value as Partial<Record<keyof RemoteSettings | "youtubeMode", unknown>>)
+      : {};
   return {
-    navigationRing: typeof candidate.navigationRing === "boolean" ? candidate.navigationRing : defaultRemoteSettings.navigationRing,
+    navigationRing:
+      typeof candidate.navigationRing === "boolean"
+        ? candidate.navigationRing
+        : defaultRemoteSettings.navigationRing,
     mode: normalizeRemoteMode(candidate.mode, candidate.youtubeMode),
-    openYoutube: typeof candidate.openYoutube === "boolean" ? candidate.openYoutube : defaultRemoteSettings.openYoutube,
-    showBrowserHelpers: typeof candidate.showBrowserHelpers === "boolean" ? candidate.showBrowserHelpers : defaultRemoteSettings.showBrowserHelpers,
-    showWindowHelpers: typeof candidate.showWindowHelpers === "boolean" ? candidate.showWindowHelpers : defaultRemoteSettings.showWindowHelpers,
-    startKodi: typeof candidate.startKodi === "boolean" ? candidate.startKodi : defaultRemoteSettings.startKodi
+    openYoutube:
+      typeof candidate.openYoutube === "boolean"
+        ? candidate.openYoutube
+        : defaultRemoteSettings.openYoutube,
+    showBrowserHelpers:
+      typeof candidate.showBrowserHelpers === "boolean"
+        ? candidate.showBrowserHelpers
+        : defaultRemoteSettings.showBrowserHelpers,
+    showWindowHelpers:
+      typeof candidate.showWindowHelpers === "boolean"
+        ? candidate.showWindowHelpers
+        : defaultRemoteSettings.showWindowHelpers,
+    startKodi:
+      typeof candidate.startKodi === "boolean"
+        ? candidate.startKodi
+        : defaultRemoteSettings.startKodi,
   };
 }
 
@@ -50,11 +66,14 @@ export function isRemoteModeId(value: unknown): value is RemoteModeId {
   return typeof value === "string" && remoteModeIds.includes(value as RemoteModeId);
 }
 
-export function resolveRemoteSettings(stored: string | null, hostDefaultMode?: RemoteModeId): { settings: RemoteSettings; isStored: boolean } {
+export function resolveRemoteSettings(
+  stored: string | null,
+  hostDefaultMode?: RemoteModeId,
+): { settings: RemoteSettings; isStored: boolean } {
   if (!stored) {
     return {
       isStored: false,
-      settings: { ...defaultRemoteSettings, mode: hostDefaultMode ?? defaultRemoteSettings.mode }
+      settings: { ...defaultRemoteSettings, mode: hostDefaultMode ?? defaultRemoteSettings.mode },
     };
   }
 
@@ -64,7 +83,7 @@ export function resolveRemoteSettings(stored: string | null, hostDefaultMode?: R
   } catch {
     return {
       isStored: false,
-      settings: { ...defaultRemoteSettings, mode: hostDefaultMode ?? defaultRemoteSettings.mode }
+      settings: { ...defaultRemoteSettings, mode: hostDefaultMode ?? defaultRemoteSettings.mode },
     };
   }
 }

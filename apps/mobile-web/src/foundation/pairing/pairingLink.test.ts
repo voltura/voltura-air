@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { hasPairingTokenParameter, parseHostedConnectionAddress, parsePairingLink, parsePcUrl, validateManualConnectionInput } from "./pairingLink";
+import {
+  hasPairingTokenParameter,
+  parseHostedConnectionAddress,
+  parsePairingLink,
+  parsePcUrl,
+  validateManualConnectionInput,
+} from "./pairingLink";
 
 const pairToken = "a".repeat(32);
 const version = "0.6.1";
@@ -8,30 +14,34 @@ describe("parsePairingLink", () => {
   it("reads the generated token, version, and full host hint", () => {
     const hostHint = encodeURIComponent("http://pc.local:51395");
 
-    expect(parsePairingLink(`http://phone.local:5173/pair?t=${pairToken}&v=${version}&h=${hostHint}`)).toEqual({
+    expect(
+      parsePairingLink(`http://phone.local:5173/pair?t=${pairToken}&v=${version}&h=${hostHint}`),
+    ).toEqual({
       pairToken,
-      pcUrl: "http://pc.local:51395"
+      pcUrl: "http://pc.local:51395",
     });
   });
 
   it("uses the link origin when the generated host hint is absent", () => {
     expect(parsePairingLink(`http://pc.local:51395/pair?t=${pairToken}&v=${version}`)).toEqual({
       pairToken,
-      pcUrl: "http://pc.local:51395"
+      pcUrl: "http://pc.local:51395",
     });
   });
 
   it("accepts a direct pairing path with an optional trailing slash", () => {
     expect(parsePairingLink(`http://pc.local:51395/pair/?t=${pairToken}&v=${version}`)).toEqual({
       pairToken,
-      pcUrl: "http://pc.local:51395"
+      pcUrl: "http://pc.local:51395",
     });
   });
 
   it("resolves a compact generated host port against the link origin", () => {
-    expect(parsePairingLink(`http://phone.local:5173/pair?t=${pairToken}&v=${version}&h=51395`)).toEqual({
+    expect(
+      parsePairingLink(`http://phone.local:5173/pair?t=${pairToken}&v=${version}&h=51395`),
+    ).toEqual({
       pairToken,
-      pcUrl: "http://phone.local:51395"
+      pcUrl: "http://phone.local:51395",
     });
   });
 
@@ -39,47 +49,61 @@ describe("parsePairingLink", () => {
     const route = "r".repeat(22);
     expect(parsePairingLink(`https://voltura.se/a/${route}?v=${version}#${pairToken}`)).toEqual({
       pairToken,
-      pcUrl: `https://voltura.se/a/${route}`
+      pcUrl: `https://voltura.se/a/${route}`,
     });
-    expect(hasPairingTokenParameter(`https://voltura.se/a/${route}?v=${version}#${pairToken}`)).toBe(true);
+    expect(
+      hasPairingTokenParameter(`https://voltura.se/a/${route}?v=${version}#${pairToken}`),
+    ).toBe(true);
   });
 
   it("reads Secure Direct short and redirected links", () => {
     const route = "r".repeat(22);
     expect(parsePairingLink(`https://voltura.se/s/${route}?v=${version}#${pairToken}`)).toEqual({
       pairToken,
-      pcUrl: `https://voltura.se/s/${route}`
+      pcUrl: `https://voltura.se/s/${route}`,
     });
-    expect(parsePairingLink(`https://voltura.se/air/app/?m=s&r=${route}&v=${version}#${pairToken}`)).toEqual({
+    expect(
+      parsePairingLink(`https://voltura.se/air/app/?m=s&r=${route}&v=${version}#${pairToken}`),
+    ).toEqual({
       pairToken,
-      pcUrl: `https://voltura.se/s/${route}`
+      pcUrl: `https://voltura.se/s/${route}`,
     });
     expect(parsePairingLink(`https://voltura.se/d/${route}?v=${version}#${pairToken}`)).toEqual({
       pairToken,
-      pcUrl: `https://voltura.se/s/${route}`
+      pcUrl: `https://voltura.se/s/${route}`,
     });
-    expect(parsePairingLink(`https://voltura.se/air/dev-app/?m=s&r=${route}&v=${version}#${pairToken}`)).toEqual({
+    expect(
+      parsePairingLink(`https://voltura.se/air/dev-app/?m=s&r=${route}&v=${version}#${pairToken}`),
+    ).toEqual({
       pairToken,
-      pcUrl: `https://voltura.se/s/${route}`
+      pcUrl: `https://voltura.se/s/${route}`,
     });
   });
 
   it("keeps tokenless hosted addresses explicit for normal reconnect", () => {
     const route = "r".repeat(22);
-    expect(parseHostedConnectionAddress(`https://voltura.se/air/app/?m=s&r=${route}&v=${version}`)).toEqual({
-      pcUrl: `https://voltura.se/s/${route}`
+    expect(
+      parseHostedConnectionAddress(`https://voltura.se/air/app/?m=s&r=${route}&v=${version}`),
+    ).toEqual({
+      pcUrl: `https://voltura.se/s/${route}`,
     });
-    expect(parseHostedConnectionAddress(`https://voltura.se/air/app/?r=${route}&v=${version}`)).toEqual({
-      pcUrl: `https://voltura.se/a/${route}`
+    expect(
+      parseHostedConnectionAddress(`https://voltura.se/air/app/?r=${route}&v=${version}`),
+    ).toEqual({
+      pcUrl: `https://voltura.se/a/${route}`,
     });
   });
 
   it("reads the hosted redirect target and a bounded custom relay endpoint", () => {
     const route = "r".repeat(22);
     const endpoint = btoa("https://relay.example").replace(/=+$/u, "");
-    expect(parsePairingLink(`https://voltura.se/air/app/?r=${route}&v=${version}&e=${endpoint}#${pairToken}`)).toEqual({
+    expect(
+      parsePairingLink(
+        `https://voltura.se/air/app/?r=${route}&v=${version}&e=${endpoint}#${pairToken}`,
+      ),
+    ).toEqual({
       pairToken,
-      pcUrl: `https://voltura.se/a/${route}?e=${endpoint}`
+      pcUrl: `https://voltura.se/a/${route}?e=${endpoint}`,
     });
   });
 
@@ -88,7 +112,7 @@ describe("parsePairingLink", () => {
     `https://example.test/a/${"r".repeat(22)}?v=${version}#${pairToken}`,
     `https://voltura.se/a/${"r".repeat(22)}?v=${version}&e=aHR0cHM6Ly9yZWxheS5leGFtcGxl#${pairToken}`,
     `https://voltura.se/air/app/?r=${"r".repeat(22)}&v=${version}&e=${btoa("http://relay.example")}#${pairToken}`,
-    `https://voltura.se/air/app/?r=${"r".repeat(22)}&v=${version}&e=${btoa("https://user:secret@relay.example")}#${pairToken}`
+    `https://voltura.se/air/app/?r=${"r".repeat(22)}&v=${version}&e=${btoa("https://user:secret@relay.example")}#${pairToken}`,
   ])("rejects unsafe relay link %s", (source) => {
     expect(parsePairingLink(source)).toBeNull();
   });
@@ -98,15 +122,27 @@ describe("parsePairingLink", () => {
     [`http://pc.local:51395/pair?t=short&v=${version}`, "an invalid token"],
     [`http://pc.local:51395/pair?t=${pairToken}&t=${pairToken}&v=${version}`, "duplicate tokens"],
     [`http://pc.local:51395/pair?t=${pairToken}&v=${version}&v=${version}`, "duplicate versions"],
-    [`http://pc.local:51395/pair?t=${pairToken}&v=${version}&k=${"a".repeat(22)}`, "an undeclared identity parameter"],
-    [`http://pc.local:51395/pair?t=${pairToken}&v=${version}&h=51395&h=51396`, "duplicate host hints"],
+    [
+      `http://pc.local:51395/pair?t=${pairToken}&v=${version}&k=${"a".repeat(22)}`,
+      "an undeclared identity parameter",
+    ],
+    [
+      `http://pc.local:51395/pair?t=${pairToken}&v=${version}&h=51395&h=51396`,
+      "duplicate host hints",
+    ],
     [`http://pc.local:51395/pair?t=${pairToken}&v=preview`, "an invalid version"],
     [`http://user:password@pc.local:51395/pair?t=${pairToken}&v=${version}`, "credentials"],
     [`http://pc.local:51395/pair?t=${pairToken}&v=${version}#fragment`, "a fragment"],
-    [`http://phone.local:5173/pair?t=${pairToken}&v=${version}&h=${encodeURIComponent("http://pc.local:51395/path")}`, "a host-hint path"],
-    [`http://phone.local:5173/pair?t=${pairToken}&v=${version}&h=99999`, "an invalid host-hint port"],
+    [
+      `http://phone.local:5173/pair?t=${pairToken}&v=${version}&h=${encodeURIComponent("http://pc.local:51395/path")}`,
+      "a host-hint path",
+    ],
+    [
+      `http://phone.local:5173/pair?t=${pairToken}&v=${version}&h=99999`,
+      "an invalid host-hint port",
+    ],
     [`http://pc.local:51395/?t=${pairToken}&v=${version}`, "the ordinary app path"],
-    [`t=${pairToken}&v=${version}&h=51395`, "raw query text"]
+    [`t=${pairToken}&v=${version}&h=51395`, "raw query text"],
   ])("rejects a link containing %s (%s)", (source) => {
     expect(parsePairingLink(source)).toBeNull();
   });
@@ -118,26 +154,28 @@ describe("validateManualConnectionInput", () => {
   it("normalizes a port against the current page host", () => {
     expect(validateManualConnectionInput("51395", fallbackUrl)).toEqual({
       valid: true,
-      target: { kind: "host", pcUrl: "http://192.168.1.20:51395" }
+      target: { kind: "host", pcUrl: "http://192.168.1.20:51395" },
     });
   });
 
   it("normalizes a host and explicit port", () => {
     expect(validateManualConnectionInput("192.168.1.50:51395", fallbackUrl)).toEqual({
       valid: true,
-      target: { kind: "host", pcUrl: "http://192.168.1.50:51395" }
+      target: { kind: "host", pcUrl: "http://192.168.1.50:51395" },
     });
   });
 
   it("returns a pairing target for a complete Voltura Air pairing link", () => {
     const hostHint = encodeURIComponent("http://pc.local:51395");
 
-    expect(validateManualConnectionInput(
-      `http://phone.local:5173/pair?t=${pairToken}&v=${version}&h=${hostHint}`,
-      fallbackUrl
-    )).toEqual({
+    expect(
+      validateManualConnectionInput(
+        `http://phone.local:5173/pair?t=${pairToken}&v=${version}&h=${hostHint}`,
+        fallbackUrl,
+      ),
+    ).toEqual({
       valid: true,
-      target: { kind: "pairing", pairToken, pcUrl: "http://pc.local:51395" }
+      target: { kind: "pairing", pairToken, pcUrl: "http://pc.local:51395" },
     });
   });
 
@@ -146,11 +184,23 @@ describe("validateManualConnectionInput", () => {
     ["99999", "Enter a host with a valid port, for example 192.168.1.50:51395."],
     ["pc.local", "Enter a host with a valid port, for example 192.168.1.50:51395."],
     ["https://pc.local:51395/path", "Host addresses cannot include a path, query, or fragment."],
-    ["https://pc.local:51395/?other=value", "Host addresses cannot include a path, query, or fragment."],
-    ["https://user:password@pc.local:51395", "Host addresses cannot include a user name or password."],
+    [
+      "https://pc.local:51395/?other=value",
+      "Host addresses cannot include a path, query, or fragment.",
+    ],
+    [
+      "https://user:password@pc.local:51395",
+      "Host addresses cannot include a user name or password.",
+    ],
     ["ftp://pc.local:51395", "Only HTTP and HTTPS host addresses are supported."],
-    [`http://pc.local:51395/pair?t=short&v=${version}`, "Enter the complete pairing link shown by Voltura Air on the PC."],
-    [`http://pc.local:51395/?t=${pairToken}&v=${version}`, "Enter the complete pairing link shown by Voltura Air on the PC."]
+    [
+      `http://pc.local:51395/pair?t=short&v=${version}`,
+      "Enter the complete pairing link shown by Voltura Air on the PC.",
+    ],
+    [
+      `http://pc.local:51395/?t=${pairToken}&v=${version}`,
+      "Enter the complete pairing link shown by Voltura Air on the PC.",
+    ],
   ])("rejects %s with a specific message", (value, message) => {
     expect(validateManualConnectionInput(value, fallbackUrl)).toEqual({ valid: false, message });
   });
@@ -167,7 +217,7 @@ describe("parsePcUrl", () => {
     ["http://192.168.1.50:51395", "http://192.168.1.50:51395"],
     ["http://[2001:db8::1]:51395", "http://[2001:db8::1]:51395"],
     ["http://workstation.local:51395", "http://workstation.local:51395"],
-    ["https://workstation.local:8443", "https://workstation.local:8443"]
+    ["https://workstation.local:8443", "https://workstation.local:8443"],
   ])("normalizes valid host hint %s", (hint, expected) => {
     expect(parsePcUrl(addressWithHint(hint), fallbackUrl)).toBe(expected);
   });
@@ -184,19 +234,25 @@ describe("parsePcUrl", () => {
     "http://user:password@pc.local:51395",
     "http://:51395",
     "http://pc.local:99999",
-    "   "
+    "   ",
   ])("falls back safely for invalid host hint %s", (hint) => {
     expect(() => parsePcUrl(addressWithHint(hint), fallbackUrl)).not.toThrow();
     expect(parsePcUrl(addressWithHint(hint), fallbackUrl)).toBe("http://client.local:5173");
   });
 
   it("falls back for empty and malformed encoded hints", () => {
-    expect(parsePcUrl("http://client.local:5173/?h=", fallbackUrl)).toBe("http://client.local:5173");
-    expect(parsePcUrl("http://client.local:5173/?h=%E0%A4%A", fallbackUrl)).toBe("http://client.local:5173");
+    expect(parsePcUrl("http://client.local:5173/?h=", fallbackUrl)).toBe(
+      "http://client.local:5173",
+    );
+    expect(parsePcUrl("http://client.local:5173/?h=%E0%A4%A", fallbackUrl)).toBe(
+      "http://client.local:5173",
+    );
   });
 
   it("handles non-string input without throwing", () => {
     expect(() => parsePcUrl({ host: "javascript:alert(1)" } as unknown, fallbackUrl)).not.toThrow();
-    expect(parsePcUrl({ host: "javascript:alert(1)" } as unknown, fallbackUrl)).toBe("http://fallback.local:51395");
+    expect(parsePcUrl({ host: "javascript:alert(1)" } as unknown, fallbackUrl)).toBe(
+      "http://fallback.local:51395",
+    );
   });
 });

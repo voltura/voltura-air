@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { defaultRemoteSettings, normalizeRemoteSettings, resolveRemoteSettings } from "./remoteSettings";
+import {
+  defaultRemoteSettings,
+  normalizeRemoteSettings,
+  resolveRemoteSettings,
+} from "./remoteSettings";
 
 describe("normalizeRemoteSettings", () => {
   it("defaults the navigation ring on for old stored settings", () => {
@@ -10,7 +14,7 @@ describe("normalizeRemoteSettings", () => {
       openYoutube: true,
       showBrowserHelpers: true,
       showWindowHelpers: true,
-      startKodi: true
+      startKodi: true,
     });
   });
 
@@ -25,14 +29,16 @@ describe("normalizeRemoteSettings", () => {
   it("preserves local launch action settings", () => {
     expect(normalizeRemoteSettings({ openYoutube: false, startKodi: false })).toMatchObject({
       openYoutube: false,
-      startKodi: false
+      startKodi: false,
     });
   });
 
   it("preserves grouped helper visibility settings", () => {
-    expect(normalizeRemoteSettings({ showBrowserHelpers: false, showWindowHelpers: false })).toMatchObject({
+    expect(
+      normalizeRemoteSettings({ showBrowserHelpers: false, showWindowHelpers: false }),
+    ).toMatchObject({
       showBrowserHelpers: false,
-      showWindowHelpers: false
+      showWindowHelpers: false,
     });
   });
 
@@ -53,13 +59,15 @@ describe("normalizeRemoteSettings", () => {
         openYoutube: true,
         showBrowserHelpers: true,
         showWindowHelpers: true,
-        startKodi: true
-      }
+        startKodi: true,
+      },
     });
   });
 
   it("keeps the stored local remote mode over the host default", () => {
-    expect(resolveRemoteSettings(JSON.stringify({ navigationRing: false, mode: "youtube" }), "kodi")).toEqual({
+    expect(
+      resolveRemoteSettings(JSON.stringify({ navigationRing: false, mode: "youtube" }), "kodi"),
+    ).toEqual({
       isStored: true,
       settings: {
         navigationRing: false,
@@ -67,8 +75,8 @@ describe("normalizeRemoteSettings", () => {
         openYoutube: true,
         showBrowserHelpers: true,
         showWindowHelpers: true,
-        startKodi: true
-      }
+        startKodi: true,
+      },
     });
   });
 });

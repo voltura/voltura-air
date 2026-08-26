@@ -25,7 +25,11 @@ class FakeWorker {
     this.posted.push(request);
     if (this.responses.length > 0) {
       const data = this.responses.shift();
-      queueMicrotask(() => { this.onmessage?.(new MessageEvent("message", { data: { id: request.id, ...(data ? { data } : {}) } })); });
+      queueMicrotask(() => {
+        this.onmessage?.(
+          new MessageEvent("message", { data: { id: request.id, ...(data ? { data } : {}) } }),
+        );
+      });
     }
   }
 
@@ -40,7 +44,10 @@ describe("QR decoder worker boundary", () => {
     vi.stubGlobal("Worker", FakeWorker);
   });
 
-  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
 
   it("allows one decode at a time and transfers bounded pixel work to the worker", async () => {
     const session = createQrDecoderSession();
@@ -49,9 +56,15 @@ describe("QR decoder worker boundary", () => {
     const first = session.decode(imageData);
 
     await expect(session.decode(imageData)).rejects.toThrow("QR decoder is busy.");
-    expect(worker.posted[0]).toMatchObject({ height: 2, inversionAttempts: "dontInvert", width: 2 });
+    expect(worker.posted[0]).toMatchObject({
+      height: 2,
+      inversionAttempts: "dontInvert",
+      width: 2,
+    });
 
-    worker.onmessage?.(new MessageEvent("message", { data: { id: worker.posted[0]!.id, data: "pairing-link" } }));
+    worker.onmessage?.(
+      new MessageEvent("message", { data: { id: worker.posted[0]!.id, data: "pairing-link" } }),
+    );
     await expect(first).resolves.toBe("pairing-link");
     session.dispose();
     expect(worker.terminated).toBe(true);
@@ -59,7 +72,11 @@ describe("QR decoder worker boundary", () => {
 
   it("rejects pending work when its attempt owner disposes the worker", async () => {
     const session = createQrDecoderSession();
-    const pending = session.decode({ data: new Uint8ClampedArray(4), height: 1, width: 1 } as ImageData);
+    const pending = session.decode({
+      data: new Uint8ClampedArray(4),
+      height: 1,
+      width: 1,
+    } as ImageData);
 
     session.dispose();
 
@@ -77,14 +94,18 @@ describe("QR decoder worker boundary", () => {
       naturalWidth = 1000;
       onerror: (() => void) | null = null;
       onload: (() => void) | null = null;
-      set src(_value: string) { queueMicrotask(() => { this.onload?.(); }); }
+      set src(_value: string) {
+        queueMicrotask(() => {
+          this.onload?.();
+        });
+      }
     }
     vi.stubGlobal("Image", LoadedImage);
     const imageData = { data: new Uint8ClampedArray(16), height: 2, width: 2 } as ImageData;
     const context = {
       drawImage: vi.fn(),
       getImageData: vi.fn(() => imageData),
-      putImageData: vi.fn()
+      putImageData: vi.fn(),
     };
     vi.spyOn(document, "createElement").mockImplementation((tagName) => {
       if (tagName === "canvas") {
@@ -101,7 +122,7 @@ describe("QR decoder worker boundary", () => {
     expect(worker.posted.map((request) => request.inversionAttempts)).toEqual([
       "dontInvert",
       "dontInvert",
-      "onlyInvert"
+      "onlyInvert",
     ]);
     expect(worker.terminated).toBe(true);
     expect(revokeObjectUrl).toHaveBeenCalledExactlyOnceWith("blob:qr");

@@ -1,6 +1,10 @@
 import { isIpHost } from "../pairing/pcDisplayName";
 import { normalizeHostedPcUrl, normalizePcUrl } from "../pairing/pairingLink";
-import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../platform/browserStorage";
+import {
+  readLocalStorage,
+  removeLocalStorage,
+  writeLocalStorage,
+} from "../platform/browserStorage";
 
 export const activePcIdKey = "voltura-air.activePcId";
 export const pcProfilesKey = "voltura-air.pcProfiles";
@@ -30,7 +34,7 @@ export function createPcProfile(pcUrl: string, hostIdentityFingerprint?: string)
       transportMode: hosted.mode,
       relayRouteId: hosted.routeId,
       relayServiceId: hosted.endpoint ? "custom-v1" : __RELAY_SERVICE_ID__,
-      ...(hosted.endpoint ? { relayEndpoint: hosted.endpoint } : {})
+      ...(hosted.endpoint ? { relayEndpoint: hosted.endpoint } : {}),
     };
   }
 
@@ -44,7 +48,7 @@ export function createPcProfile(pcUrl: string, hostIdentityFingerprint?: string)
     id: origin,
     name: "PC",
     url: origin,
-    hostIdentityFingerprint
+    hostIdentityFingerprint,
   };
 }
 
@@ -59,20 +63,27 @@ export function normalizePcProfile(value: unknown): PcProfile | null {
   }
 
   try {
-    const fingerprint = typeof candidate.hostIdentityFingerprint === "string" && /^[A-Za-z0-9_-]{22}$/.test(candidate.hostIdentityFingerprint)
-      ? candidate.hostIdentityFingerprint
-      : undefined;
+    const fingerprint =
+      typeof candidate.hostIdentityFingerprint === "string" &&
+      /^[A-Za-z0-9_-]{22}$/.test(candidate.hostIdentityFingerprint)
+        ? candidate.hostIdentityFingerprint
+        : undefined;
     const profile = createPcProfile(candidate.url, fingerprint);
-    const hostIdentityPublicKey = typeof candidate.hostIdentityPublicKey === "string" && /^[A-Za-z0-9_-]{87}$/.test(candidate.hostIdentityPublicKey)
-      ? candidate.hostIdentityPublicKey
-      : undefined;
+    const hostIdentityPublicKey =
+      typeof candidate.hostIdentityPublicKey === "string" &&
+      /^[A-Za-z0-9_-]{87}$/.test(candidate.hostIdentityPublicKey)
+        ? candidate.hostIdentityPublicKey
+        : undefined;
     const customName = candidate.customName === true;
-    const name = typeof candidate.name === "string" && candidate.name.trim().length > 0 ? candidate.name : profile.name;
+    const name =
+      typeof candidate.name === "string" && candidate.name.trim().length > 0
+        ? candidate.name
+        : profile.name;
     return {
       ...profile,
       hostIdentityPublicKey,
       customName,
-      name: customName || !isIpHost(name) ? name : profile.name
+      name: customName || !isIpHost(name) ? name : profile.name,
     };
   } catch {
     return null;
@@ -87,7 +98,9 @@ export function loadPcProfiles(storage?: Storage): PcProfile[] {
 
   try {
     const parsed: unknown = JSON.parse(stored);
-    return Array.isArray(parsed) ? (parsed as unknown[]).map(normalizePcProfile).filter((pc): pc is PcProfile => pc !== null) : [];
+    return Array.isArray(parsed)
+      ? (parsed as unknown[]).map(normalizePcProfile).filter((pc): pc is PcProfile => pc !== null)
+      : [];
   } catch {
     return [];
   }
@@ -104,11 +117,25 @@ export function loadActivePcId(storage?: Storage): string | null {
     return null;
   }
 
-  return new RegExp(`^relay:(?:${escapeRegex(__RELAY_SERVICE_ID__)}|custom-v1):[A-Za-z0-9_-]{22}$`, "u").test(stored) ? stored : normalizePcUrl(stored);
+  return new RegExp(
+    `^relay:(?:${escapeRegex(__RELAY_SERVICE_ID__)}|custom-v1):[A-Za-z0-9_-]{22}$`,
+    "u",
+  ).test(stored)
+    ? stored
+    : normalizePcUrl(stored);
 }
 
-export function applyHostIdentityFromAcceptance(profiles: PcProfile[], pcId: string, publicKey: string, fingerprint: string): PcProfile[] {
-  return profiles.map((pc) => pc.id === pcId ? { ...pc, hostIdentityFingerprint: fingerprint, hostIdentityPublicKey: publicKey } : pc);
+export function applyHostIdentityFromAcceptance(
+  profiles: PcProfile[],
+  pcId: string,
+  publicKey: string,
+  fingerprint: string,
+): PcProfile[] {
+  return profiles.map((pc) =>
+    pc.id === pcId
+      ? { ...pc, hostIdentityFingerprint: fingerprint, hostIdentityPublicKey: publicKey }
+      : pc,
+  );
 }
 
 export function saveActivePcId(pcId: string | null, storage?: Storage): void {
@@ -119,7 +146,12 @@ export function saveActivePcId(pcId: string | null, storage?: Storage): void {
   }
 }
 
-export function getEffectiveStoredActivePcId(storedActivePcId: string | null, profiles: PcProfile[], addressPcId: string, source: string): string | null {
+export function getEffectiveStoredActivePcId(
+  storedActivePcId: string | null,
+  profiles: PcProfile[],
+  addressPcId: string,
+  source: string,
+): string | null {
   if (!import.meta.env.DEV || storedActivePcId !== addressPcId || !isViteClientAddress(source)) {
     return storedActivePcId;
   }
@@ -137,13 +169,17 @@ export function upsertPcProfile(profiles: PcProfile[], profile: PcProfile): PcPr
     return [...profiles, profile];
   }
 
-  return profiles.map((pc) => (pc.id === profile.id ? {
-    ...profile,
-    hostIdentityFingerprint: profile.hostIdentityFingerprint ?? pc.hostIdentityFingerprint,
-    hostIdentityPublicKey: profile.hostIdentityPublicKey ?? pc.hostIdentityPublicKey,
-    customName: pc.customName,
-    name: pc.name
-  } : pc));
+  return profiles.map((pc) =>
+    pc.id === profile.id
+      ? {
+          ...profile,
+          hostIdentityFingerprint: profile.hostIdentityFingerprint ?? pc.hostIdentityFingerprint,
+          hostIdentityPublicKey: profile.hostIdentityPublicKey ?? pc.hostIdentityPublicKey,
+          customName: pc.customName,
+          name: pc.name,
+        }
+      : pc,
+  );
 }
 
 export function selectPcProfile(profiles: PcProfile[], pcId: string): PcProfile | null {
@@ -156,20 +192,28 @@ export function renamePcProfile(profiles: PcProfile[], pcId: string, name: strin
       ? {
           ...pc,
           customName: true,
-          name
+          name,
         }
-      : pc
+      : pc,
   );
 }
 
-export function forgetPcProfile(profiles: PcProfile[], activePcId: string | null, pcId: string): { profiles: PcProfile[]; activePcId: string | null } {
+export function forgetPcProfile(
+  profiles: PcProfile[],
+  activePcId: string | null,
+  pcId: string,
+): { profiles: PcProfile[]; activePcId: string | null } {
   return {
     profiles: profiles.filter((pc) => pc.id !== pcId),
-    activePcId: activePcId === pcId ? null : activePcId
+    activePcId: activePcId === pcId ? null : activePcId,
   };
 }
 
-export function applyPcNameFromHost(profiles: PcProfile[], pcId: string, pcName: string): PcProfile[] {
+export function applyPcNameFromHost(
+  profiles: PcProfile[],
+  pcId: string,
+  pcName: string,
+): PcProfile[] {
   const name = pcName.trim();
   if (!name) {
     return profiles;
@@ -189,7 +233,11 @@ export function applyPcNameFromHost(profiles: PcProfile[], pcId: string, pcName:
 }
 
 export function getWebSocketUrl(pc: PcProfile): string {
-  if (pc.transportMode === "relay" && pc.relayRouteId && /^[A-Za-z0-9_-]{22}$/u.test(pc.relayRouteId)) {
+  if (
+    pc.transportMode === "relay" &&
+    pc.relayRouteId &&
+    /^[A-Za-z0-9_-]{22}$/u.test(pc.relayRouteId)
+  ) {
     const relayBase = new URL(pc.relayEndpoint ?? __RELAY_HTTPS_BASE__);
     relayBase.protocol = "wss:";
     relayBase.pathname = `/v1/device/${pc.relayRouteId}`;

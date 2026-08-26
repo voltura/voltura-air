@@ -5,7 +5,7 @@ import {
   isMovementInput,
   isUserActivityMessage,
   shouldTrackInputAck,
-  trimPendingInputAcks
+  trimPendingInputAcks,
 } from "./connectionProtocol";
 
 const maxBufferedMovementBytes = 1024;
@@ -42,69 +42,91 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
     socketRef,
     supportsInputAckRef,
     supportsInputContextV1Ref,
-    supportsVolumeControlRef
+    supportsVolumeControlRef,
   } = options;
 
-  const send = useCallback((payload: ClientMessage) => {
-    const socket = socketRef.current;
-    if (!isControllerSocketOpen(socket)) {
-      reconnectRef.current?.();
-      return;
-    }
-
-    const now = Date.now();
-    const isMovement = isMovementInput(payload);
-    if (isUserActivityMessage(payload)) {
-      lastUserActivityAtRef.current = now;
-      rescheduleHealthCheckRef.current?.();
-    }
-
-    const pendingMovementAck = pendingMovementAckRef.current;
-    if (isMovement &&
-      (socket.bufferedAmount >= maxBufferedMovementBytes ||
-        (pendingMovementAck?.followingMovementCount ?? 0) >= maxMovementsAfterAckBarrier)) {
-      return;
-    }
-
-    let sequence: number | undefined;
-    let payloadToSend: ClientMessage = payload;
-    if (!supportsInputContextV1Ref.current && "inputContext" in payload) {
-      payloadToSend = { ...payload };
-      delete payloadToSend.inputContext;
-    }
-    if (supportsInputAckRef.current &&
-      shouldTrackInputAck(payload, now, lastMovementAckAtRef.current) &&
-      (!isMovement || pendingMovementAck === null)) {
-      sequence = nextInputSequenceRef.current;
-      nextInputSequenceRef.current = sequence >= Number.MAX_SAFE_INTEGER ? 1 : sequence + 1;
-      payloadToSend = { ...payloadToSend, seq: sequence } as ClientMessage;
-      pendingInputAcksRef.current.set(sequence, Date.now());
-      trimPendingInputAcks(pendingInputAcksRef.current);
-      if (isMovement) {
-        lastMovementAckAtRef.current = now;
-        pendingMovementAckRef.current = { sequence, followingMovementCount: 0 };
+  const send = useCallback(
+    (payload: ClientMessage) => {
+      const socket = socketRef.current;
+      if (!isControllerSocketOpen(socket)) {
+        reconnectRef.current?.();
+        return;
       }
-    }
 
-    try {
-      socket.send(JSON.stringify(payloadToSend));
-      if (isMovement && sequence === undefined && pendingMovementAck !== null &&
-        pendingMovementAckRef.current?.sequence === pendingMovementAck.sequence) {
-        pendingMovementAckRef.current = {
-          ...pendingMovementAck,
-          followingMovementCount: pendingMovementAck.followingMovementCount + 1
-        };
+      const now = Date.now();
+      const isMovement = isMovementInput(payload);
+      if (isUserActivityMessage(payload)) {
+        lastUserActivityAtRef.current = now;
+        rescheduleHealthCheckRef.current?.();
       }
-    } catch {
-      if (sequence !== undefined) {
-        pendingInputAcksRef.current.delete(sequence);
-        if (pendingMovementAckRef.current?.sequence === sequence) {
-          pendingMovementAckRef.current = null;
+
+      const pendingMovementAck = pendingMovementAckRef.current;
+      if (
+        isMovement &&
+        (socket.bufferedAmount >= maxBufferedMovementBytes ||
+          (pendingMovementAck?.followingMovementCount ?? 0) >= maxMovementsAfterAckBarrier)
+      ) {
+        return;
+      }
+
+      let sequence: number | undefined;
+      let payloadToSend: ClientMessage = payload;
+      if (!supportsInputContextV1Ref.current && "inputContext" in payload) {
+        payloadToSend = { ...payload };
+        delete payloadToSend.inputContext;
+      }
+      if (
+        supportsInputAckRef.current &&
+        shouldTrackInputAck(payload, now, lastMovementAckAtRef.current) &&
+        (!isMovement || pendingMovementAck === null)
+      ) {
+        sequence = nextInputSequenceRef.current;
+        nextInputSequenceRef.current = sequence >= Number.MAX_SAFE_INTEGER ? 1 : sequence + 1;
+        payloadToSend = { ...payloadToSend, seq: sequence } as ClientMessage;
+        pendingInputAcksRef.current.set(sequence, Date.now());
+        trimPendingInputAcks(pendingInputAcksRef.current);
+        if (isMovement) {
+          lastMovementAckAtRef.current = now;
+          pendingMovementAckRef.current = { sequence, followingMovementCount: 0 };
         }
       }
-      reconnectRef.current?.();
-    }
-  }, [lastMovementAckAtRef, lastUserActivityAtRef, nextInputSequenceRef, pendingInputAcksRef, pendingMovementAckRef, reconnectRef, rescheduleHealthCheckRef, socketRef, supportsInputAckRef, supportsInputContextV1Ref]);
+
+      try {
+        socket.send(JSON.stringify(payloadToSend));
+        if (
+          isMovement &&
+          sequence === undefined &&
+          pendingMovementAck !== null &&
+          pendingMovementAckRef.current?.sequence === pendingMovementAck.sequence
+        ) {
+          pendingMovementAckRef.current = {
+            ...pendingMovementAck,
+            followingMovementCount: pendingMovementAck.followingMovementCount + 1,
+          };
+        }
+      } catch {
+        if (sequence !== undefined) {
+          pendingInputAcksRef.current.delete(sequence);
+          if (pendingMovementAckRef.current?.sequence === sequence) {
+            pendingMovementAckRef.current = null;
+          }
+        }
+        reconnectRef.current?.();
+      }
+    },
+    [
+      lastMovementAckAtRef,
+      lastUserActivityAtRef,
+      nextInputSequenceRef,
+      pendingInputAcksRef,
+      pendingMovementAckRef,
+      reconnectRef,
+      rescheduleHealthCheckRef,
+      socketRef,
+      supportsInputAckRef,
+      supportsInputContextV1Ref,
+    ],
+  );
 
   const requestAudioState = useCallback(() => {
     const socket = socketRef.current;

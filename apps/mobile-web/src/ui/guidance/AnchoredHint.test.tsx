@@ -9,7 +9,7 @@ const originalVisualViewport = window.visualViewport;
 function restoreVisualViewport() {
   Object.defineProperty(window, "visualViewport", {
     configurable: true,
-    value: originalVisualViewport
+    value: originalVisualViewport,
   });
 }
 
@@ -18,11 +18,11 @@ function installVisualViewport(width: number, height: number) {
     height,
     offsetLeft: 0,
     offsetTop: 0,
-    width
+    width,
   });
   Object.defineProperty(window, "visualViewport", {
     configurable: true,
-    value: visualViewport as unknown as VisualViewport
+    value: visualViewport as unknown as VisualViewport,
   });
   return visualViewport;
 }
@@ -37,15 +37,23 @@ function rect(left: number, top: number, width: number, height: number): DOMRect
     width,
     x: left,
     y: top,
-    toJSON: () => ({})
+    toJSON: () => ({}),
   } as DOMRect;
 }
 
-function Harness({ open = true, preferredPlacement = "below-center" }: { open?: boolean; preferredPlacement?: AnchoredHintPlacement }) {
+function Harness({
+  open = true,
+  preferredPlacement = "below-center",
+}: {
+  open?: boolean;
+  preferredPlacement?: AnchoredHintPlacement;
+}) {
   const anchorRef = useRef<HTMLButtonElement | null>(null);
   return (
     <>
-      <button ref={anchorRef} type="button">Anchor</button>
+      <button ref={anchorRef} type="button">
+        Anchor
+      </button>
       <AnchoredHint anchorRef={anchorRef} open={open} preferredPlacement={preferredPlacement}>
         Switch modes from here.
       </AnchoredHint>
@@ -72,13 +80,15 @@ describe("AnchoredHint", () => {
 
   it("updates placement when the visible viewport changes", async () => {
     const visualViewport = installVisualViewport(320, 320);
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
-      if (this.classList.contains("anchored-hint")) {
-        return rect(0, 0, 120, 40);
-      }
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function getBoundingClientRect(this: HTMLElement) {
+        if (this.classList.contains("anchored-hint")) {
+          return rect(0, 0, 120, 40);
+        }
 
-      return rect(140, 180, 40, 44);
-    });
+        return rect(140, 180, 40, 44);
+      },
+    );
 
     render(<Harness preferredPlacement="below-center" />);
     expect(screen.getByRole("status").getAttribute("data-placement")).toBe("below-center");
@@ -94,13 +104,15 @@ describe("AnchoredHint", () => {
 
   it("follows its anchor when a scroll container moves it", async () => {
     let anchorTop = 40;
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
-      if (this.classList.contains("anchored-hint")) {
-        return rect(0, 0, 120, 40);
-      }
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function getBoundingClientRect(this: HTMLElement) {
+        if (this.classList.contains("anchored-hint")) {
+          return rect(0, 0, 120, 40);
+        }
 
-      return rect(140, anchorTop, 40, 44);
-    });
+        return rect(140, anchorTop, 40, 44);
+      },
+    );
 
     render(<Harness />);
     expect(screen.getByRole("status").style.top).toBe("92px");
@@ -116,13 +128,15 @@ describe("AnchoredHint", () => {
 
   it("limits its width to the visible viewport under magnification", () => {
     installVisualViewport(180, 320);
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
-      if (this.classList.contains("anchored-hint")) {
-        return rect(0, 0, 156, 60);
-      }
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function getBoundingClientRect(this: HTMLElement) {
+        if (this.classList.contains("anchored-hint")) {
+          return rect(0, 0, 156, 60);
+        }
 
-      return rect(70, 40, 40, 44);
-    });
+        return rect(70, 40, 40, 44);
+      },
+    );
 
     render(<Harness />);
 

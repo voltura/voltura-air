@@ -1,6 +1,23 @@
 import { useEffect, useRef, useState } from "react";
-import { Coffee, LockKeyhole, LogOut, Monitor, MonitorOff, Power, RotateCcw, ShieldAlert, Sparkles, X } from "lucide-react";
-import type { AwakeCapability, AwakeResultMessage, PowerCapabilities, SystemPowerAction, SystemPowerResultMessage } from "../../../foundation/protocol/messages";
+import {
+  Coffee,
+  LockKeyhole,
+  LogOut,
+  Monitor,
+  MonitorOff,
+  Power,
+  RotateCcw,
+  ShieldAlert,
+  Sparkles,
+  X,
+} from "lucide-react";
+import type {
+  AwakeCapability,
+  AwakeResultMessage,
+  PowerCapabilities,
+  SystemPowerAction,
+  SystemPowerResultMessage,
+} from "../../../foundation/protocol/messages";
 import { HoldToConfirmButton } from "../../../ui/overlays/HoldToConfirmButton";
 
 interface PowerControlSheetProps {
@@ -26,27 +43,81 @@ interface PowerActionDefinition {
 }
 
 const standardActions: PowerActionDefinition[] = [
-  { action: "lock", label: "Lock PC", description: "Lock Windows and keep your apps running.", destructive: false, Icon: LockKeyhole },
-  { action: "blackoutDisplay", label: "Blackout display", description: "Cover every screen with black while the PC and Voltura Air stay active. Any mouse or keyboard input restores it.", destructive: false, Icon: Monitor },
+  {
+    action: "lock",
+    label: "Lock PC",
+    description: "Lock Windows and keep your apps running.",
+    destructive: false,
+    Icon: LockKeyhole,
+  },
+  {
+    action: "blackoutDisplay",
+    label: "Blackout display",
+    description:
+      "Cover every screen with black while the PC and Voltura Air stay active. Any mouse or keyboard input restores it.",
+    destructive: false,
+    Icon: Monitor,
+  },
   {
     action: "displayOff",
     label: "Turn off display",
-    description: "Ask Windows to turn off display output. Some PCs also enter sleep and disconnect Voltura Air.",
+    description:
+      "Ask Windows to turn off display output. Some PCs also enter sleep and disconnect Voltura Air.",
     destructive: false,
     requiresConfirmation: true,
-    warning: "Your PC may enter sleep or Modern Standby. Voltura Air cannot wake it remotely; use a physical keyboard or mouse. Windows may require sign-in after wake.",
-    Icon: MonitorOff
+    warning:
+      "Your PC may enter sleep or Modern Standby. Voltura Air cannot wake it remotely; use a physical keyboard or mouse. Windows may require sign-in after wake.",
+    Icon: MonitorOff,
   },
-  { action: "screenSaver", label: "Turn on screen saver", description: "Start the screen saver configured in Windows.", destructive: false, Icon: Sparkles }
+  {
+    action: "screenSaver",
+    label: "Turn on screen saver",
+    description: "Start the screen saver configured in Windows.",
+    destructive: false,
+    Icon: Sparkles,
+  },
 ];
 
 const destructiveActions: PowerActionDefinition[] = [
-  { action: "signOut", label: "Sign out", description: "End this Windows session.", warning: "Open apps may prevent sign out or show a save prompt.", destructive: true, Icon: LogOut },
-  { action: "restart", label: "Restart PC", description: "Restart Windows now.", warning: "Unsaved work may be lost.", destructive: true, Icon: RotateCcw },
-  { action: "shutdown", label: "Shut down PC", description: "Turn this PC off now.", warning: "Unsaved work may be lost.", destructive: true, Icon: Power }
+  {
+    action: "signOut",
+    label: "Sign out",
+    description: "End this Windows session.",
+    warning: "Open apps may prevent sign out or show a save prompt.",
+    destructive: true,
+    Icon: LogOut,
+  },
+  {
+    action: "restart",
+    label: "Restart PC",
+    description: "Restart Windows now.",
+    warning: "Unsaved work may be lost.",
+    destructive: true,
+    Icon: RotateCcw,
+  },
+  {
+    action: "shutdown",
+    label: "Shut down PC",
+    description: "Turn this PC off now.",
+    warning: "Unsaved work may be lost.",
+    destructive: true,
+    Icon: Power,
+  },
 ];
 
-export function PowerControlSheet({ awake = null, awakeResult = null, capabilities, onAction, onAwakeChange = () => { /* Optional host capability. */ }, onClose, pendingAction: pendingRequest, pendingAwakeChange = null, result }: PowerControlSheetProps) {
+export function PowerControlSheet({
+  awake = null,
+  awakeResult = null,
+  capabilities,
+  onAction,
+  onAwakeChange = () => {
+    /* Optional host capability. */
+  },
+  onClose,
+  pendingAction: pendingRequest,
+  pendingAwakeChange = null,
+  result,
+}: PowerControlSheetProps) {
   const [pendingAction, setPendingAction] = useState<PowerActionDefinition | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -65,7 +136,9 @@ export function PowerControlSheet({ awake = null, awakeResult = null, capabiliti
       }
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => { window.removeEventListener("keydown", onKeyDown); };
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, [onClose, pendingAction]);
 
   const chooseAction = (definition: PowerActionDefinition) => {
@@ -86,14 +159,32 @@ export function PowerControlSheet({ awake = null, awakeResult = null, capabiliti
 
   return (
     <div className="power-sheet-layer">
-      <button className="power-sheet-scrim" type="button" aria-label="Close power and session controls" onClick={onClose} />
-      <section className="power-sheet" role="dialog" aria-modal="true" aria-labelledby="power-sheet-title">
+      <button
+        className="power-sheet-scrim"
+        type="button"
+        aria-label="Close power and session controls"
+        onClick={onClose}
+      />
+      <section
+        className="power-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="power-sheet-title"
+      >
         <header className="power-sheet-header">
           <div>
             <span className="power-sheet-eyebrow">Windows controls</span>
-            <h2 id="power-sheet-title">{pendingAction ? pendingAction.label : "Power & session"}</h2>
+            <h2 id="power-sheet-title">
+              {pendingAction ? pendingAction.label : "Power & session"}
+            </h2>
           </div>
-          <button ref={closeButtonRef} className="power-sheet-close" type="button" aria-label="Close power and session controls" onClick={onClose}>
+          <button
+            ref={closeButtonRef}
+            className="power-sheet-close"
+            type="button"
+            aria-label="Close power and session controls"
+            onClick={onClose}
+          >
             <X aria-hidden="true" />
           </button>
         </header>
@@ -103,7 +194,9 @@ export function PowerControlSheet({ awake = null, awakeResult = null, capabiliti
             key={pendingRequest ?? "ready"}
             blockedByPending={pendingRequest !== null}
             definition={pendingAction}
-            onCancel={() => { setPendingAction(null); }}
+            onCancel={() => {
+              setPendingAction(null);
+            }}
             onConfirm={() => {
               if (pendingRequest !== null) {
                 setPendingAction(null);
@@ -117,26 +210,52 @@ export function PowerControlSheet({ awake = null, awakeResult = null, capabiliti
           <div className="power-sheet-content">
             <div className="power-action-list" aria-label="Power and session actions">
               {awake && (
-                <button className="power-action-row" type="button" disabled={!awake.canControl || pendingAwakeChange !== null} onClick={() => { onAwakeChange(!awake.active); }}>
-                  <span className="power-action-icon"><Coffee aria-hidden="true" /></span>
+                <button
+                  className="power-action-row"
+                  type="button"
+                  disabled={!awake.canControl || pendingAwakeChange !== null}
+                  onClick={() => {
+                    onAwakeChange(!awake.active);
+                  }}
+                >
+                  <span className="power-action-icon">
+                    <Coffee aria-hidden="true" />
+                  </span>
                   <span className="power-action-copy">
                     <strong>Keep awake</strong>
-                    <small>{pendingAwakeChange !== null
-                      ? "Waiting for the PC…"
-                      : !awake.canControl
-                        ? "Disabled by the host."
-                        : awake.active
-                          ? "On. Tap to use the selected Windows power plan."
-                          : "Off. Tap to keep the PC awake using the host screen setting."}</small>
+                    <small>
+                      {pendingAwakeChange !== null
+                        ? "Waiting for the PC…"
+                        : !awake.canControl
+                          ? "Disabled by the host."
+                          : awake.active
+                            ? "On. Tap to use the selected Windows power plan."
+                            : "Off. Tap to keep the PC awake using the host screen setting."}
+                    </small>
                   </span>
-                  <span className={`awake-state-pill ${awake.active ? "on" : "off"}`} aria-label={`Keep awake is ${awake.active ? "on" : "off"}`}>
+                  <span
+                    className={`awake-state-pill ${awake.active ? "on" : "off"}`}
+                    aria-label={`Keep awake is ${awake.active ? "on" : "off"}`}
+                  >
                     {awake.active ? "ON" : "OFF"}
                   </span>
                 </button>
               )}
-              {standardActions.filter((definition) => definition.action !== "screenSaver" || capabilities.screenSaverAvailable).map((definition) => (
-                <PowerActionRow key={definition.action} blockedByPending={pendingRequest !== null} definition={definition} disabledReason={getDisabledReason(definition, capabilities)} pending={pendingRequest === definition.action} onChoose={chooseAction} />
-              ))}
+              {standardActions
+                .filter(
+                  (definition) =>
+                    definition.action !== "screenSaver" || capabilities.screenSaverAvailable,
+                )
+                .map((definition) => (
+                  <PowerActionRow
+                    key={definition.action}
+                    blockedByPending={pendingRequest !== null}
+                    definition={definition}
+                    disabledReason={getDisabledReason(definition, capabilities)}
+                    pending={pendingRequest === definition.action}
+                    onChoose={chooseAction}
+                  />
+                ))}
             </div>
 
             <div className="power-destructive-group">
@@ -146,19 +265,40 @@ export function PowerControlSheet({ awake = null, awakeResult = null, capabiliti
               </div>
               <div className="power-action-list">
                 {destructiveActions.map((definition) => (
-                  <PowerActionRow key={definition.action} blockedByPending={pendingRequest !== null} definition={definition} enabled={capabilities[definition.action]} pending={pendingRequest === definition.action} onChoose={chooseAction} />
+                  <PowerActionRow
+                    key={definition.action}
+                    blockedByPending={pendingRequest !== null}
+                    definition={definition}
+                    enabled={capabilities[definition.action]}
+                    pending={pendingRequest === definition.action}
+                    onChoose={chooseAction}
+                  />
                 ))}
               </div>
             </div>
-            {pendingRequest && <div className="power-action-feedback pending" role="status">Waiting for the PC to respond…</div>}
-            {pendingAwakeChange !== null && <div className="power-action-feedback pending" role="status">Waiting for the PC to respond…</div>}
+            {pendingRequest && (
+              <div className="power-action-feedback pending" role="status">
+                Waiting for the PC to respond…
+              </div>
+            )}
+            {pendingAwakeChange !== null && (
+              <div className="power-action-feedback pending" role="status">
+                Waiting for the PC to respond…
+              </div>
+            )}
             {awakeResult && (
-              <div className={`power-action-feedback ${awakeResult.succeeded ? "success" : "error"}`} role={awakeResult.succeeded ? "status" : "alert"}>
+              <div
+                className={`power-action-feedback ${awakeResult.succeeded ? "success" : "error"}`}
+                role={awakeResult.succeeded ? "status" : "alert"}
+              >
                 {awakeResult.message}
               </div>
             )}
             {result && (
-              <div className={`power-action-feedback ${result.succeeded ? "success" : "error"}`} role={result.succeeded ? "status" : "alert"}>
+              <div
+                className={`power-action-feedback ${result.succeeded ? "success" : "error"}`}
+                role={result.succeeded ? "status" : "alert"}
+              >
                 {result.message}
               </div>
             )}
@@ -169,7 +309,10 @@ export function PowerControlSheet({ awake = null, awakeResult = null, capabiliti
   );
 }
 
-function getDisabledReason(definition: PowerActionDefinition, capabilities: PowerCapabilities): string | null {
+function getDisabledReason(
+  definition: PowerActionDefinition,
+  capabilities: PowerCapabilities,
+): string | null {
   if (!capabilities[definition.action]) {
     return "Disabled by the host.";
   }
@@ -185,7 +328,21 @@ function getDisabledReason(definition: PowerActionDefinition, capabilities: Powe
   return null;
 }
 
-function PowerActionRow({ blockedByPending = false, definition, enabled, disabledReason, pending = false, onChoose }: { blockedByPending?: boolean; definition: PowerActionDefinition; enabled?: boolean; disabledReason?: string | null; pending?: boolean; onChoose: (definition: PowerActionDefinition) => void }) {
+function PowerActionRow({
+  blockedByPending = false,
+  definition,
+  enabled,
+  disabledReason,
+  pending = false,
+  onChoose,
+}: {
+  blockedByPending?: boolean;
+  definition: PowerActionDefinition;
+  enabled?: boolean;
+  disabledReason?: string | null;
+  pending?: boolean;
+  onChoose: (definition: PowerActionDefinition) => void;
+}) {
   const { Icon } = definition;
   const isEnabled = !blockedByPending && !pending && (enabled ?? disabledReason === null);
   return (
@@ -193,25 +350,55 @@ function PowerActionRow({ blockedByPending = false, definition, enabled, disable
       className={`power-action-row ${definition.destructive ? "destructive" : ""}`}
       type="button"
       disabled={!isEnabled}
-      onClick={() => { onChoose(definition); }}
+      onClick={() => {
+        onChoose(definition);
+      }}
     >
-      <span className="power-action-icon"><Icon aria-hidden="true" /></span>
+      <span className="power-action-icon">
+        <Icon aria-hidden="true" />
+      </span>
       <span className="power-action-copy">
         <strong>{definition.label}</strong>
-        <small>{pending ? "Waiting for the PC…" : blockedByPending ? "Wait for the current power request to finish." : isEnabled ? definition.description : disabledReason ?? "Disabled by the host."}</small>
+        <small>
+          {pending
+            ? "Waiting for the PC…"
+            : blockedByPending
+              ? "Wait for the current power request to finish."
+              : isEnabled
+                ? definition.description
+                : (disabledReason ?? "Disabled by the host.")}
+        </small>
       </span>
       {definition.destructive && isEnabled && <span className="power-action-safety">Hold</span>}
     </button>
   );
 }
 
-function PowerConfirmation({ blockedByPending, definition, onCancel, onConfirm }: { blockedByPending: boolean; definition: PowerActionDefinition; onCancel: () => void; onConfirm: () => void }) {
+function PowerConfirmation({
+  blockedByPending,
+  definition,
+  onCancel,
+  onConfirm,
+}: {
+  blockedByPending: boolean;
+  definition: PowerActionDefinition;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
   return (
     <div className="power-confirmation">
-      <div className="power-confirmation-icon"><definition.Icon aria-hidden="true" /></div>
+      <div className="power-confirmation-icon">
+        <definition.Icon aria-hidden="true" />
+      </div>
       <p>{definition.warning}</p>
-      <HoldToConfirmButton disabled={blockedByPending} label={definition.label} onConfirm={onConfirm} />
-      <button className="power-confirm-cancel" type="button" onClick={onCancel}>Cancel</button>
+      <HoldToConfirmButton
+        disabled={blockedByPending}
+        label={definition.label}
+        onConfirm={onConfirm}
+      />
+      <button className="power-confirm-cancel" type="button" onClick={onCancel}>
+        Cancel
+      </button>
     </div>
   );
 }

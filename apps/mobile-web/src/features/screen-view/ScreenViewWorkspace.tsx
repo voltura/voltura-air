@@ -1,21 +1,62 @@
-import { useEffect, useEffectEvent, useRef, useState, type MouseEvent as ReactMouseEvent, type TouchEvent, type WheelEvent as ReactWheelEvent } from "react";
-import { ChevronLeft, Keyboard, Maximize2, Minimize2, MonitorUp, Mouse, MousePointer2, Play, Square } from "lucide-react";
+import {
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type TouchEvent,
+  type WheelEvent as ReactWheelEvent,
+} from "react";
+import {
+  ChevronLeft,
+  Keyboard,
+  Maximize2,
+  Minimize2,
+  MonitorUp,
+  Mouse,
+  MousePointer2,
+  Play,
+  Square,
+} from "lucide-react";
 import type { ConnectionState } from "../../foundation/connection/connectionTypes";
 import type { PcProfile } from "../../foundation/connection/pcProfiles";
 import { signClientPayload } from "../../foundation/connection/pairingCredentials";
 import { createLocalId } from "../../foundation/identity/localId";
 import type { TrackpadSettings, TwoFingerMode } from "../../foundation/input/gestures";
 import { usePointerInput } from "../../foundation/input/usePointerInput";
-import type { ClientMessage, ScreenViewCapability, ScreenViewSource, ScreenViewStartResultMessage } from "../../foundation/protocol/messages";
+import type {
+  ClientMessage,
+  ScreenViewCapability,
+  ScreenViewSource,
+  ScreenViewStartResultMessage,
+} from "../../foundation/protocol/messages";
 import { AnchoredHint } from "../../ui/guidance";
 import { subscribeScreenViewResults } from "../../foundation/connection/screenViewResultBus";
 import { hashScreenSdp, verifyHostScreenSignature } from "./screenViewCrypto";
-import { hasOnlyRelayCandidates, IceGatheringTimeoutError, isRelayCandidate, waitForIceGathering } from "../../foundation/webrtc/iceGathering";
+import {
+  hasOnlyRelayCandidates,
+  IceGatheringTimeoutError,
+  isRelayCandidate,
+  waitForIceGathering,
+} from "../../foundation/webrtc/iceGathering";
 import { parseScreenPlaintextRecord, type ScreenCursorRecord } from "./screenViewRecords";
 import { screenKeyboardMessage } from "./screenKeyboardInput";
-import { identityScreenViewTransform, normalizedScreenPoint, screenCursorImagePosition, touchPairGeometry, updateScreenViewPinch, type NormalizedScreenPoint, type ScreenViewPinchStart, type ScreenViewTransform } from "./screenViewTransform";
+import {
+  identityScreenViewTransform,
+  normalizedScreenPoint,
+  screenCursorImagePosition,
+  touchPairGeometry,
+  updateScreenViewPinch,
+  type NormalizedScreenPoint,
+  type ScreenViewPinchStart,
+  type ScreenViewTransform,
+} from "./screenViewTransform";
 import { useScreenViewFullscreen } from "./useScreenViewFullscreen";
-import { screenViewQualityFromStats, startScreenViewQualityMonitor, type ScreenViewQualitySample } from "./screenViewQuality";
+import {
+  screenViewQualityFromStats,
+  startScreenViewQualityMonitor,
+  type ScreenViewQualitySample,
+} from "./screenViewQuality";
 import "./screen-view.css";
 
 interface Props {
@@ -30,35 +71,55 @@ interface Props {
   trackpadSettings: TrackpadSettings;
 }
 
-interface PendingOffer { operationId: string; displayId: string; }
-interface PendingSource { operationId: string; displayId: string; previousDisplayId: string; }
+interface PendingOffer {
+  operationId: string;
+  displayId: string;
+}
+interface PendingSource {
+  operationId: string;
+  displayId: string;
+  previousDisplayId: string;
+}
 
 const disconnectedRecoveryMs = 8_000;
 const startResponseTimeoutMs = 10_000;
 
-
-export default function ScreenViewWorkspace({ activePc, browserPreviewState, capability, clientId, onBack, onOpenKeyboard, send, state, trackpadSettings }: Props) {
+export default function ScreenViewWorkspace({
+  activePc,
+  browserPreviewState,
+  capability,
+  clientId,
+  onBack,
+  onOpenKeyboard,
+  send,
+  state,
+  trackpadSettings,
+}: Props) {
   const [sources, setSources] = useState<ScreenViewSource[]>([]);
   const [selected, setSelected] = useState("");
   const [status, setStatus] = useState(
     browserPreviewState
       ? "Live - Encrypted WebRTC"
       : capability.requiresRepair
-      ? "Scan this PC's pairing QR once to trust its screen identity."
-      : !capability.enabled
-        ? "Screen viewing is unavailable on this PC."
-        : !capability.permissionGranted
-          ? "Allow this device to view the PC screen in PC permissions."
-          : "Choose a display to begin."
+        ? "Scan this PC's pairing QR once to trust its screen identity."
+        : !capability.enabled
+          ? "Screen viewing is unavailable on this PC."
+          : !capability.permissionGranted
+            ? "Allow this device to view the PC screen in PC permissions."
+            : "Choose a display to begin.",
   );
   const [viewing, setViewing] = useState(browserPreviewState !== undefined);
   const [streaming, setStreaming] = useState(browserPreviewState !== undefined);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
   const [qualityText, setQualityText] = useState("");
-  const [viewTransform, setViewTransform] = useState<ScreenViewTransform>(identityScreenViewTransform);
+  const [viewTransform, setViewTransform] = useState<ScreenViewTransform>(
+    identityScreenViewTransform,
+  );
   const [twoFingerMode, setTwoFingerMode] = useState<TwoFingerMode>("zoom");
   const [directPointerActive, setDirectPointerActive] = useState(browserPreviewState === "active");
-  const [directPointerGuidance, setDirectPointerGuidance] = useState(browserPreviewState === "active");
+  const [directPointerGuidance, setDirectPointerGuidance] = useState(
+    browserPreviewState === "active",
+  );
   const hasFinePointer = useFineHoverPointer();
   const { workspaceRef, immersive, enterImmersive, exitImmersive } = useScreenViewFullscreen();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -85,7 +146,13 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   const disconnectedRecoveryRef = useRef<number | undefined>(undefined);
   const stopQualityMonitorRef = useRef<(() => void) | null>(null);
   const qualitySampleRef = useRef<ScreenViewQualitySample | null>(null);
-  const pointerInput = usePointerInput({ send, state, trackpadSettings, twoFingerMode: "scroll", inputContext: "screen-view" });
+  const pointerInput = usePointerInput({
+    send,
+    state,
+    trackpadSettings,
+    twoFingerMode: "scroll",
+    inputContext: "screen-view",
+  });
   const viewTransformRef = useRef(viewTransform);
   const pinchRef = useRef<(ScreenViewPinchStart & { mode: "local" | "remote" }) | null>(null);
   const suppressPointerUntilClearRef = useRef(false);
@@ -103,12 +170,27 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
     requestAnimationFrame(positionCursor);
   }
 
-  function sendDirectButton(button: "left" | "right", action: "down" | "up", point: NormalizedScreenPoint) {
-    if (selected) {send({ type: "screen.pointer.button", inputContext: "screen-view", displayId: selected, ...point, button, action });}
+  function sendDirectButton(
+    button: "left" | "right",
+    action: "down" | "up",
+    point: NormalizedScreenPoint,
+  ) {
+    if (selected) {
+      send({
+        type: "screen.pointer.button",
+        inputContext: "screen-view",
+        displayId: selected,
+        ...point,
+        button,
+        action,
+      });
+    }
   }
 
   function releaseDirectButtons(point = lastDirectPointRef.current) {
-    for (const button of heldDirectButtonsRef.current) {sendDirectButton(button, "up", point);}
+    for (const button of heldDirectButtonsRef.current) {
+      sendDirectButton(button, "up", point);
+    }
     heldDirectButtonsRef.current.clear();
   }
 
@@ -125,41 +207,61 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   }
 
   function enableDirectPointer() {
-    if (!viewing || capability.directPointer?.permissionGranted !== true) {return;}
+    if (!viewing || capability.directPointer?.permissionGranted !== true) {
+      return;
+    }
     directPointerActiveRef.current = true;
     setDirectPointerActive(true);
     setDirectPointerGuidance(true);
     stageRef.current?.focus({ preventScroll: true });
     window.clearTimeout(directGuidanceTimeoutRef.current);
-    directGuidanceTimeoutRef.current = window.setTimeout(() => setDirectPointerGuidance(false), 4_000);
+    directGuidanceTimeoutRef.current = window.setTimeout(
+      () => setDirectPointerGuidance(false),
+      4_000,
+    );
   }
 
   function pointFromDirectSurface(clientX: number, clientY: number, clamp = false) {
     const surface = directPointerSurfaceRef.current;
-    return surface ? normalizedScreenPoint(clientX, clientY, surface.getBoundingClientRect(), clamp) : null;
+    return surface
+      ? normalizedScreenPoint(clientX, clientY, surface.getBoundingClientRect(), clamp)
+      : null;
   }
 
   function onDirectMouseMove(event: ReactMouseEvent<HTMLDivElement>) {
     const point = pointFromDirectSurface(event.clientX, event.clientY);
     if (!point) {
-      releaseDirectButtons(pointFromDirectSurface(event.clientX, event.clientY, true) ?? lastDirectPointRef.current);
+      releaseDirectButtons(
+        pointFromDirectSurface(event.clientX, event.clientY, true) ?? lastDirectPointRef.current,
+      );
       return;
     }
     lastDirectPointRef.current = point;
     pendingDirectMoveRef.current = point;
-    if (directMoveFrameRef.current !== undefined) {return;}
+    if (directMoveFrameRef.current !== undefined) {
+      return;
+    }
     directMoveFrameRef.current = requestAnimationFrame(() => {
       directMoveFrameRef.current = undefined;
       const next = pendingDirectMoveRef.current;
       pendingDirectMoveRef.current = null;
-      if (next && directPointerActiveRef.current && selected) {send({ type: "screen.pointer.move", inputContext: "screen-view", displayId: selected, ...next });}
+      if (next && directPointerActiveRef.current && selected) {
+        send({
+          type: "screen.pointer.move",
+          inputContext: "screen-view",
+          displayId: selected,
+          ...next,
+        });
+      }
     });
   }
 
   function onDirectMouseDown(event: ReactMouseEvent<HTMLDivElement>) {
     const button = directMouseButton(event.button);
     const point = pointFromDirectSurface(event.clientX, event.clientY);
-    if (!button || !point) {return;}
+    if (!button || !point) {
+      return;
+    }
     event.preventDefault();
     lastDirectPointRef.current = point;
     if (!heldDirectButtonsRef.current.has(button)) {
@@ -170,9 +272,12 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
 
   function onDirectMouseUp(event: ReactMouseEvent<HTMLDivElement>) {
     const button = directMouseButton(event.button);
-    if (!button || !heldDirectButtonsRef.current.has(button)) {return;}
+    if (!button || !heldDirectButtonsRef.current.has(button)) {
+      return;
+    }
     event.preventDefault();
-    const point = pointFromDirectSurface(event.clientX, event.clientY, true) ?? lastDirectPointRef.current;
+    const point =
+      pointFromDirectSurface(event.clientX, event.clientY, true) ?? lastDirectPointRef.current;
     lastDirectPointRef.current = point;
     sendDirectButton(button, "up", point);
     heldDirectButtonsRef.current.delete(button);
@@ -180,7 +285,9 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
 
   function onDirectWheel(event: ReactWheelEvent<HTMLDivElement>) {
     const point = pointFromDirectSurface(event.clientX, event.clientY);
-    if (!point || !selected) {return;}
+    if (!point || !selected) {
+      return;
+    }
     event.preventDefault();
     lastDirectPointRef.current = point;
     const scale = event.deltaMode === 0 ? 1 / 12 : event.deltaMode === 1 ? 3 : 20;
@@ -189,15 +296,30 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
     const dx = Math.trunc(accumulatedX);
     const dy = Math.trunc(accumulatedY);
     directWheelRemainderRef.current = { dx: accumulatedX - dx, dy: accumulatedY - dy };
-    if (dx !== 0 || dy !== 0) {send({ type: "screen.pointer.wheel", inputContext: "screen-view", displayId: selected, ...point, dx, dy });}
+    if (dx !== 0 || dy !== 0) {
+      send({
+        type: "screen.pointer.wheel",
+        inputContext: "screen-view",
+        displayId: selected,
+        ...point,
+        dx,
+        dy,
+      });
+    }
   }
 
   function onDirectContextMenu(event: ReactMouseEvent<HTMLDivElement>) {
-    if (!directPointerActiveRef.current) {return;}
+    if (!directPointerActiveRef.current) {
+      return;
+    }
     event.preventDefault();
-    if (event.button === 2) {return;}
+    if (event.button === 2) {
+      return;
+    }
     const point = pointFromDirectSurface(event.clientX, event.clientY);
-    if (!point) {return;}
+    if (!point) {
+      return;
+    }
     lastDirectPointRef.current = point;
     sendDirectButton("right", "down", point);
     sendDirectButton("right", "up", point);
@@ -209,7 +331,9 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
 
   useEffect(() => {
     const stage = stageRef.current;
-    if (!stage || typeof ResizeObserver === "undefined") {return;}
+    if (!stage || typeof ResizeObserver === "undefined") {
+      return;
+    }
     let width = stage.clientWidth;
     let height = stage.clientHeight;
     const observer = new ResizeObserver(() => {
@@ -227,24 +351,33 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   }, []);
 
   useEffect(() => {
-    if (hasFinePointer && capability.directPointer?.permissionGranted === true && viewing) {return;}
+    if (hasFinePointer && capability.directPointer?.permissionGranted === true && viewing) {
+      return;
+    }
     const frame = requestAnimationFrame(disableDirectPointerEffect);
     return () => cancelAnimationFrame(frame);
   }, [capability.directPointer?.permissionGranted, hasFinePointer, viewing]);
 
   useEffect(() => {
-    if (!directPointerActive) {return;}
+    if (!directPointerActive) {
+      return;
+    }
     const onKeyDown = (event: KeyboardEvent) => {
       const message = screenKeyboardMessage(event);
-      if (!message) {return;}
+      if (!message) {
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       send({ ...message, inputContext: "screen-view" });
     };
     const onMouseUp = (event: MouseEvent) => {
       const button = directMouseButton(event.button);
-      if (!button || !heldDirectButtonsRef.current.has(button)) {return;}
-      const point = pointFromDirectSurface(event.clientX, event.clientY, true) ?? lastDirectPointRef.current;
+      if (!button || !heldDirectButtonsRef.current.has(button)) {
+        return;
+      }
+      const point =
+        pointFromDirectSurface(event.clientX, event.clientY, true) ?? lastDirectPointRef.current;
       sendDirectButtonEffect(button, "up", point);
       heldDirectButtonsRef.current.delete(button);
     };
@@ -257,38 +390,68 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   }, [directPointerActive, selected, send]);
 
   function onScreenTouchStart(event: TouchEvent<HTMLDivElement>) {
-    if (!viewing) {event.preventDefault(); return;}
-    if (suppressPointerUntilClearRef.current) {event.preventDefault(); return;}
+    if (!viewing) {
+      event.preventDefault();
+      return;
+    }
+    if (suppressPointerUntilClearRef.current) {
+      event.preventDefault();
+      return;
+    }
     pointerInput.onTouchStart(event);
-    if (event.targetTouches.length !== 2 || !stageRef.current) {return;}
-    const bounds = stageRef.current.getBoundingClientRect();
-    const geometry = touchPairGeometry(event.targetTouches, bounds.left, bounds.top);
-    if (!geometry) {return;}
-    const local = twoFingerMode === "zoom";
-    pinchRef.current = { ...geometry, transform: viewTransformRef.current, mode: local ? "local" : "remote" };
-    if (local) {pointerInput.onTouchCancel(event);}
-  }
-
-  function onScreenTouchMove(event: TouchEvent<HTMLDivElement>) {
-    if (!viewing) {event.preventDefault(); return;}
-    const pinch = pinchRef.current;
-    if (!pinch || event.targetTouches.length < 2 || !stageRef.current) {
-      if (!suppressPointerUntilClearRef.current) {pointerInput.onTouchMove(event);} else {event.preventDefault();}
+    if (event.targetTouches.length !== 2 || !stageRef.current) {
       return;
     }
     const bounds = stageRef.current.getBoundingClientRect();
     const geometry = touchPairGeometry(event.targetTouches, bounds.left, bounds.top);
-    if (!geometry) {return;}
-    if (pinch.mode === "remote") {pointerInput.onTouchMove(event); return;}
+    if (!geometry) {
+      return;
+    }
+    const local = twoFingerMode === "zoom";
+    pinchRef.current = {
+      ...geometry,
+      transform: viewTransformRef.current,
+      mode: local ? "local" : "remote",
+    };
+    if (local) {
+      pointerInput.onTouchCancel(event);
+    }
+  }
+
+  function onScreenTouchMove(event: TouchEvent<HTMLDivElement>) {
+    if (!viewing) {
+      event.preventDefault();
+      return;
+    }
+    const pinch = pinchRef.current;
+    if (!pinch || event.targetTouches.length < 2 || !stageRef.current) {
+      if (!suppressPointerUntilClearRef.current) {
+        pointerInput.onTouchMove(event);
+      } else {
+        event.preventDefault();
+      }
+      return;
+    }
+    const bounds = stageRef.current.getBoundingClientRect();
+    const geometry = touchPairGeometry(event.targetTouches, bounds.left, bounds.top);
+    if (!geometry) {
+      return;
+    }
+    if (pinch.mode === "remote") {
+      pointerInput.onTouchMove(event);
+      return;
+    }
     event.preventDefault();
-    applyViewTransform(updateScreenViewPinch(
-      pinch,
-      geometry.distance,
-      geometry.midpointX,
-      geometry.midpointY,
-      stageRef.current.clientWidth,
-      stageRef.current.clientHeight
-    ));
+    applyViewTransform(
+      updateScreenViewPinch(
+        pinch,
+        geometry.distance,
+        geometry.midpointX,
+        geometry.midpointY,
+        stageRef.current.clientWidth,
+        stageRef.current.clientHeight,
+      ),
+    );
   }
 
   function onScreenTouchEnd(event: TouchEvent<HTMLDivElement>) {
@@ -325,21 +488,41 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   }
 
   function start(displayId = selected) {
-    if (!displayId || !activePc.hostIdentityPublicKey || capability.requiresRepair || !capability.canView || pendingOfferRef.current || blockingStopRef.current || peerRef.current) {return;}
-    if (typeof RTCPeerConnection === "undefined") {setStatus("This browser does not provide WebRTC screen playback."); return;}
+    if (
+      !displayId ||
+      !activePc.hostIdentityPublicKey ||
+      capability.requiresRepair ||
+      !capability.canView ||
+      pendingOfferRef.current ||
+      blockingStopRef.current ||
+      peerRef.current
+    ) {
+      return;
+    }
+    if (typeof RTCPeerConnection === "undefined") {
+      setStatus("This browser does not provide WebRTC screen playback.");
+      return;
+    }
     const operationId = createLocalId();
     const transcript = `VolturaAir screen-view:start:v2:${clientId}:${operationId}:${displayId}`;
     const signature = signClientPayload(clientId, activePc.id, transcript);
-    if (!signature) {setStatus("The reconnect key is unavailable. Pair this device again."); return;}
+    if (!signature) {
+      setStatus("The reconnect key is unavailable. Pair this device again.");
+      return;
+    }
     pendingOfferRef.current = { operationId, displayId };
     setStreaming(true);
     setStatus("Preparing encrypted WebRTC mirror...");
     send({ type: "screen.view.start", operationId, displayId, clientSignature: signature });
     window.clearTimeout(startResponseTimeoutRef.current);
     startResponseTimeoutRef.current = window.setTimeout(() => {
-      if (pendingOfferRef.current?.operationId !== operationId) {return;}
+      if (pendingOfferRef.current?.operationId !== operationId) {
+        return;
+      }
       pendingOfferRef.current = null;
-      cancelHostCapture("The PC did not respond to the screen-view request. Canceling the pending capture...");
+      cancelHostCapture(
+        "The PC did not respond to the screen-view request. Canceling the pending capture...",
+      );
     }, startResponseTimeoutMs);
   }
 
@@ -354,7 +537,10 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
 
   function selectSource(displayId: string) {
     disableDirectPointer();
-    if (!streaming) {setSelected(displayId); return;}
+    if (!streaming) {
+      setSelected(displayId);
+      return;
+    }
     const operationId = createLocalId();
     pendingSourceRef.current = { operationId, displayId, previousDisplayId: selected };
     setStatus("Switching display...");
@@ -379,10 +565,14 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
     }
     try {
       await video.play();
-      if (videoRef.current !== video || video.srcObject !== source || !peerRef.current) {return;}
+      if (videoRef.current !== video || video.srcObject !== source || !peerRef.current) {
+        return;
+      }
       setPlaybackBlocked(false);
     } catch (error) {
-      if (videoRef.current !== video || video.srcObject !== source || !peerRef.current) {return;}
+      if (videoRef.current !== video || video.srcObject !== source || !peerRef.current) {
+        return;
+      }
       if (error instanceof DOMException && error.name === "NotAllowedError") {
         setPlaybackBlocked(true);
         setStatus("Video is ready. Tap Show video to allow playback.");
@@ -395,35 +585,67 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
 
   async function acceptStart(message: ScreenViewStartResultMessage) {
     const pending = pendingOfferRef.current;
-    if (pending?.operationId !== message.operationId) {return;}
+    if (pending?.operationId !== message.operationId) {
+      return;
+    }
     pendingOfferRef.current = null;
     window.clearTimeout(startResponseTimeoutRef.current);
     startResponseTimeoutRef.current = undefined;
     if (message.displayId !== pending.displayId) {
-      if (message.succeeded) {cancelHostCapture("The PC returned a screen offer for the wrong display. Canceling the PC capture...");}
-      else {setStatus("The PC returned a mismatched screen-view response."); setStreaming(false);}
+      if (message.succeeded) {
+        cancelHostCapture(
+          "The PC returned a screen offer for the wrong display. Canceling the PC capture...",
+        );
+      } else {
+        setStatus("The PC returned a mismatched screen-view response.");
+        setStreaming(false);
+      }
       return;
     }
-    if (!message.succeeded || !message.offerSdp || !message.hostSignature || !activePc.hostIdentityPublicKey) {
-      if (message.succeeded) {cancelHostCapture(message.message);}
-      else {setStatus(message.message); setStreaming(false);}
+    if (
+      !message.succeeded ||
+      !message.offerSdp ||
+      !message.hostSignature ||
+      !activePc.hostIdentityPublicKey
+    ) {
+      if (message.succeeded) {
+        cancelHostCapture(message.message);
+      } else {
+        setStatus(message.message);
+        setStreaming(false);
+      }
       return;
     }
-    if (!/a=rtpmap:\d+ H264\/90000/i.test(message.offerSdp) || /^m=audio\s/im.test(message.offerSdp)) {
-      cancelHostCapture("The PC did not offer a video-only H.264 screen connection. Canceling the PC capture...");
+    if (
+      !/a=rtpmap:\d+ H264\/90000/i.test(message.offerSdp) ||
+      /^m=audio\s/im.test(message.offerSdp)
+    ) {
+      cancelHostCapture(
+        "The PC did not offer a video-only H.264 screen connection. Canceling the PC capture...",
+      );
       return;
     }
     const offerHash = hashScreenSdp(message.offerSdp);
     const hostTranscript = `VolturaAir screen-view:offer:v2:${clientId}:${message.operationId}:${pending.displayId}:${offerHash}`;
-    if (!verifyHostScreenSignature(activePc.hostIdentityPublicKey, message.hostSignature, hostTranscript)) {
-      cancelHostCapture("The PC identity signature was invalid. Canceling the PC capture; no pixels were rendered.");
+    if (
+      !verifyHostScreenSignature(
+        activePc.hostIdentityPublicKey,
+        message.hostSignature,
+        hostTranscript,
+      )
+    ) {
+      cancelHostCapture(
+        "The PC identity signature was invalid. Canceling the PC capture; no pixels were rendered.",
+      );
       return;
     }
     activeOperationRef.current = message.operationId;
 
     const relayMode = activePc.transportMode === "relay";
     if (relayMode && (!message.iceServers || message.iceServers.length === 0)) {
-      cancelHostCapture("TURN credentials were unavailable. Canceling the PC capture; commands remain connected.");
+      cancelHostCapture(
+        "TURN credentials were unavailable. Canceling the PC capture; commands remain connected.",
+      );
       return;
     }
     let peer: RTCPeerConnection;
@@ -432,52 +654,78 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
         iceServers: message.iceServers ?? [],
         iceTransportPolicy: relayMode ? "relay" : "all",
         bundlePolicy: "max-bundle",
-        rtcpMuxPolicy: "require"
+        rtcpMuxPolicy: "require",
       });
     } catch {
-      cancelHostCapture("This browser could not create the encrypted screen connection. Canceling the PC capture...");
+      cancelHostCapture(
+        "This browser could not create the encrypted screen connection. Canceling the PC capture...",
+      );
       return;
     }
     const negotiationGeneration = ++negotiationGenerationRef.current;
-    const isCurrentNegotiation = () => peerRef.current === peer && negotiationGenerationRef.current === negotiationGeneration;
+    const isCurrentNegotiation = () =>
+      peerRef.current === peer && negotiationGenerationRef.current === negotiationGeneration;
     let relayCandidateCount = 0;
     let lastIceErrorCode: number | null = null;
     peerRef.current = peer;
     startQualityMonitor(peer);
     peer.addEventListener("icecandidate", (event) => {
-      if (!isCurrentNegotiation()) {return;}
+      if (!isCurrentNegotiation()) {
+        return;
+      }
       if (isRelayCandidate(event.candidate)) {
         relayCandidateCount += 1;
       }
     });
     peer.addEventListener("icecandidateerror", (event) => {
-      if (!isCurrentNegotiation()) {return;}
+      if (!isCurrentNegotiation()) {
+        return;
+      }
       lastIceErrorCode = event.errorCode;
     });
     peer.addEventListener("track", (event) => {
-      if (!isCurrentNegotiation()) {return;}
-      if (event.track.kind !== "video" || !videoRef.current) {return;}
+      if (!isCurrentNegotiation()) {
+        return;
+      }
+      if (event.track.kind !== "video" || !videoRef.current) {
+        return;
+      }
       videoRef.current.srcObject = event.streams[0] ?? new MediaStream([event.track]);
       void playVideo();
     });
     peer.addEventListener("datachannel", (event) => {
-      if (!isCurrentNegotiation()) {event.channel.close(); return;}
-      if (event.channel.label !== "screen-events") {event.channel.close(); return;}
+      if (!isCurrentNegotiation()) {
+        event.channel.close();
+        return;
+      }
+      if (event.channel.label !== "screen-events") {
+        event.channel.close();
+        return;
+      }
       const channel = event.channel;
-      if (eventsRef.current) {channel.close(); return;}
+      if (eventsRef.current) {
+        channel.close();
+        return;
+      }
       eventsRef.current = channel;
       channel.binaryType = "arraybuffer";
       channel.addEventListener("message", (messageEvent) => {
-        if (!isCurrentNegotiation() || eventsRef.current !== channel) {return;}
+        if (!isCurrentNegotiation() || eventsRef.current !== channel) {
+          return;
+        }
         handleScreenEvent(messageEvent);
       });
     });
     peer.addEventListener("connectionstatechange", () => {
-      if (!isCurrentNegotiation()) {return;}
+      if (!isCurrentNegotiation()) {
+        return;
+      }
       if (peer.connectionState === "connected") {
         window.clearTimeout(disconnectedRecoveryRef.current);
         disconnectedRecoveryRef.current = undefined;
-        if (hasVisualFrameRef.current) {setViewing(true);}
+        if (hasVisualFrameRef.current) {
+          setViewing(true);
+        }
         setStatus("Live - Encrypted WebRTC");
       }
       if (peer.connectionState === "disconnected") {
@@ -501,41 +749,85 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
 
     try {
       await peer.setRemoteDescription({ type: "offer", sdp: message.offerSdp });
-      if (!isCurrentNegotiation()) {peer.close(); return;}
+      if (!isCurrentNegotiation()) {
+        peer.close();
+        return;
+      }
       const answer = await peer.createAnswer();
-      if (!isCurrentNegotiation()) {peer.close(); return;}
+      if (!isCurrentNegotiation()) {
+        peer.close();
+        return;
+      }
       await peer.setLocalDescription(answer);
-      if (!isCurrentNegotiation()) {peer.close(); return;}
+      if (!isCurrentNegotiation()) {
+        peer.close();
+        return;
+      }
       await waitForIceGathering(peer, relayMode);
-      if (!isCurrentNegotiation()) {peer.close(); return;}
+      if (!isCurrentNegotiation()) {
+        peer.close();
+        return;
+      }
       const answerSdp = peer.localDescription?.sdp;
-      if (!answerSdp || answerSdp.length > 32 * 1024 || !/a=rtpmap:\d+ H264\/90000/i.test(answerSdp) || /^m=audio\s/im.test(answerSdp)) {throw new Error("Invalid WebRTC answer.");}
-      if (relayMode && !hasOnlyRelayCandidates(answerSdp)) {throw new Error("The WebRTC answer did not contain relay-only candidates.");}
+      if (
+        !answerSdp ||
+        answerSdp.length > 32 * 1024 ||
+        !/a=rtpmap:\d+ H264\/90000/i.test(answerSdp) ||
+        /^m=audio\s/im.test(answerSdp)
+      ) {
+        throw new Error("Invalid WebRTC answer.");
+      }
+      if (relayMode && !hasOnlyRelayCandidates(answerSdp)) {
+        throw new Error("The WebRTC answer did not contain relay-only candidates.");
+      }
       const answerHash = hashScreenSdp(answerSdp);
       const answerTranscript = `VolturaAir screen-view:answer:v2:${clientId}:${message.operationId}:${pending.displayId}:${offerHash}:${answerHash}`;
       const clientSignature = signClientPayload(clientId, activePc.id, answerTranscript);
-      if (!clientSignature) {throw new Error("The reconnect key is unavailable.");}
+      if (!clientSignature) {
+        throw new Error("The reconnect key is unavailable.");
+      }
       pendingAnswerRef.current = message.operationId;
-      send({ type: "screen.view.answer", operationId: message.operationId, answerSdp, clientSignature });
+      send({
+        type: "screen.view.answer",
+        operationId: message.operationId,
+        answerSdp,
+        clientSignature,
+      });
       scheduleCredentialRenewal(message.turnExpiresAt, pending.displayId);
       setStatus("Connecting encrypted WebRTC mirror...");
     } catch (error) {
-      if (!isCurrentNegotiation()) {peer.close(); return;}
+      if (!isCurrentNegotiation()) {
+        peer.close();
+        return;
+      }
       if (error instanceof IceGatheringTimeoutError) {
-        cancelHostCapture(`Relay candidate gathering timed out (relay candidates: ${relayCandidateCount}, ICE error: ${lastIceErrorCode ?? "none"}). Canceling the PC capture...`);
+        cancelHostCapture(
+          `Relay candidate gathering timed out (relay candidates: ${relayCandidateCount}, ICE error: ${lastIceErrorCode ?? "none"}). Canceling the PC capture...`,
+        );
       } else {
-        cancelHostCapture("This browser could not negotiate the PC's H.264 WebRTC stream. Canceling the PC capture...");
+        cancelHostCapture(
+          "This browser could not negotiate the PC's H.264 WebRTC stream. Canceling the PC capture...",
+        );
       }
     }
   }
 
   function handleScreenEvent(event: MessageEvent) {
-    if (!(event.data instanceof ArrayBuffer)) {closeStream(); setStatus("The screen event channel sent invalid data."); return;}
+    if (!(event.data instanceof ArrayBuffer)) {
+      closeStream();
+      setStatus("The screen event channel sent invalid data.");
+      return;
+    }
     try {
       const record = parseScreenPlaintextRecord(new Uint8Array(event.data));
-      if (record.type === "cursor") {updateCursor(record);}
-      else if (record.type === "status") {closeStream(); setStatus(record.message);}
-      else {throw new Error("Unexpected screen event.");}
+      if (record.type === "cursor") {
+        updateCursor(record);
+      } else if (record.type === "status") {
+        closeStream();
+        setStatus(record.message);
+      } else {
+        throw new Error("Unexpected screen event.");
+      }
     } catch {
       closeStream();
       setStatus("The screen event channel sent invalid data.");
@@ -545,9 +837,15 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   function updateCursor(cursor: ScreenCursorRecord) {
     cursorStateRef.current = cursor;
     if (cursor.pngBytes) {
-      if (cursorUrlRef.current) {URL.revokeObjectURL(cursorUrlRef.current);}
-      cursorUrlRef.current = URL.createObjectURL(new Blob([Uint8Array.from(cursor.pngBytes).buffer], { type: "image/png" }));
-      if (cursorRef.current) {cursorRef.current.src = cursorUrlRef.current;}
+      if (cursorUrlRef.current) {
+        URL.revokeObjectURL(cursorUrlRef.current);
+      }
+      cursorUrlRef.current = URL.createObjectURL(
+        new Blob([Uint8Array.from(cursor.pngBytes).buffer], { type: "image/png" }),
+      );
+      if (cursorRef.current) {
+        cursorRef.current.src = cursorUrlRef.current;
+      }
     }
     positionCursor();
   }
@@ -559,7 +857,10 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
     const stage = stageRef.current;
     const surface = directPointerSurfaceRef.current;
     if (surface && video && stage && video.videoWidth > 0 && video.videoHeight > 0) {
-      const surfaceScale = Math.min(stage.clientWidth / video.videoWidth, stage.clientHeight / video.videoHeight);
+      const surfaceScale = Math.min(
+        stage.clientWidth / video.videoWidth,
+        stage.clientHeight / video.videoHeight,
+      );
       const surfaceWidth = video.videoWidth * surfaceScale;
       const surfaceHeight = video.videoHeight * surfaceScale;
       surface.style.left = `${(stage.clientWidth - surfaceWidth) / 2}px`;
@@ -567,16 +868,37 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
       surface.style.width = `${surfaceWidth}px`;
       surface.style.height = `${surfaceHeight}px`;
     }
-    if (!hasVisualFrameRef.current || !cursor || !image || !video || !stage || !cursor.visible || !image.src || video.videoWidth === 0 || video.videoHeight === 0) {
-      if (image) {image.hidden = true;}
+    if (
+      !hasVisualFrameRef.current ||
+      !cursor ||
+      !image ||
+      !video ||
+      !stage ||
+      !cursor.visible ||
+      !image.src ||
+      video.videoWidth === 0 ||
+      video.videoHeight === 0
+    ) {
+      if (image) {
+        image.hidden = true;
+      }
       return;
     }
-    const scale = Math.min(stage.clientWidth / video.videoWidth, stage.clientHeight / video.videoHeight);
+    const scale = Math.min(
+      stage.clientWidth / video.videoWidth,
+      stage.clientHeight / video.videoHeight,
+    );
     const renderedWidth = video.videoWidth * scale;
     const renderedHeight = video.videoHeight * scale;
     const renderedLeft = (stage.clientWidth - renderedWidth) / 2;
     const renderedTop = (stage.clientHeight - renderedHeight) / 2;
-    const cursorPosition = screenCursorImagePosition(cursor.x, cursor.y, renderedLeft, renderedTop, scale);
+    const cursorPosition = screenCursorImagePosition(
+      cursor.x,
+      cursor.y,
+      renderedLeft,
+      renderedTop,
+      scale,
+    );
     image.hidden = false;
     image.style.left = `${cursorPosition.left}px`;
     image.style.top = `${cursorPosition.top}px`;
@@ -612,14 +934,21 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
     const peer = peerRef.current;
     peerRef.current = null;
     peer?.close();
-    if (videoRef.current) {videoRef.current.srcObject = null;}
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
     setStreaming(false);
     setViewing(false);
     setPlaybackBlocked(false);
     hasVisualFrameRef.current = false;
     cursorStateRef.current = null;
-    if (cursorUrlRef.current) {URL.revokeObjectURL(cursorUrlRef.current); cursorUrlRef.current = null;}
-    if (cursorRef.current) {cursorRef.current.hidden = true;}
+    if (cursorUrlRef.current) {
+      URL.revokeObjectURL(cursorUrlRef.current);
+      cursorUrlRef.current = null;
+    }
+    if (cursorRef.current) {
+      cursorRef.current.hidden = true;
+    }
   }
 
   function startQualityMonitor(peer: RTCPeerConnection) {
@@ -627,11 +956,22 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
     stopQualityMonitorRef.current = null;
     qualitySampleRef.current = null;
     setQualityText("");
-    if (typeof peer.getStats !== "function") {return;}
+    if (typeof peer.getStats !== "function") {
+      return;
+    }
     stopQualityMonitorRef.current = startScreenViewQualityMonitor(peer, (report) => {
-      if (peerRef.current !== peer) {return;}
-      const result = screenViewQualityFromStats(report, videoRef.current, qualitySampleRef.current, performance.now());
-      if (!result || peerRef.current !== peer) {return;}
+      if (peerRef.current !== peer) {
+        return;
+      }
+      const result = screenViewQualityFromStats(
+        report,
+        videoRef.current,
+        qualitySampleRef.current,
+        performance.now(),
+      );
+      if (!result || peerRef.current !== peer) {
+        return;
+      }
       qualitySampleRef.current = result.sample;
       setQualityText(result.text);
       const operationId = activeOperationRef.current;
@@ -644,9 +984,13 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   function scheduleCredentialRenewal(expiresAt: string | null | undefined, displayId: string) {
     window.clearTimeout(credentialRenewalRef.current);
     credentialRenewalRef.current = undefined;
-    if (activePc.transportMode !== "relay" || !expiresAt) {return;}
+    if (activePc.transportMode !== "relay" || !expiresAt) {
+      return;
+    }
     const expires = Date.parse(expiresAt);
-    if (!Number.isFinite(expires)) {return;}
+    if (!Number.isFinite(expires)) {
+      return;
+    }
     const delay = Math.max(0, expires - Date.now() - 60_000);
     credentialRenewalRef.current = window.setTimeout(() => {
       send({ type: "screen.view.stop", operationId: createLocalId() });
@@ -656,55 +1000,84 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
     }, delay);
   }
 
-  const onControlResult = useEffectEvent((message: Parameters<Parameters<typeof subscribeScreenViewResults>[0]>[0]) => {
-    if (message.type === "screen.view.sources.result") {
-      if (message.operationId !== sourcesRequestRef.current) {return;}
-      sourcesRequestRef.current = null;
-      if (!message.succeeded) {setStatus(message.message); return;}
-      if (new Set(message.sources.map((source) => source.id)).size !== message.sources.length) {
-        setStatus("The PC returned an invalid display list.");
-        return;
-      }
-      setSources(message.sources);
-      const preferredSource = message.sources.find((source) => source.isPrimary) ?? message.sources[0];
-      setSelected((current) => current.length > 0 ? current : (preferredSource?.id ?? ""));
-      if (browserPreviewState) {setStatus("Live - Encrypted WebRTC"); return;}
-      if (message.sources.length === 0) {setStatus("No displays are available to mirror.");}
-      else if (message.sources.length === 1) {start(message.sources[0]!.id);}
-      else {setStatus("Choose the display you want to mirror.");}
-    } else if (message.type === "screen.view.start.result") {
-      void acceptStart(message);
-    } else if (message.type === "screen.view.answer.result") {
-      if (pendingAnswerRef.current !== message.operationId) {return;}
-      pendingAnswerRef.current = null;
-      if (!message.succeeded) {closeStream(); setStatus(message.message);}
-    } else if (message.type === "screen.view.source.result") {
-      const pending = pendingSourceRef.current;
-      if (pending?.operationId !== message.operationId || pending?.displayId !== message.displayId) {return;}
-      pendingSourceRef.current = null;
-      setSelected(message.succeeded ? pending.displayId : pending.previousDisplayId);
-      setStatus(message.message);
-    } else if (message.type === "screen.view.stop.result") {
-      if (pendingStopRef.current === message.operationId) {
-        const wasBlocking = blockingStopRef.current === message.operationId;
-        if (message.succeeded) {
-          pendingStopRef.current = null;
-          if (wasBlocking) {
-            blockingStopRef.current = null;
-            setStatus("The pending screen capture was stopped. Tap Start to try again.");
-          }
-        } else if (wasBlocking) {
-          setStatus("The PC could not confirm that screen capture stopped. Reconnect before trying again.");
+  const onControlResult = useEffectEvent(
+    (message: Parameters<Parameters<typeof subscribeScreenViewResults>[0]>[0]) => {
+      if (message.type === "screen.view.sources.result") {
+        if (message.operationId !== sourcesRequestRef.current) {
+          return;
         }
+        sourcesRequestRef.current = null;
+        if (!message.succeeded) {
+          setStatus(message.message);
+          return;
+        }
+        if (new Set(message.sources.map((source) => source.id)).size !== message.sources.length) {
+          setStatus("The PC returned an invalid display list.");
+          return;
+        }
+        setSources(message.sources);
+        const preferredSource =
+          message.sources.find((source) => source.isPrimary) ?? message.sources[0];
+        setSelected((current) => (current.length > 0 ? current : (preferredSource?.id ?? "")));
+        if (browserPreviewState) {
+          setStatus("Live - Encrypted WebRTC");
+          return;
+        }
+        if (message.sources.length === 0) {
+          setStatus("No displays are available to mirror.");
+        } else if (message.sources.length === 1) {
+          start(message.sources[0]!.id);
+        } else {
+          setStatus("Choose the display you want to mirror.");
+        }
+      } else if (message.type === "screen.view.start.result") {
+        void acceptStart(message);
+      } else if (message.type === "screen.view.answer.result") {
+        if (pendingAnswerRef.current !== message.operationId) {
+          return;
+        }
+        pendingAnswerRef.current = null;
+        if (!message.succeeded) {
+          closeStream();
+          setStatus(message.message);
+        }
+      } else if (message.type === "screen.view.source.result") {
+        const pending = pendingSourceRef.current;
+        if (
+          pending?.operationId !== message.operationId ||
+          pending?.displayId !== message.displayId
+        ) {
+          return;
+        }
+        pendingSourceRef.current = null;
+        setSelected(message.succeeded ? pending.displayId : pending.previousDisplayId);
+        setStatus(message.message);
+      } else if (message.type === "screen.view.stop.result") {
+        if (pendingStopRef.current === message.operationId) {
+          const wasBlocking = blockingStopRef.current === message.operationId;
+          if (message.succeeded) {
+            pendingStopRef.current = null;
+            if (wasBlocking) {
+              blockingStopRef.current = null;
+              setStatus("The pending screen capture was stopped. Tap Start to try again.");
+            }
+          } else if (wasBlocking) {
+            setStatus(
+              "The PC could not confirm that screen capture stopped. Reconnect before trying again.",
+            );
+          }
+        }
+      } else if (message.type === "screen.view.ended") {
+        if (activeOperationRef.current !== message.operationId) {
+          return;
+        }
+        pendingStopRef.current = null;
+        blockingStopRef.current = null;
+        closeStream();
+        setStatus(message.message);
       }
-    } else if (message.type === "screen.view.ended") {
-      if (activeOperationRef.current !== message.operationId) {return;}
-      pendingStopRef.current = null;
-      blockingStopRef.current = null;
-      closeStream();
-      setStatus(message.message);
-    }
-  });
+    },
+  );
   const stopLocalStream = useEffectEvent(closeStream);
 
   useEffect(() => {
@@ -723,121 +1096,285 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   }, [activePc.id, capability.canView, send, state]);
 
   useEffect(() => {
-    if (browserPreviewState) {return;}
-    if (state !== "paired" || !capability.canView) {stopLocalStream();}
-    return () => {stopLocalStream();};
+    if (browserPreviewState) {
+      return;
+    }
+    if (state !== "paired" || !capability.canView) {
+      stopLocalStream();
+    }
+    return () => {
+      stopLocalStream();
+    };
   }, [activePc.id, browserPreviewState, capability.canView, state]);
 
-  useEffect(() => () => {
-    if (browserPreviewState) {return;}
-    send({ type: "screen.view.stop", operationId: createLocalId() });
-    stopLocalStream();
-  }, [browserPreviewState, send]);
+  useEffect(
+    () => () => {
+      if (browserPreviewState) {
+        return;
+      }
+      send({ type: "screen.view.stop", operationId: createLocalId() });
+      stopLocalStream();
+    },
+    [browserPreviewState, send],
+  );
 
-  return <section ref={workspaceRef} className={`screen-view-workspace${immersive ? " is-immersive" : ""}`}>
-    <header className="screen-view-header">
-      <button type="button" className="screen-view-icon-button" onClick={onBack} aria-label="Back"><ChevronLeft /></button>
-      <div><span className="screen-view-eyebrow">SCREEN</span><strong>Live mirror</strong></div>
-      <span className={`screen-view-live-pill${viewing ? " active" : ""}`}>{viewing ? "LIVE" : streaming ? "WAITING" : "READY"}</span>
-    </header>
-    <div ref={stageRef} className="screen-view-stage" tabIndex={-1} onTouchStart={onScreenTouchStart} onTouchMove={onScreenTouchMove} onTouchEnd={onScreenTouchEnd} onTouchCancel={onScreenTouchCancel}>
-      {viewing && <button
-        type="button"
-        className="screen-view-fullscreen-toggle"
-        onTouchStart={stopScreenGesture}
-        onTouchMove={stopScreenGesture}
-        onTouchEnd={stopScreenGesture}
-        onTouchCancel={stopScreenGesture}
-        onClick={() => {if (immersive) {void exitImmersive();} else {void enterImmersive();}}}
-        aria-label={immersive ? "Exit full screen" : "View PC screen full screen"}
-        title={immersive ? "Exit full screen" : "View full screen"}
-      >{immersive ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}</button>}
-      {viewing && <div className="screen-view-overlay-actions">
+  return (
+    <section
+      ref={workspaceRef}
+      className={`screen-view-workspace${immersive ? " is-immersive" : ""}`}
+    >
+      <header className="screen-view-header">
         <button
           type="button"
-          className="screen-view-two-finger-mode"
-          onTouchStart={stopScreenGesture}
-          onTouchMove={stopScreenGesture}
-          onTouchEnd={stopScreenGesture}
-          onTouchCancel={stopScreenGesture}
-          onClick={() => {setTwoFingerMode(twoFingerMode === "zoom" ? "scroll" : "zoom");}}
-          aria-label={`Two-finger mode: ${twoFingerMode === "scroll" ? "Scroll" : "Zoom"}. Switch to ${twoFingerMode === "scroll" ? "Zoom" : "Scroll"}`}
-        >{twoFingerMode === "scroll" ? "Scroll" : "Zoom"}</button>
-        {capability.directPointer && hasFinePointer && <button
-          ref={directPointerButtonRef}
-          type="button"
-          className={`screen-view-mouse-mode${directPointerActive ? " active" : ""}`}
-          aria-label="Mouse and keyboard control"
-          aria-pressed={directPointerActive}
-          aria-disabled={!capability.directPointer.permissionGranted}
-          title={capability.directPointer.permissionGranted ? "Control the mirrored PC with this mouse and keyboard" : "Allow Pointer and keyboard for this device on the PC"}
-          onClick={() => {
-            if (!capability.directPointer?.permissionGranted) {setStatus("Allow Pointer and keyboard for this device in PC permissions."); return;}
-            if (directPointerActiveRef.current) {disableDirectPointer();} else {enableDirectPointer();}
-          }}
-        ><Mouse aria-hidden="true" /><Keyboard aria-hidden="true" /></button>}
-        <AnchoredHint anchorRef={directPointerButtonRef} open={directPointerGuidance} preferredPlacement="above-start">
-          Mouse and keyboard control the PC. Select this button to stop.
-        </AnchoredHint>
-      </div>}
-      <div className={`screen-view-content${viewTransform.scale > 1.01 ? " zoomed" : ""}`} style={viewTransform.scale > 1.01 ? { transform: `translate3d(${viewTransform.x}px, ${viewTransform.y}px, 0) scale(${viewTransform.scale})` } : undefined}>
-        <video
-          ref={videoRef}
-          className="screen-view-video"
-          aria-label="Mirrored PC display video"
-          autoPlay
-          muted
-          playsInline
-          onLoadedData={() => {hasVisualFrameRef.current = true; setViewing(true); setPlaybackBlocked(false); setStatus("Live - Encrypted WebRTC"); requestAnimationFrame(positionCursor);}}
-          onPlaying={() => {hasVisualFrameRef.current = true; setViewing(true); setPlaybackBlocked(false); setStatus("Live - Encrypted WebRTC");}}
-        />
-        <img ref={cursorRef} className="screen-view-cursor" alt="" hidden />
+          className="screen-view-icon-button"
+          onClick={onBack}
+          aria-label="Back"
+        >
+          <ChevronLeft />
+        </button>
+        <div>
+          <span className="screen-view-eyebrow">SCREEN</span>
+          <strong>Live mirror</strong>
+        </div>
+        <span className={`screen-view-live-pill${viewing ? " active" : ""}`}>
+          {viewing ? "LIVE" : streaming ? "WAITING" : "READY"}
+        </span>
+      </header>
+      <div
+        ref={stageRef}
+        className="screen-view-stage"
+        tabIndex={-1}
+        onTouchStart={onScreenTouchStart}
+        onTouchMove={onScreenTouchMove}
+        onTouchEnd={onScreenTouchEnd}
+        onTouchCancel={onScreenTouchCancel}
+      >
+        {viewing && (
+          <button
+            type="button"
+            className="screen-view-fullscreen-toggle"
+            onTouchStart={stopScreenGesture}
+            onTouchMove={stopScreenGesture}
+            onTouchEnd={stopScreenGesture}
+            onTouchCancel={stopScreenGesture}
+            onClick={() => {
+              if (immersive) {
+                void exitImmersive();
+              } else {
+                void enterImmersive();
+              }
+            }}
+            aria-label={immersive ? "Exit full screen" : "View PC screen full screen"}
+            title={immersive ? "Exit full screen" : "View full screen"}
+          >
+            {immersive ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
+          </button>
+        )}
+        {viewing && (
+          <div className="screen-view-overlay-actions">
+            <button
+              type="button"
+              className="screen-view-two-finger-mode"
+              onTouchStart={stopScreenGesture}
+              onTouchMove={stopScreenGesture}
+              onTouchEnd={stopScreenGesture}
+              onTouchCancel={stopScreenGesture}
+              onClick={() => {
+                setTwoFingerMode(twoFingerMode === "zoom" ? "scroll" : "zoom");
+              }}
+              aria-label={`Two-finger mode: ${twoFingerMode === "scroll" ? "Scroll" : "Zoom"}. Switch to ${twoFingerMode === "scroll" ? "Zoom" : "Scroll"}`}
+            >
+              {twoFingerMode === "scroll" ? "Scroll" : "Zoom"}
+            </button>
+            {capability.directPointer && hasFinePointer && (
+              <button
+                ref={directPointerButtonRef}
+                type="button"
+                className={`screen-view-mouse-mode${directPointerActive ? " active" : ""}`}
+                aria-label="Mouse and keyboard control"
+                aria-pressed={directPointerActive}
+                aria-disabled={!capability.directPointer.permissionGranted}
+                title={
+                  capability.directPointer.permissionGranted
+                    ? "Control the mirrored PC with this mouse and keyboard"
+                    : "Allow Pointer and keyboard for this device on the PC"
+                }
+                onClick={() => {
+                  if (!capability.directPointer?.permissionGranted) {
+                    setStatus("Allow Pointer and keyboard for this device in PC permissions.");
+                    return;
+                  }
+                  if (directPointerActiveRef.current) {
+                    disableDirectPointer();
+                  } else {
+                    enableDirectPointer();
+                  }
+                }}
+              >
+                <Mouse aria-hidden="true" />
+                <Keyboard aria-hidden="true" />
+              </button>
+            )}
+            <AnchoredHint
+              anchorRef={directPointerButtonRef}
+              open={directPointerGuidance}
+              preferredPlacement="above-start"
+            >
+              Mouse and keyboard control the PC. Select this button to stop.
+            </AnchoredHint>
+          </div>
+        )}
         <div
-          ref={directPointerSurfaceRef}
-          className={`screen-view-direct-pointer${directPointerActive ? " active" : ""}`}
-          onMouseMove={onDirectMouseMove}
-          onMouseDown={onDirectMouseDown}
-          onMouseUp={onDirectMouseUp}
-          onMouseLeave={(event) => releaseDirectButtons(pointFromDirectSurface(event.clientX, event.clientY, true) ?? lastDirectPointRef.current)}
-          onWheel={onDirectWheel}
-          onContextMenu={onDirectContextMenu}
-          aria-hidden="true"
-        />
-        {!viewing && !playbackBlocked && <div className="screen-view-placeholder"><MonitorUp /><strong>Your PC display appears here</strong><span>Video only. Touch gestures remain relative.</span></div>}
+          className={`screen-view-content${viewTransform.scale > 1.01 ? " zoomed" : ""}`}
+          style={
+            viewTransform.scale > 1.01
+              ? {
+                  transform: `translate3d(${viewTransform.x}px, ${viewTransform.y}px, 0) scale(${viewTransform.scale})`,
+                }
+              : undefined
+          }
+        >
+          <video
+            ref={videoRef}
+            className="screen-view-video"
+            aria-label="Mirrored PC display video"
+            autoPlay
+            muted
+            playsInline
+            onLoadedData={() => {
+              hasVisualFrameRef.current = true;
+              setViewing(true);
+              setPlaybackBlocked(false);
+              setStatus("Live - Encrypted WebRTC");
+              requestAnimationFrame(positionCursor);
+            }}
+            onPlaying={() => {
+              hasVisualFrameRef.current = true;
+              setViewing(true);
+              setPlaybackBlocked(false);
+              setStatus("Live - Encrypted WebRTC");
+            }}
+          />
+          <img ref={cursorRef} className="screen-view-cursor" alt="" hidden />
+          <div
+            ref={directPointerSurfaceRef}
+            className={`screen-view-direct-pointer${directPointerActive ? " active" : ""}`}
+            onMouseMove={onDirectMouseMove}
+            onMouseDown={onDirectMouseDown}
+            onMouseUp={onDirectMouseUp}
+            onMouseLeave={(event) =>
+              releaseDirectButtons(
+                pointFromDirectSurface(event.clientX, event.clientY, true) ??
+                  lastDirectPointRef.current,
+              )
+            }
+            onWheel={onDirectWheel}
+            onContextMenu={onDirectContextMenu}
+            aria-hidden="true"
+          />
+          {!viewing && !playbackBlocked && (
+            <div className="screen-view-placeholder">
+              <MonitorUp />
+              <strong>Your PC display appears here</strong>
+              <span>Video only. Touch gestures remain relative.</span>
+            </div>
+          )}
+        </div>
+        {playbackBlocked && (
+          <button
+            type="button"
+            className="screen-view-playback-button"
+            onTouchStart={stopScreenGesture}
+            onTouchMove={stopScreenGesture}
+            onTouchEnd={stopScreenGesture}
+            onTouchCancel={stopScreenGesture}
+            onClick={() => {
+              void playVideo();
+            }}
+          >
+            <Play aria-hidden="true" /> Show video
+          </button>
+        )}
+        {viewTransform.scale > 1.01 && (
+          <button
+            type="button"
+            className="screen-view-zoom-reset"
+            onTouchStart={stopScreenGesture}
+            onTouchMove={stopScreenGesture}
+            onTouchEnd={stopScreenGesture}
+            onTouchCancel={stopScreenGesture}
+            onClick={() => {
+              applyViewTransform(identityScreenViewTransform);
+              setTwoFingerMode("scroll");
+            }}
+            aria-label="Reset screen zoom"
+          >
+            {viewTransform.scale.toFixed(1)}×
+          </button>
+        )}
       </div>
-      {playbackBlocked && <button
-        type="button"
-        className="screen-view-playback-button"
-        onTouchStart={stopScreenGesture}
-        onTouchMove={stopScreenGesture}
-        onTouchEnd={stopScreenGesture}
-        onTouchCancel={stopScreenGesture}
-        onClick={() => {void playVideo();}}
-      ><Play aria-hidden="true" /> Show video</button>}
-      {viewTransform.scale > 1.01 && <button
-        type="button"
-        className="screen-view-zoom-reset"
-        onTouchStart={stopScreenGesture}
-        onTouchMove={stopScreenGesture}
-        onTouchEnd={stopScreenGesture}
-        onTouchCancel={stopScreenGesture}
-        onClick={() => {applyViewTransform(identityScreenViewTransform); setTwoFingerMode("scroll");}}
-        aria-label="Reset screen zoom"
-      >{viewTransform.scale.toFixed(1)}×</button>}
-    </div>
-    <div className="screen-view-controls">
-      {sources.length > 1 && <label>Display<select value={selected} onChange={(event) => selectSource(event.target.value)}>{sources.map((source) => <option key={source.id} value={source.id}>{source.label} - {source.width}x{source.height}</option>)}</select></label>}
-      <div className="screen-view-status-block">
-        <p role="status">{status}</p>
-        {qualityText && <p className="screen-view-quality" aria-hidden="true">{qualityText}</p>}
+      <div className="screen-view-controls">
+        {sources.length > 1 && (
+          <label>
+            Display
+            <select value={selected} onChange={(event) => selectSource(event.target.value)}>
+              {sources.map((source) => (
+                <option key={source.id} value={source.id}>
+                  {source.label} - {source.width}x{source.height}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <div className="screen-view-status-block">
+          <p role="status">{status}</p>
+          {qualityText && (
+            <p className="screen-view-quality" aria-hidden="true">
+              {qualityText}
+            </p>
+          )}
+        </div>
+        <div className="screen-view-actions">
+          <button
+            type="button"
+            disabled={!viewing}
+            onClick={() =>
+              send({
+                type: "pointer.button",
+                inputContext: "screen-view",
+                button: "left",
+                action: "click",
+              })
+            }
+          >
+            <MousePointer2 /> Click
+          </button>
+          <button type="button" disabled={!viewing} onClick={onOpenKeyboard}>
+            <Keyboard /> Keys
+          </button>
+          {streaming ? (
+            <button type="button" className="danger" onClick={stop}>
+              <Square /> Stop
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="primary"
+              disabled={
+                !selected ||
+                !capability.canView ||
+                capability.requiresRepair ||
+                blockingStopRef.current !== null
+              }
+              onClick={() => start()}
+            >
+              <MonitorUp /> Start
+            </button>
+          )}
+        </div>
       </div>
-      <div className="screen-view-actions">
-        <button type="button" disabled={!viewing} onClick={() => send({ type: "pointer.button", inputContext: "screen-view", button: "left", action: "click" })}><MousePointer2 /> Click</button>
-        <button type="button" disabled={!viewing} onClick={onOpenKeyboard}><Keyboard /> Keys</button>
-        {streaming ? <button type="button" className="danger" onClick={stop}><Square /> Stop</button> : <button type="button" className="primary" disabled={!selected || !capability.canView || capability.requiresRepair || blockingStopRef.current !== null} onClick={() => start()}><MonitorUp /> Start</button>}
-      </div>
-    </div>
-  </section>;
+    </section>
+  );
 }
 
 function stopScreenGesture(event: TouchEvent<HTMLElement>) {
@@ -850,9 +1387,13 @@ function directMouseButton(button: number): "left" | "right" | null {
 
 function useFineHoverPointer() {
   const query = "(any-pointer: fine) and (any-hover: hover)";
-  const [matches, setMatches] = useState(() => typeof window.matchMedia === "function" && window.matchMedia(query).matches);
+  const [matches, setMatches] = useState(
+    () => typeof window.matchMedia === "function" && window.matchMedia(query).matches,
+  );
   useEffect(() => {
-    if (typeof window.matchMedia !== "function") {return;}
+    if (typeof window.matchMedia !== "function") {
+      return;
+    }
     const media = window.matchMedia(query);
     const update = () => setMatches(media.matches);
     update();

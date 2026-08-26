@@ -1,7 +1,10 @@
 import { getPcDisplayName } from "../pairing/pcDisplayName";
 import { getWebSocketUrl, type PcProfile } from "../connection/pcProfiles";
 import type { HostStatusMetadata } from "../protocol/messages";
-import { canWriteTextToDeviceClipboard, writeTextToDeviceClipboard } from "../platform/deviceClipboard";
+import {
+  canWriteTextToDeviceClipboard,
+  writeTextToDeviceClipboard,
+} from "../platform/deviceClipboard";
 
 interface MobileDiagnosticsInput {
   activePc: PcProfile | null;
@@ -13,22 +16,44 @@ interface MobileDiagnosticsInput {
   hostStatus?: HostStatusMetadata | null;
 }
 
-const sensitiveQueryKeys = new Set(["t", "token", "pairtoken", "pair-token", "secret", "secrethash", "secret-hash", "hash", "d", "device", "deviceid", "device-id"]);
+const sensitiveQueryKeys = new Set([
+  "t",
+  "token",
+  "pairtoken",
+  "pair-token",
+  "secret",
+  "secrethash",
+  "secret-hash",
+  "hash",
+  "d",
+  "device",
+  "deviceid",
+  "device-id",
+]);
 const sensitiveObjectKeyPattern = /(token|secret|hash|clientid|client-id|deviceid|device-id)/i;
 
 export function buildMobileDiagnostics(input: MobileDiagnosticsInput): string {
   const activePcUrl = parseUrl(input.activePc?.url ?? null);
   const usesSecureDirect = input.activePc?.transportMode === "secure-direct";
-  const fallbackWebSocketUrl = input.activePc && !usesSecureDirect ? getWebSocketUrl(input.activePc) : null;
-  const currentWebSocketUrl = usesSecureDirect ? null : input.hostStatus?.webSocketUrl ?? fallbackWebSocketUrl;
+  const fallbackWebSocketUrl =
+    input.activePc && !usesSecureDirect ? getWebSocketUrl(input.activePc) : null;
+  const currentWebSocketUrl = usesSecureDirect
+    ? null
+    : (input.hostStatus?.webSocketUrl ?? fallbackWebSocketUrl);
   const diagnostics = redactSensitiveValues({
     product: "Voltura Air",
     hostVersion: input.hostStatus?.hostVersion ?? null,
     webClientVersion: __APP_VERSION__,
     pcName: input.hostStatus?.pcName ?? (input.activePc ? getPcDisplayName(input.activePc) : null),
     selectedAdapterName: input.hostStatus?.selectedAdapterName ?? null,
-    selectedIp: input.hostStatus?.selectedIp ?? (usesSecureDirect ? null : activePcUrl?.hostname ?? null),
-    selectedPort: usesSecureDirect ? null : input.hostStatus?.selectedPort ?? (activePcUrl?.port ? Number.parseInt(activePcUrl.port, 10) : defaultPortForProtocol(activePcUrl?.protocol)),
+    selectedIp:
+      input.hostStatus?.selectedIp ?? (usesSecureDirect ? null : (activePcUrl?.hostname ?? null)),
+    selectedPort: usesSecureDirect
+      ? null
+      : (input.hostStatus?.selectedPort ??
+        (activePcUrl?.port
+          ? Number.parseInt(activePcUrl.port, 10)
+          : defaultPortForProtocol(activePcUrl?.protocol))),
     activePcUrl: activePcUrl ? sanitizeUrl(activePcUrl.toString()) : null,
     currentWebSocketUrl: currentWebSocketUrl ? sanitizeUrl(currentWebSocketUrl) : null,
     pairingState: input.connectionState,
@@ -38,12 +63,11 @@ export function buildMobileDiagnostics(input: MobileDiagnosticsInput): string {
     browserUserAgent: navigator.userAgent,
     pageUrl: sanitizeUrl(safeLocationHref()),
     displayMode: getDisplayMode(),
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 
   return JSON.stringify(diagnostics, null, 2);
 }
-
 
 export async function copyTextToClipboard(value: string): Promise<"copied" | "manual"> {
   if (canWriteTextToDeviceClipboard()) {
@@ -70,7 +94,9 @@ export function canCopyTextToClipboard(): boolean {
   }
 
   try {
-    return typeof document.queryCommandSupported !== "function" || document.queryCommandSupported("copy");
+    return (
+      typeof document.queryCommandSupported !== "function" || document.queryCommandSupported("copy")
+    );
   } catch {
     return false;
   }
@@ -153,7 +179,10 @@ function safeLocationHref(): string {
 }
 
 function getDisplayMode(): "browser" | "installed" | "unknown" {
-  if (window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true) {
+  if (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true
+  ) {
     return "installed";
   }
 
@@ -182,7 +211,12 @@ function redactSensitiveValues(value: unknown, key = ""): unknown {
   }
 
   if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([entryKey, entryValue]) => [entryKey, redactSensitiveValues(entryValue, entryKey)]));
+    return Object.fromEntries(
+      Object.entries(value).map(([entryKey, entryValue]) => [
+        entryKey,
+        redactSensitiveValues(entryValue, entryKey),
+      ]),
+    );
   }
 
   return value;
@@ -191,5 +225,8 @@ function redactSensitiveValues(value: unknown, key = ""): unknown {
 function redactSensitiveText(value: string): string {
   return value
     .replace(/([?&](?:t|token|pairToken|secret|secretHash|hash|d)=)[^&#]+/gi, "$1[redacted]")
-    .replace(/("(?:pairToken|token|secret|secretHash|hash|clientId|deviceId)"\s*:\s*")[^"]+(")/gi, "$1[redacted]$2");
+    .replace(
+      /("(?:pairToken|token|secret|secretHash|hash|clientId|deviceId)"\s*:\s*")[^"]+(")/gi,
+      "$1[redacted]$2",
+    );
 }

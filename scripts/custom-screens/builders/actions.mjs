@@ -6,5 +6,10 @@ export const knownApp = (actionId) => ({ kind: "knownApp", actionId });
 export const hostAction = (actionId) => ({ kind: "hostAction", actionId });
 
 export const allowedPortableActionKinds = new Set([
-  "text", "shortcut", "builtIn", "urlOpen", "knownApp", "hostAction"
+  "text",
+  "shortcut",
+  "builtIn",
+  "urlOpen",
+  "knownApp",
+  "hostAction",
 ]);

@@ -7,7 +7,7 @@ function createSender(bufferedAmount = 0) {
   const socket = {
     bufferedAmount,
     readyState: WebSocket.OPEN,
-    send: vi.fn()
+    send: vi.fn(),
   } as unknown as WebSocket;
   const reconnect = vi.fn();
   const rescheduleHealthCheck = vi.fn();
@@ -22,7 +22,7 @@ function createSender(bufferedAmount = 0) {
     socketRef: { current: socket },
     supportsInputAckRef: { current: true },
     supportsInputContextV1Ref: { current: true },
-    supportsVolumeControlRef: { current: false }
+    supportsVolumeControlRef: { current: false },
   };
   const hook = renderHook(() => useConnectionSender(options));
   return { hook, options, reconnect, rescheduleHealthCheck, socket };
@@ -36,18 +36,31 @@ describe("connection sender movement flow control", () => {
   it("includes input context only when the host advertises v1 support", () => {
     const supported = createSender();
     act(() => {
-      supported.hook.result.current.send({ type: "keyboard.text", text: "hello", inputContext: "dictation" });
+      supported.hook.result.current.send({
+        type: "keyboard.text",
+        text: "hello",
+        inputContext: "dictation",
+      });
     });
-    expect(JSON.parse(vi.mocked(supported.socket.send).mock.calls[0]![0] as string))
-      .toMatchObject({ type: "keyboard.text", inputContext: "dictation" });
+    expect(JSON.parse(vi.mocked(supported.socket.send).mock.calls[0]![0] as string)).toMatchObject({
+      type: "keyboard.text",
+      inputContext: "dictation",
+    });
 
     const legacy = createSender();
     legacy.options.supportsInputContextV1Ref.current = false;
     act(() => {
-      legacy.hook.result.current.send({ type: "keyboard.text", text: "hello", inputContext: "dictation" });
+      legacy.hook.result.current.send({
+        type: "keyboard.text",
+        text: "hello",
+        inputContext: "dictation",
+      });
     });
-    expect(JSON.parse(vi.mocked(legacy.socket.send).mock.calls[0]![0] as string))
-      .toEqual({ type: "keyboard.text", seq: 1, text: "hello" });
+    expect(JSON.parse(vi.mocked(legacy.socket.send).mock.calls[0]![0] as string)).toEqual({
+      type: "keyboard.text",
+      seq: 1,
+      text: "hello",
+    });
   });
 
   it("bounds movement queued behind an acknowledgement barrier", () => {
@@ -62,8 +75,14 @@ describe("connection sender movement flow control", () => {
     });
 
     expect(socket.send).toHaveBeenCalledTimes(5);
-    expect(JSON.parse(vi.mocked(socket.send).mock.calls[0]![0] as string)).toMatchObject({ type: "pointer.move", seq: 1 });
-    expect(options.pendingMovementAckRef.current).toEqual({ sequence: 1, followingMovementCount: 4 });
+    expect(JSON.parse(vi.mocked(socket.send).mock.calls[0]![0] as string)).toMatchObject({
+      type: "pointer.move",
+      seq: 1,
+    });
+    expect(options.pendingMovementAckRef.current).toEqual({
+      sequence: 1,
+      followingMovementCount: 4,
+    });
   });
 
   it("drops movement while the WebSocket send buffer is congested but preserves discrete input", () => {
@@ -76,7 +95,10 @@ describe("connection sender movement flow control", () => {
     });
 
     expect(socket.send).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(vi.mocked(socket.send).mock.calls[0]![0] as string)).toMatchObject({ type: "keyboard.special", key: "Enter" });
+    expect(JSON.parse(vi.mocked(socket.send).mock.calls[0]![0] as string)).toMatchObject({
+      type: "keyboard.special",
+      key: "Enter",
+    });
     expect(rescheduleHealthCheck).toHaveBeenCalledTimes(2);
   });
 

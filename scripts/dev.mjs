@@ -1,14 +1,19 @@
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { getMobileQuickBuildPaths, readGeneratedWebBuildId } from "./build-mobile-quick.mjs";
-import { readPreferredClientPort, stopChild, stopExistingHost, stopWindowsNodeListenersOnDevPorts } from "./dev-shared.mjs";
+import {
+  readPreferredClientPort,
+  stopChild,
+  stopExistingHost,
+  stopWindowsNodeListenersOnDevPorts,
+} from "./dev-shared.mjs";
 import { createDevProgress } from "./dev-progress.mjs";
 
 const clientPort = readPreferredClientPort();
 const quickStart = process.argv.includes("--quick");
 const childEnv = {
   ...process.env,
-  VOLTURA_AIR_CLIENT_PORT: String(clientPort)
+  VOLTURA_AIR_CLIENT_PORT: String(clientPort),
 };
 if (!quickStart) {
   childEnv.VOLTURA_AIR_WEB_BUILD_ID = process.env.VOLTURA_AIR_WEB_BUILD_ID?.trim() || randomUUID();
@@ -24,7 +29,10 @@ const quickProgress = quickStart ? createDevProgress({ totalSteps: 3 }) : null;
 const quickStartedAt = Date.now();
 
 if (quickStart) {
-  quickProgress.start("Building mobile client", "Building changed mobile sources without validation when needed.");
+  quickProgress.start(
+    "Building mobile client",
+    "Building changed mobile sources without validation when needed.",
+  );
   runCommand("npm", ["run", "build:quick", "--workspace", "apps/mobile-web"], childEnv);
   try {
     const { outputDirectory } = getMobileQuickBuildPaths(process.cwd(), childEnv);
@@ -38,21 +46,37 @@ if (quickStart) {
   runCommand("npm", ["run", "build", "--workspace", "apps/mobile-web"], childEnv);
 }
 if (quickStart) {
-  quickProgress.start("Preparing development ports", "Stopping stale Node listeners on the reserved development ports.");
+  quickProgress.start(
+    "Preparing development ports",
+    "Stopping stale Node listeners on the reserved development ports.",
+  );
 }
 stopWindowsNodeListenersOnDevPorts(clientPort, 20);
 if (quickStart) {
   quickProgress.complete();
 }
 if (!quickStart) {
-  persistentChildren.push(spawnCommand(
-    "node",
-    ["../../node_modules/vite/bin/vite.js", "--host", "0.0.0.0", "--strictPort", "--port", String(clientPort)],
-    childEnv,
-    { cwd: "apps/mobile-web" }));
+  persistentChildren.push(
+    spawnCommand(
+      "node",
+      [
+        "../../node_modules/vite/bin/vite.js",
+        "--host",
+        "0.0.0.0",
+        "--strictPort",
+        "--port",
+        String(clientPort),
+      ],
+      childEnv,
+      { cwd: "apps/mobile-web" },
+    ),
+  );
 }
 if (quickStart) {
-  quickProgress.start("Starting Windows host", "Building and launching the host with the freshly generated mobile client.");
+  quickProgress.start(
+    "Starting Windows host",
+    "Building and launching the host with the freshly generated mobile client.",
+  );
   childEnv.VOLTURA_AIR_DEV_TOTAL_STARTED_AT = String(quickStartedAt);
   childEnv.VOLTURA_AIR_DEV_HOST_STARTED_AT = String(Date.now());
 }
@@ -84,9 +108,14 @@ for (const child of persistentChildren) {
 
 function runCommand(command, args, env) {
   const commandLine = [command, ...args].join(" ");
-  const result = process.platform === "win32"
-    ? spawnSync("cmd.exe", ["/d", "/s", "/c", commandLine], { stdio: "inherit", env, windowsHide: false })
-    : spawnSync(command, args, { stdio: "inherit", env });
+  const result =
+    process.platform === "win32"
+      ? spawnSync("cmd.exe", ["/d", "/s", "/c", commandLine], {
+          stdio: "inherit",
+          env,
+          windowsHide: false,
+        })
+      : spawnSync(command, args, { stdio: "inherit", env });
 
   if (result.error) {
     console.error(`Failed to run ${commandLine}:`, result.error);
@@ -104,9 +133,15 @@ function runCommand(command, args, env) {
 
 function spawnCommand(command, args, env, options = {}) {
   const commandLine = [command, ...args].join(" ");
-  const child = process.platform === "win32"
-    ? spawn("cmd.exe", ["/d", "/s", "/c", commandLine], { stdio: "inherit", env, windowsHide: false, ...options })
-    : spawn(command, args, { stdio: "inherit", env, ...options });
+  const child =
+    process.platform === "win32"
+      ? spawn("cmd.exe", ["/d", "/s", "/c", commandLine], {
+          stdio: "inherit",
+          env,
+          windowsHide: false,
+          ...options,
+        })
+      : spawn(command, args, { stdio: "inherit", env, ...options });
 
   child.commandLine = commandLine;
   return child;

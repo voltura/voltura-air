@@ -10,12 +10,16 @@ test("repository toolchains are pinned to supported stable releases", () => {
   const dotnet = json("global.json");
   const dockerfile = read("services/relay/Dockerfile");
 
-  assert.equal(root.packageManager, "npm@11.18.0");
-  assert.deepEqual(root.engines, { node: ">=24.18.1 <25", npm: "11.18.0" });
-  assert.deepEqual(dotnet.sdk, { version: "10.0.400", rollForward: "latestPatch", allowPrerelease: false });
+  assert.equal(root.packageManager, "npm@11.19.0");
+  assert.deepEqual(root.engines, { node: ">=24.19.0 <25", npm: "11.19.0" });
+  assert.deepEqual(dotnet.sdk, {
+    version: "10.0.400",
+    rollForward: "latestPatch",
+    allowPrerelease: false,
+  });
   assert.match(read("scripts/check-toolchain.mjs"), /\[18, 9, 0\], "minimum"/u);
-  assert.match(dockerfile, /^FROM node:24\.18\.1-alpine@sha256:[a-f0-9]{64} AS build$/mu);
-  assert.match(dockerfile, /npm install --global npm@11\.18\.0/u);
+  assert.match(dockerfile, /^FROM node:24\.19\.0-alpine@sha256:[a-f0-9]{64} AS build$/mu);
+  assert.match(dockerfile, /npm install --global npm@11\.19\.0/u);
   assert.match(dockerfile, /npm ci --workspace/u);
 });
 
@@ -25,8 +29,9 @@ test("language toolchains retain their intentional compatibility boundaries", ()
   const compatibility = json("scripts/powershell-compatibility.json");
   const hostPreflight = read("scripts/host-preflight.ps1");
 
-  assert.equal(mobile.devDependencies["@typescript/native"], "npm:typescript@^7.0.2");
-  assert.equal(mobile.devDependencies.typescript, "npm:@typescript/typescript6@^6.0.2");
+  assert.equal(mobile.devDependencies.typescript, "7.0.2");
+  assert.equal(json("services/relay/package.json").devDependencies.typescript, "7.0.2");
+  assert.equal(json("package.json").devDependencies.typescript, "7.0.2");
   assert.match(cursorBuild, /\/std:c17 \/analyze \/O2 \/MT \/W4 \/WX/u);
   assert.doesNotMatch(cursorBuild, /\/std:clatest|\/std:c23/u);
   assert.ok(compatibility.windowsPowerShell51.includes("build-cursor-watchdog.ps1"));

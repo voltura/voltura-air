@@ -183,7 +183,11 @@
 
 .screen-view-browser-preview .screen-view-video {
   background:
-    radial-gradient(circle at 72% 28%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 28%),
+    radial-gradient(
+      circle at 72% 28%,
+      color-mix(in srgb, var(--accent) 38%, transparent),
+      transparent 28%
+    ),
     linear-gradient(145deg, var(--surface-strong), var(--bg) 60%, var(--surface));
 }
 

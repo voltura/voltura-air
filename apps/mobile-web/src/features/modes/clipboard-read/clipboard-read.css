@@ -165,7 +165,6 @@
     max-height: none;
     resize: none;
   }
-
 }
 
 @media (orientation: landscape) and (width >= 700px) {

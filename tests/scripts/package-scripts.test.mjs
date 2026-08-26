@@ -2,20 +2,53 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
-import { commandDescriptions, findStaleDescriptions, findUndocumentedCommands, formatCommandHelp } from "../../scripts/command-help.mjs";
+import {
+  commandDescriptions,
+  findStaleDescriptions,
+  findUndocumentedCommands,
+  formatCommandHelp,
+} from "../../scripts/command-help.mjs";
 
-const packageJson = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
-const mobilePackageJson = JSON.parse(readFileSync(new URL("../../apps/mobile-web/package.json", import.meta.url), "utf8"));
-const releaseWorkflow = readFileSync(new URL("../../scripts/legacy/release.yml", import.meta.url), "utf8");
-const packageWindowsScript = readFileSync(new URL("../../scripts/package-win.ps1", import.meta.url), "utf8");
-const buildLibdatachannelScript = readFileSync(new URL("../../scripts/build-libdatachannel.ps1", import.meta.url), "utf8");
-const verifyWindowsVersionScript = readFileSync(new URL("../../scripts/verify-windows-version.ps1", import.meta.url), "utf8");
-const prepareReleaseScript = readFileSync(new URL("../../scripts/prepare-release.ps1", import.meta.url), "utf8");
-const qualityWorkflow = readFileSync(new URL("../../scripts/legacy/quality.yml", import.meta.url), "utf8");
+const packageJson = JSON.parse(
+  readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+);
+const mobilePackageJson = JSON.parse(
+  readFileSync(new URL("../../apps/mobile-web/package.json", import.meta.url), "utf8"),
+);
+const releaseWorkflow = readFileSync(
+  new URL("../../scripts/legacy/release.yml", import.meta.url),
+  "utf8",
+);
+const packageWindowsScript = readFileSync(
+  new URL("../../scripts/package-win.ps1", import.meta.url),
+  "utf8",
+);
+const buildLibdatachannelScript = readFileSync(
+  new URL("../../scripts/build-libdatachannel.ps1", import.meta.url),
+  "utf8",
+);
+const verifyWindowsVersionScript = readFileSync(
+  new URL("../../scripts/verify-windows-version.ps1", import.meta.url),
+  "utf8",
+);
+const prepareReleaseScript = readFileSync(
+  new URL("../../scripts/prepare-release.ps1", import.meta.url),
+  "utf8",
+);
+const qualityWorkflow = readFileSync(
+  new URL("../../scripts/legacy/quality.yml", import.meta.url),
+  "utf8",
+);
 const devScript = readFileSync(new URL("../../scripts/dev.mjs", import.meta.url), "utf8");
 const devHostScript = readFileSync(new URL("../../scripts/dev-host.mjs", import.meta.url), "utf8");
-const hostProject = readFileSync(new URL("../../apps/windows-host/VolturaAir.Host.csproj", import.meta.url), "utf8");
-const directoryBuildProps = readFileSync(new URL("../../Directory.Build.props", import.meta.url), "utf8");
+const hostProject = readFileSync(
+  new URL("../../apps/windows-host/VolturaAir.Host.csproj", import.meta.url),
+  "utf8",
+);
+const directoryBuildProps = readFileSync(
+  new URL("../../Directory.Build.props", import.meta.url),
+  "utf8",
+);
 const inboxPowerShell = '"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"';
 
 test("documentation coverage runs in the root and pull-request quality gates", () => {
@@ -26,13 +59,28 @@ test("documentation coverage runs in the root and pull-request quality gates", (
 test("every root npm command has a current human-readable description", () => {
   assert.equal(packageJson.scripts.help, "node scripts/command-help.mjs");
   assert.equal(packageJson.scripts["ai:create-shortcut"], undefined);
-  assert.equal(packageJson.scripts["ai:init"], "npm run ai:update && npm run ai:schedule:create && npm run ai:shortcut:create");
+  assert.equal(
+    packageJson.scripts["ai:init"],
+    "npm run ai:update && npm run ai:schedule:create && npm run ai:shortcut:create",
+  );
   assert.equal(packageJson.scripts["ai:schedule"], undefined);
   assert.equal(packageJson.scripts["ai:schedule:create"], "node scripts/ai-schedule.mjs");
-  assert.equal(packageJson.scripts["ai:schedule:remove"], `${inboxPowerShell} -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-schedule.ps1`);
-  assert.equal(packageJson.scripts["ai:shortcut:create"], `${inboxPowerShell} -NoProfile -ExecutionPolicy Bypass -File scripts/create-chatgpt-codex-shortcut.ps1`);
-  assert.equal(packageJson.scripts["ai:shortcut:remove"], `${inboxPowerShell} -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-shortcut.ps1`);
-  assert.equal(packageJson.scripts["ai:update"], `${inboxPowerShell} -NoProfile -ExecutionPolicy Bypass -File scripts/update-chatgpt-codex.ps1`);
+  assert.equal(
+    packageJson.scripts["ai:schedule:remove"],
+    `${inboxPowerShell} -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-schedule.ps1`,
+  );
+  assert.equal(
+    packageJson.scripts["ai:shortcut:create"],
+    `${inboxPowerShell} -NoProfile -ExecutionPolicy Bypass -File scripts/create-chatgpt-codex-shortcut.ps1`,
+  );
+  assert.equal(
+    packageJson.scripts["ai:shortcut:remove"],
+    `${inboxPowerShell} -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-shortcut.ps1`,
+  );
+  assert.equal(
+    packageJson.scripts["ai:update"],
+    `${inboxPowerShell} -NoProfile -ExecutionPolicy Bypass -File scripts/update-chatgpt-codex.ps1`,
+  );
   assert.match(commandDescriptions["ai:schedule:create"], /--time HH:mm:ss/u);
   assert.match(commandDescriptions["ai:update"], /ChatGPT\/Codex/u);
   assert.deepEqual(findUndocumentedCommands(packageJson.scripts), []);
@@ -40,16 +88,25 @@ test("every root npm command has a current human-readable description", () => {
   assert.match(commandDescriptions.dev, /development loop/u);
   assert.equal(packageJson.scripts["tools:check"], "node scripts/check-toolchain.mjs");
   assert.equal(packageJson.scripts["deps:check"], "node scripts/check-dependencies.mjs");
-  assert.equal(packageJson.scripts["powershell:check"], "pwsh -NoProfile -File scripts/check-powershell.ps1");
+  assert.equal(
+    packageJson.scripts["powershell:check"],
+    "pwsh -NoProfile -File scripts/check-powershell.ps1",
+  );
   assert.equal(packageJson.scripts["site:check"], "pwsh -NoProfile -File scripts/check-site.ps1");
 });
 
 test("GitHub Actions stay archived but can be restored deliberately", () => {
   assert.equal(packageJson.scripts["actions:restore"], "node scripts/restore-github-actions.mjs");
   assert.equal(packageJson.scripts["release:draft"], "node scripts/release-publish.mjs");
-  assert.equal(packageJson.scripts["release:full"], "node scripts/release-publish.mjs --publish-latest");
+  assert.equal(
+    packageJson.scripts["release:full"],
+    "node scripts/release-publish.mjs --publish-latest",
+  );
   assert.equal(packageJson.scripts["publish:site:prepared"], undefined);
-  assert.equal(packageJson.scripts["release:sync-release-notes"], "node scripts/sync-release-notes.mjs");
+  assert.equal(
+    packageJson.scripts["release:sync-release-notes"],
+    "node scripts/sync-release-notes.mjs",
+  );
   assert.equal(existsSync(new URL("../../.github/workflows/release.yml", import.meta.url)), false);
   assert.equal(existsSync(new URL("../../.github/workflows/quality.yml", import.meta.url)), false);
 });
@@ -73,7 +130,10 @@ test("strong source-size warnings require current reviews in pull-request qualit
 });
 
 test("host partial ownership runs in root and pull-request quality gates", () => {
-  assert.equal(packageJson.scripts["host:ownership:check"], "node scripts/check-host-partial-ownership.mjs");
+  assert.equal(
+    packageJson.scripts["host:ownership:check"],
+    "node scripts/check-host-partial-ownership.mjs",
+  );
   assert.match(packageJson.scripts.test, /npm run host:ownership:check/u);
   assert.match(qualityWorkflow, /run: npm run host:ownership:check/u);
 });
@@ -85,25 +145,39 @@ test("root validation includes the portable relay without deploying it", () => {
 });
 
 test("release metadata validation prefers the DLL from the actual publish directory", () => {
-  const candidates = verifyWindowsVersionScript.match(/\$hostDllCandidates = @\(([\s\S]*?)\) \| Select-Object -Unique/u)?.[1] ?? "";
+  const candidates =
+    verifyWindowsVersionScript.match(
+      /\$hostDllCandidates = @\(([\s\S]*?)\) \| Select-Object -Unique/u,
+    )?.[1] ?? "";
   assert.ok(candidates.indexOf("$resolvedPublishDir") >= 0);
-  assert.ok(candidates.indexOf("$resolvedPublishDir") < candidates.indexOf("apps\\windows-host\\bin\\Release"));
+  assert.ok(
+    candidates.indexOf("$resolvedPublishDir") <
+      candidates.indexOf("apps\\windows-host\\bin\\Release"),
+  );
 });
 
 test("public relay workspace cannot deploy the Voltura-operated service", () => {
-  const relayPackage = JSON.parse(readFileSync(new URL("../../services/relay/package.json", import.meta.url), "utf8"));
+  const relayPackage = JSON.parse(
+    readFileSync(new URL("../../services/relay/package.json", import.meta.url), "utf8"),
+  );
   assert.equal(relayPackage.scripts.deploy, undefined);
   assert.equal(relayPackage.scripts["deploy:dry-run"], undefined);
 });
 
 test("the production mobile build enforces its measured JavaScript budget", () => {
   assert.match(mobilePackageJson.scripts.build, /vite build && npm run bundle:check/u);
-  assert.equal(mobilePackageJson.scripts["bundle:check"], "node ../../scripts/check-mobile-bundle-size.mjs");
+  assert.equal(
+    mobilePackageJson.scripts["bundle:check"],
+    "node ../../scripts/check-mobile-bundle-size.mjs",
+  );
 });
 
 test("quick development rebuilds the host-served client without validation", () => {
   assert.equal(packageJson.scripts["dev:quick"], "node scripts/dev.mjs --quick");
-  assert.equal(mobilePackageJson.scripts["build:quick"], "node ../../scripts/build-mobile-quick.mjs");
+  assert.equal(
+    mobilePackageJson.scripts["build:quick"],
+    "node ../../scripts/build-mobile-quick.mjs",
+  );
   assert.match(devScript, /process\.argv\.includes\("--quick"\)/u);
   assert.match(devScript, /childEnv\.VOLTURA_AIR_USE_VITE_CLIENT = "0"/u);
   assert.doesNotMatch(devScript, /SKIP_CURSOR_WATCHDOG/u);
@@ -111,11 +185,17 @@ test("quick development rebuilds the host-served client without validation", () 
   assert.match(devScript, /getMobileQuickBuildPaths/u);
   assert.match(devScript, /readGeneratedWebBuildId/u);
   assert.match(devScript, /if \(quickStart\)[\s\S]*runCommand\("npm", \["run", "build:quick"/u);
-  assert.match(devScript, /quickProgress\.start\("Building mobile client"/u);
-  assert.match(devScript, /quickProgress\.start\("Preparing development ports"/u);
-  assert.match(devScript, /quickProgress\.start\("Starting Windows host"/u);
-  assert.doesNotMatch(devScript, /if \(quickStart\)[\s\S]*spawnCommand\("npm", \["run", "build:quick"/u);
-  assert.match(devScript, /persistentChildren\.push\(spawnCommand\("npm", \["run", "dev:host"\]/u);
+  assert.match(devScript, /quickProgress\.start\(\s*"Building mobile client"/u);
+  assert.match(devScript, /quickProgress\.start\(\s*"Preparing development ports"/u);
+  assert.match(devScript, /quickProgress\.start\(\s*"Starting Windows host"/u);
+  assert.doesNotMatch(
+    devScript,
+    /if \(quickStart\)[\s\S]*spawnCommand\("npm", \["run", "build:quick"/u,
+  );
+  assert.match(
+    devScript,
+    /persistentChildren\.push\(spawnCommand\(\s*"npm", \["run", "dev:host"\]/u,
+  );
   assert.match(devScript, /if \(!quickStart\)[\s\S]*vite\.js/u);
   assert.match(devHostScript, /if \(useViteClient\)[\s\S]*else \{\s*await waitForClientFiles\(\)/u);
   assert.doesNotMatch(devHostScript, /SKIP_CURSOR_WATCHDOG|SkipCursorWatchdogBuild/u);
@@ -123,19 +203,35 @@ test("quick development rebuilds the host-served client without validation", () 
   assert.doesNotMatch(devHostScript, /"--no-build"/u);
   assert.doesNotMatch(devHostScript, /--isolated-test-mode/u);
   assert.doesNotMatch(devHostScript, /IntermediateOutputPath/u);
-  assert.match(directoryBuildProps, /Condition="'\$\(DesignTimeBuild\)' != 'true' AND '\$\(BuildingInsideVisualStudio\)' != 'true' AND '\$\(Configuration\)' != 'Release'"/u);
-  assert.match(directoryBuildProps, /<Configuration Condition="'\$\(Configuration\)' == ''">Debug<\/Configuration>/u);
+  assert.match(
+    directoryBuildProps,
+    /Condition="'\$\(DesignTimeBuild\)' != 'true' AND '\$\(BuildingInsideVisualStudio\)' != 'true' AND '\$\(Configuration\)' != 'Release'"/u,
+  );
+  assert.match(
+    directoryBuildProps,
+    /<Configuration Condition="'\$\(Configuration\)' == ''">Debug<\/Configuration>/u,
+  );
   assert.match(directoryBuildProps, /<OutputPath>bin\\cli\\\$\(Configuration\)\\<\/OutputPath>/u);
-  assert.match(directoryBuildProps, /<IntermediateOutputPath>obj\\cli\\\$\(Configuration\)\\<\/IntermediateOutputPath>/u);
-  assert.match(releaseWorkflow, /npm run package:win -- -Version \$env:RELEASE_VERSION -Runtime \$env:RUNTIME/u);
+  assert.match(
+    directoryBuildProps,
+    /<IntermediateOutputPath>obj\\cli\\\$\(Configuration\)\\<\/IntermediateOutputPath>/u,
+  );
+  assert.match(
+    releaseWorkflow,
+    /npm run package:win -- -Version \$env:RELEASE_VERSION -Runtime \$env:RUNTIME/u,
+  );
   assert.match(hostProject, /!\$\(MSBuildProjectFile\.EndsWith\('_wpftmp\.csproj'\)\)/u);
   assert.doesNotMatch(hostProject, /SkipCursorWatchdogBuild/u);
 });
 
 test("cursor watchdog development payload uses incremental build inputs", () => {
-  const target = hostProject.match(/<Target Name="BuildCursorWatchdog"[\s\S]*?<\/Target>/u)?.[0] ?? "";
+  const target =
+    hostProject.match(/<Target Name="BuildCursorWatchdog"[\s\S]*?<\/Target>/u)?.[0] ?? "";
 
-  assert.match(target, /Inputs="[^"]*build-cursor-watchdog\.ps1;[^"]*VolturaAir\.CursorWatchdog\.c;[^"]*\$\(MSBuildProjectFullPath\);[^"]*VolturaAir\.ico"/u);
+  assert.match(
+    target,
+    /Inputs="[^"]*build-cursor-watchdog\.ps1;[^"]*VolturaAir\.CursorWatchdog\.c;[^"]*\$\(MSBuildProjectFullPath\);[^"]*VolturaAir\.ico"/u,
+  );
   assert.match(target, /Outputs="\$\(OutDir\)VolturaAir\.CursorWatchdog\.exe"/u);
 });
 
@@ -170,9 +266,18 @@ test("release publication derives its inputs from the root package version", () 
 });
 
 test("release packaging retains the standard Release build outputs", () => {
-  assert.equal(packageWindowsScript.match(/dotnet publish apps\/windows-host\/VolturaAir\.Host\.csproj/gu)?.length, 2);
+  assert.equal(
+    packageWindowsScript.match(/dotnet publish apps\/windows-host\/VolturaAir\.Host\.csproj/gu)
+      ?.length,
+    2,
+  );
   assert.equal(packageWindowsScript.match(/-p:RestoreLockedMode=true/gu)?.length, 2);
-  assert.equal(packageWindowsScript.match(/-p:NuGetLockFilePath=packages\.(?:self-contained|framework-dependent)\.lock\.json/gu)?.length, 2);
+  assert.equal(
+    packageWindowsScript.match(
+      /-p:NuGetLockFilePath=packages\.(?:self-contained|framework-dependent)\.lock\.json/gu,
+    )?.length,
+    2,
+  );
   assert.equal(packageWindowsScript.match(/-c Release/gu)?.length, 2);
   assert.match(packageWindowsScript, /-o \$publishDir/u);
   assert.match(packageWindowsScript, /-o \$frameworkDependentPublishDir/u);
@@ -181,15 +286,27 @@ test("release packaging retains the standard Release build outputs", () => {
 });
 
 test("release packaging defaults to the prepared root version without npm argument forwarding", () => {
-  assert.match(packageWindowsScript, /IsNullOrWhiteSpace\(\$Version\)[\s\S]*Get-Content \$packageJsonPath -Raw/u);
+  assert.match(
+    packageWindowsScript,
+    /IsNullOrWhiteSpace\(\$Version\)[\s\S]*Get-Content \$packageJsonPath -Raw/u,
+  );
   assert.match(packageJson.scripts["package:win"], /scripts\/package-win\.ps1$/u);
 });
 
 test("release packaging stops immediately when a build command fails", () => {
   assert.match(packageWindowsScript, /function Assert-LastExitCode/u);
-  assert.match(packageWindowsScript, /npm run build --workspace apps\/mobile-web\s+Assert-LastExitCode "Mobile web build"/u);
-  assert.match(packageWindowsScript, /-o \$publishDir\s+Assert-LastExitCode "Self-contained host publish"/u);
-  assert.match(packageWindowsScript, /-o \$frameworkDependentPublishDir\s+Assert-LastExitCode "Framework-dependent host publish"/u);
+  assert.match(
+    packageWindowsScript,
+    /npm run build --workspace apps\/mobile-web\s+Assert-LastExitCode "Mobile web build"/u,
+  );
+  assert.match(
+    packageWindowsScript,
+    /-o \$publishDir\s+Assert-LastExitCode "Self-contained host publish"/u,
+  );
+  assert.match(
+    packageWindowsScript,
+    /-o \$frameworkDependentPublishDir\s+Assert-LastExitCode "Framework-dependent host publish"/u,
+  );
 });
 
 test("release packaging requires all runtime notices and the native Screen WebRTC source record", () => {
@@ -204,8 +321,14 @@ test("release packaging requires all runtime notices and the native Screen WebRT
   assert.match(packageWindowsScript, /Vortice-SharpGen-LICENSE\.txt/u);
   assert.match(packageWindowsScript, /wwwroot\\third-party-notices\.txt/u);
   assert.match(packageWindowsScript, /Copy-DotNetRuntimeNotices -PublishDirectory \$publishDir/u);
-  assert.match(packageWindowsScript, /Assert-ScreenWebRtcPayload -PublishDirectory \$publishDir -RequireDotNetRuntimeNotices/u);
-  assert.match(packageWindowsScript, /Assert-ScreenWebRtcPayload -PublishDirectory \$frameworkDependentPublishDir/u);
+  assert.match(
+    packageWindowsScript,
+    /Assert-ScreenWebRtcPayload -PublishDirectory \$publishDir -RequireDotNetRuntimeNotices/u,
+  );
+  assert.match(
+    packageWindowsScript,
+    /Assert-ScreenWebRtcPayload -PublishDirectory \$frameworkDependentPublishDir/u,
+  );
 });
 
 test("the native Screen WebRTC rebuild recipe pins source, submodules, OpenSSL, and static dependencies", () => {
@@ -216,7 +339,10 @@ test("the native Screen WebRTC rebuild recipe pins source, submodules, OpenSSL, 
   assert.match(buildLibdatachannelScript, /-DBUILD_SHARED_DEPS_LIBS=OFF/u);
   assert.match(buildLibdatachannelScript, /-DOPENSSL_USE_STATIC_LIBS=TRUE/u);
   assert.match(buildLibdatachannelScript, /CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded/u);
-  assert.match(buildLibdatachannelScript, /Review the ABI, dependency list, tests, hash, licenses, and SOURCE\.txt/u);
+  assert.match(
+    buildLibdatachannelScript,
+    /Review the ABI, dependency list, tests, hash, licenses, and SOURCE\.txt/u,
+  );
 });
 
 test("release preparation synchronizes version-bearing files without editing the workflow", () => {
@@ -224,6 +350,9 @@ test("release preparation synchronizes version-bearing files without editing the
   assert.match(prepareReleaseScript, /\$mobilePackagePath = 'apps\\mobile-web\\package\.json'/u);
   assert.match(prepareReleaseScript, /\$relayPackagePath = 'services\\relay\\package\.json'/u);
   assert.match(prepareReleaseScript, /\$packageLockPath = 'package-lock\.json'/u);
-  assert.match(prepareReleaseScript, /\$hostProjectPath = 'apps\\windows-host\\VolturaAir\.Host\.csproj'/u);
+  assert.match(
+    prepareReleaseScript,
+    /\$hostProjectPath = 'apps\\windows-host\\VolturaAir\.Host\.csproj'/u,
+  );
   assert.doesNotMatch(prepareReleaseScript, /releaseWorkflowPath|release\.yml/u);
 });

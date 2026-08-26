@@ -18,14 +18,14 @@ export function AnchoredHint({
   children,
   fallbackPlacements,
   open,
-  preferredPlacement
+  preferredPlacement,
 }: AnchoredHintProps) {
   const hintRef = useAnchoredHintPosition({
     anchorRef,
     autoUpdate,
     fallbackPlacements,
     open,
-    preferredPlacement
+    preferredPlacement,
   });
 
   if (!open) {
@@ -42,6 +42,6 @@ export function AnchoredHint({
     >
       {children}
     </div>,
-    document.body
+    document.body,
   );
 }

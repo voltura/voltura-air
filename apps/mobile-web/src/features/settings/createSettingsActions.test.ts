@@ -6,7 +6,7 @@ const settingsState = {
   setAppSettingsState: vi.fn(),
   setKeyboardSettings: vi.fn(),
   setRemoteSettingsState: vi.fn(),
-  setTrackpadSettingsState: vi.fn()
+  setTrackpadSettingsState: vi.fn(),
 };
 
 function createActions() {
@@ -15,7 +15,7 @@ function createActions() {
     effectiveTrackpadSettings: defaultTrackpadSettings,
     forgetPc: vi.fn(),
     setHostPointerSpeed: vi.fn(),
-    settingsState
+    settingsState,
   });
 }
 

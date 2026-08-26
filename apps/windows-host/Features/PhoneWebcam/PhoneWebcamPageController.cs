@@ -12,7 +12,7 @@ internal sealed class PhoneWebcamPageController : IDisposable
     private readonly Action _refresh;
     private readonly Func<Action<PhoneWebcamPreviewFrame>, Action<string>, IPhoneWebcamPreviewSession> _previewFactory;
     private readonly UrlOpenService _urlOpenService;
-    private readonly Func<Action<string>, IPhoneWebcamAudioMonitor> _audioMonitorFactory;
+    private readonly Func<Action<string>, Task<IPhoneWebcamAudioMonitor>> _audioMonitorFactory;
     private readonly Lock _previewLock = new();
     private readonly Lock _audioWorkLock = new();
     private IPhoneWebcamPreviewSession? _preview;
@@ -32,14 +32,14 @@ internal sealed class PhoneWebcamPageController : IDisposable
         Action refresh,
         Func<Action<PhoneWebcamPreviewFrame>, Action<string>, IPhoneWebcamPreviewSession>? previewFactory = null,
         IUrlShellLauncher? urlLauncher = null,
-        Func<Action<string>, IPhoneWebcamAudioMonitor>? audioMonitorFactory = null)
+        Func<Action<string>, Task<IPhoneWebcamAudioMonitor>>? audioMonitorFactory = null)
     {
         _owner = owner;
         _phoneWebcam = phoneWebcam;
         _refresh = refresh;
         _previewFactory = previewFactory ?? ((publish, failure) => new PhoneWebcamPreviewSession(publish, failure));
         _urlOpenService = new UrlOpenService(urlLauncher);
-        _audioMonitorFactory = audioMonitorFactory ?? (failure => new PhoneWebcamAudioMonitor(failure));
+        _audioMonitorFactory = audioMonitorFactory ?? (failure => PhoneWebcamAudioMonitor.CreateAsync(failure));
         _phoneWebcam.ActivityChanged += OnActivityChanged;
         _phoneWebcam.StatusChanged += OnStatusChanged;
     }
@@ -199,8 +199,8 @@ internal sealed class PhoneWebcamPageController : IDisposable
             IPhoneWebcamAudioMonitor monitor = await Task.Run(async () =>
             {
                 await priorRetirement.ConfigureAwait(false);
-                IPhoneWebcamAudioMonitor created = _audioMonitorFactory(
-                    message => ReportAudioMonitorFailure(generation, message));
+                IPhoneWebcamAudioMonitor created = await _audioMonitorFactory(
+                    message => ReportAudioMonitorFailure(generation, message)).ConfigureAwait(false);
                 try
                 {
                     created.Start();

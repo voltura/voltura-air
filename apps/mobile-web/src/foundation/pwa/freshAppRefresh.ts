@@ -19,14 +19,18 @@ export interface FreshAppRefreshResult {
 
 export async function refreshWithFreshAppUrl(
   environment: FreshAppRefreshEnvironment = createBrowserEnvironment(),
-  beforeNavigate: () => void = () => { /* Optional session guard. */ }
+  beforeNavigate: () => void = () => {
+    /* Optional session guard. */
+  },
 ): Promise<FreshAppRefreshResult> {
   const warnings: string[] = [];
 
   if (environment.getRegistrations) {
     try {
       const registrations = await environment.getRegistrations();
-      const results = await Promise.allSettled(registrations.map(async (registration) => registration.unregister()));
+      const results = await Promise.allSettled(
+        registrations.map(async (registration) => registration.unregister()),
+      );
       addRejectedWarnings(results, "service worker unregister", warnings);
     } catch (error) {
       warnings.push(formatWarning("service worker lookup", error));
@@ -36,8 +40,12 @@ export async function refreshWithFreshAppUrl(
   if (environment.getCacheNames && environment.deleteCache) {
     try {
       const cacheNames = await environment.getCacheNames();
-      const ownedCacheNames = cacheNames.filter((cacheName) => cacheName.startsWith("voltura-air-"));
-      const results = await Promise.allSettled(ownedCacheNames.map(async (cacheName) => environment.deleteCache?.(cacheName)));
+      const ownedCacheNames = cacheNames.filter((cacheName) =>
+        cacheName.startsWith("voltura-air-"),
+      );
+      const results = await Promise.allSettled(
+        ownedCacheNames.map(async (cacheName) => environment.deleteCache?.(cacheName)),
+      );
       addRejectedWarnings(results, "cache deletion", warnings);
     } catch (error) {
       warnings.push(formatWarning("cache lookup", error));
@@ -80,13 +88,24 @@ function createBrowserEnvironment(): FreshAppRefreshEnvironment {
     },
     deleteCache: "caches" in window ? (name) => window.caches.delete(name) : undefined,
     getCacheNames: "caches" in window ? () => window.caches.keys() : undefined,
-    getRegistrations: "serviceWorker" in navigator ? async () => navigator.serviceWorker.getRegistrations() : undefined,
-    reload: () => { window.location.reload(); },
-    replace: (url) => { window.location.replace(url); }
+    getRegistrations:
+      "serviceWorker" in navigator
+        ? async () => navigator.serviceWorker.getRegistrations()
+        : undefined,
+    reload: () => {
+      window.location.reload();
+    },
+    replace: (url) => {
+      window.location.replace(url);
+    },
   };
 }
 
-function addRejectedWarnings(results: PromiseSettledResult<unknown>[], operation: string, warnings: string[]): void {
+function addRejectedWarnings(
+  results: PromiseSettledResult<unknown>[],
+  operation: string,
+  warnings: string[],
+): void {
   for (const result of results) {
     if (result.status === "rejected") {
       warnings.push(formatWarning(operation, result.reason));

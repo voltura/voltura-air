@@ -5,7 +5,7 @@ import { useAppNavigation } from "./useAppNavigation";
 
 const trackpadSettings = {
   enableSplitMode: false,
-  splitShowStatusRow: true
+  splitShowStatusRow: true,
 };
 
 const originalInnerWidth = Object.getOwnPropertyDescriptor(window, "innerWidth");
@@ -15,7 +15,11 @@ const originalScreenWidth = Object.getOwnPropertyDescriptor(screen, "width");
 const originalScreenHeight = Object.getOwnPropertyDescriptor(screen, "height");
 const originalScreenOrientation = Object.getOwnPropertyDescriptor(screen, "orientation");
 
-function restoreProperty(target: object, key: PropertyKey, descriptor: PropertyDescriptor | undefined) {
+function restoreProperty(
+  target: object,
+  key: PropertyKey,
+  descriptor: PropertyDescriptor | undefined,
+) {
   if (descriptor) {
     Object.defineProperty(target, key, descriptor);
   } else {
@@ -46,27 +50,33 @@ function configureTouchScreen(width: number, height: number, orientationType: st
 }
 
 function renderNavigation(onEnterRemote: () => void, strict = false) {
-  return renderHook(() => useAppNavigation({
-    fourthMode: "dictation",
-    isPaired: true,
-    onEnterRemote,
-    presentationAvailable: true,
-    supportsGestureDebug: false,
-    trackpadSettings
-  }), strict ? { wrapper: StrictMode } : undefined);
+  return renderHook(
+    () =>
+      useAppNavigation({
+        fourthMode: "dictation",
+        isPaired: true,
+        onEnterRemote,
+        presentationAvailable: true,
+        supportsGestureDebug: false,
+        trackpadSettings,
+      }),
+    strict ? { wrapper: StrictMode } : undefined,
+  );
 }
 
 describe("useAppNavigation remote entry ownership", () => {
   it("uses the effective host appearance setting to hide both mode-button rows", () => {
-    const { result } = renderHook(() => useAppNavigation({
-      fourthMode: "dictation",
-      isPaired: true,
-      onEnterRemote: vi.fn(),
-      presentationAvailable: true,
-      showModeButtons: false,
-      supportsGestureDebug: false,
-      trackpadSettings
-    }));
+    const { result } = renderHook(() =>
+      useAppNavigation({
+        fourthMode: "dictation",
+        isPaired: true,
+        onEnterRemote: vi.fn(),
+        presentationAvailable: true,
+        showModeButtons: false,
+        supportsGestureDebug: false,
+        trackpadSettings,
+      }),
+    );
 
     expect(result.current.isModeButtonsVisible).toBe(false);
     expect(result.current.isBottomModeNavigationVisible).toBe(false);
@@ -77,34 +87,46 @@ describe("useAppNavigation remote entry ownership", () => {
     const onEnterRemote = vi.fn();
     const { result } = renderNavigation(onEnterRemote);
 
-    act(() => { result.current.selectModeTab("remote"); });
+    act(() => {
+      result.current.selectModeTab("remote");
+    });
     expect(onEnterRemote).toHaveBeenCalledTimes(1);
     expect(result.current.tab).toBe("remote");
 
-    act(() => { result.current.selectModeTab("remote"); });
+    act(() => {
+      result.current.selectModeTab("remote");
+    });
     expect(onEnterRemote).toHaveBeenCalledTimes(1);
     expect(result.current.isBottomModeNavigationVisible).toBe(false);
   });
 
   it("reports active-tab collapse only for mode tab presses", () => {
     const onActiveModeTabCollapse = vi.fn();
-    const { result } = renderHook(() => useAppNavigation({
-      fourthMode: "dictation",
-      isPaired: true,
-      onActiveModeTabCollapse,
-      onEnterRemote: vi.fn(),
-      presentationAvailable: true,
-      supportsGestureDebug: false,
-      trackpadSettings
-    }));
+    const { result } = renderHook(() =>
+      useAppNavigation({
+        fourthMode: "dictation",
+        isPaired: true,
+        onActiveModeTabCollapse,
+        onEnterRemote: vi.fn(),
+        presentationAvailable: true,
+        supportsGestureDebug: false,
+        trackpadSettings,
+      }),
+    );
 
-    act(() => { result.current.selectModeTab("keyboard"); });
+    act(() => {
+      result.current.selectModeTab("keyboard");
+    });
     expect(onActiveModeTabCollapse).not.toHaveBeenCalled();
 
-    act(() => { result.current.selectModeTab("keyboard", "selector"); });
+    act(() => {
+      result.current.selectModeTab("keyboard", "selector");
+    });
     expect(onActiveModeTabCollapse).not.toHaveBeenCalled();
 
-    act(() => { result.current.selectModeTab("keyboard"); });
+    act(() => {
+      result.current.selectModeTab("keyboard");
+    });
     expect(onActiveModeTabCollapse).toHaveBeenCalledTimes(1);
   });
 
@@ -112,9 +134,15 @@ describe("useAppNavigation remote entry ownership", () => {
     const onEnterRemote = vi.fn();
     const { result } = renderNavigation(onEnterRemote);
 
-    act(() => { result.current.selectModeTab("remote"); });
-    act(() => { result.current.selectModeTab("trackpad"); });
-    act(() => { result.current.selectModeTab("remote"); });
+    act(() => {
+      result.current.selectModeTab("remote");
+    });
+    act(() => {
+      result.current.selectModeTab("trackpad");
+    });
+    act(() => {
+      result.current.selectModeTab("remote");
+    });
 
     expect(onEnterRemote).toHaveBeenCalledTimes(2);
   });
@@ -123,7 +151,9 @@ describe("useAppNavigation remote entry ownership", () => {
     const onEnterRemote = vi.fn();
     const { result } = renderNavigation(onEnterRemote);
 
-    act(() => { result.current.selectModeTab("remote", "settings"); });
+    act(() => {
+      result.current.selectModeTab("remote", "settings");
+    });
 
     expect(result.current.tab).toBe("remote");
     expect(onEnterRemote).not.toHaveBeenCalled();
@@ -143,15 +173,19 @@ describe("useAppNavigation remote entry ownership", () => {
 describe("useAppNavigation split orientation", () => {
   it("suppresses Split mode transiently without changing its saved preference", () => {
     configureTouchScreen(1200, 800, "landscape-primary");
-    const { result, rerender } = renderHook(({ suppressSplitMode }) => useAppNavigation({
-      fourthMode: "dictation",
-      isPaired: true,
-      onEnterRemote: vi.fn(),
-      presentationAvailable: true,
-      suppressSplitMode,
-      supportsGestureDebug: false,
-      trackpadSettings: { ...trackpadSettings, enableSplitMode: true }
-    }), { initialProps: { suppressSplitMode: false } });
+    const { result, rerender } = renderHook(
+      ({ suppressSplitMode }) =>
+        useAppNavigation({
+          fourthMode: "dictation",
+          isPaired: true,
+          onEnterRemote: vi.fn(),
+          presentationAvailable: true,
+          suppressSplitMode,
+          supportsGestureDebug: false,
+          trackpadSettings: { ...trackpadSettings, enableSplitMode: true },
+        }),
+      { initialProps: { suppressSplitMode: false } },
+    );
 
     expect(result.current.shouldShowSplitMode).toBe(true);
     rerender({ suppressSplitMode: true });
@@ -162,27 +196,33 @@ describe("useAppNavigation split orientation", () => {
 
   it("reclaims hidden split chrome and anchors its quick selector to the trackpad", () => {
     configureTouchScreen(1200, 800, "landscape-primary");
-    const { result } = renderHook(() => useAppNavigation({
-      fourthMode: "dictation",
-      isPaired: true,
-      onEnterRemote: vi.fn(),
-      presentationAvailable: true,
-      supportsGestureDebug: false,
-      trackpadSettings: {
-        ...trackpadSettings,
-        enableSplitMode: true,
-        splitShowStatusRow: false
-      }
-    }));
+    const { result } = renderHook(() =>
+      useAppNavigation({
+        fourthMode: "dictation",
+        isPaired: true,
+        onEnterRemote: vi.fn(),
+        presentationAvailable: true,
+        supportsGestureDebug: false,
+        trackpadSettings: {
+          ...trackpadSettings,
+          enableSplitMode: true,
+          splitShowStatusRow: false,
+        },
+      }),
+    );
 
-    act(() => { result.current.selectModeTab("trackpad"); });
+    act(() => {
+      result.current.selectModeTab("trackpad");
+    });
 
     expect(result.current.shellClassName).toContain("split-mode-active");
     expect(result.current.shellClassName).not.toContain("split-show-header");
     expect(result.current.shellClassName).not.toContain("split-show-mode-buttons");
     expect(result.current.showTrackpadCompactModeSelector).toBe(true);
 
-    act(() => { result.current.toggleModeSelector("trackpad"); });
+    act(() => {
+      result.current.toggleModeSelector("trackpad");
+    });
 
     expect(result.current.isModeSelectorOpen).toBe(true);
     expect(result.current.modeSelectorAnchor).toBe("trackpad");
@@ -190,39 +230,47 @@ describe("useAppNavigation split orientation", () => {
 
   it("keeps Split mode off when a portrait touch screen only loses viewport height", () => {
     configureTouchScreen(800, 1200, "portrait-primary");
-    const { result } = renderHook(() => useAppNavigation({
-      fourthMode: "dictation",
-      isPaired: true,
-      onEnterRemote: vi.fn(),
-      presentationAvailable: true,
-      supportsGestureDebug: false,
-      trackpadSettings: { ...trackpadSettings, enableSplitMode: true }
-    }));
+    const { result } = renderHook(() =>
+      useAppNavigation({
+        fourthMode: "dictation",
+        isPaired: true,
+        onEnterRemote: vi.fn(),
+        presentationAvailable: true,
+        supportsGestureDebug: false,
+        trackpadSettings: { ...trackpadSettings, enableSplitMode: true },
+      }),
+    );
     expect(result.current.shouldShowSplitMode).toBe(false);
 
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 500 });
-    act(() => { window.dispatchEvent(new Event("resize")); });
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
 
     expect(result.current.shouldShowSplitMode).toBe(false);
   });
 
   it("updates Split mode on an actual touch-screen orientation event", () => {
     const orientation = configureTouchScreen(800, 1200, "portrait-primary");
-    const { result } = renderHook(() => useAppNavigation({
-      fourthMode: "dictation",
-      isPaired: true,
-      onEnterRemote: vi.fn(),
-      presentationAvailable: true,
-      supportsGestureDebug: false,
-      trackpadSettings: { ...trackpadSettings, enableSplitMode: true }
-    }));
+    const { result } = renderHook(() =>
+      useAppNavigation({
+        fourthMode: "dictation",
+        isPaired: true,
+        onEnterRemote: vi.fn(),
+        presentationAvailable: true,
+        supportsGestureDebug: false,
+        trackpadSettings: { ...trackpadSettings, enableSplitMode: true },
+      }),
+    );
 
     Object.defineProperty(orientation, "type", { configurable: true, value: "landscape-primary" });
     Object.defineProperty(screen, "width", { configurable: true, value: 1200 });
     Object.defineProperty(screen, "height", { configurable: true, value: 800 });
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1200 });
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
-    act(() => { orientation.dispatchEvent(new Event("change")); });
+    act(() => {
+      orientation.dispatchEvent(new Event("change"));
+    });
 
     expect(result.current.shouldShowSplitMode).toBe(true);
   });
@@ -233,14 +281,16 @@ describe("useAppNavigation split orientation", () => {
     const orientationRemove = vi.spyOn(orientation, "removeEventListener");
     const windowAdd = vi.spyOn(window, "addEventListener");
     const windowRemove = vi.spyOn(window, "removeEventListener");
-    const { unmount } = renderHook(() => useAppNavigation({
-      fourthMode: "dictation",
-      isPaired: true,
-      onEnterRemote: vi.fn(),
-      presentationAvailable: true,
-      supportsGestureDebug: false,
-      trackpadSettings
-    }));
+    const { unmount } = renderHook(() =>
+      useAppNavigation({
+        fourthMode: "dictation",
+        isPaired: true,
+        onEnterRemote: vi.fn(),
+        presentationAvailable: true,
+        supportsGestureDebug: false,
+        trackpadSettings,
+      }),
+    );
     const resizeListener = windowAdd.mock.calls.find(([type]) => type === "resize")?.[1];
     const orientationListener = orientationAdd.mock.calls.find(([type]) => type === "change")?.[1];
 

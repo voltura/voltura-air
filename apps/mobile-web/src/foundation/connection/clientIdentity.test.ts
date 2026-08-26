@@ -5,7 +5,11 @@ describe("clearPairTokenFromAddress", () => {
   afterEach(() => window.history.replaceState(null, "", "/"));
 
   it("removes a relay fragment without removing non-secret route metadata", () => {
-    window.history.replaceState(null, "", `/air/app/?r=${"r".repeat(22)}&v=0.8.5#${"t".repeat(32)}`);
+    window.history.replaceState(
+      null,
+      "",
+      `/air/app/?r=${"r".repeat(22)}&v=0.8.5#${"t".repeat(32)}`,
+    );
 
     clearPairTokenFromAddress();
 
@@ -18,7 +22,11 @@ describe("ensureClientMetadataInAddress", () => {
   afterEach(() => window.history.replaceState(null, "", "/"));
 
   it("does not place device identity in a hosted relay URL", () => {
-    window.history.replaceState(null, "", `/air/app/?r=${"r".repeat(22)}&v=0.8.5#${"t".repeat(32)}`);
+    window.history.replaceState(
+      null,
+      "",
+      `/air/app/?r=${"r".repeat(22)}&v=0.8.5#${"t".repeat(32)}`,
+    );
 
     ensureClientMetadataInAddress("client-private", "Private phone");
 
@@ -28,7 +36,11 @@ describe("ensureClientMetadataInAddress", () => {
   });
 
   it("clears the token and keeps identity metadata out of the development hosted URL", () => {
-    window.history.replaceState(null, "", `/air/dev-app/?m=s&r=${"r".repeat(22)}&v=0.8.5#${"t".repeat(32)}`);
+    window.history.replaceState(
+      null,
+      "",
+      `/air/dev-app/?m=s&r=${"r".repeat(22)}&v=0.8.5#${"t".repeat(32)}`,
+    );
 
     ensureClientMetadataInAddress("client-private", "Private phone");
     clearPairTokenFromAddress();

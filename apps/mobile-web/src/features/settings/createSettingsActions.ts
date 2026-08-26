@@ -1,4 +1,8 @@
-import { clearAppSettings, clearRemoteSettings, clearTrackpadSettings } from "../../foundation/settings/appStorage";
+import {
+  clearAppSettings,
+  clearRemoteSettings,
+  clearTrackpadSettings,
+} from "../../foundation/settings/appStorage";
 import type { AppSettings } from "../../foundation/settings/appSettings";
 import type { TrackpadSettings } from "../../foundation/input/gestures";
 import { triggerHapticFeedback } from "../../foundation/input/hapticFeedback";
@@ -27,12 +31,15 @@ export function createSettingsActions({
   effectiveTrackpadSettings,
   forgetPc,
   setHostPointerSpeed,
-  settingsState
+  settingsState,
 }: SettingsActionOptions) {
-  const updateTrackpadSetting = <Key extends keyof TrackpadSettings>(key: Key, value: TrackpadSettings[Key]) => {
+  const updateTrackpadSetting = <Key extends keyof TrackpadSettings>(
+    key: Key,
+    value: TrackpadSettings[Key],
+  ) => {
     settingsState.setTrackpadSettingsState((current) => ({
       ...current,
-      settings: { ...current.settings, [key]: value }
+      settings: { ...current.settings, [key]: value },
     }));
 
     if (key === "pointerSpeed" && typeof value === "number") {
@@ -44,22 +51,28 @@ export function createSettingsActions({
     }
   };
 
-  const updateKeyboardSetting = <Key extends keyof KeyboardSettings>(key: Key, value: KeyboardSettings[Key]) => {
+  const updateKeyboardSetting = <Key extends keyof KeyboardSettings>(
+    key: Key,
+    value: KeyboardSettings[Key],
+  ) => {
     settingsState.setKeyboardSettings((current) => ({ ...current, [key]: value }));
   };
 
-  const updateRemoteSetting = <Key extends keyof RemoteSettings>(key: Key, value: RemoteSettings[Key]) => {
+  const updateRemoteSetting = <Key extends keyof RemoteSettings>(
+    key: Key,
+    value: RemoteSettings[Key],
+  ) => {
     settingsState.setRemoteSettingsState((current) => ({
       ...current,
       isStored: true,
-      settings: { ...current.settings, [key]: value }
+      settings: { ...current.settings, [key]: value },
     }));
   };
 
   const updateAppSetting = <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => {
     settingsState.setAppSettingsState((current) => ({
       ...current,
-      settings: { ...current.settings, [key]: value }
+      settings: { ...current.settings, [key]: value },
     }));
   };
 
@@ -75,6 +88,6 @@ export function createSettingsActions({
     updateAppSetting,
     updateKeyboardSetting,
     updateRemoteSetting,
-    updateTrackpadSetting
+    updateTrackpadSetting,
   };
 }

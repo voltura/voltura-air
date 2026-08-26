@@ -53,10 +53,10 @@ after final published-release verification succeeds.
 
 ## Prerequisites
 
-- Windows, Node.js 24.18.1 LTS, npm 11.18.0, .NET SDK 10.0.400,
+- Windows, Node.js 24.19.0 LTS, npm 11.19.0, .NET SDK 10.0.400,
   PowerShell 7.6 LTS, Git, and NSIS 3.12 or newer.
 - Visual Studio 2026 18.9 or newer with the Desktop development with C++ workload.
-- PHP 8.5 for the public-site validation gate.
+- PHP 8.5.9 or newer on the 8.5 line for the public-site validation gate.
 - Authenticated GitHub CLI with write access to `voltura/voltura-air`.
 - Clean `main`, no merge/rebase, and no divergence from `origin/main`.
 - No workflow YAML under `.github/workflows`.

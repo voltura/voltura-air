@@ -15,7 +15,7 @@ const defaultProps = {
   onMute: vi.fn(),
   onVolumeDown: vi.fn(),
   onVolumeUp: vi.fn(),
-  renderTrackpad: () => null
+  renderTrackpad: () => null,
 } as const;
 
 describe("PresentationMode", () => {
@@ -38,7 +38,9 @@ describe("PresentationMode", () => {
     fireEvent.click(screen.getByRole("button", { name: "Laser pointer" }));
     expect(onCommand).toHaveBeenLastCalledWith("google-slides", "pointer", true);
 
-    fireEvent.click(screen.getByRole("button", { name: "Change presentation mode (Google Slides)" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Change presentation mode (Google Slides)" }),
+    );
     fireEvent.click(screen.getByRole("menuitemradio", { name: "PDF / browser" }));
     expect(screen.queryByRole("button", { name: "Blackout" })).toBeNull();
     expect(screen.getByRole("button", { name: "Laser pointer" })).toBeTruthy();
@@ -57,15 +59,17 @@ describe("PresentationMode", () => {
           powerPoint: {
             state: "ready",
             foregroundActivationSupported: true,
-            presentations: [{
-              runtimePresentationId: "presentation-1",
-              name: "Quarterly update.pptx",
-              state: "presenting",
-              slideCount: 24,
-              currentSlideIndex: 7,
-              currentShowPosition: 7,
-              slideShowState: "running"
-            }],
+            presentations: [
+              {
+                runtimePresentationId: "presentation-1",
+                name: "Quarterly update.pptx",
+                state: "presenting",
+                slideCount: 24,
+                currentSlideIndex: 7,
+                currentShowPosition: 7,
+                slideShowState: "running",
+              },
+            ],
             session: {
               state: "tracking",
               runtimePresentationId: "presentation-1",
@@ -78,62 +82,57 @@ describe("PresentationMode", () => {
               breakElapsedSeconds: 0,
               currentSlideIndex: 7,
               slideCount: 24,
-              slideShowState: "running"
-            }
-          }
+              slideShowState: "running",
+            },
+          },
         }}
         onCommand={onCommand}
         onPowerPointRefresh={onPowerPointRefresh}
-      />
+      />,
     );
 
     expect(screen.getByText("Slide 7 of 24 · Presenting")).toBeTruthy();
-    expect(onCommand).toHaveBeenCalledWith(
-      "powerpoint",
-      "activate",
-      { runtimePresentationId: "presentation-1" });
+    expect(onCommand).toHaveBeenCalledWith("powerpoint", "activate", {
+      runtimePresentationId: "presentation-1",
+    });
     fireEvent.click(screen.getByRole("button", { name: "Focus PPT" }));
-    expect(onCommand).toHaveBeenLastCalledWith(
-      "powerpoint",
-      "activate",
-      { runtimePresentationId: "presentation-1" });
-    expect(screen.getByRole("button", { name: "Change" }))
-      .toHaveProperty("disabled", false);
+    expect(onCommand).toHaveBeenLastCalledWith("powerpoint", "activate", {
+      runtimePresentationId: "presentation-1",
+    });
+    expect(screen.getByRole("button", { name: "Change" })).toHaveProperty("disabled", false);
     expect(screen.getByText("01:15 · Slide 7 of 24")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Timer" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(onCommand).toHaveBeenLastCalledWith(
-      "powerpoint",
-      "next",
-      { runtimePresentationId: "presentation-1" });
-    expect(screen.getByRole<HTMLButtonElement>(
-      "button",
-      { name: "Start from beginning" }).disabled).toBe(false);
-    expect(screen.getByRole<HTMLButtonElement>(
-      "button",
-      { name: "Start from current" }).disabled).toBe(false);
+    expect(onCommand).toHaveBeenLastCalledWith("powerpoint", "next", {
+      runtimePresentationId: "presentation-1",
+    });
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Start from beginning" }).disabled,
+    ).toBe(false);
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Start from current" }).disabled,
+    ).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Start from beginning" }));
-    expect(onCommand).toHaveBeenLastCalledWith(
-      "powerpoint",
-      "start",
-      { runtimePresentationId: "presentation-1" });
+    expect(onCommand).toHaveBeenLastCalledWith("powerpoint", "start", {
+      runtimePresentationId: "presentation-1",
+    });
     fireEvent.click(screen.getByRole("button", { name: "Start from current" }));
-    expect(onCommand).toHaveBeenLastCalledWith(
-      "powerpoint",
-      "start-current",
-      { runtimePresentationId: "presentation-1" });
+    expect(onCommand).toHaveBeenLastCalledWith("powerpoint", "start-current", {
+      runtimePresentationId: "presentation-1",
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Go to slide" }));
-    expect(screen.getByRole("dialog", { name: "Go to slide" }).closest(".presentation-mode"))
-      .toBeNull();
+    expect(
+      screen.getByRole("dialog", { name: "Go to slide" }).closest(".presentation-mode"),
+    ).toBeNull();
     fireEvent.change(screen.getByRole("slider", { name: "Slide number" }), {
-      target: { value: "12" }
+      target: { value: "12" },
     });
     fireEvent.pointerUp(screen.getByRole("slider", { name: "Slide number" }));
-    expect(onCommand).toHaveBeenLastCalledWith(
-      "powerpoint",
-      "goto",
-      { runtimePresentationId: "presentation-1", slideNumber: 12 });
+    expect(onCommand).toHaveBeenLastCalledWith("powerpoint", "goto", {
+      runtimePresentationId: "presentation-1",
+      slideNumber: 12,
+    });
     expect(screen.queryByRole("dialog", { name: "Go to slide" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Go to slide" }));
@@ -152,23 +151,21 @@ describe("PresentationMode", () => {
       powerPoint: {
         state: "ready" as const,
         foregroundActivationSupported: true,
-        presentations: [{
-          runtimePresentationId: "presentation-1",
-          name: "Quarterly update.pptx",
-          state: "ready" as const,
-          slideCount: 24,
-          currentSlideIndex: null,
-          currentShowPosition: null,
-          slideShowState: "ready" as const
-        }]
-      }
+        presentations: [
+          {
+            runtimePresentationId: "presentation-1",
+            name: "Quarterly update.pptx",
+            state: "ready" as const,
+            slideCount: 24,
+            currentSlideIndex: null,
+            currentShowPosition: null,
+            slideShowState: "ready" as const,
+          },
+        ],
+      },
     };
     const view = render(
-      <PresentationMode
-        {...defaultProps}
-        capability={readyCapability}
-        onCommand={onCommand}
-      />
+      <PresentationMode {...defaultProps} capability={readyCapability} onCommand={onCommand} />,
     );
 
     expect(onCommand).not.toHaveBeenCalled();
@@ -179,12 +176,11 @@ describe("PresentationMode", () => {
         activationRequestId={1}
         capability={readyCapability}
         onCommand={onCommand}
-      />
+      />,
     );
-    expect(onCommand).toHaveBeenCalledExactlyOnceWith(
-      "powerpoint",
-      "activate",
-      { runtimePresentationId: "presentation-1" });
+    expect(onCommand).toHaveBeenCalledExactlyOnceWith("powerpoint", "activate", {
+      runtimePresentationId: "presentation-1",
+    });
 
     view.rerender(
       <PresentationMode
@@ -194,11 +190,11 @@ describe("PresentationMode", () => {
           ...readyCapability,
           powerPoint: {
             ...readyCapability.powerPoint,
-            state: "busy"
-          }
+            state: "busy",
+          },
         }}
         onCommand={onCommand}
-      />
+      />,
     );
     view.rerender(
       <PresentationMode
@@ -206,7 +202,7 @@ describe("PresentationMode", () => {
         activationRequestId={1}
         capability={readyCapability}
         onCommand={onCommand}
-      />
+      />,
     );
 
     expect(onCommand).toHaveBeenCalledTimes(1);
@@ -222,15 +218,17 @@ describe("PresentationMode", () => {
           powerPoint: {
             state: "ready",
             foregroundActivationSupported: true,
-            presentations: [{
-              runtimePresentationId: "presentation-1",
-              name: "Quarterly update.pptx",
-              state: "ready",
-              slideCount: 24,
-              currentSlideIndex: 3,
-              currentShowPosition: null,
-              slideShowState: "ready"
-            }],
+            presentations: [
+              {
+                runtimePresentationId: "presentation-1",
+                name: "Quarterly update.pptx",
+                state: "ready",
+                slideCount: 24,
+                currentSlideIndex: 3,
+                currentShowPosition: null,
+                slideShowState: "ready",
+              },
+            ],
             session: {
               state: "pending-review",
               runtimePresentationId: "presentation-1",
@@ -243,22 +241,18 @@ describe("PresentationMode", () => {
               breakElapsedSeconds: 0,
               currentSlideIndex: 3,
               slideCount: 24,
-              slideShowState: "ready"
-            }
-          }
+              slideShowState: "ready",
+            },
+          },
         }}
         onCommand={onCommand}
         onSessionCommand={vi.fn()}
-      />
+      />,
     );
 
     expect(screen.getByText("Session paused")).toBeTruthy();
     expect(screen.getByText("24 slides · Ready")).toBeTruthy();
-    for (const name of [
-      "Pause auto-play",
-      "End slideshow",
-      "Laser pointer"
-    ]) {
+    for (const name of ["Pause auto-play", "End slideshow", "Laser pointer"]) {
       expect(screen.getByRole<HTMLButtonElement>("button", { name }).disabled).toBe(true);
     }
     for (const name of [
@@ -269,50 +263,47 @@ describe("PresentationMode", () => {
       "Go to slide",
       "Black screen",
       "White screen",
-      "Continue presentation"
+      "Continue presentation",
     ]) {
       expect(screen.getByRole<HTMLButtonElement>("button", { name }).disabled).toBe(false);
     }
 
     fireEvent.click(screen.getByRole("button", { name: "Black screen" }));
-    expect(onCommand).toHaveBeenLastCalledWith(
-      "powerpoint",
-      "black",
-      { runtimePresentationId: "presentation-1" });
+    expect(onCommand).toHaveBeenLastCalledWith("powerpoint", "black", {
+      runtimePresentationId: "presentation-1",
+    });
     fireEvent.click(screen.getByRole("button", { name: "White screen" }));
-    expect(onCommand).toHaveBeenLastCalledWith(
-      "powerpoint",
-      "white",
-      { runtimePresentationId: "presentation-1" });
+    expect(onCommand).toHaveBeenLastCalledWith("powerpoint", "white", {
+      runtimePresentationId: "presentation-1",
+    });
     fireEvent.click(screen.getByRole("button", { name: "Start from beginning" }));
-    expect(onCommand).toHaveBeenLastCalledWith(
-      "powerpoint",
-      "start",
-      { runtimePresentationId: "presentation-1" });
+    expect(onCommand).toHaveBeenLastCalledWith("powerpoint", "start", {
+      runtimePresentationId: "presentation-1",
+    });
     fireEvent.click(screen.getByRole("button", { name: "Start from current" }));
-    expect(onCommand).toHaveBeenLastCalledWith(
-      "powerpoint",
-      "start-current",
-      { runtimePresentationId: "presentation-1" });
+    expect(onCommand).toHaveBeenLastCalledWith("powerpoint", "start-current", {
+      runtimePresentationId: "presentation-1",
+    });
     fireEvent.click(screen.getByRole("button", { name: "Continue presentation" }));
-    expect(onCommand).toHaveBeenLastCalledWith(
-      "powerpoint",
-      "start-current",
-      { runtimePresentationId: "presentation-1" });
+    expect(onCommand).toHaveBeenLastCalledWith("powerpoint", "start-current", {
+      runtimePresentationId: "presentation-1",
+    });
     fireEvent.click(screen.getByRole("button", { name: "Go to slide" }));
     fireEvent.click(screen.getByRole("button", { name: "First" }));
-    expect(onCommand).toHaveBeenLastCalledWith(
-      "powerpoint",
-      "goto",
-      { runtimePresentationId: "presentation-1", slideNumber: 1 });
+    expect(onCommand).toHaveBeenLastCalledWith("powerpoint", "goto", {
+      runtimePresentationId: "presentation-1",
+      slideNumber: 1,
+    });
     fireEvent.click(screen.getByRole("button", { name: "Go to slide" }));
     fireEvent.click(screen.getByRole("button", { name: "Last" }));
-    expect(onCommand).toHaveBeenLastCalledWith(
-      "powerpoint",
-      "goto",
-      { runtimePresentationId: "presentation-1", slideNumber: 24 });
+    expect(onCommand).toHaveBeenLastCalledWith("powerpoint", "goto", {
+      runtimePresentationId: "presentation-1",
+      slideNumber: 24,
+    });
 
-    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Volume down" }).disabled).toBe(false);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Volume down" }).disabled).toBe(
+      false,
+    );
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "Save" }).disabled).toBe(false);
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "Discard" }).disabled).toBe(false);
   });
@@ -331,22 +322,22 @@ describe("PresentationMode", () => {
       breakElapsedSeconds: 0,
       currentSlideIndex: 7,
       slideCount: 24,
-      slideShowState: "running" as const
+      slideShowState: "running" as const,
     };
     const capability = {
       ...defaultProps.capability,
       powerPoint: {
         state: "ready" as const,
         presentations: [],
-        session
-      }
+        session,
+      },
     };
     const view = render(
       <PresentationMode
         {...defaultProps}
         capability={capability}
         onSessionCommand={onSessionCommand}
-      />
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Start break" }));
@@ -359,11 +350,11 @@ describe("PresentationMode", () => {
           ...capability,
           powerPoint: {
             ...capability.powerPoint,
-            session: { ...session, breakActive: true, breakElapsedSeconds: 5 }
-          }
+            session: { ...session, breakActive: true, breakElapsedSeconds: 5 },
+          },
         }}
         onSessionCommand={onSessionCommand}
-      />
+      />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Resume presentation" }));
     expect(onSessionCommand).toHaveBeenLastCalledWith("break", { enabled: false });
@@ -374,9 +365,11 @@ describe("PresentationMode", () => {
         capability={capability}
         connected={false}
         onSessionCommand={onSessionCommand}
-      />
+      />,
     );
-    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Start break" }).disabled).toBe(true);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Start break" }).disabled).toBe(
+      true,
+    );
 
     view.rerender(
       <PresentationMode
@@ -384,9 +377,11 @@ describe("PresentationMode", () => {
         capability={capability}
         sessionPending
         onSessionCommand={onSessionCommand}
-      />
+      />,
     );
-    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Start break" }).disabled).toBe(true);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Start break" }).disabled).toBe(
+      true,
+    );
 
     view.rerender(
       <PresentationMode
@@ -395,11 +390,11 @@ describe("PresentationMode", () => {
           ...capability,
           powerPoint: {
             ...capability.powerPoint,
-            session: { ...session, isOwner: false }
-          }
+            session: { ...session, isOwner: false },
+          },
         }}
         onSessionCommand={onSessionCommand}
-      />
+      />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Start break" }));
     expect(onSessionCommand).toHaveBeenLastCalledWith("break", { enabled: true });
@@ -432,12 +427,12 @@ describe("PresentationMode", () => {
               breakElapsedSeconds: 0,
               currentSlideIndex: null,
               slideCount: 0,
-              slideShowState: "ready"
-            }
-          }
+              slideShowState: "ready",
+            },
+          },
         }}
         onPowerPointRefresh={onPowerPointRefresh}
-      />
+      />,
     );
 
     expect(screen.getByText("PowerPoint unavailable")).toBeTruthy();
@@ -458,15 +453,17 @@ describe("PresentationMode", () => {
           powerPoint: {
             state: "unavailable",
             presentations: [],
-            availablePresentations: [{
-              presentationId: "report-1",
-              title: "Quarterly update",
-              fileName: "quarterly-update.pptx"
-            }]
-          }
+            availablePresentations: [
+              {
+                presentationId: "report-1",
+                title: "Quarterly update",
+                fileName: "quarterly-update.pptx",
+              },
+            ],
+          },
         }}
         onPowerPointLaunch={onPowerPointLaunch}
-      />
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Choose" }));
@@ -481,22 +478,22 @@ describe("PresentationMode", () => {
     const savedPresentation = {
       presentationId: "report-1",
       title: "Quarterly update",
-      fileName: "quarterly-update.pptx"
+      fileName: "quarterly-update.pptx",
     };
     const capability = {
       ...defaultProps.capability,
       powerPoint: {
         state: "unavailable" as const,
         presentations: [],
-        availablePresentations: [savedPresentation]
-      }
+        availablePresentations: [savedPresentation],
+      },
     };
     const view = render(
       <PresentationMode
         {...defaultProps}
         capability={capability}
         onPowerPointLaunch={onPowerPointLaunch}
-      />
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Choose" }));
@@ -517,13 +514,11 @@ describe("PresentationMode", () => {
         onPowerPointLaunch={onPowerPointLaunch}
         pendingPowerPointLaunch={{
           operationId: "launch-1",
-          presentationId: "report-1"
+          presentationId: "report-1",
         }}
-      />
+      />,
     );
-    const pendingStart = screen.getByRole<HTMLButtonElement>(
-      "button",
-      { name: "Start slideshow" });
+    const pendingStart = screen.getByRole<HTMLButtonElement>("button", { name: "Start slideshow" });
     expect(pendingStart.disabled).toBe(true);
     fireEvent.click(pendingStart);
     expect(onPowerPointLaunch).toHaveBeenCalledOnce();
@@ -539,13 +534,14 @@ describe("PresentationMode", () => {
           presentationId: "report-1",
           succeeded: false,
           code: "powerpoint-open-failed",
-          message: "PowerPoint could not open this presentation."
+          message: "PowerPoint could not open this presentation.",
         }}
-      />
+      />,
     );
     expect(screen.getByText("Quarterly update")).toBeTruthy();
-    expect(screen.getByRole("alert").textContent)
-      .toContain("PowerPoint could not open this presentation.");
+    expect(screen.getByRole("alert").textContent).toContain(
+      "PowerPoint could not open this presentation.",
+    );
 
     const launchedPresentation = {
       runtimePresentationId: "runtime-1",
@@ -554,7 +550,7 @@ describe("PresentationMode", () => {
       slideCount: 24,
       currentSlideIndex: 1,
       currentShowPosition: 1,
-      slideShowState: "running" as const
+      slideShowState: "running" as const,
     };
     view.rerender(
       <PresentationMode
@@ -564,8 +560,8 @@ describe("PresentationMode", () => {
           powerPoint: {
             state: "ready",
             presentations: [launchedPresentation],
-            availablePresentations: []
-          }
+            availablePresentations: [],
+          },
         }}
         onPowerPointLaunch={onPowerPointLaunch}
         powerPointLaunchResult={{
@@ -575,11 +571,13 @@ describe("PresentationMode", () => {
           succeeded: true,
           message: "Presentation started.",
           runtimePresentationId: "runtime-1",
-          presentation: launchedPresentation
+          presentation: launchedPresentation,
         }}
-      />
+      />,
     );
-    act(() => { vi.runAllTimers(); });
+    act(() => {
+      vi.runAllTimers();
+    });
     expect(screen.getByText("Quarterly update.pptx")).toBeTruthy();
     expect(screen.getByText("Slide 1 of 24 · Presenting")).toBeTruthy();
   });
@@ -593,27 +591,30 @@ describe("PresentationMode", () => {
           ...defaultProps.capability,
           powerPoint: {
             state: "ready",
-            presentations: [{
-              runtimePresentationId: "runtime-1",
-              name: "First deck.pptx",
-              state: "ready",
-              slideCount: 10,
-              currentSlideIndex: 1,
-              currentShowPosition: 1,
-              slideShowState: "ready"
-            }, {
-              runtimePresentationId: "runtime-2",
-              name: "Second deck.pptx",
-              state: "ready",
-              slideCount: 12,
-              currentSlideIndex: 2,
-              currentShowPosition: 2,
-              slideShowState: "ready"
-            }]
-          }
+            presentations: [
+              {
+                runtimePresentationId: "runtime-1",
+                name: "First deck.pptx",
+                state: "ready",
+                slideCount: 10,
+                currentSlideIndex: 1,
+                currentShowPosition: 1,
+                slideShowState: "ready",
+              },
+              {
+                runtimePresentationId: "runtime-2",
+                name: "Second deck.pptx",
+                state: "ready",
+                slideCount: 12,
+                currentSlideIndex: 2,
+                currentShowPosition: 2,
+                slideShowState: "ready",
+              },
+            ],
+          },
         }}
         onCommand={onCommand}
-      />
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Choose" }));
@@ -622,10 +623,9 @@ describe("PresentationMode", () => {
 
     expect(screen.getByText("Second deck.pptx")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Start from beginning" }));
-    expect(onCommand).toHaveBeenLastCalledWith(
-      "powerpoint",
-      "start",
-      { runtimePresentationId: "runtime-2" });
+    expect(onCommand).toHaveBeenLastCalledWith("powerpoint", "start", {
+      runtimePresentationId: "runtime-2",
+    });
   });
 
   it("allows choosing a replacement deck while a session is unresolved", () => {
@@ -636,12 +636,12 @@ describe("PresentationMode", () => {
       slideCount: 14,
       currentSlideIndex: 1,
       currentShowPosition: 1,
-      slideShowState: "ready" as const
+      slideShowState: "ready" as const,
     };
     const savedPresentation = {
       presentationId: "report-1",
       title: "California redwoods",
-      fileName: "california-redwoods.pptx"
+      fileName: "california-redwoods.pptx",
     };
     const session = {
       state: "pending-review" as const,
@@ -655,7 +655,7 @@ describe("PresentationMode", () => {
       breakElapsedSeconds: 0,
       currentSlideIndex: 1,
       slideCount: 14,
-      slideShowState: "ready" as const
+      slideShowState: "ready" as const,
     };
     const capability = {
       ...defaultProps.capability,
@@ -663,23 +663,18 @@ describe("PresentationMode", () => {
         state: "ready" as const,
         presentations: [openPresentation],
         availablePresentations: [savedPresentation],
-        session
-      }
+        session,
+      },
     };
-    const view = render(
-      <PresentationMode
-        {...defaultProps}
-        capability={capability}
-      />
-    );
+    const view = render(<PresentationMode {...defaultProps} capability={capability} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Change" }));
-    const currentRadio = screen.getByRole<HTMLInputElement>(
-      "radio",
-      { name: /WeatherZilla_Documentation/ });
-    const alternativeRadio = screen.getByRole<HTMLInputElement>(
-      "radio",
-      { name: /California redwoods/ });
+    const currentRadio = screen.getByRole<HTMLInputElement>("radio", {
+      name: /WeatherZilla_Documentation/,
+    });
+    const alternativeRadio = screen.getByRole<HTMLInputElement>("radio", {
+      name: /California redwoods/,
+    });
     expect(currentRadio.checked).toBe(true);
     expect(alternativeRadio.disabled).toBe(false);
     expect(screen.getByText(/saves the current presentation automatically/)).toBeTruthy();
@@ -698,16 +693,16 @@ describe("PresentationMode", () => {
             session: {
               ...session,
               state: "inactive",
-              runtimePresentationId: null
-            }
-          }
+              runtimePresentationId: null,
+            },
+          },
         }}
-      />
+      />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Change" }));
-    const unlockedAlternative = screen.getByRole<HTMLInputElement>(
-      "radio",
-      { name: /California redwoods/ });
+    const unlockedAlternative = screen.getByRole<HTMLInputElement>("radio", {
+      name: /California redwoods/,
+    });
     expect(unlockedAlternative.disabled).toBe(false);
     fireEvent.click(unlockedAlternative);
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
@@ -722,10 +717,12 @@ describe("PresentationMode", () => {
         {...defaultProps}
         capability={{ ...defaultProps.capability, laserPointerActive: true }}
         onCommand={onCommand}
-      />
+      />,
     );
 
-    expect(screen.getByRole("button", { name: "Laser pointer" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "Laser pointer" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
 
     view.unmount();
 
@@ -741,34 +738,29 @@ describe("PresentationMode", () => {
           operationId: "pointer-enable",
           target: "powerpoint",
           action: "pointer",
-          enabled: true
+          enabled: true,
         }}
         capability={{
           ...defaultProps.capability,
-          laserPointerActive: true
+          laserPointerActive: true,
         }}
         onCommand={onCommand}
-      />
+      />,
     );
 
-    const laser = screen.getByRole<HTMLButtonElement>(
-      "button",
-      { name: "Laser pointer" });
+    const laser = screen.getByRole<HTMLButtonElement>("button", { name: "Laser pointer" });
     expect(laser.disabled).toBe(false);
     fireEvent.click(laser);
-    expect(onCommand).toHaveBeenLastCalledWith(
-      "powerpoint",
-      "pointer",
-      { enabled: false });
-    expect(screen.getByRole<HTMLButtonElement>(
-      "button",
-      { name: "Next" }).disabled).toBe(true);
+    expect(onCommand).toHaveBeenLastCalledWith("powerpoint", "pointer", { enabled: false });
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Next" }).disabled).toBe(true);
   });
 
   it("uses the Remote Power blackout action", () => {
     const onPowerAction = vi.fn();
     const onCommand = vi.fn();
-    render(<PresentationMode {...defaultProps} onCommand={onCommand} onPowerAction={onPowerAction} />);
+    render(
+      <PresentationMode {...defaultProps} onCommand={onCommand} onPowerAction={onPowerAction} />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Blackout" }));
 
@@ -778,7 +770,13 @@ describe("PresentationMode", () => {
 
   it("blocks Blackout with an accessible reason when the host denies it", () => {
     const onPowerAction = vi.fn();
-    render(<PresentationMode {...defaultProps} blackoutAvailable={false} onPowerAction={onPowerAction} />);
+    render(
+      <PresentationMode
+        {...defaultProps}
+        blackoutAvailable={false}
+        onPowerAction={onPowerAction}
+      />,
+    );
 
     const blackout = screen.getByRole<HTMLButtonElement>("button", { name: "Blackout" });
     expect(blackout.disabled).toBe(true);
@@ -789,10 +787,22 @@ describe("PresentationMode", () => {
 
   it("blocks Blackout for presentation denial or any pending power action", () => {
     const onPowerAction = vi.fn();
-    const view = render(<PresentationMode {...defaultProps} capability={{ ...defaultProps.capability, canControl: false }} onPowerAction={onPowerAction} />);
+    const view = render(
+      <PresentationMode
+        {...defaultProps}
+        capability={{ ...defaultProps.capability, canControl: false }}
+        onPowerAction={onPowerAction}
+      />,
+    );
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "Blackout" }).disabled).toBe(true);
 
-    view.rerender(<PresentationMode {...defaultProps} pendingPowerAction="lock" onPowerAction={onPowerAction} />);
+    view.rerender(
+      <PresentationMode
+        {...defaultProps}
+        pendingPowerAction="lock"
+        onPowerAction={onPowerAction}
+      />,
+    );
     const blackout = screen.getByRole<HTMLButtonElement>("button", { name: "Blackout" });
     expect(blackout.disabled).toBe(true);
     fireEvent.click(blackout);
@@ -801,10 +811,18 @@ describe("PresentationMode", () => {
 
   it("reacts to Blackout capability changes while mounted", () => {
     const onPowerAction = vi.fn();
-    const view = render(<PresentationMode {...defaultProps} blackoutAvailable={false} onPowerAction={onPowerAction} />);
+    const view = render(
+      <PresentationMode
+        {...defaultProps}
+        blackoutAvailable={false}
+        onPowerAction={onPowerAction}
+      />,
+    );
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "Blackout" }).disabled).toBe(true);
 
-    view.rerender(<PresentationMode {...defaultProps} blackoutAvailable onPowerAction={onPowerAction} />);
+    view.rerender(
+      <PresentationMode {...defaultProps} blackoutAvailable onPowerAction={onPowerAction} />,
+    );
     const blackout = screen.getByRole<HTMLButtonElement>("button", { name: "Blackout" });
     expect(blackout.disabled).toBe(false);
     fireEvent.click(blackout);
@@ -814,35 +832,39 @@ describe("PresentationMode", () => {
   it("collapses the active target into a header selector and restores the full target row on reselection", () => {
     render(<PresentationMode {...defaultProps} />);
 
-    const powerpointSelector = screen.getByRole("button", { name: "Change presentation mode (PowerPoint)" });
+    const powerpointSelector = screen.getByRole("button", {
+      name: "Change presentation mode (PowerPoint)",
+    });
     fireEvent.click(powerpointSelector);
     expect(screen.getByRole("menu", { name: "Change presentation mode" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Google Slides" }));
     expect(screen.queryByRole("button", { name: "Start slideshow" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Change presentation mode (Google Slides)" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Change presentation mode (Google Slides)" }),
+    ).toBeTruthy();
 
-    expect(screen.getByRole("button", { name: "Change presentation mode (Google Slides)" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Change presentation mode (Google Slides)" }),
+    ).toBeTruthy();
   });
 
   it("switches to a compact presentation summary while the trackpad owns the layout", () => {
     render(
-      <PresentationMode
-        {...defaultProps}
-        renderTrackpad={() => <div>Trackpad canvas</div>}
-      />
+      <PresentationMode {...defaultProps} renderTrackpad={() => <div>Trackpad canvas</div>} />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Trackpad" }));
 
     expect(screen.getByText("Trackpad canvas")).toBeTruthy();
     expect(screen.getByLabelText("Current presentation")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Previous slide" }).textContent)
-      .toContain("Previous");
-    expect(screen.getByRole("button", { name: "Next slide" }).textContent)
-      .toContain("Next");
-    expect(screen.getByRole("region", { name: "Presentation" }).className)
-      .toContain("trackpad-open");
+    expect(screen.getByRole("button", { name: "Previous slide" }).textContent).toContain(
+      "Previous",
+    );
+    expect(screen.getByRole("button", { name: "Next slide" }).textContent).toContain("Next");
+    expect(screen.getByRole("region", { name: "Presentation" }).className).toContain(
+      "trackpad-open",
+    );
   });
 
   it("folds the presentation trackpad after restoring it from fullscreen", () => {
@@ -857,32 +879,42 @@ describe("PresentationMode", () => {
             </button>
           </div>
         )}
-      />
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Trackpad" }));
     fireEvent.click(screen.getByRole("button", { name: "Expand test trackpad" }));
-    expect(screen.getByRole("region", { name: "Presentation" }).className)
-      .toContain("trackpad-fullscreen");
+    expect(screen.getByRole("region", { name: "Presentation" }).className).toContain(
+      "trackpad-fullscreen",
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Restore test trackpad" }));
     expect(screen.queryByText("Trackpad canvas")).toBeNull();
-    expect(screen.getByRole("button", { name: "Trackpad" }).getAttribute("aria-expanded"))
-      .toBe("false");
-    expect(screen.getByRole("region", { name: "Presentation" }).className)
-      .not.toContain("trackpad-open");
+    expect(screen.getByRole("button", { name: "Trackpad" }).getAttribute("aria-expanded")).toBe(
+      "false",
+    );
+    expect(screen.getByRole("region", { name: "Presentation" }).className).not.toContain(
+      "trackpad-open",
+    );
   });
 
   it("logically locks presentation commands before showing a slow pending state", async () => {
     vi.useFakeTimers();
-    const view = render(<PresentationMode {...defaultProps} capability={{ ...defaultProps.capability, canControl: false }} />);
+    const view = render(
+      <PresentationMode
+        {...defaultProps}
+        capability={{ ...defaultProps.capability, canControl: false }}
+      />,
+    );
     expect(screen.getByRole("alert").textContent).toContain("blocked by the host");
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "Next" }).disabled).toBe(true);
 
-    view.rerender(<PresentationMode
-      {...defaultProps}
-      pending={{ operationId: "operation-a", target: "powerpoint", action: "next" }}
-    />);
+    view.rerender(
+      <PresentationMode
+        {...defaultProps}
+        pending={{ operationId: "operation-a", target: "powerpoint", action: "next" }}
+      />,
+    );
     const previous = screen.getByRole<HTMLButtonElement>("button", { name: "Previous" });
     const next = screen.getByRole<HTMLButtonElement>("button", { name: "Next" });
     const start = screen.getByRole<HTMLButtonElement>("button", { name: "Start slideshow" });
@@ -892,7 +924,9 @@ describe("PresentationMode", () => {
     expect(previous.dataset.pendingVisual).toBe("deferred");
     expect(next.dataset.pendingVisual).toBe("deferred");
     expect(start.dataset.pendingVisual).toBe("deferred");
-    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Volume down" }).disabled).toBe(false);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Volume down" }).disabled).toBe(
+      false,
+    );
     expect(previous.closest("[aria-busy='true']")).toBeTruthy();
 
     await act(() => vi.advanceTimersByTime(uiDurations.slow));
@@ -914,7 +948,11 @@ describe("PresentationMode", () => {
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     await act(() => vi.advanceTimersByTime(5_000));
     expect(screen.getByLabelText("Elapsed break time").textContent).toBe("00:05");
-    expect(screen.getByRole("button", { name: /Presentation session 1: 01:01, followed by break 1: 00:05/ })).toBeTruthy();
+    expect(
+      screen.getByRole("button", {
+        name: /Presentation session 1: 01:01, followed by break 1: 00:05/,
+      }),
+    ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Reset" }));

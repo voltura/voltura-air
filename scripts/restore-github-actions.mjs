@@ -17,7 +17,7 @@ export async function restoreGithubActions({
   readDirectory = readdir,
   remove = rm,
   inspect = stat,
-  createId = randomUUID
+  createId = randomUUID,
 } = {}) {
   const workflowNames = (await readDirectory(sourceDirectory))
     .filter((name) => /\.ya?ml$/u.test(name))
@@ -39,7 +39,10 @@ export async function restoreGithubActions({
     for (const name of workflowNames) {
       const sourcePath = path.join(sourceDirectory, name);
       const expectedContents = await read(sourcePath);
-      const temporaryPath = path.join(targetDirectory, `.voltura-restore-${createId()}-${name}.tmp`);
+      const temporaryPath = path.join(
+        targetDirectory,
+        `.voltura-restore-${createId()}-${name}.tmp`,
+      );
       const temporaryFile = { path: temporaryPath, identity: null };
       temporaryFiles.push(temporaryFile);
       await copy(sourcePath, temporaryPath);
@@ -62,7 +65,7 @@ export async function restoreGithubActions({
           if (inspectionError?.code !== "ENOENT") {
             throw new AggregateError(
               [publishError, inspectionError],
-              `Workflow ${name} publication failed and its target ownership could not be reconciled.`
+              `Workflow ${name} publication failed and its target ownership could not be reconciled.`,
             );
           }
         }
@@ -88,21 +91,36 @@ export async function restoreGithubActions({
           publish,
           read,
           remove,
-          createId
+          createId,
         });
+      } catch (cleanupError) {
+        cleanupErrors.push(cleanupError);
       }
-      catch (cleanupError) { cleanupErrors.push(cleanupError); }
     }
-    await cleanOwnedTemporaryFiles(temporaryFiles, { inspect, move, publish, read, remove, createId }, cleanupErrors);
+    await cleanOwnedTemporaryFiles(
+      temporaryFiles,
+      { inspect, move, publish, read, remove, createId },
+      cleanupErrors,
+    );
     if (cleanupErrors.length > 0) {
-      throw new AggregateError([error, ...cleanupErrors], "Workflow restoration and rollback both failed.");
+      throw new AggregateError(
+        [error, ...cleanupErrors],
+        "Workflow restoration and rollback both failed.",
+      );
     }
     throw error;
   }
   const cleanupErrors = [];
-  await cleanOwnedTemporaryFiles(temporaryFiles, { inspect, move, publish, read, remove, createId }, cleanupErrors);
+  await cleanOwnedTemporaryFiles(
+    temporaryFiles,
+    { inspect, move, publish, read, remove, createId },
+    cleanupErrors,
+  );
   if (cleanupErrors.length > 0) {
-    throw new AggregateError(cleanupErrors, "Workflows were restored, but staging-file cleanup failed.");
+    throw new AggregateError(
+      cleanupErrors,
+      "Workflows were restored, but staging-file cleanup failed.",
+    );
   }
   return workflowNames;
 }
@@ -115,14 +133,22 @@ async function cleanOwnedTemporaryFiles(temporaryFiles, dependencies, cleanupErr
   for (const temporary of temporaryFiles.reverse()) {
     try {
       if (temporary.identity === null) {
-        try { await dependencies.inspect(temporary.path); }
-        catch (error) { if (error?.code === "ENOENT") {continue;} throw error; }
-        throw new Error(`Refusing to remove an unverified workflow staging file ${path.basename(temporary.path)}.`);
+        try {
+          await dependencies.inspect(temporary.path);
+        } catch (error) {
+          if (error?.code === "ENOENT") {
+            continue;
+          }
+          throw error;
+        }
+        throw new Error(
+          `Refusing to remove an unverified workflow staging file ${path.basename(temporary.path)}.`,
+        );
       }
       await removeOwnedPath(temporary.path, {
         ...dependencies,
         identity: temporary.identity,
-        label: `workflow staging file ${path.basename(temporary.path)}`
+        label: `workflow staging file ${path.basename(temporary.path)}`,
       });
     } catch (cleanupError) {
       cleanupErrors.push(cleanupError);
@@ -130,42 +156,40 @@ async function cleanOwnedTemporaryFiles(temporaryFiles, dependencies, cleanupErr
   }
 }
 
-async function removeOwnedPath(filePath, {
-  identity,
-  expectedContents,
-  label,
-  inspect,
-  move,
-  publish,
-  read,
-  remove,
-  createId
-}) {
+async function removeOwnedPath(
+  filePath,
+  { identity, expectedContents, label, inspect, move, publish, read, remove, createId },
+) {
   const quarantinePath = `${filePath}.voltura-owned-${createId()}.quarantine`;
   try {
     await move(filePath, quarantinePath);
   } catch (moveError) {
-    if (!await pathExists(quarantinePath, inspect)) {throw moveError;}
+    if (!(await pathExists(quarantinePath, inspect))) {
+      throw moveError;
+    }
     // The rename reached its intended state before reporting failure. Continue
     // with identity verification so rollback does not leave a partial result.
   }
   let removalAttempted = false;
   try {
     const quarantinedIdentity = await inspect(quarantinePath);
-    const contentsMatch = expectedContents === undefined || (await read(quarantinePath)).equals(expectedContents);
+    const contentsMatch =
+      expectedContents === undefined || (await read(quarantinePath)).equals(expectedContents);
     if (!sameFileIdentity(quarantinedIdentity, identity) || !contentsMatch) {
       throw new Error(`Refusing to remove concurrently changed ${label}.`);
     }
     removalAttempted = true;
     await remove(quarantinePath);
   } catch (error) {
-    if (removalAttempted && !await pathExists(quarantinePath, inspect)) {return;}
+    if (removalAttempted && !(await pathExists(quarantinePath, inspect))) {
+      return;
+    }
     try {
       await restoreQuarantinedPath(quarantinePath, filePath, { publish, remove });
     } catch (restoreError) {
       throw new AggregateError(
         [error, restoreError],
-        `Could not restore ${label} after quarantining it; preserved copy: ${quarantinePath}`
+        `Could not restore ${label} after quarantining it; preserved copy: ${quarantinePath}`,
       );
     }
     throw error;
@@ -182,7 +206,9 @@ async function pathExists(filePath, inspect) {
     await inspect(filePath);
     return true;
   } catch (error) {
-    if (error?.code === "ENOENT") {return false;}
+    if (error?.code === "ENOENT") {
+      return false;
+    }
     throw error;
   }
 }

@@ -1,4 +1,10 @@
-export type ConnectionState = "connecting" | "paired" | "needs-pairing" | "rejected" | "disconnected" | "unavailable";
+export type ConnectionState =
+  | "connecting"
+  | "paired"
+  | "needs-pairing"
+  | "rejected"
+  | "disconnected"
+  | "unavailable";
 
 export interface ConnectionError {
   code: string;

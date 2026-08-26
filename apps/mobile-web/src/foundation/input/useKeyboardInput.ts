@@ -5,11 +5,13 @@ import {
   fromLiveKeyboardValue,
   getEmptyDeleteMessage,
   getKeyboardDeltaMessages,
-  liveKeyboardSentinel
+  liveKeyboardSentinel,
 } from "./keyboardDelta";
 import type { KeyboardSpecialMessage, KeyboardTextMessage } from "../protocol/messages";
 
-export function useKeyboardInput(emit: (payload: KeyboardTextMessage | KeyboardSpecialMessage) => void) {
+export function useKeyboardInput(
+  emit: (payload: KeyboardTextMessage | KeyboardSpecialMessage) => void,
+) {
   const [keyboardText, setKeyboardText] = useState("");
   const [liveKeyboard, setLiveKeyboard] = useState(() => loadLiveKeyboardDefault());
   const committedKeyboardTextRef = useRef("");
@@ -96,6 +98,6 @@ export function useKeyboardInput(emit: (payload: KeyboardTextMessage | KeyboardS
     placeLiveKeyboardCaret,
     sendEmptyDelete,
     setKeyboardText,
-    setLiveTyping
+    setLiveTyping,
   };
 }

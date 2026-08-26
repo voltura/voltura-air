@@ -55,13 +55,20 @@ export function stopExistingHost(options = {}) {
   }
 
   const processes = listHostProcesses();
-  const unverified = processes.filter((process) => !isAllowedHostExecutable(process.executablePath));
+  const unverified = processes.filter(
+    (process) => !isAllowedHostExecutable(process.executablePath),
+  );
   if (unverified.length > 0) {
-    throw new Error(`Refusing to stop an unverified ${windowsHostImage} process: ${unverified.map((process) => process.executablePath || `PID ${process.pid}`).join(", ")}`);
+    throw new Error(
+      `Refusing to stop an unverified ${windowsHostImage} process: ${unverified.map((process) => process.executablePath || `PID ${process.pid}`).join(", ")}`,
+    );
   }
   for (const process of processes) {
     const result = run("taskkill", ["/PID", String(process.pid), "/T", "/F"], { stdio: "ignore" });
-    if (result.error || (result.status !== undefined && result.status !== null && result.status !== 0)) {
+    if (
+      result.error ||
+      (result.status !== undefined && result.status !== null && result.status !== 0)
+    ) {
       throw new Error(`Could not stop the verified Voltura Air host process ${process.pid}.`);
     }
   }
@@ -97,9 +104,13 @@ export function stopWindowsNodeListenersOnDevPorts(startPort, count) {
   const ports = new Set(Array.from({ length: count }, (_, index) => startPort + index));
   const result = spawnSync("netstat", ["-ano", "-p", "tcp"], {
     encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"]
+    stdio: ["ignore", "pipe", "ignore"],
   });
-  if (result.error || (result.status !== undefined && result.status !== null && result.status !== 0) || typeof result.stdout !== "string") {
+  if (
+    result.error ||
+    (result.status !== undefined && result.status !== null && result.status !== 0) ||
+    typeof result.stdout !== "string"
+  ) {
     throw new Error("Could not inspect the reserved Voltura Air development ports.");
   }
 
@@ -117,49 +128,76 @@ export function stopWindowsNodeListenersOnDevPorts(startPort, count) {
   }
 
   if (listenerPids.size > 0) {
-    throw new Error(`Reserved Voltura Air development ports are already in use by PID(s): ${[...listenerPids].join(", ")}. Stop the owning process and retry.`);
+    throw new Error(
+      `Reserved Voltura Air development ports are already in use by PID(s): ${[...listenerPids].join(", ")}. Stop the owning process and retry.`,
+    );
   }
 }
 
 function isWindowsProcessRunning(imageName, run) {
   const result = run("tasklist", ["/FI", `IMAGENAME eq ${imageName}`, "/FO", "CSV", "/NH"], {
     encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"]
+    stdio: ["ignore", "pipe", "ignore"],
   });
-  if (result.error || (result.status !== undefined && result.status !== null && result.status !== 0) || typeof result.stdout !== "string") {
+  if (
+    result.error ||
+    (result.status !== undefined && result.status !== null && result.status !== 0) ||
+    typeof result.stdout !== "string"
+  ) {
     throw new Error(`Could not inspect whether ${imageName} is still running.`);
   }
-  return result.stdout.trim().match(/^"([^"]+)"/)?.[1]?.toLowerCase() === imageName.toLowerCase();
+  return (
+    result.stdout
+      .trim()
+      .match(/^"([^"]+)"/)?.[1]
+      ?.toLowerCase() === imageName.toLowerCase()
+  );
 }
 
 function findWindowsHostProcesses(run) {
-  const script = "$ErrorActionPreference='Stop';@(Get-CimInstance Win32_Process -Filter \"Name='VolturaAir.Host.exe'\"|ForEach-Object{[pscustomobject]@{pid=[int]$_.ProcessId;executablePath=[string]$_.ExecutablePath}})|ConvertTo-Json -Compress";
+  const script =
+    "$ErrorActionPreference='Stop';@(Get-CimInstance Win32_Process -Filter \"Name='VolturaAir.Host.exe'\"|ForEach-Object{[pscustomobject]@{pid=[int]$_.ProcessId;executablePath=[string]$_.ExecutablePath}})|ConvertTo-Json -Compress";
   const result = run("powershell.exe", ["-NoProfile", "-Command", script], {
     encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"]
+    stdio: ["ignore", "pipe", "pipe"],
   });
-  if (result.error || (result.status !== undefined && result.status !== null && result.status !== 0)) {
+  if (
+    result.error ||
+    (result.status !== undefined && result.status !== null && result.status !== 0)
+  ) {
     throw new Error("Could not verify the running Voltura Air host executable path.");
   }
   const text = result.stdout?.trim();
   if (!text) return [];
   let parsed;
-  try { parsed = JSON.parse(text); }
-  catch { throw new Error("Could not parse the running Voltura Air host process inventory."); }
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("Could not parse the running Voltura Air host process inventory.");
+  }
   return (Array.isArray(parsed) ? parsed : [parsed]).map((process) => ({
     pid: Number(process.pid),
-    executablePath: typeof process.executablePath === "string" ? path.resolve(process.executablePath) : ""
+    executablePath:
+      typeof process.executablePath === "string" ? path.resolve(process.executablePath) : "",
   }));
 }
 
 function isAllowedHostExecutable(executablePath) {
-  if (!executablePath || path.basename(executablePath).toLowerCase() !== windowsHostImage.toLowerCase()) return false;
+  if (
+    !executablePath ||
+    path.basename(executablePath).toLowerCase() !== windowsHostImage.toLowerCase()
+  )
+    return false;
   const normalized = path.resolve(executablePath).toLowerCase();
-  const repositoryHostRoot = path.join(repositoryRoot, "apps", "windows-host", "bin").toLowerCase() + path.sep;
+  const repositoryHostRoot =
+    path.join(repositoryRoot, "apps", "windows-host", "bin").toLowerCase() + path.sep;
   const installedHostRoot = process.env.LOCALAPPDATA
     ? path.join(process.env.LOCALAPPDATA, "Programs", "Voltura Air").toLowerCase() + path.sep
     : "";
-  return normalized.startsWith(repositoryHostRoot) || (installedHostRoot !== "" && normalized.startsWith(installedHostRoot));
+  return (
+    normalized.startsWith(repositoryHostRoot) ||
+    (installedHostRoot !== "" && normalized.startsWith(installedHostRoot))
+  );
 }
 
 function sleepSynchronously(milliseconds) {

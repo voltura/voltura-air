@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { createLocalId } from "../identity/localId";
-import type { ClientMessage, SystemPowerAction, SystemPowerResultMessage } from "../protocol/messages";
+import type {
+  ClientMessage,
+  SystemPowerAction,
+  SystemPowerResultMessage,
+} from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
 
 const responseTimeoutMs = 5000;
@@ -32,13 +36,16 @@ export function usePowerControl(state: ConnectionState, send: (payload: ClientMe
         ...pendingOperation,
         succeeded: false,
         code: "VAIR-POWER-RESPONSE-TIMEOUT",
-        message: pendingOperation.action === "lock"
-          ? "The PC did not respond to the lock request. Check the host command log and try again."
-          : "The PC did not respond to the power request. Check the host application log and try again."
+        message:
+          pendingOperation.action === "lock"
+            ? "The PC did not respond to the lock request. Check the host command log and try again."
+            : "The PC did not respond to the power request. Check the host application log and try again.",
       });
     }, responseTimeoutMs);
 
-    return () => { window.clearTimeout(timeout); };
+    return () => {
+      window.clearTimeout(timeout);
+    };
   }, [pendingOperation]);
 
   useEffect(() => {

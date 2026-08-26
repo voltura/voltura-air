@@ -134,15 +134,15 @@ UUID, IP address, request JSON, or event history.
 
 Responses are fixed and smaller than 1 KiB:
 
-| Status | Contract |
-| --- | --- |
-| `202` | New or duplicate accepted; exact body `{"schemaVersion":1,"status":"accepted"}`. |
-| `400` | Invalid JSON/schema/version/value; fixed generic invalid body. |
-| `405` | Wrong method; `Allow: POST`. |
-| `413` | Body exceeds 4,096 bytes. |
-| `415` | Unsupported media type. |
-| `429` | Installation, source, or service-wide bound reached; bounded `Retry-After`. |
-| `503` | Configuration/database unavailable; no internal detail. |
+| Status | Contract                                                                         |
+| ------ | -------------------------------------------------------------------------------- |
+| `202`  | New or duplicate accepted; exact body `{"schemaVersion":1,"status":"accepted"}`. |
+| `400`  | Invalid JSON/schema/version/value; fixed generic invalid body.                   |
+| `405`  | Wrong method; `Allow: POST`.                                                     |
+| `413`  | Body exceeds 4,096 bytes.                                                        |
+| `415`  | Unsupported media type.                                                          |
+| `429`  | Installation, source, or service-wide bound reached; bounded `Retry-After`.      |
+| `503`  | Configuration/database unavailable; no internal detail.                          |
 
 The host seals first after a random 5–15 minutes and every six hours thereafter.
 It reuses one batch UUID for the initial attempt and retries after 1, 5, and 15
@@ -167,13 +167,13 @@ bootstrap secret and no fragment. It does not include a host identity key,
 fingerprint, reconnect key, or second identifier; `/` imports no pairing
 credential.
 
-| Parameter | Contract |
-| --- | --- |
-| `t` | Required 32-character URL-safe Base64 short-lived token. |
-| `v` | Required semver metadata; validated, but never authentication, compatibility enforcement, or cache busting. |
-| `h` | Optional WebSocket host origin or port; a port resolves against the page host. Routing only, never authentication. |
-| `d` | Optional non-secret client ID added by mobile. |
-| `n` | Optional non-secret device name added by mobile. |
+| Parameter | Contract                                                                                                           |
+| --------- | ------------------------------------------------------------------------------------------------------------------ |
+| `t`       | Required 32-character URL-safe Base64 short-lived token.                                                           |
+| `v`       | Required semver metadata; validated, but never authentication, compatibility enforcement, or cache busting.        |
+| `h`       | Optional WebSocket host origin or port; a port resolves against the page host. Routing only, never authentication. |
+| `d`       | Optional non-secret client ID added by mobile.                                                                     |
+| `n`       | Optional non-secret device name added by mobile.                                                                   |
 
 Mobile removes `t` from the current URL before name confirmation/authentication.
 `/pair`, `v`, hints, and saved profiles never bypass token pairing or reconnect
@@ -446,16 +446,16 @@ Rejection:
 { "type": "pair.rejected", "reason": "invalid-token" }
 ```
 
-| `reason` | Meaning |
-| --- | --- |
-| `pair-first` | Non-pairing message before authentication. |
-| `invalid-token` | No match with current/overlap token. |
-| `expired-token` | Matching retained token expired. |
-| `stale-token` | No active token state. |
-| `device-revoked` | No device record for `clientId`. |
-| `invalid-proof` | Signature failed for the session challenge/public key. |
-| `rate-limited` | Too many failed unauthenticated attempts from the address. |
-| `invalid-message` | Invalid pairing JSON shape. |
+| `reason`          | Meaning                                                    |
+| ----------------- | ---------------------------------------------------------- |
+| `pair-first`      | Non-pairing message before authentication.                 |
+| `invalid-token`   | No match with current/overlap token.                       |
+| `expired-token`   | Matching retained token expired.                           |
+| `stale-token`     | No active token state.                                     |
+| `device-revoked`  | No device record for `clientId`.                           |
+| `invalid-proof`   | Signature failed for the session challenge/public key.     |
+| `rate-limited`    | Too many failed unauthenticated attempts from the address. |
+| `invalid-message` | Invalid pairing JSON shape.                                |
 
 Mobile derives `VAIR-PAIR-*`; no diagnostic-code field is sent. Unknown reasons
 remain diagnosable instead of exposing raw protocol text.
@@ -777,7 +777,12 @@ renegotiated or reused.
 terminal event correlated to the started operation with one current reason:
 
 ```json
-{ "type": "phone.webcam.ended", "operationId": "webcam-start-1", "reason": "transport-lost", "message": "The Phone webcam session ended." }
+{
+  "type": "phone.webcam.ended",
+  "operationId": "webcam-start-1",
+  "reason": "transport-lost",
+  "message": "The Phone webcam session ended."
+}
 ```
 
 Accepted reasons are `stopped`, `connection-lost`, `transport-lost`,
@@ -1068,13 +1073,13 @@ host recorder remains a no-op while disabled.
 
 When present, the context must also match the functional command owner:
 
-| Command family | Allowed `inputContext` values |
-|---|---|
-| `pointer.*` | `trackpad`, `keyboard`, `presentation`, `custom-screens`, `screen-view`, `gyro-mouse` |
-| `screen.pointer.*` | `screen-view` |
-| `keyboard.text` | `keyboard`, `dictation`, `screen-view` |
-| `keyboard.special` | `keyboard`, `media-controls`, `presentation`, `custom-screens`, `screen-view` |
-| `audio.*` | `media-controls`, `custom-screens` |
+| Command family     | Allowed `inputContext` values                                                         |
+| ------------------ | ------------------------------------------------------------------------------------- |
+| `pointer.*`        | `trackpad`, `keyboard`, `presentation`, `custom-screens`, `screen-view`, `gyro-mouse` |
+| `screen.pointer.*` | `screen-view`                                                                         |
+| `keyboard.text`    | `keyboard`, `dictation`, `screen-view`                                                |
+| `keyboard.special` | `keyboard`, `media-controls`, `presentation`, `custom-screens`, `screen-view`         |
+| `audio.*`          | `media-controls`, `custom-screens`                                                    |
 
 Omission remains valid for old/cached clients. A closed value on the wrong
 command family is a protocol error rather than a telemetry hint to reinterpret.
@@ -1133,7 +1138,11 @@ Configurable buttons use advertised opaque IDs:
 ```
 
 ```json
-{ "type": "app.launch", "operationId": "550e8400-e29b-41d4-a716-446655440000", "actionId": "custom.1234" }
+{
+  "type": "app.launch",
+  "operationId": "550e8400-e29b-41d4-a716-446655440000",
+  "actionId": "custom.1234"
+}
 ```
 
 ```json
@@ -1248,7 +1257,13 @@ denial performs no read.
 `capabilities.fileManager` is present when the host supports Files:
 
 ```json
-{ "canBrowse": false, "canModify": false, "canTransfer": false, "hidesProtectedSystemItems": true, "maxPageSize": 100 }
+{
+  "canBrowse": false,
+  "canModify": false,
+  "canTransfer": false,
+  "hidesProtectedSystemItems": true,
+  "maxPageSize": 100
+}
 ```
 
 The capability remains present when permission is denied so mobile can show recovery guidance. `canBrowse` reflects **Browse and open files**. `canModify` additionally requires **Change files**. Optional `canTransfer` reflects **Transfer files**; omission means unavailable. These values resolve from the authenticated device's built-in profile or explicit Custom matrix. `hidesProtectedSystemItems` reports the separate effective default-on global/per-device **Hide protected operating system files and folders** policy. When true, the host removes entries carrying both Windows Hidden and System attributes before it creates panel revisions, counts, pages, selections, or operation references. Access profiles change no pairing or authentication shape.
@@ -1585,8 +1600,7 @@ timeline; older report JSON without visits remains readable.
 - `utcOffsetMinutes`: −840 through +840.
 - Chronology: monotonic; breaks inside report bounds.
 - Wall-clock span/durations: finite, non-negative, maximum seven days.
-- Breaks: consecutive from 1, nondecreasing presentation checkpoints, maximum
-  100.
+- Breaks: consecutive from 1, nondecreasing presentation checkpoints, maximum 100.
 - Optional slide numbers/ranges and unique slide entries: 1–1,000; maximum
   1,000 entries.
 - Unknown optionals are omitted. `null`, duplicate, or undeclared nested fields

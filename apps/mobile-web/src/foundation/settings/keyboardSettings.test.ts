@@ -8,7 +8,7 @@ describe("normalizeKeyboardSettings", () => {
       showFunctionKeys: false,
       showControlKeys: true,
       showArrowKeys: true,
-      showSleepButton: true
+      showSleepButton: true,
     });
   });
 
@@ -17,9 +17,11 @@ describe("normalizeKeyboardSettings", () => {
   });
 
   it("preserves disabled control and arrow key settings", () => {
-    expect(normalizeKeyboardSettings({ showControlKeys: false, showArrowKeys: false })).toMatchObject({
+    expect(
+      normalizeKeyboardSettings({ showControlKeys: false, showArrowKeys: false }),
+    ).toMatchObject({
       showControlKeys: false,
-      showArrowKeys: false
+      showArrowKeys: false,
     });
   });
 });

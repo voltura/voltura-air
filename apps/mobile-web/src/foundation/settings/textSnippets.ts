@@ -22,21 +22,31 @@ export function loadTextSnippets(clientId: string): SavedTextSnippet[] {
     }
 
     const ids = new Set<string>();
-    return (value as unknown[]).flatMap((candidate): SavedTextSnippet[] => {
-      if (typeof candidate !== "object" || candidate === null) {
-        return [];
-      }
+    return (value as unknown[])
+      .flatMap((candidate): SavedTextSnippet[] => {
+        if (typeof candidate !== "object" || candidate === null) {
+          return [];
+        }
 
-      const { id, name, text } = candidate as Partial<SavedTextSnippet>;
-      if (typeof id !== "string" || !/^[a-zA-Z0-9-]{1,64}$/.test(id) || ids.has(id) ||
-          typeof name !== "string" || name.trim().length < 1 || name.trim().length > maxSnippetNameLength ||
-          typeof text !== "string" || text.length < 1 || text.length > maxSnippetLength) {
-        return [];
-      }
+        const { id, name, text } = candidate as Partial<SavedTextSnippet>;
+        if (
+          typeof id !== "string" ||
+          !/^[a-zA-Z0-9-]{1,64}$/.test(id) ||
+          ids.has(id) ||
+          typeof name !== "string" ||
+          name.trim().length < 1 ||
+          name.trim().length > maxSnippetNameLength ||
+          typeof text !== "string" ||
+          text.length < 1 ||
+          text.length > maxSnippetLength
+        ) {
+          return [];
+        }
 
-      ids.add(id);
-      return [{ id, name: name.trim(), text }];
-    }).slice(0, maxSavedSnippets);
+        ids.add(id);
+        return [{ id, name: name.trim(), text }];
+      })
+      .slice(0, maxSavedSnippets);
   } catch {
     return [];
   }

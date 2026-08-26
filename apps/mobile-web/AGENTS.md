@@ -13,8 +13,8 @@ Inherits root; read relevant UI-system/architecture guidance.
 
 ## Contracts
 
-- TS7 builds product code; TS6 is ESLint-API-only. Never downlevel valid TS7
-  for analyzers.
+- TypeScript 7 builds and typechecks all product and tooling code. Never
+  downlevel valid TS7 for analyzers.
 - Narrow boundary values from `unknown`; clean up effect-acquired resources.
 - Before contact, declare gesture ownership and fix `touch-action`. Accessibly
   handle tap/scroll/long-press/drag/cancel/release. Feature-detect; never

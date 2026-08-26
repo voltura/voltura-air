@@ -4,7 +4,7 @@ import {
   GyroMotionProcessor,
   requestGyroPermission,
   type GyroActivationRequest,
-  type GyroAvailability
+  type GyroAvailability,
 } from "./gyroMouse";
 
 interface UseGyroMouseOptions {
@@ -18,7 +18,16 @@ interface UseGyroMouseOptions {
   sensitivity: number;
 }
 
-export function useGyroMouse({ activationRequest, connected, enabledSurface, onMove, onSelectedChange, onStop, sensitivity, sessionKey }: UseGyroMouseOptions) {
+export function useGyroMouse({
+  activationRequest,
+  connected,
+  enabledSurface,
+  onMove,
+  onSelectedChange,
+  onStop,
+  sensitivity,
+  sessionKey,
+}: UseGyroMouseOptions) {
   const [selected, setSelectedState] = useState(false);
   const [availability, setAvailability] = useState<GyroAvailability>(getGyroInitialAvailability);
   const [engaged, setEngagedState] = useState(false);
@@ -51,42 +60,53 @@ export function useGyroMouse({ activationRequest, connected, enabledSurface, onM
     }
   }, []);
 
-  const finishPermission = useCallback(async (permission: Promise<boolean>) => {
-    const attempt = ++permissionAttemptRef.current;
-    const granted = await permission;
-    if (attempt !== permissionAttemptRef.current) {
-      return;
-    }
-    if (!granted) {
-      const initial = getGyroInitialAvailability();
-      setAvailability(initial === "ready" ? "denied" : initial);
+  const finishPermission = useCallback(
+    async (permission: Promise<boolean>) => {
+      const attempt = ++permissionAttemptRef.current;
+      const granted = await permission;
+      if (attempt !== permissionAttemptRef.current) {
+        return;
+      }
+      if (!granted) {
+        const initial = getGyroInitialAvailability();
+        setAvailability(initial === "ready" ? "denied" : initial);
+        setSelected(true);
+        return;
+      }
+      processorRef.current.resetAll();
+      setAvailability("ready");
+      setListenerGeneration((current) => current + 1);
       setSelected(true);
-      return;
-    }
-    processorRef.current.resetAll();
-    setAvailability("ready");
-    setListenerGeneration((current) => current + 1);
-    setSelected(true);
-  }, [setSelected]);
+    },
+    [setSelected],
+  );
 
   const enableFromUserGesture = useCallback(() => {
     void finishPermission(requestGyroPermission());
   }, [finishPermission]);
 
   useEffect(() => {
-    if (!activationRequest || activationRequest.id === lastActivationIdRef.current) {return;}
+    if (!activationRequest || activationRequest.id === lastActivationIdRef.current) {
+      return;
+    }
     lastActivationIdRef.current = activationRequest.id;
     void finishPermission(activationRequest.permission);
   }, [activationRequest, finishPermission]);
 
   useEffect(() => {
-    if (!selected || !connected || !enabledSurface) {return;}
+    if (!selected || !connected || !enabledSurface) {
+      return;
+    }
     lastValidMotionAtRef.current = Number.NEGATIVE_INFINITY;
     processorRef.current.resetMapping();
     const processor = processorRef.current;
     const armNoDataTimer = () => {
-      if (dataTimerRef.current !== null) {window.clearTimeout(dataTimerRef.current);}
-      dataTimerRef.current = window.setTimeout(() => { setAvailability("no-data"); }, 1800);
+      if (dataTimerRef.current !== null) {
+        window.clearTimeout(dataTimerRef.current);
+      }
+      dataTimerRef.current = window.setTimeout(() => {
+        setAvailability("no-data");
+      }, 1800);
     };
     const markValid = () => {
       setAvailability("ready");
@@ -95,7 +115,9 @@ export function useGyroMouse({ activationRequest, connected, enabledSurface, onM
     armNoDataTimer();
     const onMotion = (event: DeviceMotionEvent) => {
       const delta = processor.motion(event, 0, sensitivity / 100, engagedRef.current);
-      if (!delta) {return;}
+      if (!delta) {
+        return;
+      }
       lastValidMotionAtRef.current = performance.now();
       markValid();
       if (engagedRef.current && (delta.dx !== 0 || delta.dy !== 0)) {
@@ -104,15 +126,27 @@ export function useGyroMouse({ activationRequest, connected, enabledSurface, onM
     };
     const onOrientation = (event: DeviceOrientationEvent) => {
       const motionIsRecent = performance.now() - lastValidMotionAtRef.current < 250;
-      const delta = processor.orientation(event, 0, sensitivity / 100, engagedRef.current, !motionIsRecent);
-      if (!delta) {return;}
-      if (motionIsRecent) {return;}
+      const delta = processor.orientation(
+        event,
+        0,
+        sensitivity / 100,
+        engagedRef.current,
+        !motionIsRecent,
+      );
+      if (!delta) {
+        return;
+      }
+      if (motionIsRecent) {
+        return;
+      }
       markValid();
       if (engagedRef.current && (delta.dx !== 0 || delta.dy !== 0)) {
         emitMove(delta.dx, delta.dy);
       }
     };
-    const reset = () => { processor.resetMapping(); };
+    const reset = () => {
+      processor.resetMapping();
+    };
     window.addEventListener("devicemotion", onMotion);
     window.addEventListener("deviceorientation", onOrientation);
     window.addEventListener("orientationchange", reset);
@@ -122,23 +156,35 @@ export function useGyroMouse({ activationRequest, connected, enabledSurface, onM
       window.removeEventListener("deviceorientation", onOrientation);
       window.removeEventListener("orientationchange", reset);
       screen.orientation?.removeEventListener("change", reset);
-      if (dataTimerRef.current !== null) {window.clearTimeout(dataTimerRef.current);}
+      if (dataTimerRef.current !== null) {
+        window.clearTimeout(dataTimerRef.current);
+      }
       dataTimerRef.current = null;
       processor.resetMapping();
     };
   }, [connected, enabledSurface, listenerGeneration, selected, sensitivity]);
 
   useEffect(() => {
-    if (!selected || !connected || !enabledSurface || document.visibilityState !== "visible") {return;}
+    if (!selected || !connected || !enabledSurface || document.visibilityState !== "visible") {
+      return;
+    }
     const wakeLock = navigator.wakeLock;
-    if (!wakeLock) {return;}
+    if (!wakeLock) {
+      return;
+    }
     let cancelled = false;
-    void wakeLock.request("screen").then((lock) => {
-      if (cancelled) {void lock.release();}
-      else {wakeLockRef.current = lock;}
-    }).catch(() => {
-      // Wake lock is a best-effort enhancement.
-    });
+    void wakeLock
+      .request("screen")
+      .then((lock) => {
+        if (cancelled) {
+          void lock.release();
+        } else {
+          wakeLockRef.current = lock;
+        }
+      })
+      .catch(() => {
+        // Wake lock is a best-effort enhancement.
+      });
     return () => {
       cancelled = true;
       const lock = wakeLockRef.current;
@@ -152,8 +198,14 @@ export function useGyroMouse({ activationRequest, connected, enabledSurface, onM
   }, [connected, enabledSurface, selected]);
 
   useEffect(() => {
-    const onVisibility = () => { if (document.visibilityState === "hidden") {stop();} };
-    const stop = () => { setSelected(false); };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        stop();
+      }
+    };
+    const stop = () => {
+      setSelected(false);
+    };
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
@@ -164,7 +216,9 @@ export function useGyroMouse({ activationRequest, connected, enabledSurface, onM
     if (!connected || !enabledSurface) {
       return;
     }
-    return () => { setSelected(false); };
+    return () => {
+      setSelected(false);
+    };
   }, [connected, enabledSurface, sessionKey, setSelected]);
 
   const setEngaged = useCallback((next: boolean) => {

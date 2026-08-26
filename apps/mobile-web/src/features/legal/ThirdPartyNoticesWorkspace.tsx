@@ -31,7 +31,9 @@ export function ThirdPartyNoticesWorkspace({ onBack }: ThirdPartyNoticesWorkspac
       .then((source) => {
         if (!cancelled) {
           const parsed = parseThirdPartyNotices(source);
-          if (parsed.length === 0) {throw new Error("No valid third-party notices were found.");}
+          if (parsed.length === 0) {
+            throw new Error("No valid third-party notices were found.");
+          }
           setNotices(parsed);
         }
       })
@@ -48,7 +50,11 @@ export function ThirdPartyNoticesWorkspace({ onBack }: ThirdPartyNoticesWorkspac
   }, []);
 
   return (
-    <section className="third-party-notices-workspace" aria-labelledby="third-party-notices-title" aria-busy={notices === null && error === null}>
+    <section
+      className="third-party-notices-workspace"
+      aria-labelledby="third-party-notices-title"
+      aria-busy={notices === null && error === null}
+    >
       <header className="third-party-notices-header">
         <button type="button" className="third-party-notices-back" onClick={onBack}>
           <ChevronLeft aria-hidden="true" />
@@ -65,13 +71,22 @@ export function ThirdPartyNoticesWorkspace({ onBack }: ThirdPartyNoticesWorkspac
         <div className="third-party-notices-intro">
           <p>
             Voltura Air gratefully acknowledges the authors and contributors of the software below.
-            No listed project or contributor endorses or is affiliated with Voltura Air or Voltura AB.
+            No listed project or contributor endorses or is affiliated with Voltura Air or Voltura
+            AB.
           </p>
           <p>Each component is provided under its own license and warranty disclaimer.</p>
         </div>
 
-        {notices === null && error === null && <div className="third-party-notices-state" role="status">Loading notices…</div>}
-        {error !== null && <div className="third-party-notices-state" role="alert">{error}</div>}
+        {notices === null && error === null && (
+          <div className="third-party-notices-state" role="status">
+            Loading notices…
+          </div>
+        )}
+        {error !== null && (
+          <div className="third-party-notices-state" role="alert">
+            {error}
+          </div>
+        )}
         {notices !== null && (
           <div className="third-party-notice-list">
             {notices.map((notice) => (
@@ -99,7 +114,8 @@ export function ThirdPartyNoticesWorkspace({ onBack }: ThirdPartyNoticesWorkspac
 export function parseThirdPartyNotices(source: string): ThirdPartyNotice[] {
   const normalized = source.replace(/\r\n?/gu, "\n");
   const notices: ThirdPartyNotice[] = [];
-  const noticePattern = /(?:^|\n)-{8,}\n([^\n]+)\nLicense: ([^\n]+)\nSource: ([^\n]+)\n-{8,}\n([\s\S]*?)(?=\n-{8,}\n|$)/gu;
+  const noticePattern =
+    /(?:^|\n)-{8,}\n([^\n]+)\nLicense: ([^\n]+)\nSource: ([^\n]+)\n-{8,}\n([\s\S]*?)(?=\n-{8,}\n|$)/gu;
 
   for (const match of normalized.matchAll(noticePattern)) {
     const name = match[1]?.trim();

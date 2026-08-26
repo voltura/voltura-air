@@ -53,8 +53,7 @@
   border-radius: 8px;
   background:
     linear-gradient(90deg, var(--trackpad-grid) 1px, transparent 1px),
-    linear-gradient(var(--trackpad-grid) 1px, transparent 1px),
-    var(--surface);
+    linear-gradient(var(--trackpad-grid) 1px, transparent 1px), var(--surface);
   background-size: 28px 28px;
   display: grid;
   place-items: center;
@@ -273,8 +272,7 @@
   border-radius: 8px;
   background:
     linear-gradient(90deg, var(--trackpad-grid) 1px, transparent 1px),
-    linear-gradient(var(--trackpad-grid) 1px, transparent 1px),
-    var(--surface);
+    linear-gradient(var(--trackpad-grid) 1px, transparent 1px), var(--surface);
   background-size: 28px 28px;
   color: var(--muted);
   font-weight: 700;

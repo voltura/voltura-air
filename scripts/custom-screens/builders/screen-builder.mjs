@@ -13,7 +13,7 @@ export function screen(definition) {
       minimumVolturaAirVersion: definition.minimumVolturaAirVersion ?? "0.8.10",
       requiredCapabilities: requiredCapabilities(definition.sections),
       optionalTargetApplication: definition.optionalTargetApplication ?? null,
-      official: true
+      official: true,
     },
     screen: {
       id: definition.id,
@@ -22,8 +22,8 @@ export function screen(definition) {
       assignedClientIds: [],
       orientationLayoutsEnabled: definition.orientationLayoutsEnabled ?? true,
       showNavigationHeader: definition.showNavigationHeader ?? true,
-      sections: definition.sections
-    }
+      sections: definition.sections,
+    },
   };
 }
 
@@ -41,7 +41,7 @@ function requiredCapabilities(sections) {
         builtIn: "remoteInput",
         urlOpen: "urlOpen",
         knownApp: "remoteAppLaunch",
-        hostAction: "hostActions"
+        hostAction: "hostActions",
       }[control.action.kind];
       if (capability) capabilities.add(capability);
     }
@@ -49,40 +49,67 @@ function requiredCapabilities(sections) {
   return [...capabilities].sort();
 }
 
-export const mediaTransport = (prefix, options = {}) => buttonGrid(
-  `${prefix}.transport`,
-  options.name ?? "Playback",
-  [
+export const mediaTransport = (prefix, options = {}) =>
+  buttonGrid(`${prefix}.transport`, options.name ?? "Playback", [
     button(`${prefix}.previous`, "Previous", builtIn("media.previous"), { icon: "skip-back" }),
-    button(`${prefix}.playPause`, "Play / pause", builtIn("media.playPause"), { icon: "play", size: "wide" }),
+    button(`${prefix}.playPause`, "Play / pause", builtIn("media.playPause"), {
+      icon: "play",
+      size: "wide",
+    }),
     button(`${prefix}.next`, "Next", builtIn("media.next"), { icon: "skip-forward" }),
-    ...(options.stop ? [button(`${prefix}.stop`, "Stop", builtIn("media.stop"), { icon: "square-x" })] : [])
-  ]
-);
+    ...(options.stop
+      ? [button(`${prefix}.stop`, "Stop", builtIn("media.stop"), { icon: "square-x" })]
+      : []),
+  ]);
 
 export const streamingPlayback = (prefix, url) => [
   buttonGrid(`${prefix}.open`, "Open", [
-    button(`${prefix}.website`, "Open service", openWebsite(url), { icon: "app-window", size: "wide" })
+    button(`${prefix}.website`, "Open service", openWebsite(url), {
+      icon: "app-window",
+      size: "wide",
+    }),
   ]),
   buttonGrid(`${prefix}.playback`, "Playback", [
-    button(`${prefix}.playPause`, "Play / pause", shortcut("Space"), { icon: "play", size: "wide" }),
-    button(`${prefix}.seekBack`, "Back 10 sec", shortcut("ArrowLeft"), { icon: "arrow-left", repeat: false }),
-    button(`${prefix}.seekForward`, "Ahead 10 sec", shortcut("ArrowRight"), { icon: "arrow-right", repeat: false }),
-    button(`${prefix}.fullscreen`, "Fullscreen", shortcut("F"), { icon: "maximize" })
+    button(`${prefix}.playPause`, "Play / pause", shortcut("Space"), {
+      icon: "play",
+      size: "wide",
+    }),
+    button(`${prefix}.seekBack`, "Back 10 sec", shortcut("ArrowLeft"), {
+      icon: "arrow-left",
+      repeat: false,
+    }),
+    button(`${prefix}.seekForward`, "Ahead 10 sec", shortcut("ArrowRight"), {
+      icon: "arrow-right",
+      repeat: false,
+    }),
+    button(`${prefix}.fullscreen`, "Fullscreen", shortcut("F"), { icon: "maximize" }),
   ]),
-  volumeControls(`${prefix}.volume`)
+  volumeControls(`${prefix}.volume`),
 ];
 
 export const streamingTrackpad = (prefix, url) => [
   buttonGrid(`${prefix}.open`, "Open", [
-    button(`${prefix}.website`, "Open service", openWebsite(url), { icon: "app-window", size: "wide" })
+    button(`${prefix}.website`, "Open service", openWebsite(url), {
+      icon: "app-window",
+      size: "wide",
+    }),
   ]),
   trackpad(`${prefix}.trackpad`, {
     collapsible: true,
     initiallyExpanded: false,
-    heightMode: "content"
+    heightMode: "content",
   }),
-  volumeControls(`${prefix}.volume`)
+  volumeControls(`${prefix}.volume`),
 ];
 
-export { button, buttonGrid, navigationPad, trackpad, volumeControls, builtIn, knownApp, openWebsite, shortcut };
+export {
+  button,
+  buttonGrid,
+  navigationPad,
+  trackpad,
+  volumeControls,
+  builtIn,
+  knownApp,
+  openWebsite,
+  shortcut,
+};

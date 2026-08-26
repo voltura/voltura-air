@@ -8,7 +8,7 @@ import {
   extractMarkedReleaseNotes,
   parseSemver,
   parseSyncReleaseArguments,
-  replaceReleaseNotesSection
+  replaceReleaseNotesSection,
 } from "./release-tools.mjs";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -19,14 +19,16 @@ function run(command, args) {
     cwd: repositoryRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
-    windowsHide: true
+    windowsHide: true,
   });
   if (result.error) {
     throw result.error;
   }
   if (result.status !== 0) {
     const details = (result.stderr || result.stdout || "").trim();
-    throw new Error(`${command} ${args.join(" ")} failed with exit code ${result.status}.${details ? ` ${details}` : ""}`);
+    throw new Error(
+      `${command} ${args.join(" ")} failed with exit code ${result.status}.${details ? ` ${details}` : ""}`,
+    );
   }
   return (result.stdout ?? "").trim();
 }
@@ -38,14 +40,16 @@ function normalizeRelease(raw) {
     draft: release.isDraft ?? release.draft,
     prerelease: release.isPrerelease ?? release.prerelease,
     body: release.body ?? "",
-    url: release.url ?? release.html_url
+    url: release.url ?? release.html_url,
   };
 }
 
 export function resolveSynchronizedRelease(raw, explicitVersion = null) {
   const release = normalizeRelease(raw);
   if (release.draft || (!explicitVersion && release.prerelease)) {
-    throw new Error("Release-note synchronization requires a published release; the default selection must be GitHub Latest.");
+    throw new Error(
+      "Release-note synchronization requires a published release; the default selection must be GitHub Latest.",
+    );
   }
   if (!release.tag?.startsWith("v")) {
     throw new Error("The selected GitHub release does not have a supported v-prefixed tag.");
@@ -53,7 +57,9 @@ export function resolveSynchronizedRelease(raw, explicitVersion = null) {
   const version = release.tag.slice(1);
   parseSemver(version);
   if (explicitVersion && version !== explicitVersion) {
-    throw new Error(`GitHub returned '${release.tag}' instead of the requested release 'v${explicitVersion}'.`);
+    throw new Error(
+      `GitHub returned '${release.tag}' instead of the requested release 'v${explicitVersion}'.`,
+    );
   }
   return { ...release, version };
 }
@@ -64,16 +70,37 @@ export async function syncReleaseNotes(args = process.argv.slice(2)) {
     throw new Error("Release-note synchronization requires a clean Git working tree.");
   }
   run("gh", ["auth", "status", "--hostname", "github.com"]);
-  const repository = run("gh", ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]);
+  const repository = run("gh", [
+    "repo",
+    "view",
+    "--json",
+    "nameWithOwner",
+    "--jq",
+    ".nameWithOwner",
+  ]);
 
   const rawRelease = explicitVersion
-    ? run("gh", ["release", "view", `v${explicitVersion}`, "--repo", repository, "--json", "tagName,isDraft,isPrerelease,body,url"])
+    ? run("gh", [
+        "release",
+        "view",
+        `v${explicitVersion}`,
+        "--repo",
+        repository,
+        "--json",
+        "tagName,isDraft,isPrerelease,body,url",
+      ])
     : run("gh", ["api", `repos/${repository}/releases/latest`]);
   const release = resolveSynchronizedRelease(rawRelease, explicitVersion);
 
-  const synchronizedContent = extractUserFacingReleaseNotes(extractMarkedReleaseNotes(release.body));
+  const synchronizedContent = extractUserFacingReleaseNotes(
+    extractMarkedReleaseNotes(release.body),
+  );
   const currentNotes = await readFile(notesPath, "utf8");
-  const updatedNotes = replaceReleaseNotesSection(currentNotes, release.version, synchronizedContent);
+  const updatedNotes = replaceReleaseNotesSection(
+    currentNotes,
+    release.version,
+    synchronizedContent,
+  );
   if (updatedNotes === currentNotes) {
     console.log(`Release notes for ${release.tag} already match ${release.url}.`);
     return false;
@@ -81,8 +108,10 @@ export async function syncReleaseNotes(args = process.argv.slice(2)) {
   const pendingPath = `${notesPath}.${process.pid}.${Date.now()}.pending`;
   try {
     await writeFile(pendingPath, updatedNotes, { encoding: "utf8", flag: "wx" });
-    if (await readFile(notesPath, "utf8") !== currentNotes) {
-      throw new Error("Release notes changed while synchronization was running; no file was replaced.");
+    if ((await readFile(notesPath, "utf8")) !== currentNotes) {
+      throw new Error(
+        "Release notes changed while synchronization was running; no file was replaced.",
+      );
     }
     await rename(pendingPath, notesPath);
   } finally {

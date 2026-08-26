@@ -7,7 +7,7 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify("catalog-preview"),
     __WEB_BUILD_ID__: JSON.stringify("catalog-preview"),
-    "process.env.NODE_ENV": JSON.stringify("production")
+    "process.env.NODE_ENV": JSON.stringify("production"),
   },
   plugins: [react()],
   build: {
@@ -18,7 +18,7 @@ export default defineConfig({
       formats: ["iife"],
       name: "VolturaAirCatalogPreview",
       fileName: () => "catalog-preview.js",
-      cssFileName: "catalog-preview"
-    }
-  }
+      cssFileName: "catalog-preview",
+    },
+  },
 });

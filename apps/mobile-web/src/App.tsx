@@ -87,19 +87,24 @@ export function App() {
     setHostCustomPointer,
     setHostControlDepth,
     setHostShowModeButtons,
-    setHostPointerSpeed
+    setHostPointerSpeed,
   } = connection;
   const { setThemeMode, themeMode } = useAppTheme();
   const [transientFeedback, setTransientFeedback] = useState<AppToastMessage | null>(null);
   const [pendingRemoteLaunch, setPendingRemoteLaunch] = useState<RemoteLaunchAction | null>(null);
-  const [suppressedClipboardResultId, setSuppressedClipboardResultId] = useState<string | null>(null);
+  const [suppressedClipboardResultId, setSuppressedClipboardResultId] = useState<string | null>(
+    null,
+  );
   const [activeCustomScreenId, setActiveCustomScreenId] = useState<string | null>(null);
   const [isScreenViewOpen, setIsScreenViewOpen] = useState(false);
   const [isPhoneWebcamOpen, setIsPhoneWebcamOpen] = useState(false);
-  const [phoneWebcamCapabilitySnapshot, setPhoneWebcamCapabilitySnapshot] = useState(phoneWebcamCapability);
+  const [phoneWebcamCapabilitySnapshot, setPhoneWebcamCapabilitySnapshot] =
+    useState(phoneWebcamCapability);
   const activePhoneWebcamCapability = phoneWebcamCapability ?? phoneWebcamCapabilitySnapshot;
   const [gyroSelected, setGyroSelected] = useState(false);
-  const [gyroActivationRequest, setGyroActivationRequest] = useState<GyroActivationRequest | null>(null);
+  const [gyroActivationRequest, setGyroActivationRequest] = useState<GyroActivationRequest | null>(
+    null,
+  );
   const gyroActivationIdRef = useRef(0);
   const handleGyroSelectedChange = useCallback((selected: boolean) => {
     setGyroSelected(selected);
@@ -109,19 +114,39 @@ export function App() {
   }, []);
   const [activeFileJobCount, setActiveFileJobCount] = useState(0);
   const fileJobStatesRef = useRef(new Map<string, string>());
-  useEffect(() => subscribeFileManagerResults((result) => {
-    if (result.type !== "file.jobs.status") {return;}
-    setActiveFileJobCount(result.jobs.filter((job) => !["completed", "failed", "canceled", "interrupted"].includes(job.state)).length);
-    for (const job of result.jobs) {
-      const previous = fileJobStatesRef.current.get(job.jobId);
-      if (previous && previous !== job.state && job.state === "completed") {
-        setTransientFeedback({ tone: "success", message: `${job.operation} completed on the PC.` });
-      } else if (previous && previous !== job.state && (job.state === "failed" || job.state === "interrupted")) {
-        setTransientFeedback({ tone: "error", message: job.message ?? `${job.operation} did not complete.` });
-      }
-      fileJobStatesRef.current.set(job.jobId, job.state);
-    }
-  }), []);
+  useEffect(
+    () =>
+      subscribeFileManagerResults((result) => {
+        if (result.type !== "file.jobs.status") {
+          return;
+        }
+        setActiveFileJobCount(
+          result.jobs.filter(
+            (job) => !["completed", "failed", "canceled", "interrupted"].includes(job.state),
+          ).length,
+        );
+        for (const job of result.jobs) {
+          const previous = fileJobStatesRef.current.get(job.jobId);
+          if (previous && previous !== job.state && job.state === "completed") {
+            setTransientFeedback({
+              tone: "success",
+              message: `${job.operation} completed on the PC.`,
+            });
+          } else if (
+            previous &&
+            previous !== job.state &&
+            (job.state === "failed" || job.state === "interrupted")
+          ) {
+            setTransientFeedback({
+              tone: "error",
+              message: job.message ?? `${job.operation} did not complete.`,
+            });
+          }
+          fileJobStatesRef.current.set(job.jobId, job.state);
+        }
+      }),
+    [],
+  );
   const [isThirdPartyNoticesOpen, setIsThirdPartyNoticesOpen] = useState(false);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const connectionErrorKey = lastConnectionError
@@ -129,42 +154,55 @@ export function App() {
     : null;
   const [connectionErrorDialog, setConnectionErrorDialog] = useState({
     key: connectionErrorKey,
-    dismissed: false
+    dismissed: false,
   });
   if (connectionErrorDialog.key !== connectionErrorKey) {
     setConnectionErrorDialog({ key: connectionErrorKey, dismissed: false });
   }
-  const incompatibleCustomScreenResult = customScreenGetResult?.code === incompatibleCustomScreenResponseCode
-    ? customScreenGetResult
-    : null;
-  const [dismissedCustomScreenErrorId, setDismissedCustomScreenErrorId] = useState<string | null>(null);
+  const incompatibleCustomScreenResult =
+    customScreenGetResult?.code === incompatibleCustomScreenResponseCode
+      ? customScreenGetResult
+      : null;
+  const [dismissedCustomScreenErrorId, setDismissedCustomScreenErrorId] = useState<string | null>(
+    null,
+  );
   const inputBlockedByElevation = hostStatus?.inputBlockedByElevation === true;
   const [inputRecoveryDialog, setInputRecoveryDialog] = useState({
     blocked: inputBlockedByElevation,
-    dismissed: false
+    dismissed: false,
   });
   if (inputRecoveryDialog.blocked !== inputBlockedByElevation) {
     setInputRecoveryDialog({ blocked: inputBlockedByElevation, dismissed: false });
   }
   const isInputRecoveryDialogDismissed = inputRecoveryDialog.dismissed;
   const developerMode = hostStatus?.developerMode === true;
-  const { progress: manualReconnectProgress, reconnect: reconnectPc } = useManualReconnectFeedback(activePc?.id ?? null, state, selectPc);
+  const { progress: manualReconnectProgress, reconnect: reconnectPc } = useManualReconnectFeedback(
+    activePc?.id ?? null,
+    state,
+    selectPc,
+  );
 
   const hostPointerSpeed = hostStatus?.pointerSpeed;
   const hostDefaultRemoteMode = hostStatus?.defaultRemoteMode;
   const showModeButtons = hostStatus?.showModeButtons ?? true;
   const controlDepth = hostStatus?.controlDepth ?? true;
-  const pcSettings = usePcSettings(clientId, activePc?.id ?? null, hostDefaultRemoteMode, hostPointerSpeed);
+  const pcSettings = usePcSettings(
+    clientId,
+    activePc?.id ?? null,
+    hostDefaultRemoteMode,
+    hostPointerSpeed,
+  );
   const {
     appSettings,
     effectiveTrackpadSettings,
     keyboardSettings,
     remoteSettings,
-    trackpadSettings
+    trackpadSettings,
   } = pcSettings;
   const presentationAvailable = presentationCapability !== undefined;
   const filesAvailable = fileManagerCapability !== undefined;
-  const canMirrorFileView = screenViewCapability?.canView === true && screenViewCapability.requiresRepair === false;
+  const canMirrorFileView =
+    screenViewCapability?.canView === true && screenViewCapability.requiresRepair === false;
   const mirrorFileViewUnavailableMessage = !screenViewCapability
     ? "View requires PC Screen, which is unavailable on this host."
     : screenViewCapability.requiresRepair
@@ -177,7 +215,7 @@ export function App() {
   const {
     dismiss: dismissModeSwitchHint,
     open: isModeSwitchHintOpen,
-    showOnce: showModeSwitchHintOnce
+    showOnce: showModeSwitchHintOnce,
   } = useOneShotHint({ autoHideMs: 4000 });
   const headerCompactModeButtonRef = useRef<HTMLButtonElement | null>(null);
   const trackpadCompactModeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -187,10 +225,12 @@ export function App() {
   const [presentationSessionActive, setPresentationSessionActive] = useState(false);
   const [presentationActivationRequest, setPresentationActivationRequest] = useState({
     connectionEpoch,
-    id: 0
+    id: 0,
   });
   const [isPresentationExitOpen, setIsPresentationExitOpen] = useState(false);
-  const [presentationConnectionIntent, setPresentationConnectionIntent] = useState<"connect" | "disconnect" | null>(null);
+  const [presentationConnectionIntent, setPresentationConnectionIntent] = useState<
+    "connect" | "disconnect" | null
+  >(null);
   const handlePresentationSessionActiveChange = useCallback((active: boolean) => {
     setPresentationSessionActive(active);
   }, []);
@@ -207,7 +247,7 @@ export function App() {
   const requestPresentationActivation = () => {
     setPresentationActivationRequest((current) => ({
       connectionEpoch,
-      id: current.connectionEpoch === connectionEpoch ? current.id + 1 : 1
+      id: current.connectionEpoch === connectionEpoch ? current.id + 1 : 1,
     }));
   };
 
@@ -253,27 +293,37 @@ export function App() {
     shouldShowSplitMode,
     showTrackpadCompactModeSelector,
     tab,
-    toggleModeSelector
+    toggleModeSelector,
   } = useAppNavigation({
     fourthMode: appSettings.fourthMode,
     isPaired: state === "paired",
     onActiveModeTabCollapse: showModeSwitchHintOnce,
-    onEnterRemote: () => { requestRemoteModeLaunch(remoteSettings.mode, remoteSettings); },
+    onEnterRemote: () => {
+      requestRemoteModeLaunch(remoteSettings.mode, remoteSettings);
+    },
     presentationAvailable: presentationAvailable || presentationSessionActive,
     filesAvailable,
     supportsGestureDebug,
     trackpadSettings,
     suppressSplitMode: gyroSelected,
-    showModeButtons: showModeButtons && !isThirdPartyNoticesOpen && !isDiagnosticsOpen
+    showModeButtons: showModeButtons && !isThirdPartyNoticesOpen && !isDiagnosticsOpen,
   });
   useEffect(() => {
-    if (state === "paired" &&
-        tab !== "presentation" &&
-        activeCustomScreenId === null &&
-        presentationCapability?.laserPointerActive === true) {
+    if (
+      state === "paired" &&
+      tab !== "presentation" &&
+      activeCustomScreenId === null &&
+      presentationCapability?.laserPointerActive === true
+    ) {
       requestPresentationCommand("powerpoint", "pointer", false);
     }
-  }, [activeCustomScreenId, presentationCapability?.laserPointerActive, requestPresentationCommand, state, tab]);
+  }, [
+    activeCustomScreenId,
+    presentationCapability?.laserPointerActive,
+    requestPresentationCommand,
+    state,
+    tab,
+  ]);
   const requestPresentationExit = (action: () => void) => {
     if (tab === "presentation" && presentationSessionActive) {
       pendingPresentationExitRef.current = action;
@@ -347,7 +397,7 @@ export function App() {
   };
   const requestPresentationConnectionChange = (
     intent: "connect" | "disconnect",
-    action: () => void
+    action: () => void,
   ) => {
     if (!presentationSessionActive) {
       action();
@@ -363,17 +413,17 @@ export function App() {
     updateAppSetting,
     updateKeyboardSetting,
     updateRemoteSetting: persistRemoteSetting,
-    updateTrackpadSetting
+    updateTrackpadSetting,
   } = createSettingsActions({
     clientId,
     effectiveTrackpadSettings,
     forgetPc,
     setHostPointerSpeed,
-    settingsState: pcSettings
+    settingsState: pcSettings,
   });
   const updateRemoteSetting = <Key extends keyof RemoteSettings>(
     key: Key,
-    value: RemoteSettings[Key]
+    value: RemoteSettings[Key],
   ) => {
     const nextSettings = { ...remoteSettings, [key]: value };
     if (key === "mode") {
@@ -390,13 +440,14 @@ export function App() {
 
     persistRemoteSetting(key, value);
   };
-  const { installApp, installPrompt, isInstalled, refreshInstalledApp, refreshMessage } = usePwaLifecycle({
-    activePc,
-    autoRefresh: appSettings.autoRefresh,
-    clientId,
-    hostStatus,
-    state
-  });
+  const { installApp, installPrompt, isInstalled, refreshInstalledApp, refreshMessage } =
+    usePwaLifecycle({
+      activePc,
+      autoRefresh: appSettings.autoRefresh,
+      clientId,
+      hostStatus,
+      state,
+    });
   const {
     acceptLivePairingQr,
     confirmPendingPairing,
@@ -413,11 +464,15 @@ export function App() {
     pendingPairing,
     scanPairingQr,
     setPairingDeviceName,
-    usesLivePairingQr
+    usesLivePairingQr,
   } = usePairingController({
-    beginNewPairing: () => { requestPresentationConnectionChange("connect", beginNewPairing); },
+    beginNewPairing: () => {
+      requestPresentationConnectionChange("connect", beginNewPairing);
+    },
     connectManualPc: (target) => {
-      requestPresentationConnectionChange("connect", () => { connectManualPc(target); });
+      requestPresentationConnectionChange("connect", () => {
+        connectManualPc(target);
+      });
     },
     deviceName,
     initialPairing,
@@ -427,18 +482,30 @@ export function App() {
         pairWithToken(token, pcUrl, requestedDeviceName);
       });
     },
-    setIsSettingsOpen
+    setIsSettingsOpen,
   });
 
-  const mobileDiagnostics = useMemo(() => buildMobileDiagnostics({
-    activePc,
-    connectionState: state,
-    lastErrorCode: lastConnectionError?.code ?? null,
-    lastErrorMessage: lastConnectionError?.message ?? null,
-    message,
-    pairedPcCount: pairedPcs.length,
-    hostStatus
-  }), [activePc, hostStatus, lastConnectionError?.code, lastConnectionError?.message, message, pairedPcs.length, state]);
+  const mobileDiagnostics = useMemo(
+    () =>
+      buildMobileDiagnostics({
+        activePc,
+        connectionState: state,
+        lastErrorCode: lastConnectionError?.code ?? null,
+        lastErrorMessage: lastConnectionError?.message ?? null,
+        message,
+        pairedPcCount: pairedPcs.length,
+        hostStatus,
+      }),
+    [
+      activePc,
+      hostStatus,
+      lastConnectionError?.code,
+      lastConnectionError?.message,
+      message,
+      pairedPcs.length,
+      state,
+    ],
+  );
 
   const connectionStatusMessage = lastConnectionError ? "Connection issue" : message;
   const connectionPcName = lastConnectionError
@@ -446,18 +513,23 @@ export function App() {
     : state === "paired" && activePc
       ? getPcDisplayName(activePc)
       : message;
-  const modeSwitchHintAnchorRef = showTrackpadCompactModeSelector ? trackpadCompactModeButtonRef : headerCompactModeButtonRef;
+  const modeSwitchHintAnchorRef = showTrackpadCompactModeSelector
+    ? trackpadCompactModeButtonRef
+    : headerCompactModeButtonRef;
 
-  const activeCustomScreenSummary = customScreensCapability?.screens.find(
-    (screen) => screen.id === activeCustomScreenId) ?? null;
+  const activeCustomScreenSummary =
+    customScreensCapability?.screens.find((screen) => screen.id === activeCustomScreenId) ?? null;
   const activeCustomScreenRevision = activeCustomScreenSummary?.revision;
   const customScreensCatalogRevision = customScreensCapability?.catalogRevision;
-  const staleCustomScreenOperationId = customScreenInvokeResult?.code === "stale-screen"
-    ? customScreenInvokeResult.operationId
-    : null;
+  const staleCustomScreenOperationId =
+    customScreenInvokeResult?.code === "stale-screen" ? customScreenInvokeResult.operationId : null;
 
   useEffect(() => {
-    if (activeCustomScreenId === null || activeCustomScreenRevision === undefined || state !== "paired") {
+    if (
+      activeCustomScreenId === null ||
+      activeCustomScreenRevision === undefined ||
+      state !== "paired"
+    ) {
       return;
     }
 
@@ -468,24 +540,46 @@ export function App() {
     customScreensCatalogRevision,
     requestCustomScreen,
     staleCustomScreenOperationId,
-    state
+    state,
   ]);
 
   useEffect(() => {
     const tabChanged = previousTabRef.current !== null && previousTabRef.current !== tab;
     previousTabRef.current = tab;
-    if (isModeSwitchHintOpen && (tabChanged || isModeSelectorOpen || isSettingsOpen || !canShowModeNavigation || !activeModeTab)) {
+    if (
+      isModeSwitchHintOpen &&
+      (tabChanged ||
+        isModeSelectorOpen ||
+        isSettingsOpen ||
+        !canShowModeNavigation ||
+        !activeModeTab)
+    ) {
       dismissModeSwitchHint();
     }
-  }, [activeModeTab, canShowModeNavigation, dismissModeSwitchHint, isModeSelectorOpen, isModeSwitchHintOpen, isSettingsOpen, tab]);
+  }, [
+    activeModeTab,
+    canShowModeNavigation,
+    dismissModeSwitchHint,
+    isModeSelectorOpen,
+    isModeSwitchHintOpen,
+    isSettingsOpen,
+    tab,
+  ]);
 
   useEffect(() => {
     if (!transientFeedback) {
       return;
     }
 
-    const timeout = window.setTimeout(() => { setTransientFeedback(null); }, transientFeedback.tone === "error" ? 8000 : 4000);
-    return () => { window.clearTimeout(timeout); };
+    const timeout = window.setTimeout(
+      () => {
+        setTransientFeedback(null);
+      },
+      transientFeedback.tone === "error" ? 8000 : 4000,
+    );
+    return () => {
+      window.clearTimeout(timeout);
+    };
   }, [transientFeedback]);
 
   useEffect(() => {
@@ -497,7 +591,9 @@ export function App() {
       event.preventDefault();
     };
     window.addEventListener("beforeunload", warnBeforeUnload);
-    return () => { window.removeEventListener("beforeunload", warnBeforeUnload); };
+    return () => {
+      window.removeEventListener("beforeunload", warnBeforeUnload);
+    };
   }, [presentationSessionActive]);
 
   const stayInPresentation = () => {
@@ -535,7 +631,9 @@ export function App() {
   const tryReconnectPc = (pcId: string) => {
     dismissModeSwitchHint();
     closeTransientSurfaces();
-    requestPresentationConnectionChange("connect", () => { reconnectPc(pcId); });
+    requestPresentationConnectionChange("connect", () => {
+      reconnectPc(pcId);
+    });
   };
 
   const tryManualReconnect = () => {
@@ -546,7 +644,9 @@ export function App() {
 
   return (
     <div className={`app-frame${controlDepth ? " control-depth" : ""}`}>
-      <main className={`${shellClassName}${controlDepth ? " control-depth" : ""}${isScreenViewOpen ? " screen-view-active" : ""}${isDiagnosticsOpen ? " diagnostics-active" : ""}${tab === "files" ? " files-active" : ""}`}>
+      <main
+        className={`${shellClassName}${controlDepth ? " control-depth" : ""}${isScreenViewOpen ? " screen-view-active" : ""}${isDiagnosticsOpen ? " diagnostics-active" : ""}${tab === "files" ? " files-active" : ""}`}
+      >
         <AppHeader
           activeMode={activeModeTab}
           canShowModeNavigation={canShowModeNavigation}
@@ -563,11 +663,15 @@ export function App() {
             dismissModeSwitchHint();
             openSettings();
           }}
-          {...(filesAvailable ? { onOpenFileJobs: () => {
-            setActiveCustomScreenId(null);
-            setIsScreenViewOpen(false);
-            selectModeTabWithPresentationGuard("files", "selector");
-          } } : {})}
+          {...(filesAvailable
+            ? {
+                onOpenFileJobs: () => {
+                  setActiveCustomScreenId(null);
+                  setIsScreenViewOpen(false);
+                  selectModeTabWithPresentationGuard("files", "selector");
+                },
+              }
+            : {})}
           onSelectMode={(nextTab) => {
             dismissModeSwitchHint();
             setIsScreenViewOpen(false);
@@ -582,31 +686,35 @@ export function App() {
           tab={tab}
         />
 
-        {!isPhoneWebcamOpen && <PairingGate
-          activePc={activePc}
-          connectManualHost={connectManualHost}
-          confirmPendingPairing={confirmPendingPairing}
-          diagnostics={mobileDiagnostics}
-          isSettingsOpen={isSettingsOpen}
-          isPairingQrReading={isPairingQrReading}
-          manualReconnectProgress={manualReconnectProgress}
-          message={message}
-          pairingDeviceName={pairingDeviceName}
-          pairingDeviceNamePlaceholder={pairingDeviceNamePlaceholder}
-          pairingStatusMessage={pairingStatusMessage}
-          pendingPairing={pendingPairing !== null}
-          reconnectablePcs={reconnectablePcs}
-          scanPairingQr={scanPairingQr}
-          setPairingDeviceName={setPairingDeviceName}
-          state={state}
-          tryManualReconnect={tryManualReconnect}
-          tryReconnectPc={tryReconnectPc}
-          usesLivePairingQr={usesLivePairingQr}
-        />}
+        {!isPhoneWebcamOpen && (
+          <PairingGate
+            activePc={activePc}
+            connectManualHost={connectManualHost}
+            confirmPendingPairing={confirmPendingPairing}
+            diagnostics={mobileDiagnostics}
+            isSettingsOpen={isSettingsOpen}
+            isPairingQrReading={isPairingQrReading}
+            manualReconnectProgress={manualReconnectProgress}
+            message={message}
+            pairingDeviceName={pairingDeviceName}
+            pairingDeviceNamePlaceholder={pairingDeviceNamePlaceholder}
+            pairingStatusMessage={pairingStatusMessage}
+            pendingPairing={pendingPairing !== null}
+            reconnectablePcs={reconnectablePcs}
+            scanPairingQr={scanPairingQr}
+            setPairingDeviceName={setPairingDeviceName}
+            state={state}
+            tryManualReconnect={tryManualReconnect}
+            tryReconnectPc={tryReconnectPc}
+            usesLivePairingQr={usesLivePairingQr}
+          />
+        )}
 
         <ErrorDialog
           code={lastConnectionError?.code}
-          isOpen={state === "paired" && lastConnectionError !== null && !connectionErrorDialog.dismissed}
+          isOpen={
+            state === "paired" && lastConnectionError !== null && !connectionErrorDialog.dismissed
+          }
           message={lastConnectionError?.message ?? ""}
           onClose={() => {
             setConnectionErrorDialog((current) => ({ ...current, dismissed: true }));
@@ -616,10 +724,12 @@ export function App() {
 
         <ErrorDialog
           code={incompatibleCustomScreenResponseCode}
-          isOpen={state === "paired" &&
+          isOpen={
+            state === "paired" &&
             activeCustomScreenId !== null &&
             incompatibleCustomScreenResult !== null &&
-            dismissedCustomScreenErrorId !== incompatibleCustomScreenResult.operationId}
+            dismissedCustomScreenErrorId !== incompatibleCustomScreenResult.operationId
+          }
           message={incompatibleCustomScreenResult?.message ?? ""}
           onClose={() => {
             setDismissedCustomScreenErrorId(incompatibleCustomScreenResult?.operationId ?? null);
@@ -638,7 +748,9 @@ export function App() {
             requestPresentationConnectionChange("disconnect", disconnectActivePc);
           }}
           forgetPc={(pcId) => {
-            requestPresentationConnectionChange("disconnect", () => { forgetPcAndSettings(pcId); });
+            requestPresentationConnectionChange("disconnect", () => {
+              forgetPcAndSettings(pcId);
+            });
           }}
           installApp={installApp}
           installPrompt={installPrompt}
@@ -646,8 +758,12 @@ export function App() {
           isPairingQrReading={isPairingQrReading}
           isOpen={isSettingsOpen}
           keyboardSettings={keyboardSettings}
-          onClose={() => { setIsSettingsOpen(false); }}
-          onOpenGestureDebug={supportsGestureDebug ? openGestureDebugWithPresentationGuard : undefined}
+          onClose={() => {
+            setIsSettingsOpen(false);
+          }}
+          onOpenGestureDebug={
+            supportsGestureDebug ? openGestureDebugWithPresentationGuard : undefined
+          }
           onOpenCustomScreen={(screenId) => {
             requestPresentationExit(() => {
               setActiveCustomScreenId(screenId);
@@ -714,9 +830,15 @@ export function App() {
           remoteSettings={remoteSettings}
           scanPairingQr={scanPairingQr}
           screenViewCapability={screenViewCapability}
-          phoneWebcamCapability={activePc?.transportMode === "secure-direct" || activePc?.transportMode === "relay" ? phoneWebcamCapability : undefined}
+          phoneWebcamCapability={
+            activePc?.transportMode === "secure-direct" || activePc?.transportMode === "relay"
+              ? phoneWebcamCapability
+              : undefined
+          }
           selectPc={(pcId) => {
-            requestPresentationConnectionChange("connect", () => { selectPc(pcId); });
+            requestPresentationConnectionChange("connect", () => {
+              selectPc(pcId);
+            });
           }}
           setHostCustomPointer={setHostCustomPointer}
           setHostControlDepth={setHostControlDepth}
@@ -731,8 +853,12 @@ export function App() {
             ...modeTabs,
             ...getAvailableToolModeIds(presentationAvailable, filesAvailable)
               .filter((id) => !modeTabs.some((mode) => mode.id === id))
-              .map((id) => toolModeDefinitions[id])
-          ].map(({ id, label, ariaLabel, Icon }) => ({ id, label: id === "trackpad" || id === "keyboard" || id === "remote" ? label : ariaLabel, Icon }))}
+              .map((id) => toolModeDefinitions[id]),
+          ].map(({ id, label, ariaLabel, Icon }) => ({
+            id,
+            label: id === "trackpad" || id === "keyboard" || id === "remote" ? label : ariaLabel,
+            Icon,
+          }))}
           trackpadSettings={effectiveTrackpadSettings}
           updateKeyboardSetting={updateKeyboardSetting}
           updateRemoteSetting={updateRemoteSetting}
@@ -752,7 +878,18 @@ export function App() {
           </Suspense>
         )}
 
-        {activeCustomScreenId === null && !isScreenViewOpen && !isPhoneWebcamOpen && tab !== "files" && isModeButtonsVisible && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
+        {activeCustomScreenId === null &&
+          !isScreenViewOpen &&
+          !isPhoneWebcamOpen &&
+          tab !== "files" &&
+          isModeButtonsVisible && (
+            <ModeNavigation
+              className="tabs top-mode-tabs"
+              modeTabs={modeTabs}
+              tab={tab}
+              onSelect={selectModeTabWithPresentationGuard}
+            />
+          )}
 
         {isDiagnosticsOpen ? (
           <Suspense fallback={<div className="workspace-loading">Opening Diagnostics…</div>}>
@@ -763,35 +900,60 @@ export function App() {
               pending={pendingDiagnostics}
               failure={diagnosticsFailure}
               requestDiagnostics={requestDiagnostics}
-              onCopyFeedback={(feedbackMessage, tone) => { setTransientFeedback({ message: feedbackMessage, tone }); }}
-              onBack={() => { setIsDiagnosticsOpen(false); }}
+              onCopyFeedback={(feedbackMessage, tone) => {
+                setTransientFeedback({ message: feedbackMessage, tone });
+              }}
+              onBack={() => {
+                setIsDiagnosticsOpen(false);
+              }}
             />
           </Suspense>
         ) : isThirdPartyNoticesOpen ? (
-          <ThirdPartyNoticesWorkspace onBack={() => { setIsThirdPartyNoticesOpen(false); }} />
+          <ThirdPartyNoticesWorkspace
+            onBack={() => {
+              setIsThirdPartyNoticesOpen(false);
+            }}
+          />
         ) : isPhoneWebcamOpen && activePc && activePhoneWebcamCapability ? (
-          <WorkspaceErrorBoundary featureName="Phone webcam" onBack={() => { setIsPhoneWebcamOpen(false); }}>
+          <WorkspaceErrorBoundary
+            featureName="Phone webcam"
+            onBack={() => {
+              setIsPhoneWebcamOpen(false);
+            }}
+          >
             <Suspense fallback={<div className="workspace-loading">Opening Phone webcam…</div>}>
               <PhoneWebcamWorkspace
                 activePc={activePc}
                 capability={activePhoneWebcamCapability}
                 clientId={clientId}
                 connectionEpoch={connectionEpoch}
-                onBack={() => { setIsPhoneWebcamOpen(false); }}
+                onBack={() => {
+                  setIsPhoneWebcamOpen(false);
+                }}
                 send={send}
                 state={state}
               />
             </Suspense>
           </WorkspaceErrorBoundary>
         ) : isScreenViewOpen && activePc && screenViewCapability ? (
-          <WorkspaceErrorBoundary featureName="Screen" onBack={() => { setIsScreenViewOpen(false); }}>
+          <WorkspaceErrorBoundary
+            featureName="Screen"
+            onBack={() => {
+              setIsScreenViewOpen(false);
+            }}
+          >
             <Suspense fallback={<div className="workspace-loading">Opening Screen…</div>}>
               <ScreenViewWorkspace
                 activePc={activePc}
                 capability={screenViewCapability}
                 clientId={clientId}
-                onBack={() => { setIsScreenViewOpen(false); }}
-                onOpenKeyboard={() => { setIsScreenViewOpen(false); selectModeTabWithPresentationGuard("keyboard", "selector"); }}
+                onBack={() => {
+                  setIsScreenViewOpen(false);
+                }}
+                onOpenKeyboard={() => {
+                  setIsScreenViewOpen(false);
+                  selectModeTabWithPresentationGuard("keyboard", "selector");
+                }}
                 send={send}
                 state={state}
                 trackpadSettings={effectiveTrackpadSettings}
@@ -802,12 +964,20 @@ export function App() {
           <CustomScreenWorkspace
             audioState={connection.audioState}
             connectionEpoch={connectionEpoch}
-            definition={customScreenDefinition?.id === activeCustomScreenId ? customScreenDefinition : null}
-            error={customScreenGetResult?.succeeded === false ? customScreenGetResult.message ?? "The custom screen could not be loaded." : null}
+            definition={
+              customScreenDefinition?.id === activeCustomScreenId ? customScreenDefinition : null
+            }
+            error={
+              customScreenGetResult?.succeeded === false
+                ? (customScreenGetResult.message ?? "The custom screen could not be loaded.")
+                : null
+            }
             gyroActivationRequest={gyroActivationRequest}
             invoke={invokeCustomScreenButton}
             onGyroSelectedChange={handleGyroSelectedChange}
-            onBack={() => { setActiveCustomScreenId(null); }}
+            onBack={() => {
+              setActiveCustomScreenId(null);
+            }}
             pendingButtonIds={pendingCustomScreenButtonIds}
             presentationCapability={presentationCapability}
             requestedName={activeCustomScreenSummary?.name ?? "Custom screen"}
@@ -816,7 +986,12 @@ export function App() {
             trackpadSettings={effectiveTrackpadSettings}
           />
         ) : tab === "files" && fileManagerCapability && activePc ? (
-          <WorkspaceErrorBoundary featureName="Files" onBack={() => { selectModeTabWithPresentationGuard("trackpad", "selector"); }}>
+          <WorkspaceErrorBoundary
+            featureName="Files"
+            onBack={() => {
+              selectModeTabWithPresentationGuard("trackpad", "selector");
+            }}
+          >
             <Suspense fallback={<div className="workspace-loading">Opening Files…</div>}>
               <FileManagerWorkspace
                 key={`${connectionEpoch}-${String(fileManagerCapability.canBrowse)}-${String(fileManagerCapability.canModify)}-${String(fileManagerCapability.canTransfer)}-${String(fileManagerCapability.hidesProtectedSystemItems)}`}
@@ -832,56 +1007,62 @@ export function App() {
               />
             </Suspense>
           </WorkspaceErrorBoundary>
-        ) : <ModeWorkspace
-          appSettings={appSettings}
-          connection={connection}
-          connectionEpoch={connectionEpoch}
-          gyroActivationRequest={gyroActivationRequest}
-          keyboardSettings={keyboardSettings}
-          onClearAfterSendingChange={(value) => { updateAppSetting("clearTextAfterSending", value); }}
-          onClipboardCopyFeedback={showClipboardCopyFeedback}
-          onPresentationSessionActiveChange={handlePresentationSessionActiveChange}
-          onGyroSelectedChange={handleGyroSelectedChange}
-          onPresentationActivationRequestHandled={handlePresentationActivationRequestHandled}
-          presentationActivationRequestId={
-            state === "paired" &&
-            tab === "presentation" &&
-            presentationActivationRequest.connectionEpoch === connectionEpoch
-              ? presentationActivationRequest.id
-              : 0
-          }
-          onRemoteUtilityPanelOpenChange={setIsRemoteUtilityPanelOpen}
-          remoteSettings={remoteSettings}
-          shouldShowSplitMode={shouldShowSplitMode}
-          showTrackpadCompactModeSelector={showTrackpadCompactModeSelector}
-          trackpadCompactModeSelector={showTrackpadCompactModeSelector && activeModeTab ? (
-            <>
-              <CompactModeSelectorButton
-                buttonRef={trackpadCompactModeButtonRef}
-                activeMode={activeModeTab}
-                isOpen={isModeSelectorOpen && modeSelectorAnchor === "trackpad"}
-                onToggle={() => {
-                  dismissModeSwitchHint();
-                  toggleModeSelector("trackpad");
-                }}
-              />
-              {isModeSelectorOpen && modeSelectorAnchor === "trackpad" && (
-                <ModeSelector
-                  modeTabs={modeTabs}
-                  tab={tab}
-                  onClose={closeModeSelector}
-                  onSelect={(nextTab) => {
-                    dismissModeSwitchHint();
-                    selectModeTabWithPresentationGuard(nextTab, "selector");
-                  }}
-                />
-              )}
-            </>
-          ) : undefined}
-          showVolumeControl={trackpadSettings.showVolumeControl}
-          tab={tab}
-          trackpadSettings={effectiveTrackpadSettings}
-        />}
+        ) : (
+          <ModeWorkspace
+            appSettings={appSettings}
+            connection={connection}
+            connectionEpoch={connectionEpoch}
+            gyroActivationRequest={gyroActivationRequest}
+            keyboardSettings={keyboardSettings}
+            onClearAfterSendingChange={(value) => {
+              updateAppSetting("clearTextAfterSending", value);
+            }}
+            onClipboardCopyFeedback={showClipboardCopyFeedback}
+            onPresentationSessionActiveChange={handlePresentationSessionActiveChange}
+            onGyroSelectedChange={handleGyroSelectedChange}
+            onPresentationActivationRequestHandled={handlePresentationActivationRequestHandled}
+            presentationActivationRequestId={
+              state === "paired" &&
+              tab === "presentation" &&
+              presentationActivationRequest.connectionEpoch === connectionEpoch
+                ? presentationActivationRequest.id
+                : 0
+            }
+            onRemoteUtilityPanelOpenChange={setIsRemoteUtilityPanelOpen}
+            remoteSettings={remoteSettings}
+            shouldShowSplitMode={shouldShowSplitMode}
+            showTrackpadCompactModeSelector={showTrackpadCompactModeSelector}
+            trackpadCompactModeSelector={
+              showTrackpadCompactModeSelector && activeModeTab ? (
+                <>
+                  <CompactModeSelectorButton
+                    buttonRef={trackpadCompactModeButtonRef}
+                    activeMode={activeModeTab}
+                    isOpen={isModeSelectorOpen && modeSelectorAnchor === "trackpad"}
+                    onToggle={() => {
+                      dismissModeSwitchHint();
+                      toggleModeSelector("trackpad");
+                    }}
+                  />
+                  {isModeSelectorOpen && modeSelectorAnchor === "trackpad" && (
+                    <ModeSelector
+                      modeTabs={modeTabs}
+                      tab={tab}
+                      onClose={closeModeSelector}
+                      onSelect={(nextTab) => {
+                        dismissModeSwitchHint();
+                        selectModeTabWithPresentationGuard(nextTab, "selector");
+                      }}
+                    />
+                  )}
+                </>
+              ) : undefined
+            }
+            showVolumeControl={trackpadSettings.showVolumeControl}
+            tab={tab}
+            trackpadSettings={effectiveTrackpadSettings}
+          />
+        )}
 
         <AnchoredHint
           anchorRef={modeSwitchHintAnchorRef}
@@ -894,15 +1075,30 @@ export function App() {
         {inputBlockedByElevation && (
           <InputRecoveryNotice
             dismissed={isInputRecoveryDialogDismissed}
-            onDismiss={() => { setInputRecoveryDialog((current) => ({ ...current, dismissed: true })); }}
-            onOpen={() => { setInputRecoveryDialog((current) => ({ ...current, dismissed: false })); }}
-            onShowDesktop={() => { send({ type: "keyboard.special", inputContext: "keyboard", key: "D", modifiers: ["Win"] }); }}
+            onDismiss={() => {
+              setInputRecoveryDialog((current) => ({ ...current, dismissed: true }));
+            }}
+            onOpen={() => {
+              setInputRecoveryDialog((current) => ({ ...current, dismissed: false }));
+            }}
+            onShowDesktop={() => {
+              send({
+                type: "keyboard.special",
+                inputContext: "keyboard",
+                key: "D",
+                modifiers: ["Win"],
+              });
+            }}
           />
         )}
 
         <GlobalOperationFeedback
           appLaunchResult={appLaunchResult}
-          clipboardReadResult={clipboardReadResult?.operationId === suppressedClipboardResultId ? null : clipboardReadResult}
+          clipboardReadResult={
+            clipboardReadResult?.operationId === suppressedClipboardResultId
+              ? null
+              : clipboardReadResult
+          }
           pendingAppLaunchId={pendingAppLaunchId}
           pendingClipboardRead={pendingClipboardRead}
           pendingTextTransfer={pendingTextTransfer}
@@ -919,7 +1115,9 @@ export function App() {
           destructive={false}
           description={`This will open ${pendingRemoteLaunch === "openYoutube" ? "YouTube" : "Kodi"} on the PC.`}
           isOpen={pendingRemoteLaunch !== null}
-          onCancel={() => { setPendingRemoteLaunch(null); }}
+          onCancel={() => {
+            setPendingRemoteLaunch(null);
+          }}
           onConfirm={() => {
             const action = pendingRemoteLaunch;
             setPendingRemoteLaunch(null);
@@ -939,23 +1137,42 @@ export function App() {
           title="Leave presentation?"
         />
         <ConfirmationDialog
-          cancelLabel={presentationConnectionIntent === "disconnect" ? "Stay connected" : "Keep current connection"}
+          cancelLabel={
+            presentationConnectionIntent === "disconnect"
+              ? "Stay connected"
+              : "Keep current connection"
+          }
           confirmLabel={presentationConnectionIntent === "disconnect" ? "Disconnect" : "Change PC"}
           destructive={false}
-          description={presentationConnectionIntent === "disconnect"
-            ? "Presentation timing is active. Disconnecting will interrupt presentation controls and saving until this PC reconnects."
-            : "Presentation timing is active. Changing the PC will interrupt its controls and can prevent this session from being saved to the original PC."}
+          description={
+            presentationConnectionIntent === "disconnect"
+              ? "Presentation timing is active. Disconnecting will interrupt presentation controls and saving until this PC reconnects."
+              : "Presentation timing is active. Changing the PC will interrupt its controls and can prevent this session from being saved to the original PC."
+          }
           initialFocus="cancel"
           isOpen={presentationConnectionIntent !== null}
           onCancel={keepPresentationConnection}
           onConfirm={confirmPresentationConnectionChange}
-          title={presentationConnectionIntent === "disconnect"
-            ? "Disconnect during presentation?"
-            : "Change PC during presentation?"}
+          title={
+            presentationConnectionIntent === "disconnect"
+              ? "Disconnect during presentation?"
+              : "Change PC during presentation?"
+          }
         />
       </main>
 
-      {activeCustomScreenId === null && !isScreenViewOpen && !isPhoneWebcamOpen && tab !== "files" && isBottomModeNavigationVisible && <ModeNavigation className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
+      {activeCustomScreenId === null &&
+        !isScreenViewOpen &&
+        !isPhoneWebcamOpen &&
+        tab !== "files" &&
+        isBottomModeNavigationVisible && (
+          <ModeNavigation
+            className="tabs bottom-mode-tabs"
+            modeTabs={modeTabs}
+            tab={tab}
+            onSelect={selectModeTabWithPresentationGuard}
+          />
+        )}
     </div>
   );
 }

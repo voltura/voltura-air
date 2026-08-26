@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 function runGit(arguments_, captureOutput = false) {
   const result = spawnSync("git", arguments_, {
     encoding: "utf8",
-    stdio: captureOutput ? ["ignore", "pipe", "pipe"] : "inherit"
+    stdio: captureOutput ? ["ignore", "pipe", "pipe"] : "inherit",
   });
 
   if (result.error) {

@@ -30,13 +30,13 @@ const defaultPairingFeedback: PairingFeedback = {
   hints: [],
   primaryLabel: "Take photo of QR code",
   severity: "info",
-  showRecoveryActions: false
+  showRecoveryActions: false,
 };
 
 export function getPairingFeedback(
   message: string,
   activePcUnavailable = false,
-  transportMode?: "relay" | "secure-direct"
+  transportMode?: "relay" | "secure-direct",
 ): PairingFeedback {
   const normalizedMessage = message.trim();
   if (activePcUnavailable) {
@@ -48,12 +48,12 @@ export function getPairingFeedback(
         hints: [
           "Voltura Air will reconnect automatically.",
           "If this repeats, copy diagnostics and check the PC for a connection notification.",
-          "Refresh the mobile app from the PC if the protocol may be out of date."
+          "Refresh the mobile app from the PC if the protocol may be out of date.",
         ],
         primaryLabel: "Try reconnect",
         reason: "socket-closed",
         severity: "warning",
-        showRecoveryActions: true
+        showRecoveryActions: true,
       };
     }
 
@@ -65,12 +65,12 @@ export function getPairingFeedback(
         hints: [
           "Try reconnecting while both devices are on the same private LAN.",
           "Use the Standard Local link from the PC for the existing local HTTP connection.",
-          "Choose Cloud Relay in the PC connection settings if you want to connect through Voltura Cloud."
+          "Choose Cloud Relay in the PC connection settings if you want to connect through Voltura Cloud.",
         ],
         primaryLabel: "Try reconnect",
         reason: "host-unreachable",
         severity: "error",
-        showRecoveryActions: true
+        showRecoveryActions: true,
       };
     }
 
@@ -83,12 +83,12 @@ export function getPairingFeedback(
           "Check that Voltura Air is still running on the PC.",
           "Check that the PC has internet access.",
           "A VPN or managed work network may restrict the relay connection. Disconnect or reconfigure it if permitted, then try again.",
-          "If the phone or tablet is on the same LAN as the PC, you can pair again using Direct local network."
+          "If the phone or tablet is on the same LAN as the PC, you can pair again using Direct local network.",
         ],
         primaryLabel: "Try reconnect",
         reason: "host-unreachable",
         severity: "error",
-        showRecoveryActions: true
+        showRecoveryActions: true,
       };
     }
 
@@ -100,12 +100,12 @@ export function getPairingFeedback(
         "Check that Voltura Air is still running on the PC.",
         "Check that the phone or tablet is on the same Wi-Fi/LAN as the PC.",
         "If you changed network, IP address, or port, click New code on the PC and scan again.",
-        "If Windows Firewall asks, allow Voltura Air on private networks."
+        "If Windows Firewall asks, allow Voltura Air on private networks.",
       ],
       primaryLabel: "Try reconnect",
       reason: "host-unreachable",
       severity: "error",
-      showRecoveryActions: true
+      showRecoveryActions: true,
     };
   }
 
@@ -117,12 +117,12 @@ export function getPairingFeedback(
       hints: [
         "Zoom in on the QR code before taking the photo.",
         "Avoid glare or motion blur.",
-        "Use New code on the PC if the current code may be old."
+        "Use New code on the PC if the current code may be old.",
       ],
       primaryLabel: "Take another photo of QR code",
       reason: "qr-unreadable",
       severity: "warning",
-      showRecoveryActions: true
+      showRecoveryActions: true,
     };
   }
 
@@ -135,7 +135,7 @@ export function getPairingFeedback(
       primaryLabel: "Take photo of Voltura Air QR code",
       reason: "qr-not-pairing-link",
       severity: "warning",
-      showRecoveryActions: true
+      showRecoveryActions: true,
     };
   }
 
@@ -153,7 +153,7 @@ export function getPairingFeedback(
       ...defaultPairingFeedback,
       title: "Confirm this device",
       body: normalizedMessage,
-      primaryLabel: "Pair"
+      primaryLabel: "Pair",
     };
   }
 
@@ -162,22 +162,28 @@ export function getPairingFeedback(
       ...defaultPairingFeedback,
       title: "Connecting to PC",
       body: normalizedMessage,
-      primaryLabel: "Take photo of new QR code"
+      primaryLabel: "Take photo of new QR code",
     };
   }
 
-  return normalizedMessage ? { ...defaultPairingFeedback, body: normalizedMessage } : defaultPairingFeedback;
+  return normalizedMessage
+    ? { ...defaultPairingFeedback, body: normalizedMessage }
+    : defaultPairingFeedback;
 }
 
 export function buildPairingDiagnostics(
   message: string,
   activePcUnavailable = false,
   diagnosticCode?: string,
-  transportMode?: "relay" | "secure-direct"
+  transportMode?: "relay" | "secure-direct",
 ): string {
   const feedback = getPairingFeedback(message, activePcUnavailable, transportMode);
   const diagnostics = {
-    state: activePcUnavailable ? "host-unavailable" : feedback.reason ? "pairing-failed" : "pairing",
+    state: activePcUnavailable
+      ? "host-unavailable"
+      : feedback.reason
+        ? "pairing-failed"
+        : "pairing",
     reason: feedback.reason ?? null,
     transportMode: transportMode ?? "direct",
     diagnosticCode: diagnosticCode ?? feedback.diagnosticCode ?? null,
@@ -185,7 +191,7 @@ export function buildPairingDiagnostics(
     pageUrl: safeLocationHref(),
     platform: navigator.userAgent,
     displayMode: getDisplayMode(),
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
 
   return JSON.stringify(diagnostics, null, 2);
@@ -229,7 +235,7 @@ function feedbackForRejectedReason(reason: string): PairingFeedback {
       primaryLabel: "Take photo of new QR code",
       reason: "host-rejected-device",
       severity: "error",
-      showRecoveryActions: true
+      showRecoveryActions: true,
     };
   }
 
@@ -240,12 +246,12 @@ function feedbackForRejectedReason(reason: string): PairingFeedback {
     hints: [
       "Click New code on the PC and scan again.",
       "Check that both devices are on the same Wi-Fi/LAN.",
-      "Copy diagnostics if the problem continues."
+      "Copy diagnostics if the problem continues.",
     ],
     primaryLabel: "Take photo of new QR code",
     reason: "unknown",
     severity: "error",
-    showRecoveryActions: true
+    showRecoveryActions: true,
   };
 }
 
@@ -256,22 +262,28 @@ function feedbackForReason(reason: PairingFailureReason): PairingFeedback {
         title: "QR code expired",
         body: "This QR code expired. Click New code on the PC and scan the fresh QR code.",
         diagnosticCode: "VAIR-PAIR-EXPIRED-TOKEN",
-        hints: ["Pairing QR codes are short-lived for safety.", "Use the latest QR code shown on the PC."],
+        hints: [
+          "Pairing QR codes are short-lived for safety.",
+          "Use the latest QR code shown on the PC.",
+        ],
         primaryLabel: "Take photo of new QR code",
         reason,
         severity: "warning",
-        showRecoveryActions: true
+        showRecoveryActions: true,
       };
     case "stale-token":
       return {
         title: "QR code already used",
         body: "This QR code was already used or replaced. Click New code on the PC and scan the new QR code.",
         diagnosticCode: "VAIR-PAIR-STALE-TOKEN",
-        hints: ["Only the latest unused pairing QR code can pair a device.", "Use New code on the PC before scanning again."],
+        hints: [
+          "Only the latest unused pairing QR code can pair a device.",
+          "Use New code on the PC before scanning again.",
+        ],
         primaryLabel: "Take photo of new QR code",
         reason,
         severity: "warning",
-        showRecoveryActions: true
+        showRecoveryActions: true,
       };
     case "invalid-token":
       return {
@@ -282,7 +294,7 @@ function feedbackForReason(reason: PairingFailureReason): PairingFeedback {
         primaryLabel: "Take photo of new QR code",
         reason,
         severity: "warning",
-        showRecoveryActions: true
+        showRecoveryActions: true,
       };
     case "device-revoked":
       return {
@@ -293,7 +305,7 @@ function feedbackForReason(reason: PairingFailureReason): PairingFeedback {
         primaryLabel: "Take photo of new QR code",
         reason,
         severity: "error",
-        showRecoveryActions: true
+        showRecoveryActions: true,
       };
     case "protocol-version-mismatch":
       return {
@@ -304,18 +316,21 @@ function feedbackForReason(reason: PairingFailureReason): PairingFeedback {
         primaryLabel: "Take photo of new QR code",
         reason,
         severity: "error",
-        showRecoveryActions: true
+        showRecoveryActions: true,
       };
     case "rate-limited":
       return {
         title: "Too many pairing attempts",
         body: "The PC temporarily blocked pairing attempts for safety. Wait a moment, then click New code on the PC and scan again.",
         diagnosticCode: "VAIR-PAIR-RATE-LIMITED",
-        hints: ["Wait briefly before trying again.", "Click New code on the PC before scanning again."],
+        hints: [
+          "Wait briefly before trying again.",
+          "Click New code on the PC before scanning again.",
+        ],
         primaryLabel: "Take photo of new QR code",
         reason,
         severity: "warning",
-        showRecoveryActions: true
+        showRecoveryActions: true,
       };
     case "invalid-message":
       return {
@@ -326,7 +341,7 @@ function feedbackForReason(reason: PairingFailureReason): PairingFeedback {
         primaryLabel: "Take photo of new QR code",
         reason,
         severity: "error",
-        showRecoveryActions: true
+        showRecoveryActions: true,
       };
     case "unknown":
     case "qr-unreadable":
@@ -344,7 +359,10 @@ function parseRejectedReason(message: string): string | null {
 }
 
 function diagnosticCodeForReason(reason: string): string {
-  const normalized = reason.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toUpperCase();
+  const normalized = reason
+    .replace(/[^a-z0-9]+/gi, "-")
+    .replace(/^-|-$/g, "")
+    .toUpperCase();
   return `VAIR-PAIR-${normalized.length > 0 ? normalized : "UNKNOWN"}`;
 }
 
@@ -357,7 +375,10 @@ function safeLocationHref(): string {
 }
 
 function getDisplayMode(): "browser" | "installed" | "unknown" {
-  if (window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true) {
+  if (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true
+  ) {
     return "installed";
   }
 

@@ -5,7 +5,7 @@ beforeEach(() => {
   const items = new Map<string, string>();
   vi.stubGlobal("localStorage", {
     getItem: (key: string) => items.get(key) ?? null,
-    setItem: (key: string, value: string) => items.set(key, value)
+    setItem: (key: string, value: string) => items.set(key, value),
   });
 });
 
@@ -17,12 +17,17 @@ describe("text snippets", () => {
   });
 
   it("drops malformed, duplicate, and overlong entries", () => {
-    localStorage.setItem(textSnippetsKey("client-a"), JSON.stringify([
+    localStorage.setItem(
+      textSnippetsKey("client-a"),
+      JSON.stringify([
+        { id: "snippet-1", name: "Valid", text: "hello" },
+        { id: "snippet-1", name: "Duplicate", text: "ignored" },
+        { id: "bad id", name: "Invalid", text: "ignored" },
+        { id: "snippet-2", name: "Too long", text: "x".repeat(4097) },
+      ]),
+    );
+    expect(loadTextSnippets("client-a")).toEqual([
       { id: "snippet-1", name: "Valid", text: "hello" },
-      { id: "snippet-1", name: "Duplicate", text: "ignored" },
-      { id: "bad id", name: "Invalid", text: "ignored" },
-      { id: "snippet-2", name: "Too long", text: "x".repeat(4097) }
-    ]));
-    expect(loadTextSnippets("client-a")).toEqual([{ id: "snippet-1", name: "Valid", text: "hello" }]);
+    ]);
   });
 });

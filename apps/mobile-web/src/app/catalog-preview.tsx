@@ -6,13 +6,15 @@ import type {
   CustomScreenButtonDefinition,
   CustomScreenDefinition,
   CustomScreenLayoutOverride,
-  CustomScreenSectionDefinition
+  CustomScreenSectionDefinition,
 } from "../foundation/protocol/messages";
 import "../styles.css";
 
 type JsonObject = Record<string, unknown>;
 
-const source = JSON.parse(document.getElementById("catalog-screen-package")?.textContent ?? "null") as unknown;
+const source = JSON.parse(
+  document.getElementById("catalog-screen-package")?.textContent ?? "null",
+) as unknown;
 const definition = projectPackage(source);
 const ignorePreviewAction = () => undefined;
 
@@ -34,7 +36,7 @@ createRoot(document.getElementById("root")!).render(
         Preview only · actions are disabled
       </div>
     </div>
-  </StrictMode>
+  </StrictMode>,
 );
 
 function projectPackage(packageValue: unknown): CustomScreenDefinition | null {
@@ -50,7 +52,9 @@ function projectPackage(packageValue: unknown): CustomScreenDefinition | null {
     revision: text(value(screen, "revision"), "catalog-preview"),
     orientationLayoutsEnabled: boolean(value(screen, "orientationLayoutsEnabled"), false),
     showNavigationHeader: boolean(value(screen, "showNavigationHeader"), false),
-    sections: sections.map(projectSection).filter((section): section is CustomScreenSectionDefinition => section !== null)
+    sections: sections
+      .map(projectSection)
+      .filter((section): section is CustomScreenSectionDefinition => section !== null),
   };
 }
 
@@ -62,7 +66,7 @@ function projectSection(source: unknown, index: number): CustomScreenSectionDefi
   const sourceKind = text(value(section, "kind"), "buttons");
   const kind = sourceKind === "collapsible" ? "buttons" : sourceKind;
   const supportedKind = ["buttons", "trackpad", "volume", "navigationRing", "dpad"].includes(kind)
-    ? kind as CustomScreenSectionDefinition["kind"]
+    ? (kind as CustomScreenSectionDefinition["kind"])
     : "buttons";
   return {
     id: text(value(section, "id"), `section-${index}`),
@@ -85,7 +89,9 @@ function projectSection(source: unknown, index: number): CustomScreenSectionDefi
     volumeEnabled: true,
     portrait: projectLayout(value(section, "portrait")),
     landscape: projectLayout(value(section, "landscape")),
-    buttons: array(value(section, "buttons")).map(projectButton).filter((button): button is CustomScreenButtonDefinition => button !== null)
+    buttons: array(value(section, "buttons"))
+      .map(projectButton)
+      .filter((button): button is CustomScreenButtonDefinition => button !== null),
   };
 }
 
@@ -101,21 +107,35 @@ function projectButton(source: unknown, index: number): CustomScreenButtonDefini
     name: text(value(button, "name"), "Button"),
     label: text(value(button, "label"), "Button"),
     icon: text(value(button, "icon"), "command"),
-    presentation: presentationValue === "icon" || presentationValue === "label" ? presentationValue : "iconLabel",
-    size: sizeValue === "compact" || sizeValue === "wide" || sizeValue === "fill" ? sizeValue : "standard",
+    presentation:
+      presentationValue === "icon" || presentationValue === "label"
+        ? presentationValue
+        : "iconLabel",
+    size:
+      sizeValue === "compact" || sizeValue === "wide" || sizeValue === "fill"
+        ? sizeValue
+        : "standard",
     repeat: boolean(value(button, "repeat"), false),
     row: integer(value(button, "row"), 0),
     portrait: projectLayout(value(button, "portrait")),
     landscape: projectLayout(value(button, "landscape")),
     enabled: true,
     ...(isLaserPointerColor(value(button, "laserPointerColor"))
-      ? { laserPointerColor: value(button, "laserPointerColor") as "default" | "red" | "green" | "blue" }
-      : {})
+      ? {
+          laserPointerColor: value(button, "laserPointerColor") as
+            | "default"
+            | "red"
+            | "green"
+            | "blue",
+        }
+      : {}),
   };
 }
 
 function isLaserPointerColor(candidate: unknown): boolean {
-  return candidate === "default" || candidate === "red" || candidate === "green" || candidate === "blue";
+  return (
+    candidate === "default" || candidate === "red" || candidate === "green" || candidate === "blue"
+  );
 }
 
 function projectLayout(source: unknown): CustomScreenLayoutOverride | null {
@@ -130,13 +150,16 @@ function projectLayout(source: unknown): CustomScreenLayoutOverride | null {
     order: integer(value(layout, "order"), 0),
     visible: boolean(value(layout, "visible"), true),
     widthColumns: typeof width === "number" ? width : null,
-    size: size === "compact" || size === "standard" || size === "wide" || size === "fill" ? size : null,
-    row: typeof row === "number" ? row : null
+    size:
+      size === "compact" || size === "standard" || size === "wide" || size === "fill" ? size : null,
+    row: typeof row === "number" ? row : null,
   };
 }
 
 function object(source: unknown): JsonObject | null {
-  return source !== null && typeof source === "object" && !Array.isArray(source) ? source as JsonObject : null;
+  return source !== null && typeof source === "object" && !Array.isArray(source)
+    ? (source as JsonObject)
+    : null;
 }
 
 function array(source: unknown): unknown[] {
@@ -163,7 +186,9 @@ function boolean(source: unknown, fallback: boolean): boolean {
 }
 
 function buttonAlignment(source: unknown): CustomScreenSectionDefinition["buttonAlignment"] {
-  return ["start", "center", "end", "space-between", "space-around", "space-evenly"].includes(String(source))
-    ? source as CustomScreenSectionDefinition["buttonAlignment"]
+  return ["start", "center", "end", "space-between", "space-around", "space-evenly"].includes(
+    String(source),
+  )
+    ? (source as CustomScreenSectionDefinition["buttonAlignment"])
     : "start";
 }

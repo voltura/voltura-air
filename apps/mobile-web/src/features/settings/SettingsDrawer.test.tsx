@@ -45,20 +45,23 @@ const baseProps = {
     { id: "presentation" as const, label: "Presentation", Icon: ToolIcon },
     { id: "dictation" as const, label: "Dictation", Icon: ToolIcon },
     { id: "text-transfer" as const, label: "Send text to PC", Icon: ToolIcon },
-    { id: "clipboard-read" as const, label: "Get text from PC", Icon: ToolIcon }
+    { id: "clipboard-read" as const, label: "Get text from PC", Icon: ToolIcon },
   ],
   trackpadSettings: defaultTrackpadSettings,
   updateAppSetting: vi.fn(),
   updateKeyboardSetting: vi.fn(),
   updateRemoteSetting: vi.fn(),
   updateTrackpadSetting: vi.fn(),
-  usesLivePairingQr: false
+  usesLivePairingQr: false,
 };
 
 describe("Gyro mouse tool", () => {
   it("stays visible and starts from its own Tools shortcut", () => {
     vi.stubGlobal("__APP_VERSION__", "test-version");
-    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false })));
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: false })),
+    );
     const onOpenGyroMouse = vi.fn();
     render(<SettingsDrawer {...baseProps} onOpenGyroMouse={onOpenGyroMouse} />);
 
@@ -78,12 +81,14 @@ function createRect(top: number, bottom: number): DOMRect {
     width: 360,
     x: 0,
     y: top,
-    toJSON: () => ({})
+    toJSON: () => ({}),
   };
 }
 
 function arrangeClippedAppSection(targetBottom: number) {
-  const drawer = screen.getByRole("dialog", { name: "Menu" }).querySelector<HTMLElement>(".settings-drawer-scroll-region")!;
+  const drawer = screen
+    .getByRole("dialog", { name: "Menu" })
+    .querySelector<HTMLElement>(".settings-drawer-scroll-region")!;
   const summary = screen.getByText("App").closest("summary")!;
   const section = summary.closest("details")!;
   const firstControl = section.querySelector("select")!;
@@ -91,20 +96,25 @@ function arrangeClippedAppSection(targetBottom: number) {
 
   vi.spyOn(drawer, "getBoundingClientRect").mockReturnValue(createRect(0, 600));
   vi.spyOn(summary, "getBoundingClientRect").mockReturnValue(createRect(520, 568));
-  vi.spyOn(firstControl, "getBoundingClientRect").mockReturnValue(createRect(targetBottom - 58, targetBottom));
+  vi.spyOn(firstControl, "getBoundingClientRect").mockReturnValue(
+    createRect(targetBottom - 58, targetBottom),
+  );
   Object.defineProperty(drawer, "scrollBy", { configurable: true, value: scrollBy });
 
   return { scrollBy, summary };
 }
 
 function getRemoteSectionSummary(): HTMLElement {
-  return document.querySelector<HTMLElement>("[data-settings-section=\"remote\"] > summary")!;
+  return document.querySelector<HTMLElement>('[data-settings-section="remote"] > summary')!;
 }
 
 describe("SettingsDrawer", () => {
   beforeEach(() => {
     vi.stubGlobal("__APP_VERSION__", "test-version");
-    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false })));
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: false })),
+    );
     Object.defineProperty(navigator, "vibrate", { configurable: true, value: vi.fn(() => true) });
   });
 
@@ -118,7 +128,9 @@ describe("SettingsDrawer", () => {
     expect(getRemoteSectionSummary().textContent).toBe("Remote");
     expect(screen.getByText("Appearance")).toBeTruthy();
     expect(screen.getByText("App")).toBeTruthy();
-    expect(Array.from(document.querySelectorAll("details")).every((details) => !details.open)).toBe(true);
+    expect(Array.from(document.querySelectorAll("details")).every((details) => !details.open)).toBe(
+      true,
+    );
   });
 
   it("opens the notices inside the app", () => {
@@ -177,21 +189,23 @@ describe("SettingsDrawer", () => {
   it("closes the native drawer before opening a tool", () => {
     const onClose = vi.fn();
     const onOpenPhoneWebcam = vi.fn();
-    render(<SettingsDrawer
-      {...baseProps}
-      onClose={onClose}
-      onOpenPhoneWebcam={onOpenPhoneWebcam}
-      phoneWebcamCapability={{
-        enabled: true,
-        permissionGranted: true,
-        canUse: true,
-        requiresRepair: false,
-        microphoneAvailable: false,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        maxFramesPerSecond: 30
-      }}
-    />);
+    render(
+      <SettingsDrawer
+        {...baseProps}
+        onClose={onClose}
+        onOpenPhoneWebcam={onOpenPhoneWebcam}
+        phoneWebcamCapability={{
+          enabled: true,
+          permissionGranted: true,
+          canUse: true,
+          requiresRepair: false,
+          microphoneAvailable: false,
+          maxWidth: 1920,
+          maxHeight: 1080,
+          maxFramesPerSecond: 30,
+        }}
+      />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Phone webcam" }));
 
@@ -206,12 +220,14 @@ describe("SettingsDrawer", () => {
         {...baseProps}
         appSettings={{ ...defaultAppSettings, fourthMode: "presentation" }}
         presentationAvailable={false}
-      />
+      />,
     );
 
     expect(screen.queryByRole("button", { name: "Presentation" })).toBeNull();
     fireEvent.click(screen.getByText("App"));
-    const fourthMode = screen.getByRole<HTMLSelectElement>("combobox", { name: "Fourth mode button" });
+    const fourthMode = screen.getByRole<HTMLSelectElement>("combobox", {
+      name: "Fourth mode button",
+    });
     expect(fourthMode.value).toBe("dictation");
     expect(within(fourthMode).queryByRole("option", { name: "Presentation" })).toBeNull();
   });
@@ -231,7 +247,9 @@ describe("SettingsDrawer", () => {
     render(<SettingsDrawer {...baseProps} />);
     fireEvent.click(screen.getByText("Connection"));
 
-    const drawer = screen.getByRole("dialog", { name: "Menu" }).querySelector<HTMLElement>(".settings-drawer-scroll-region")!;
+    const drawer = screen
+      .getByRole("dialog", { name: "Menu" })
+      .querySelector<HTMLElement>(".settings-drawer-scroll-region")!;
     const trackpadSummary = screen.getByText("Trackpad").closest("summary")!;
     const trackpadSection = trackpadSummary.closest("details")!;
     const firstControl = trackpadSection.querySelector("input")!;
@@ -275,7 +293,10 @@ describe("SettingsDrawer", () => {
   });
 
   it("avoids animated assisted scrolling when reduced motion is requested", () => {
-    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true })),
+    );
     render(<SettingsDrawer {...baseProps} />);
     const { scrollBy, summary } = arrangeClippedAppSection(668);
 
@@ -292,18 +313,26 @@ describe("SettingsDrawer", () => {
     fireEvent.click(within(splitSection).getByRole("button", { name: "About Split mode" }));
 
     expect(screen.getByRole("dialog", { name: "Split mode" })).toBeTruthy();
-    expect(screen.getByText("Shows the keyboard and trackpad side by side. It is intended mainly for landscape phones and tablets.")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Shows the keyboard and trackpad side by side. It is intended mainly for landscape phones and tablets.",
+      ),
+    ).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "OK" }));
     expect(within(splitSection).getByRole("checkbox", { name: "Enable split mode" })).toBeTruthy();
 
     const trackpadSection = screen.getByText("Trackpad").closest("details") as HTMLElement;
     fireEvent.click(screen.getByText("Trackpad"));
-    expect(within(trackpadSection).queryByRole("checkbox", { name: "Enable split mode" })).toBeNull();
+    expect(
+      within(trackpadSection).queryByRole("checkbox", { name: "Enable split mode" }),
+    ).toBeNull();
 
     const keyboardSection = screen.getByText("Keyboard").closest("details") as HTMLElement;
     fireEvent.click(screen.getByText("Keyboard"));
-    expect(within(keyboardSection).queryByRole("checkbox", { name: "Enable split mode" })).toBeNull();
+    expect(
+      within(keyboardSection).queryByRole("checkbox", { name: "Enable split mode" }),
+    ).toBeNull();
     expect(screen.queryByRole("button", { name: "About Show function keys" })).toBeNull();
   });
 
@@ -327,7 +356,9 @@ describe("SettingsDrawer", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Connection diagnostics" });
     const connectionSection = screen.getByText("Connection").closest("details");
-    expect(dialog.textContent).toContain("Pairing tokens, private reconnect keys, challenges, and proofs are not included.");
+    expect(dialog.textContent).toContain(
+      "Pairing tokens, private reconnect keys, challenges, and proofs are not included.",
+    );
     expect(dialog.classList.contains("info-dialog-detailed")).toBe(true);
     expect(connectionSection?.open).toBe(true);
 
@@ -344,7 +375,7 @@ describe("SettingsDrawer", () => {
       customName: false,
       id: "http://pc.local:51395",
       name: "Current PC",
-      url: "http://pc.local:51395"
+      url: "http://pc.local:51395",
     };
     const onManualHostSubmit = vi.fn();
     render(
@@ -353,19 +384,25 @@ describe("SettingsDrawer", () => {
         activePc={activePc}
         pairedPcs={[activePc]}
         onManualHostSubmit={onManualHostSubmit}
-      />
+      />,
     );
 
     fireEvent.click(screen.getByText("Connection"));
     const input = screen.getByRole("textbox", { name: "Host or pairing link" });
-    fireEvent.change(input, { target: { value: "http://pc-two.local:51395/pair?t=short&v=0.6.1" } });
+    fireEvent.change(input, {
+      target: { value: "http://pc-two.local:51395/pair?t=short&v=0.6.1" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Connect to PC" }));
 
     expect(onManualHostSubmit).not.toHaveBeenCalled();
     expect(screen.getByText("Active PC: Current PC")).toBeTruthy();
-    expect((input as HTMLInputElement).value).toBe("http://pc-two.local:51395/pair?t=short&v=0.6.1");
+    expect((input as HTMLInputElement).value).toBe(
+      "http://pc-two.local:51395/pair?t=short&v=0.6.1",
+    );
     expect(input.getAttribute("aria-invalid")).toBe("true");
-    expect(screen.getByRole("alert").textContent).toBe("Enter the complete pairing link shown by Voltura Air on the PC.");
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Enter the complete pairing link shown by Voltura Air on the PC.",
+    );
   });
 
   it("updates grouped helper visibility settings", () => {
@@ -394,7 +431,13 @@ describe("SettingsDrawer", () => {
 
   it("sets the current device mode-button preference from Appearance", () => {
     const setHostShowModeButtons = vi.fn();
-    render(<SettingsDrawer {...baseProps} setHostShowModeButtons={setHostShowModeButtons} showModeButtons />);
+    render(
+      <SettingsDrawer
+        {...baseProps}
+        setHostShowModeButtons={setHostShowModeButtons}
+        showModeButtons
+      />,
+    );
 
     fireEvent.click(screen.getByText("Appearance"));
     fireEvent.click(screen.getByRole("checkbox", { name: "Show mode buttons" }));
@@ -404,7 +447,9 @@ describe("SettingsDrawer", () => {
 
   it("sets the current device control-depth preference from Appearance", () => {
     const setHostControlDepth = vi.fn();
-    render(<SettingsDrawer {...baseProps} controlDepth setHostControlDepth={setHostControlDepth} />);
+    render(
+      <SettingsDrawer {...baseProps} controlDepth setHostControlDepth={setHostControlDepth} />,
+    );
 
     fireEvent.click(screen.getByText("Appearance"));
     fireEvent.click(screen.getByRole("checkbox", { name: "3D effect on controls" }));
@@ -432,7 +477,6 @@ describe("SettingsDrawer", () => {
     expect(updateRemoteSetting).toHaveBeenCalledExactlyOnceWith("mode", "kodi");
   });
 
-
   it("shows launch action settings only when the host allows remote launch", () => {
     const { rerender } = render(<SettingsDrawer {...baseProps} />);
 
@@ -448,20 +492,22 @@ describe("SettingsDrawer", () => {
 
   it("keeps View PC screen discoverable when its PC developer toggle is off", () => {
     const onOpenScreenView = vi.fn();
-    render(<SettingsDrawer
-      {...baseProps}
-      onOpenScreenView={onOpenScreenView}
-      screenViewCapability={{
-        enabled: false,
-        permissionGranted: true,
-        canView: false,
-        requiresRepair: false,
-        encrypted: true,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        maxFramesPerSecond: 30
-      }}
-    />);
+    render(
+      <SettingsDrawer
+        {...baseProps}
+        onOpenScreenView={onOpenScreenView}
+        screenViewCapability={{
+          enabled: false,
+          permissionGranted: true,
+          canView: false,
+          requiresRepair: false,
+          encrypted: true,
+          maxWidth: 1920,
+          maxHeight: 1080,
+          maxFramesPerSecond: 30,
+        }}
+      />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "View PC screen" }));
     expect(onOpenScreenView).toHaveBeenCalledOnce();
@@ -469,7 +515,13 @@ describe("SettingsDrawer", () => {
 
   it("updates local remote launch action settings", () => {
     const updateRemoteSetting = vi.fn();
-    render(<SettingsDrawer {...baseProps} supportsRemoteLaunch updateRemoteSetting={updateRemoteSetting} />);
+    render(
+      <SettingsDrawer
+        {...baseProps}
+        supportsRemoteLaunch
+        updateRemoteSetting={updateRemoteSetting}
+      />,
+    );
 
     fireEvent.click(getRemoteSectionSummary());
     fireEvent.click(screen.getByRole("checkbox", { name: "Open YouTube from Remote" }));

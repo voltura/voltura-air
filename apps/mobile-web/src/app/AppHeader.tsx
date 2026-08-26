@@ -44,7 +44,7 @@ export function AppHeader({
   onToggleModeSelector,
   refreshInstalledApp,
   state,
-  tab
+  tab,
 }: AppHeaderProps) {
   const developerBrandLongPress = useDeveloperRefreshLongPress(developerMode, refreshInstalledApp);
 
@@ -52,18 +52,41 @@ export function AppHeader({
     <>
       <header className="top-bar">
         <div className="brand-group">
-          <button className="icon-button" type="button" aria-label="Open menu" onClick={onOpenSettings}>
+          <button
+            className="icon-button"
+            type="button"
+            aria-label="Open menu"
+            onClick={onOpenSettings}
+          >
             <Menu aria-hidden="true" />
           </button>
-          <div {...developerBrandLongPress} className={`brand ${developerBrandLongPress.className}`}>
+          <div
+            {...developerBrandLongPress}
+            className={`brand ${developerBrandLongPress.className}`}
+          >
             <MousePointer2 aria-hidden="true" />
             <span>Voltura Air</span>
           </div>
           {canShowModeNavigation && activeMode && (
-            <CompactModeSelectorButton buttonRef={compactModeButtonRef} activeMode={activeMode} isOpen={isModeSelectorOpen} onToggle={onToggleModeSelector} />
+            <CompactModeSelectorButton
+              buttonRef={compactModeButtonRef}
+              activeMode={activeMode}
+              isOpen={isModeSelectorOpen}
+              onToggle={onToggleModeSelector}
+            />
           )}
         </div>
-        {fileJobCount > 0 && onOpenFileJobs && <button className="header-file-job" type="button" onClick={onOpenFileJobs} aria-label={`Open ${fileJobCount} active file operation${fileJobCount === 1 ? "" : "s"}`}><Files aria-hidden="true" /><span>{fileJobCount}</span></button>}
+        {fileJobCount > 0 && onOpenFileJobs && (
+          <button
+            className="header-file-job"
+            type="button"
+            onClick={onOpenFileJobs}
+            aria-label={`Open ${fileJobCount} active file operation${fileJobCount === 1 ? "" : "s"}`}
+          >
+            <Files aria-hidden="true" />
+            <span>{fileJobCount}</span>
+          </button>
+        )}
         <div className={`status ${hasConnectionError ? "error" : state}`} title={message}>
           <Circle aria-hidden="true" />
           <span className="status-full">{message}</span>
@@ -72,7 +95,12 @@ export function AppHeader({
       </header>
 
       {canShowModeNavigation && isModeSelectorOpen && (
-        <ModeSelector modeTabs={modeTabs} tab={tab} onClose={onCloseModeSelector} onSelect={onSelectMode} />
+        <ModeSelector
+          modeTabs={modeTabs}
+          tab={tab}
+          onClose={onCloseModeSelector}
+          onSelect={onSelectMode}
+        />
       )}
     </>
   );

@@ -1,4 +1,9 @@
-export type FourthMode = "presentation" | "dictation" | "text-transfer" | "clipboard-read" | "files";
+export type FourthMode =
+  | "presentation"
+  | "dictation"
+  | "text-transfer"
+  | "clipboard-read"
+  | "files";
 
 export interface AppSettings {
   autoRefresh: boolean;
@@ -9,23 +14,41 @@ export interface AppSettings {
 export const defaultAppSettings: AppSettings = {
   autoRefresh: true,
   clearTextAfterSending: true,
-  fourthMode: "presentation"
+  fourthMode: "presentation",
 };
 
-export function getEffectiveFourthMode(fourthMode: FourthMode, presentationAvailable: boolean, filesAvailable = false): FourthMode {
-  if (fourthMode === "files" && !filesAvailable) {return presentationAvailable ? "presentation" : "dictation";}
+export function getEffectiveFourthMode(
+  fourthMode: FourthMode,
+  presentationAvailable: boolean,
+  filesAvailable = false,
+): FourthMode {
+  if (fourthMode === "files" && !filesAvailable) {
+    return presentationAvailable ? "presentation" : "dictation";
+  }
   return fourthMode === "presentation" && !presentationAvailable ? "dictation" : fourthMode;
 }
 
 export function normalizeAppSettings(value: unknown): AppSettings {
-  const candidate = typeof value === "object" && value !== null
-    ? value as Partial<Record<keyof AppSettings, unknown>>
-    : {};
+  const candidate =
+    typeof value === "object" && value !== null
+      ? (value as Partial<Record<keyof AppSettings, unknown>>)
+      : {};
   return {
-    autoRefresh: typeof candidate.autoRefresh === "boolean" ? candidate.autoRefresh : defaultAppSettings.autoRefresh,
-    clearTextAfterSending: typeof candidate.clearTextAfterSending === "boolean" ? candidate.clearTextAfterSending : defaultAppSettings.clearTextAfterSending,
-    fourthMode: candidate.fourthMode === "presentation" || candidate.fourthMode === "dictation" || candidate.fourthMode === "text-transfer" || candidate.fourthMode === "clipboard-read" || candidate.fourthMode === "files"
-      ? candidate.fourthMode
-      : defaultAppSettings.fourthMode
+    autoRefresh:
+      typeof candidate.autoRefresh === "boolean"
+        ? candidate.autoRefresh
+        : defaultAppSettings.autoRefresh,
+    clearTextAfterSending:
+      typeof candidate.clearTextAfterSending === "boolean"
+        ? candidate.clearTextAfterSending
+        : defaultAppSettings.clearTextAfterSending,
+    fourthMode:
+      candidate.fourthMode === "presentation" ||
+      candidate.fourthMode === "dictation" ||
+      candidate.fourthMode === "text-transfer" ||
+      candidate.fourthMode === "clipboard-read" ||
+      candidate.fourthMode === "files"
+        ? candidate.fourthMode
+        : defaultAppSettings.fourthMode,
   };
 }

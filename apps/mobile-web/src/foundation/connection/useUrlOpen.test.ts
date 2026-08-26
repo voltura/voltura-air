@@ -18,25 +18,29 @@ describe("useUrlOpen", () => {
     expect(send).toHaveBeenCalledExactlyOnceWith({
       type: "url.open",
       operationId,
-      url: " example.com/path "
+      url: " example.com/path ",
     });
 
-    act(() => { result.current.completeUrlOpen({
-      type: "url.open.result",
-      operationId: "unrelated",
-      succeeded: false,
-      message: "Unrelated"
-    }); });
+    act(() => {
+      result.current.completeUrlOpen({
+        type: "url.open.result",
+        operationId: "unrelated",
+        succeeded: false,
+        message: "Unrelated",
+      });
+    });
     expect(result.current.pendingUrlOpen).toBe(true);
 
-    act(() => { result.current.completeUrlOpen({
-      type: "url.open.result",
-      operationId: operationId!,
-      succeeded: true,
-      code: "accepted",
-      message: "Open request sent.",
-      normalizedUrl: "https://example.com/path"
-    }); });
+    act(() => {
+      result.current.completeUrlOpen({
+        type: "url.open.result",
+        operationId: operationId!,
+        succeeded: true,
+        code: "accepted",
+        message: "Open request sent.",
+        normalizedUrl: "https://example.com/path",
+      });
+    });
     expect(result.current.pendingUrlOpen).toBe(false);
     expect(result.current.urlOpenResult?.message).toBe("Open request sent.");
   });

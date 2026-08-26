@@ -20,7 +20,11 @@ test("reports a partial type split across maintained files", async () => {
 
 test("allows framework partials confined to one maintained file", async () => {
   await withFixture(async (root) => {
-    await writeSource(root, "Window.xaml.cs", "namespace Example;\npublic partial class Window {}\n");
+    await writeSource(
+      root,
+      "Window.xaml.cs",
+      "namespace Example;\npublic partial class Window {}\n",
+    );
     await writeSource(root, "Other.cs", "namespace Example;\ninternal sealed class Other {}\n");
 
     assert.deepEqual(await findMultiFilePartialTypes(root), []);

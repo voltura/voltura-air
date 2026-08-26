@@ -6,7 +6,7 @@ function normalizePath(filePath) {
   return path.normalize(filePath).toLowerCase();
 }
 
-function classify(filePath) {
+export function classify(filePath) {
   const normalized = normalizePath(filePath);
   const sourceRootIndex = normalized.lastIndexOf(sourceRootSegment);
   if (sourceRootIndex < 0) {
@@ -43,7 +43,7 @@ function isPublicFeatureImport(resolvedPath, target) {
   return normalized.endsWith(`${path.sep}features${path.sep}${target.slice}`);
 }
 
-function dependencyError(source, target, resolvedPath) {
+export function dependencyError(source, target, resolvedPath) {
   if (source.layer === "invalid" || target.layer === "invalid" || target.layer === "config") {
     return null;
   }
@@ -57,11 +57,15 @@ function dependencyError(source, target, resolvedPath) {
   }
 
   if (source.layer === "ui") {
-    return target.layer === "ui" ? null : "Shared UI may depend only on shared UI and external packages.";
+    return target.layer === "ui"
+      ? null
+      : "Shared UI may depend only on shared UI and external packages.";
   }
 
   if (source.layer === "foundation") {
-    return target.layer === "foundation" ? null : "Foundation code may depend only on foundation code and external packages.";
+    return target.layer === "foundation"
+      ? null
+      : "Foundation code may depend only on foundation code and external packages.";
   }
 
   if (target.layer === "app") {
@@ -97,9 +101,10 @@ export const architectureRule = {
   meta: {
     type: "problem",
     docs: {
-      description: "Enforce Voltura Air's app, feature, UI, and domain-owned foundation dependency direction."
+      description:
+        "Enforce Voltura Air's app, feature, UI, and domain-owned foundation dependency direction.",
     },
-    schema: []
+    schema: [],
   },
   create(context) {
     return {
@@ -107,7 +112,8 @@ export const architectureRule = {
         if (classify(context.filename)?.layer === "invalid") {
           context.report({
             node,
-            message: "Mobile source must be owned by app, features/<capability>, ui, or foundation/<domain>."
+            message:
+              "Mobile source must be owned by app, features/<capability>, ui, or foundation/<domain>.",
           });
         }
       },
@@ -126,7 +132,7 @@ export const architectureRule = {
         if (node.source.type === "Literal") {
           checkDependency(context, node.source, node.source.value);
         }
-      }
+      },
     };
-  }
+  },
 };

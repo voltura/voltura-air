@@ -7,17 +7,17 @@
   "durable_objects": {
     "bindings": [
       { "name": "RELAY_ROOMS", "class_name": "RelayRoomObject" },
-      { "name": "SECURE_DIRECT_ROOMS", "class_name": "SecureDirectRoomObject" }
-    ]
+      { "name": "SECURE_DIRECT_ROOMS", "class_name": "SecureDirectRoomObject" },
+    ],
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["RelayRoomObject"] },
-    { "tag": "v2", "new_sqlite_classes": ["SecureDirectRoomObject"] }
+    { "tag": "v2", "new_sqlite_classes": ["SecureDirectRoomObject"] },
   ],
   "vars": {
     "PUBLIC_SERVICE_ID": "development-only",
     "ALLOWED_DEVICE_ORIGIN": "https://example.invalid",
     "USAGE_WARNING_BYTES": "1000000000000",
-    "USAGE_CUTOFF_BYTES": "2000000000000"
-  }
+    "USAGE_CUTOFF_BYTES": "2000000000000",
+  },
 }

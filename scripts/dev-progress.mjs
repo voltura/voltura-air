@@ -7,18 +7,18 @@ const ansi = {
   dim: "\u001b[2m",
   green: "\u001b[32m",
   reset: "\u001b[0m",
-  yellow: "\u001b[33m"
+  yellow: "\u001b[33m",
 };
 
 function createPainter(enabled) {
-  return (color, text) => enabled ? `${ansi[color]}${text}${ansi.reset}` : text;
+  return (color, text) => (enabled ? `${ansi[color]}${text}${ansi.reset}` : text);
 }
 
 export function createDevProgress({
   totalSteps,
   stream = process.stdout,
   clock = () => performance.now(),
-  useColor = Boolean(process.stdout.isTTY && !process.env.NO_COLOR)
+  useColor = Boolean(process.stdout.isTTY && !process.env.NO_COLOR),
 }) {
   const paint = createPainter(useColor);
   const startedAt = clock();
@@ -42,8 +42,13 @@ export function createDevProgress({
     },
 
     complete() {
-      write(paint("green", `✓ Step ${currentStep} completed in ${formatDuration(clock() - stepStartedAt)}`));
-    }
+      write(
+        paint(
+          "green",
+          `✓ Step ${currentStep} completed in ${formatDuration(clock() - stepStartedAt)}`,
+        ),
+      );
+    },
   };
 }
 
@@ -51,9 +56,13 @@ export function writeDevReady({
   stepDurationMilliseconds,
   totalDurationMilliseconds,
   stream = process.stdout,
-  useColor = Boolean(process.stdout.isTTY && !process.env.NO_COLOR)
+  useColor = Boolean(process.stdout.isTTY && !process.env.NO_COLOR),
 }) {
   const paint = createPainter(useColor);
-  stream.write(`${paint("green", `✓ Step 3 completed in ${formatDuration(stepDurationMilliseconds)}`)}\n`);
-  stream.write(`${paint("green", `Development host ready in ${formatDuration(totalDurationMilliseconds)} total.`)}\n`);
+  stream.write(
+    `${paint("green", `✓ Step 3 completed in ${formatDuration(stepDurationMilliseconds)}`)}\n`,
+  );
+  stream.write(
+    `${paint("green", `Development host ready in ${formatDuration(totalDurationMilliseconds)} total.`)}\n`,
+  );
 }

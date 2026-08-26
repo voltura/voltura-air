@@ -1,13 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  statSync,
-  writeFileSync
-} from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -26,22 +19,26 @@ const fixedInputPaths = [
   "apps/mobile-web/tsconfig.node.json",
   "apps/mobile-web/vite.config.ts",
   "apps/windows-host/relay-service.json",
-  "assets/branding/apple-startup-devices.json"
+  "assets/branding/apple-startup-devices.json",
 ];
 
 export function getMobileQuickBuildPaths(repositoryRoot, environment = process.env) {
   const isHosted = environment.VOLTURA_AIR_HOSTED === "1";
-  const hostedChannel = environment.VOLTURA_AIR_HOSTED_CHANNEL === "development" ? "development" : "stable";
+  const hostedChannel =
+    environment.VOLTURA_AIR_HOSTED_CHANNEL === "development" ? "development" : "stable";
   const outputDirectory = isHosted
-    ? join(repositoryRoot, "apps", "public-site", hostedChannel === "development" ? "dev-app" : "app")
+    ? join(
+        repositoryRoot,
+        "apps",
+        "public-site",
+        hostedChannel === "development" ? "dev-app" : "app",
+      )
     : join(repositoryRoot, "apps", "mobile-web", "dist");
-  const stateName = isHosted
-    ? `dev-quick-${hostedChannel}-hosted.json`
-    : "dev-quick-mobile.json";
+  const stateName = isHosted ? `dev-quick-${hostedChannel}-hosted.json` : "dev-quick-mobile.json";
 
   return {
     outputDirectory,
-    statePath: join(repositoryRoot, "artifacts", "obj", "mobile-web", stateName)
+    statePath: join(repositoryRoot, "artifacts", "obj", "mobile-web", stateName),
   };
 }
 
@@ -51,7 +48,9 @@ export function collectFiles(directory) {
   }
 
   const files = [];
-  const entries = readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name));
+  const entries = readdirSync(directory, { withFileTypes: true }).sort((left, right) =>
+    left.name.localeCompare(right.name),
+  );
   for (const entry of entries) {
     const entryPath = join(directory, entry.name);
     if (entry.isDirectory()) {
@@ -65,7 +64,9 @@ export function collectFiles(directory) {
 
 export function collectMobileQuickInputFiles(repositoryRoot) {
   const mobileRoot = join(repositoryRoot, "apps", "mobile-web");
-  const inputFiles = fixedInputPaths.map((inputPath) => join(repositoryRoot, ...inputPath.split("/")));
+  const inputFiles = fixedInputPaths.map((inputPath) =>
+    join(repositoryRoot, ...inputPath.split("/")),
+  );
 
   for (const directory of [join(mobileRoot, "src"), join(mobileRoot, "public")]) {
     inputFiles.push(...collectFiles(directory));
@@ -89,11 +90,13 @@ export function collectMobileQuickInputFiles(repositoryRoot) {
 
 export function createFileFingerprint(filePaths, baseDirectory) {
   const hash = createHash("sha256");
-  const sortedFiles = [...new Set(filePaths.map((filePath) => resolve(filePath)))].sort((left, right) => {
-    const leftRelative = relative(baseDirectory, left).split(sep).join("/");
-    const rightRelative = relative(baseDirectory, right).split(sep).join("/");
-    return leftRelative.localeCompare(rightRelative);
-  });
+  const sortedFiles = [...new Set(filePaths.map((filePath) => resolve(filePath)))].sort(
+    (left, right) => {
+      const leftRelative = relative(baseDirectory, left).split(sep).join("/");
+      const rightRelative = relative(baseDirectory, right).split(sep).join("/");
+      return leftRelative.localeCompare(rightRelative);
+    },
+  );
 
   for (const filePath of sortedFiles) {
     const relativePath = relative(baseDirectory, filePath).split(sep).join("/");
@@ -121,9 +124,13 @@ export function createFileFingerprint(filePaths, baseDirectory) {
 }
 
 export function createMobileQuickInputFingerprint(repositoryRoot, environment = process.env) {
-  const fileFingerprint = createFileFingerprint(collectMobileQuickInputFiles(repositoryRoot), repositoryRoot);
+  const fileFingerprint = createFileFingerprint(
+    collectMobileQuickInputFiles(repositoryRoot),
+    repositoryRoot,
+  );
   const hostedValue = environment.VOLTURA_AIR_HOSTED === "1" ? "1" : "0";
-  const hostedChannel = environment.VOLTURA_AIR_HOSTED_CHANNEL === "development" ? "development" : "stable";
+  const hostedChannel =
+    environment.VOLTURA_AIR_HOSTED_CHANNEL === "development" ? "development" : "stable";
   const hash = createHash("sha256");
   hash.update(fileFingerprint);
   hash.update("\0");
@@ -138,14 +145,21 @@ export function createOutputFingerprint(outputDirectory) {
   return outputFiles.length > 0 ? createFileFingerprint(outputFiles, outputDirectory) : null;
 }
 
-export function isCurrentMobileQuickBuild(state, inputFingerprint, outputFingerprint, requestedBuildId = "") {
+export function isCurrentMobileQuickBuild(
+  state,
+  inputFingerprint,
+  outputFingerprint,
+  requestedBuildId = "",
+) {
   const normalizedRequestedBuildId = requestedBuildId.trim();
-  return state?.schemaVersion === MOBILE_QUICK_BUILD_STATE_SCHEMA_VERSION
-    && state.inputFingerprint === inputFingerprint
-    && state.outputFingerprint === outputFingerprint
-    && typeof state.webBuildId === "string"
-    && state.webBuildId.length > 0
-    && (normalizedRequestedBuildId.length === 0 || state.webBuildId === normalizedRequestedBuildId);
+  return (
+    state?.schemaVersion === MOBILE_QUICK_BUILD_STATE_SCHEMA_VERSION &&
+    state.inputFingerprint === inputFingerprint &&
+    state.outputFingerprint === outputFingerprint &&
+    typeof state.webBuildId === "string" &&
+    state.webBuildId.length > 0 &&
+    (normalizedRequestedBuildId.length === 0 || state.webBuildId === normalizedRequestedBuildId)
+  );
 }
 
 export function readGeneratedWebBuildId(outputDirectory) {
@@ -169,19 +183,21 @@ function writeBuildState(statePath, state) {
   writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
 }
 
-function runViteBuild(repositoryRoot, outputDirectory, statePath, inputFingerprint, requestedBuildId) {
+function runViteBuild(
+  repositoryRoot,
+  outputDirectory,
+  statePath,
+  inputFingerprint,
+  requestedBuildId,
+) {
   const webBuildId = requestedBuildId || randomUUID();
   const viteCli = join(repositoryRoot, "node_modules", "vite", "bin", "vite.js");
-  const result = spawnSync(
-    process.execPath,
-    [viteCli, "build"],
-    {
-      cwd: join(repositoryRoot, "apps", "mobile-web"),
-      env: { ...process.env, VOLTURA_AIR_WEB_BUILD_ID: webBuildId },
-      stdio: "inherit",
-      windowsHide: false
-    }
-  );
+  const result = spawnSync(process.execPath, [viteCli, "build"], {
+    cwd: join(repositoryRoot, "apps", "mobile-web"),
+    env: { ...process.env, VOLTURA_AIR_WEB_BUILD_ID: webBuildId },
+    stdio: "inherit",
+    windowsHide: false,
+  });
 
   if (result.error) {
     throw new Error(`Failed to start the mobile Vite build: ${result.error.message}`);
@@ -205,7 +221,7 @@ function runViteBuild(repositoryRoot, outputDirectory, statePath, inputFingerpri
     schemaVersion: MOBILE_QUICK_BUILD_STATE_SCHEMA_VERSION,
     inputFingerprint,
     outputFingerprint,
-    webBuildId: generatedWebBuildId
+    webBuildId: generatedWebBuildId,
   });
 }
 
@@ -217,7 +233,10 @@ function main() {
   const requestedBuildId = environment.VOLTURA_AIR_WEB_BUILD_ID?.trim() ?? "";
   const state = readBuildState(statePath);
 
-  if (state?.inputFingerprint === inputFingerprint && (!requestedBuildId || state.webBuildId === requestedBuildId)) {
+  if (
+    state?.inputFingerprint === inputFingerprint &&
+    (!requestedBuildId || state.webBuildId === requestedBuildId)
+  ) {
     const outputFingerprint = createOutputFingerprint(outputDirectory);
     if (isCurrentMobileQuickBuild(state, inputFingerprint, outputFingerprint, requestedBuildId)) {
       console.log("Mobile client is up to date; skipping Vite build.");
@@ -232,7 +251,9 @@ if (process.argv[1] && resolve(process.argv[1]) === scriptPath) {
   try {
     main();
   } catch (error) {
-    console.error(`Mobile quick build failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(
+      `Mobile quick build failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
     process.exitCode = 1;
   }
 }

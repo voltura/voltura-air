@@ -62,27 +62,27 @@ isolated real-pairing smoke flow.
 
 Run the smallest relevant checks:
 
-| Change | Default checks |
-| --- | --- |
-| Documentation/public copy | `npm run docs:check` |
-| Documentation checker or command help | Relevant `tests/scripts/<file>` test plus `npm run docs:check` |
-| Ordinary mobile code | `npm run check --workspace apps/mobile-web`; focused Vitest only for changed behavior/state |
-| Mobile bundle, dependency, entry point, or broad integration | Mobile production build; full `npm run test:web` only for broad work or shared foundation/protocol/app shell |
-| Ordinary host code | Warning-free `dotnet build VolturaAir.slnx`; focused `dotnet test --filter` for changed behavior |
-| Host source structure | Add `npm run host:ownership:check` |
-| Shared host lifecycle, native/resource, registry/persistence, network, or protocol boundary | Focused production-path boundary tests; full `npm run test:host` only when broad/shared |
-| Interaction/transport hot path | Prove delayed media, analytics, logging, persistence, and UI work cannot hold command/input processing; test bounded overload rather than latency growth |
-| Usage statistics host/protocol | Focused consent/identity/sender/session/protocol tests, including blocked sender and cancellation; mobile capability/coalescing tests; warning-free host/mobile build |
-| Usage statistics PHP/MariaDB/dashboard | `npm run site:check`, static site telemetry tests, then mandatory `npm run test:site-telemetry-integration` against the configured local database; cover rollback and catalog sentinels |
-| Usage statistics installer | Both package variants plus consent static/transaction tests; verify unset upgrade, existing decision, silent mode, Deny focus, cancellation, write failure, and final real installer matrix |
-| Secure Direct controller transport | Focused Relay signaling/Origin tests, mobile lifecycle/parser tests, host admission/native-boundary tests, bundle/size gates, then real-device private-LAN setup and signaling-loss validation; preserve the selected transport without automatic fallback |
-| Gyro or motion input | Focused motion mapping, permission, hook cleanup, Trackpad, and app-navigation tests; mobile check/build as scoped; then real sensor, orientation, visibility, and permission validation over HTTPS |
-| Screen viewing | Fake-capture `TestServer` protocol/crypto/cleanup tests, mobile parser/renderer tests, bundle/size gates, then Windows preflight and `npm run dev:quick`; real phone/Wi-Fi viewing remains user acceptance |
-| Files on PC | Mobile pagination/selection/gesture/transfer-storage tests, strict protocol tests, focused host file-system/clipboard/job/cleanup tests, host ownership and size gates, then real one-file upload/download acceptance over Direct and Relay, including slow-iPhone negotiation and permission revocation |
-| Script | Relevant script test; full `npm run test:scripts` only for shared orchestration/root package composition |
-| Significant UI | Visual checkpoint by default; `npm run test:ui` only when its real pairing/smoke flow changes |
-| Structural/source ownership | `npm run size:check` |
-| Release or repository-wide shared contract | Sequential `npm run build` then `npm test` |
+| Change                                                                                      | Default checks                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Documentation/public copy                                                                   | `npm run docs:check`                                                                                                                                                                                                                                                                                     |
+| Documentation checker or command help                                                       | Relevant `tests/scripts/<file>` test plus `npm run docs:check`                                                                                                                                                                                                                                           |
+| Ordinary mobile code                                                                        | `npm run check --workspace apps/mobile-web`; focused Vitest only for changed behavior/state                                                                                                                                                                                                              |
+| Mobile bundle, dependency, entry point, or broad integration                                | Mobile production build; full `npm run test:web` only for broad work or shared foundation/protocol/app shell                                                                                                                                                                                             |
+| Ordinary host code                                                                          | Warning-free `dotnet build VolturaAir.slnx`; focused `dotnet test --filter` for changed behavior                                                                                                                                                                                                         |
+| Host source structure                                                                       | Add `npm run host:ownership:check`                                                                                                                                                                                                                                                                       |
+| Shared host lifecycle, native/resource, registry/persistence, network, or protocol boundary | Focused production-path boundary tests; full `npm run test:host` only when broad/shared                                                                                                                                                                                                                  |
+| Interaction/transport hot path                                                              | Prove delayed media, analytics, logging, persistence, and UI work cannot hold command/input processing; test bounded overload rather than latency growth                                                                                                                                                 |
+| Usage statistics host/protocol                                                              | Focused consent/identity/sender/session/protocol tests, including blocked sender and cancellation; mobile capability/coalescing tests; warning-free host/mobile build                                                                                                                                    |
+| Usage statistics PHP/MariaDB/dashboard                                                      | `npm run site:check`, static site telemetry tests, then mandatory `npm run test:site-telemetry-integration` against the configured local database; cover rollback and catalog sentinels                                                                                                                  |
+| Usage statistics installer                                                                  | Both package variants plus consent static/transaction tests; verify unset upgrade, existing decision, silent mode, Deny focus, cancellation, write failure, and final real installer matrix                                                                                                              |
+| Secure Direct controller transport                                                          | Focused Relay signaling/Origin tests, mobile lifecycle/parser tests, host admission/native-boundary tests, bundle/size gates, then real-device private-LAN setup and signaling-loss validation; preserve the selected transport without automatic fallback                                               |
+| Gyro or motion input                                                                        | Focused motion mapping, permission, hook cleanup, Trackpad, and app-navigation tests; mobile check/build as scoped; then real sensor, orientation, visibility, and permission validation over HTTPS                                                                                                      |
+| Screen viewing                                                                              | Fake-capture `TestServer` protocol/crypto/cleanup tests, mobile parser/renderer tests, bundle/size gates, then Windows preflight and `npm run dev:quick`; real phone/Wi-Fi viewing remains user acceptance                                                                                               |
+| Files on PC                                                                                 | Mobile pagination/selection/gesture/transfer-storage tests, strict protocol tests, focused host file-system/clipboard/job/cleanup tests, host ownership and size gates, then real one-file upload/download acceptance over Direct and Relay, including slow-iPhone negotiation and permission revocation |
+| Script                                                                                      | Relevant script test; full `npm run test:scripts` only for shared orchestration/root package composition                                                                                                                                                                                                 |
+| Significant UI                                                                              | Visual checkpoint by default; `npm run test:ui` only when its real pairing/smoke flow changes                                                                                                                                                                                                            |
+| Structural/source ownership                                                                 | `npm run size:check`                                                                                                                                                                                                                                                                                     |
+| Release or repository-wide shared contract                                                  | Sequential `npm run build` then `npm test`                                                                                                                                                                                                                                                               |
 
 UI-only work also receives focused visual verification. Changed external or
 resource boundaries cover success, expected failure, and cleanup/restoration.
@@ -91,23 +91,23 @@ resource boundaries cover success, expected failure, and cleanup/restoration.
 
 Packaged Release:
 
-| Option | Purpose |
-| --- | --- |
-| `--minimized` | Start without opening the window. |
+| Option                 | Purpose                                                                            |
+| ---------------------- | ---------------------------------------------------------------------------------- |
+| `--minimized`          | Start without opening the window.                                                  |
 | `--isolated-test-mode` | Loopback-only isolated settings, pairing, network choice, and safe system actions. |
 
 Debug additionally supports:
 
-| Option | Purpose |
-| --- | --- |
-| `--client-url <URL>` | Put a development client URL in the pairing link; `VOLTURA_AIR_CLIENT_URL` is equivalent. |
-| `--print-host-client-url` | Print the selected host URL for `dev:host`. |
-| `--pairing-store-root <path>` | Redirect pairing data; requires isolation. |
-| `--pairing-url-file <path>` | Write a temporary private live pairing URL for automation. |
-| `--site-screenshot-mode` | Public-safe rendering; requires isolation. |
-| `--site-screenshot-theme <Light|Dark|System>` | Select capture theme. |
-| `--site-screenshot-preferences-section <name>` | Open a Preferences section for capture. |
-| `--site-screenshot-relay-connection` | Open Connection with Relay selected for an isolated UI review capture. |
+| Option                                         | Purpose                                                                                   |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `--client-url <URL>`                           | Put a development client URL in the pairing link; `VOLTURA_AIR_CLIENT_URL` is equivalent. |
+| `--print-host-client-url`                      | Print the selected host URL for `dev:host`.                                               |
+| `--pairing-store-root <path>`                  | Redirect pairing data; requires isolation.                                                |
+| `--pairing-url-file <path>`                    | Write a temporary private live pairing URL for automation.                                |
+| `--site-screenshot-mode`                       | Public-safe rendering; requires isolation.                                                |
+| `--site-screenshot-theme <Light                | Dark                                                                                      | System>` | Select capture theme. |
+| `--site-screenshot-preferences-section <name>` | Open a Preferences section for capture.                                                   |
+| `--site-screenshot-relay-connection`           | Open Connection with Relay selected for an isolated UI review capture.                    |
 
 Release builds ignore Debug-only options and `VOLTURA_AIR_CLIENT_URL`.
 

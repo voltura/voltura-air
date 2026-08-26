@@ -8,7 +8,14 @@ class MockSpeechRecognition {
   continuous = false;
   interimResults = false;
   lang = "";
-  onresult: ((event: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string } & { isFinal?: boolean }> & { isFinal?: boolean }> }) => void) | null = null;
+  onresult:
+    | ((event: {
+        resultIndex: number;
+        results: ArrayLike<
+          ArrayLike<{ transcript: string } & { isFinal?: boolean }> & { isFinal?: boolean }
+        >;
+      }) => void)
+    | null = null;
   onend: (() => void) | null = null;
   onerror: ((event: { error?: string }) => void) | null = null;
   start = vi.fn();
@@ -19,10 +26,24 @@ class MockSpeechRecognition {
   }
 }
 
-function DictationHarness({ active = true, onText = vi.fn() }: { active?: boolean; onText?: (text: string) => void } = {}) {
-  const { dictationText, isListening, speechError, startSpeech } = useSpeechDictation(onText, active);
+function DictationHarness({
+  active = true,
+  onText = vi.fn(),
+}: { active?: boolean; onText?: (text: string) => void } = {}) {
+  const { dictationText, isListening, speechError, startSpeech } = useSpeechDictation(
+    onText,
+    active,
+  );
 
-  return <><button type="button" onClick={startSpeech}>{isListening ? "Listening" : "Start"}</button><output data-testid="dictation-draft">{dictationText}</output><output data-testid="speech-error">{speechError ?? ""}</output></>;
+  return (
+    <>
+      <button type="button" onClick={startSpeech}>
+        {isListening ? "Listening" : "Start"}
+      </button>
+      <output data-testid="dictation-draft">{dictationText}</output>
+      <output data-testid="speech-error">{speechError ?? ""}</output>
+    </>
+  );
 }
 
 afterEach(() => {
@@ -79,10 +100,18 @@ describe("useSpeechDictation", () => {
     const interim = Object.assign([{ transcript: "hello" }], { isFinal: false });
     const hello = Object.assign([{ transcript: "hello" }], { isFinal: true });
     const world = Object.assign([{ transcript: "world" }], { isFinal: true });
-    act(() => { recognition.onresult?.({ resultIndex: 0, results: [interim] }); });
-    act(() => { recognition.onresult?.({ resultIndex: 0, results: [hello] }); });
-    act(() => { recognition.onresult?.({ resultIndex: 1, results: [hello, world] }); });
-    act(() => { recognition.onresult?.({ resultIndex: 0, results: [hello, world] }); });
+    act(() => {
+      recognition.onresult?.({ resultIndex: 0, results: [interim] });
+    });
+    act(() => {
+      recognition.onresult?.({ resultIndex: 0, results: [hello] });
+    });
+    act(() => {
+      recognition.onresult?.({ resultIndex: 1, results: [hello, world] });
+    });
+    act(() => {
+      recognition.onresult?.({ resultIndex: 0, results: [hello, world] });
+    });
 
     expect(screen.getByTestId("dictation-draft").textContent).toBe("hello world ");
     expect(onText).toHaveBeenCalledTimes(2);
@@ -96,10 +125,14 @@ describe("useSpeechDictation", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
     const recognition = MockSpeechRecognition.instances.at(0)!;
-    act(() => { recognition.onerror?.({ error: "not-allowed" }); });
+    act(() => {
+      recognition.onerror?.({ error: "not-allowed" });
+    });
 
     expect(screen.getByRole("button", { name: "Start" })).toBeTruthy();
-    expect(screen.getByTestId("speech-error").textContent).toBe("Microphone access was denied. Allow microphone access and try again.");
+    expect(screen.getByTestId("speech-error").textContent).toBe(
+      "Microphone access was denied. Allow microphone access and try again.",
+    );
   });
 
   it("stops recognition when the dictation mode is exited", () => {

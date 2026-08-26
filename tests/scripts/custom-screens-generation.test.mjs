@@ -14,24 +14,41 @@ test("official custom-screen definitions cover the deterministic fourteen-screen
   assert.equal(officialScreens.length, 14);
   assert.equal(packageFilenames.size, 14);
   const metadataKeys = [
-    "category", "id", "longDescription", "minimumVolturaAirVersion", "name",
-    "official", "optionalTargetApplication", "requiredCapabilities", "shortDescription", "tags"
+    "category",
+    "id",
+    "longDescription",
+    "minimumVolturaAirVersion",
+    "name",
+    "official",
+    "optionalTargetApplication",
+    "requiredCapabilities",
+    "shortDescription",
+    "tags",
   ];
   for (const definition of officialScreens) {
     validateDefinition(definition);
     assert.deepEqual(Object.keys(definition.metadata).sort(), metadataKeys);
     assert.doesNotMatch(JSON.stringify(definition), /unified\s*remote|unifiedremote/iu);
-    const actions = definition.screen.sections.flatMap(section => section.buttons.map(button => button.action.kind));
-    if (actions.includes("urlOpen")) assert.ok(definition.metadata.requiredCapabilities.includes("urlOpen"));
-    if (actions.includes("knownApp")) assert.ok(definition.metadata.requiredCapabilities.includes("remoteAppLaunch"));
-    if (actions.includes("hostAction")) assert.ok(definition.metadata.requiredCapabilities.includes("hostActions"));
+    const actions = definition.screen.sections.flatMap((section) =>
+      section.buttons.map((button) => button.action.kind),
+    );
+    if (actions.includes("urlOpen"))
+      assert.ok(definition.metadata.requiredCapabilities.includes("urlOpen"));
+    if (actions.includes("knownApp"))
+      assert.ok(definition.metadata.requiredCapabilities.includes("remoteAppLaunch"));
+    if (actions.includes("hostAction"))
+      assert.ok(definition.metadata.requiredCapabilities.includes("hostActions"));
   }
-  assert.equal(new Set(officialScreens.map(item => item.screen.id)).size, 14);
+  assert.equal(new Set(officialScreens.map((item) => item.screen.id)).size, 14);
 });
 
 test("official bundle generation is byte deterministic", () => {
   const generate = () => {
-    const result = spawnSync(process.execPath, ["scripts/generate-custom-screens.mjs", "--official"], { cwd: root, encoding: "utf8" });
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/generate-custom-screens.mjs", "--official"],
+      { cwd: root, encoding: "utf8" },
+    );
     assert.equal(result.status, 0, result.stderr);
     return createHash("sha256").update(readFileSync(bundle)).digest("hex");
   };
@@ -39,21 +56,27 @@ test("official bundle generation is byte deterministic", () => {
 });
 
 test("official application action maps match their current desktop targets", () => {
-  const screen = id => officialScreens.find(item => item.screen.id === id).screen;
-  const buttons = id => screen(id).sections.flatMap(section => section.buttons);
-  const button = (id, suffix) => buttons(id).find(item => item.id === `${id}.${suffix}`);
+  const screen = (id) => officialScreens.find((item) => item.screen.id === id).screen;
+  const buttons = (id) => screen(id).sections.flatMap((section) => section.buttons);
+  const button = (id, suffix) => buttons(id).find((item) => item.id === `${id}.${suffix}`);
 
   assert.deepEqual(button("official.vlc", "back10").action, {
-    kind: "shortcut", key: "ArrowLeft", modifiers: ["Shift"]
+    kind: "shortcut",
+    key: "ArrowLeft",
+    modifiers: ["Shift"],
   });
   assert.deepEqual(button("official.vlc", "ahead10").action.modifiers, ["Shift"]);
   assert.deepEqual(
-    ["previous", "playPause", "next", "stop"].map(suffix => button("official.vlc", suffix).action.key),
-    ["P", "Space", "N", "S"]);
+    ["previous", "playPause", "next", "stop"].map(
+      (suffix) => button("official.vlc", suffix).action.key,
+    ),
+    ["P", "Space", "N", "S"],
+  );
 
   assert.deepEqual(
-    screen("official.plex").sections.map(section => section.kind),
-    ["buttons", "buttons", "buttons", "volume"]);
+    screen("official.plex").sections.map((section) => section.kind),
+    ["buttons", "buttons", "buttons", "volume"],
+  );
   assert.equal(button("official.plex", "select"), undefined);
   assert.equal(button("official.plex", "info"), undefined);
   assert.deepEqual(button("official.plex", "back").action.modifiers, ["Alt"]);
@@ -65,17 +88,31 @@ test("official application action maps match their current desktop targets", () 
   assert.equal(button("official.zoom", "record").label, "Local record");
 
   for (const id of ["official.netflix", "official.primeVideo"]) {
-    assert.equal(screen(id).sections.some(section => section.kind === "dpad"), false);
+    assert.equal(
+      screen(id).sections.some((section) => section.kind === "dpad"),
+      false,
+    );
     assert.deepEqual(
-      ["playPause", "seekBack", "seekForward", "fullscreen"].map(suffix => button(id, suffix).action.key),
-      ["Space", "ArrowLeft", "ArrowRight", "F"]);
+      ["playPause", "seekBack", "seekForward", "fullscreen"].map(
+        (suffix) => button(id, suffix).action.key,
+      ),
+      ["Space", "ArrowLeft", "ArrowRight", "F"],
+    );
   }
 
   for (const id of ["official.disneyPlus", "official.twitch"]) {
-    assert.deepEqual(screen(id).sections.map(section => section.kind),
-      ["buttons", "collapsibleTrackpad", "volume"]);
-    assert.equal(buttons(id).some(item => item.action.kind === "shortcut"), false);
-    assert.equal(buttons(id).some(item => item.action.kind === "urlOpen"), true);
+    assert.deepEqual(
+      screen(id).sections.map((section) => section.kind),
+      ["buttons", "collapsibleTrackpad", "volume"],
+    );
+    assert.equal(
+      buttons(id).some((item) => item.action.kind === "shortcut"),
+      false,
+    );
+    assert.equal(
+      buttons(id).some((item) => item.action.kind === "urlOpen"),
+      true,
+    );
   }
 
   assert.equal(button("official.windowsPhotos", "launch").action.actionId, "windowsPhotos");

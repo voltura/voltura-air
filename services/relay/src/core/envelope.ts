@@ -8,7 +8,7 @@ export const relayEnvelopeKind = {
   disconnected: 2,
   binary: 3,
   closeDevice: 4,
-  authenticated: 5
+  authenticated: 5,
 } as const;
 
 export interface RelayEnvelope {
@@ -17,15 +17,25 @@ export interface RelayEnvelope {
   payload: Uint8Array;
 }
 
-export function encodeEnvelope(sessionId: Uint8Array, payload: Uint8Array, kind: number = relayEnvelopeKind.binary): Uint8Array {
+export function encodeEnvelope(
+  sessionId: Uint8Array,
+  payload: Uint8Array,
+  kind: number = relayEnvelopeKind.binary,
+): Uint8Array {
   if (sessionId.length !== 16) throw new TypeError("Relay session IDs are 16 bytes.");
-  if (payload.length > maximumRelayPayloadBytes ||
-      (kind === relayEnvelopeKind.disconnected || kind === relayEnvelopeKind.closeDevice || kind === relayEnvelopeKind.authenticated) && payload.length !== 0) {
+  if (
+    payload.length > maximumRelayPayloadBytes ||
+    ((kind === relayEnvelopeKind.disconnected ||
+      kind === relayEnvelopeKind.closeDevice ||
+      kind === relayEnvelopeKind.authenticated) &&
+      payload.length !== 0)
+  ) {
     throw new RangeError("Relay control envelopes must not contain a payload.");
   }
   const result = new Uint8Array(headerBytes + payload.length);
   result[0] = relayProtocolVersion;
-  if (!Object.values(relayEnvelopeKind).includes(kind as 0 | 1 | 2 | 3 | 4 | 5)) throw new TypeError("Invalid relay envelope kind.");
+  if (!Object.values(relayEnvelopeKind).includes(kind as 0 | 1 | 2 | 3 | 4 | 5))
+    throw new TypeError("Invalid relay envelope kind.");
   result[1] = kind;
   result.set(sessionId, 2);
   result.set(payload, headerBytes);
@@ -34,11 +44,22 @@ export function encodeEnvelope(sessionId: Uint8Array, payload: Uint8Array, kind:
 
 export function decodeEnvelope(value: ArrayBuffer | Uint8Array): RelayEnvelope | null {
   const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
-  if (bytes.length < headerBytes || bytes.length > headerBytes + maximumRelayPayloadBytes ||
-      bytes[0] !== relayProtocolVersion || !Object.values(relayEnvelopeKind).includes(bytes[1] as 0 | 1 | 2 | 3 | 4 | 5) ||
-      ((bytes[1] === relayEnvelopeKind.disconnected || bytes[1] === relayEnvelopeKind.closeDevice || bytes[1] === relayEnvelopeKind.authenticated) &&
-        bytes.length !== headerBytes)) return null;
-  return { kind: bytes[1]!, sessionId: bytes.slice(2, headerBytes), payload: bytes.slice(headerBytes) };
+  if (
+    bytes.length < headerBytes ||
+    bytes.length > headerBytes + maximumRelayPayloadBytes ||
+    bytes[0] !== relayProtocolVersion ||
+    !Object.values(relayEnvelopeKind).includes(bytes[1] as 0 | 1 | 2 | 3 | 4 | 5) ||
+    ((bytes[1] === relayEnvelopeKind.disconnected ||
+      bytes[1] === relayEnvelopeKind.closeDevice ||
+      bytes[1] === relayEnvelopeKind.authenticated) &&
+      bytes.length !== headerBytes)
+  )
+    return null;
+  return {
+    kind: bytes[1]!,
+    sessionId: bytes.slice(2, headerBytes),
+    payload: bytes.slice(headerBytes),
+  };
 }
 
 export function sessionIdKey(sessionId: Uint8Array): string {

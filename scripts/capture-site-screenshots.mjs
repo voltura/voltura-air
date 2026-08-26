@@ -13,7 +13,16 @@ const assetsDir = path.join(repoRoot, "apps", "public-site", "assets");
 const tempDir = path.join(os.tmpdir(), "voltura-air-site-screenshots");
 const tempAppDataDir = path.join(tempDir, "appdata");
 const pairingUrlFile = path.join(tempDir, "pairing-url.txt");
-const hostExe = path.join(repoRoot, "apps", "windows-host", "bin", "cli", "Debug", "net10.0-windows", "VolturaAir.Host.exe");
+const hostExe = path.join(
+  repoRoot,
+  "apps",
+  "windows-host",
+  "bin",
+  "cli",
+  "Debug",
+  "net10.0-windows",
+  "VolturaAir.Host.exe",
+);
 
 const outputs = {
   hostLight: path.join(assetsDir, "voltura-air-host.png"),
@@ -26,7 +35,7 @@ const outputs = {
   iphoneKodiDarkForum: path.join(assetsDir, "voltura-air-iphone-kodi-dark-forum.png"),
   split: path.join(assetsDir, "voltura-air-split.png"),
   filesLight: path.join(assetsDir, "voltura-air-files.png"),
-  filesDark: path.join(assetsDir, "voltura-air-files-dark.png")
+  filesDark: path.join(assetsDir, "voltura-air-files-dark.png"),
 };
 
 main().catch((error) => {
@@ -100,7 +109,9 @@ async function ensureCaptureDependencies() {
     return;
   }
 
-  await run("npm", ["install", "--no-audit", "--no-fund", "--no-save", ...modules], { cwd: tempDir });
+  await run("npm", ["install", "--no-audit", "--no-fund", "--no-save", ...modules], {
+    cwd: tempDir,
+  });
 }
 
 async function captureMobileScreens(chromium, pairingUrl, filePreviewUrl) {
@@ -110,7 +121,7 @@ async function captureMobileScreens(chromium, pairingUrl, filePreviewUrl) {
       viewport: { width: 393, height: 852 },
       deviceScaleFactor: 3,
       isMobile: true,
-      hasTouch: true
+      hasTouch: true,
     });
     await context.addInitScript(() => {
       localStorage.setItem("voltura-air.screenshotMode", "true");
@@ -142,8 +153,14 @@ async function captureMobileScreens(chromium, pairingUrl, filePreviewUrl) {
         const keyboardKey = `voltura-air.keyboardSettings.${clientId}`;
         const trackpadSettings = JSON.parse(localStorage.getItem(trackpadKey) ?? "{}");
         const keyboardSettings = JSON.parse(localStorage.getItem(keyboardKey) ?? "{}");
-        localStorage.setItem(trackpadKey, JSON.stringify({ ...trackpadSettings, enableSplitMode: true }));
-        localStorage.setItem(keyboardKey, JSON.stringify({ ...keyboardSettings, enableSplitMode: true }));
+        localStorage.setItem(
+          trackpadKey,
+          JSON.stringify({ ...trackpadSettings, enableSplitMode: true }),
+        );
+        localStorage.setItem(
+          keyboardKey,
+          JSON.stringify({ ...keyboardSettings, enableSplitMode: true }),
+        );
       }
     });
     await page.reload({ waitUntil: "networkidle" });
@@ -157,12 +174,15 @@ async function captureMobileScreens(chromium, pairingUrl, filePreviewUrl) {
 }
 
 async function captureFilesPreview(browser, previewUrl) {
-  for (const [theme, outputPath] of [["light", outputs.filesLight], ["dark", outputs.filesDark]]) {
+  for (const [theme, outputPath] of [
+    ["light", outputs.filesLight],
+    ["dark", outputs.filesDark],
+  ]) {
     const context = await browser.newContext({
       viewport: { width: 1180, height: 820 },
       deviceScaleFactor: 1,
       isMobile: false,
-      hasTouch: true
+      hasTouch: true,
     });
     await context.addInitScript((nextTheme) => {
       localStorage.setItem("voltura-air.themeMode", nextTheme);
@@ -172,7 +192,9 @@ async function captureFilesPreview(browser, previewUrl) {
       await page.goto(`${previewUrl}/?filesPreview=1`, { waitUntil: "networkidle" });
       await page.locator(".file-manager-workspace").waitFor({ timeout: 5000 });
       await page.locator(".file-panel").nth(1).waitFor({ state: "visible", timeout: 5000 });
-      await page.getByText("Files ready.", { exact: true }).waitFor({ state: "visible", timeout: 5000 });
+      await page
+        .getByText("Files ready.", { exact: true })
+        .waitFor({ state: "visible", timeout: 5000 });
       await page.screenshot({ path: outputPath });
     } finally {
       await context.close();
@@ -187,10 +209,16 @@ async function captureKodiRemote(page) {
     const clientId = localStorage.getItem("voltura-air.clientId");
     const pcId = localStorage.getItem("voltura-air.activePcId");
     if (clientId) {
-      localStorage.setItem(`voltura-air.remoteSettings.${clientId}`, JSON.stringify({ navigationRing: true, mode: "kodi" }));
+      localStorage.setItem(
+        `voltura-air.remoteSettings.${clientId}`,
+        JSON.stringify({ navigationRing: true, mode: "kodi" }),
+      );
     }
     if (clientId && pcId) {
-      localStorage.setItem(`voltura-air.remoteSettings.${clientId}.${pcId}`, JSON.stringify({ navigationRing: true, mode: "kodi" }));
+      localStorage.setItem(
+        `voltura-air.remoteSettings.${clientId}.${pcId}`,
+        JSON.stringify({ navigationRing: true, mode: "kodi" }),
+      );
     }
   });
   await page.reload({ waitUntil: "networkidle" });
@@ -204,7 +232,7 @@ async function captureKodiRemote(page) {
   await modeSwitchHint.waitFor({ state: "visible", timeout: 5000 });
   await modeSwitchHint.waitFor({
     state: "hidden",
-    timeout: 7000
+    timeout: 7000,
   });
   await page.screenshot({ path: outputs.iphoneKodiDark });
 }
@@ -237,7 +265,10 @@ async function waitForTrackpadVolume(page) {
 }
 
 async function setMobileTheme(page, theme) {
-  await page.evaluate((nextTheme) => localStorage.setItem("voltura-air.themeMode", nextTheme), theme);
+  await page.evaluate(
+    (nextTheme) => localStorage.setItem("voltura-air.themeMode", nextTheme),
+    theme,
+  );
   await page.reload({ waitUntil: "networkidle" });
   await waitForConnected(page);
   await waitForTrackpadVolume(page);
@@ -257,7 +288,7 @@ async function launchHost(theme, outputPath, customScreens = false) {
     "--pairing-store-root",
     tempAppDataDir,
     "--pairing-url-file",
-    pairingUrlFile
+    pairingUrlFile,
   ];
   if (customScreens) {
     hostArgs.push("--site-screenshot-custom-screens");
@@ -266,15 +297,15 @@ async function launchHost(theme, outputPath, customScreens = false) {
     cwd: path.dirname(hostExe),
     env: {
       ...process.env,
-      APPDATA: tempAppDataDir
+      APPDATA: tempAppDataDir,
     },
     stdio: ["ignore", "inherit", "inherit"],
-    windowsHide: true
+    windowsHide: true,
   });
 
   const [pairingUrl] = await Promise.all([
     waitForTextFile(pairingUrlFile, 15000, child),
-    waitForNonEmptyFile(outputPath, 15000, child)
+    waitForNonEmptyFile(outputPath, 15000, child),
   ]);
   return { process: child, pairingUrl };
 }
@@ -282,13 +313,46 @@ async function launchHost(theme, outputPath, customScreens = false) {
 async function launchFilePreview() {
   const port = 5183;
   const url = `http://127.0.0.1:${port}`;
-  const [executable, args] = process.platform === "win32"
-    ? ["cmd.exe", ["/d", "/s", "/c", "npm", "run", "dev", "--workspace", "apps/mobile-web", "--", "--host", "127.0.0.1", "--port", String(port), "--strictPort"]]
-    : ["npm", ["run", "dev", "--workspace", "apps/mobile-web", "--", "--host", "127.0.0.1", "--port", String(port), "--strictPort"]];
+  const [executable, args] =
+    process.platform === "win32"
+      ? [
+          "cmd.exe",
+          [
+            "/d",
+            "/s",
+            "/c",
+            "npm",
+            "run",
+            "dev",
+            "--workspace",
+            "apps/mobile-web",
+            "--",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            String(port),
+            "--strictPort",
+          ],
+        ]
+      : [
+          "npm",
+          [
+            "run",
+            "dev",
+            "--workspace",
+            "apps/mobile-web",
+            "--",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            String(port),
+            "--strictPort",
+          ],
+        ];
   const child = spawn(executable, args, {
     cwd: repoRoot,
     stdio: ["ignore", "inherit", "inherit"],
-    windowsHide: true
+    windowsHide: true,
   });
   await waitForHttp(url, 15000, child);
   return { process: child, url };
@@ -309,7 +373,7 @@ async function stopProcess(child) {
   }
 
   child.kill("SIGKILL");
-  if (!await waitForProcessExit(child, 2500)) {
+  if (!(await waitForProcessExit(child, 2500))) {
     throw new Error("Timed out waiting for the screenshot host to exit.");
   }
 }
@@ -319,7 +383,7 @@ async function stopPreviewProcess(child) {
     return;
   }
   stopChild(child, "SIGTERM");
-  if (!await waitForProcessExit(child, 2500)) {
+  if (!(await waitForProcessExit(child, 2500))) {
     throw new Error("Timed out waiting for the Files screenshot preview to exit.");
   }
 }
@@ -331,7 +395,7 @@ async function waitForProcessExit(child, timeoutMs) {
 
   return Promise.race([
     new Promise((resolve) => child.once("exit", () => resolve(true))),
-    delay(timeoutMs).then(() => false)
+    delay(timeoutMs).then(() => false),
   ]);
 }
 
@@ -372,7 +436,9 @@ async function waitForNonEmptyFile(filePath, timeoutMs, child) {
 
 function throwIfHostExited(child, awaitedPath) {
   if (child.exitCode !== null) {
-    throw new Error(`Voltura Air host exited with code ${child.exitCode} before writing ${awaitedPath}`);
+    throw new Error(
+      `Voltura Air host exited with code ${child.exitCode} before writing ${awaitedPath}`,
+    );
   }
 }
 
@@ -398,15 +464,16 @@ function delay(ms) {
 }
 
 async function run(command, args, options = {}) {
-  const [executable, spawnArgs] = process.platform === "win32" && (command === "npm" || command === "npx")
-    ? ["cmd.exe", ["/d", "/s", "/c", command, ...args]]
-    : [resolveCommand(command), args];
+  const [executable, spawnArgs] =
+    process.platform === "win32" && (command === "npm" || command === "npx")
+      ? ["cmd.exe", ["/d", "/s", "/c", command, ...args]]
+      : [resolveCommand(command), args];
   console.log(`> ${command} ${args.join(" ")}`);
   await new Promise((resolve, reject) => {
     const child = spawn(executable, spawnArgs, {
       cwd: options.cwd ?? repoRoot,
       stdio: "inherit",
-      windowsHide: true
+      windowsHide: true,
     });
     child.once("exit", (code) => {
       if (code === 0) {

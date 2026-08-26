@@ -44,7 +44,7 @@ const definition: CustomScreenDefinition = {
           row: 2,
           portrait: { order: 0, visible: true, row: 2 },
           landscape: { order: 1, visible: true, size: "wide", row: 1 },
-          enabled: true
+          enabled: true,
         },
         {
           id: "button.volume",
@@ -57,9 +57,9 @@ const definition: CustomScreenDefinition = {
           row: 1,
           portrait: { order: 1, visible: true, row: 1 },
           landscape: { order: 0, visible: true, row: 2 },
-          enabled: true
-        }
-      ]
+          enabled: true,
+        },
+      ],
     },
     {
       id: "section.hidden",
@@ -92,11 +92,11 @@ const definition: CustomScreenDefinition = {
           size: "fill",
           repeat: false,
           enabled: false,
-          unavailableReason: "Application launch is disabled."
-        }
-      ]
-    }
-  ]
+          unavailableReason: "Application launch is disabled.",
+        },
+      ],
+    },
+  ],
 };
 
 describe("CustomScreenWorkspace", () => {
@@ -112,11 +112,16 @@ describe("CustomScreenWorkspace", () => {
   it("applies orientation order and visibility while preserving accessible button names", () => {
     const view = renderWorkspace();
 
-    expect(screen.getAllByRole("heading", { level: 2 }).map(item => item.textContent))
-      .toEqual(["Portrait only", "Transport"]);
+    expect(screen.getAllByRole("heading", { level: 2 }).map((item) => item.textContent)).toEqual([
+      "Portrait only",
+      "Transport",
+    ]);
     expect(screen.getByRole("button", { name: "Play or pause" }).textContent).toBe("");
-    expect(screen.getByRole("button", { name: "Play or pause" })
-      .getAttribute("data-custom-screen-button-id")).toBe("button.play");
+    expect(
+      screen
+        .getByRole("button", { name: "Play or pause" })
+        .getAttribute("data-custom-screen-button-id"),
+    ).toBe("button.play");
     const unavailable = screen.getByRole<HTMLButtonElement>("button", { name: "Unavailable app" });
     expect(unavailable.disabled).toBe(true);
     expect(unavailable.title).toBe("Application launch is disabled.");
@@ -136,10 +141,7 @@ describe("CustomScreenWorkspace", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Play or pause" }));
 
-    expect(invoke).toHaveBeenCalledExactlyOnceWith(
-      "screen.media",
-      "revision.one",
-      "button.play");
+    expect(invoke).toHaveBeenCalledExactlyOnceWith("screen.media", "revision.one", "button.play");
   });
 
   it("renders authoritative laser colors and blocks pending recolor while keeping off available", () => {
@@ -156,13 +158,13 @@ describe("CustomScreenWorkspace", () => {
           canSaveReports: true,
           laserPointerActive: true,
           laserPointerColor: "red",
-          laserPointerDefaultColor: "red"
+          laserPointerDefaultColor: "red",
         }}
         requestedName="Lasers"
         send={vi.fn()}
         state="paired"
         trackpadSettings={defaultTrackpadSettings}
-      />
+      />,
     );
 
     const defaultLaser = screen.getByRole<HTMLButtonElement>("button", { name: "Default laser" });
@@ -178,7 +180,8 @@ describe("CustomScreenWorkspace", () => {
       "screen.lasers",
       "revision.lasers",
       "button.default-laser",
-      false);
+      false,
+    );
 
     view.unmount();
     expect(invoke).toHaveBeenLastCalledWith(
@@ -186,7 +189,8 @@ describe("CustomScreenWorkspace", () => {
       "revision.lasers",
       "button.default-laser",
       false,
-      true);
+      true,
+    );
   });
 
   it("does not optimistically press a laser recolor", () => {
@@ -202,38 +206,39 @@ describe("CustomScreenWorkspace", () => {
           canSaveReports: true,
           laserPointerActive: true,
           laserPointerColor: "red",
-          laserPointerDefaultColor: "red"
+          laserPointerDefaultColor: "red",
         }}
         requestedName="Lasers"
         send={vi.fn()}
         state="paired"
         trackpadSettings={defaultTrackpadSettings}
-      />
+      />,
     );
 
     const greenLaser = screen.getByRole("button", { name: "Green laser" });
     expect(greenLaser.getAttribute("aria-pressed")).toBe("false");
     fireEvent.click(greenLaser);
     expect(greenLaser.getAttribute("aria-pressed")).toBe("false");
-    expect(invoke).toHaveBeenCalledWith(
-      "screen.lasers",
-      "revision.lasers",
-      "button.green-laser");
+    expect(invoke).toHaveBeenCalledWith("screen.lasers", "revision.lasers", "button.green-laser");
   });
 
   it("requires confirmation before invoking protected host actions", () => {
     const invoke = vi.fn();
     const protectedDefinition: CustomScreenDefinition = {
       ...definition,
-      sections: [{
-        ...definition.sections[0]!,
-        buttons: [{
-          ...definition.sections[0]!.buttons[0]!,
-          name: "Sleep PC",
-          confirmation: "confirm",
-          confirmationMessage: "Voltura Air will disconnect."
-        }]
-      }]
+      sections: [
+        {
+          ...definition.sections[0]!,
+          buttons: [
+            {
+              ...definition.sections[0]!.buttons[0]!,
+              name: "Sleep PC",
+              confirmation: "confirm",
+              confirmationMessage: "Voltura Air will disconnect.",
+            },
+          ],
+        },
+      ],
     };
     render(<CustomScreenWorkspace {...workspace(invoke).props} definition={protectedDefinition} />);
 
@@ -249,15 +254,19 @@ describe("CustomScreenWorkspace", () => {
     const invoke = vi.fn();
     const protectedDefinition: CustomScreenDefinition = {
       ...definition,
-      sections: [{
-        ...definition.sections[0]!,
-        buttons: [{
-          ...definition.sections[0]!.buttons[0]!,
-          name: "Shut down PC",
-          confirmation: "hold",
-          confirmationMessage: "Unsaved work may be lost."
-        }]
-      }]
+      sections: [
+        {
+          ...definition.sections[0]!,
+          buttons: [
+            {
+              ...definition.sections[0]!.buttons[0]!,
+              name: "Shut down PC",
+              confirmation: "hold",
+              confirmationMessage: "Unsaved work may be lost.",
+            },
+          ],
+        },
+      ],
     };
     render(<CustomScreenWorkspace {...workspace(invoke).props} definition={protectedDefinition} />);
 
@@ -282,20 +291,22 @@ describe("CustomScreenWorkspace", () => {
         send={vi.fn()}
         state="paired"
         trackpadSettings={defaultTrackpadSettings}
-      />
+      />,
     );
 
     expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
     expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
-    expect(view.container.querySelector(".custom-screen-workspace")
-      ?.classList.contains("header-hidden")).toBe(true);
+    expect(
+      view.container.querySelector(".custom-screen-workspace")?.classList.contains("header-hidden"),
+    ).toBe(true);
   });
 
   it("places buttons in their selected rows", () => {
     const view = renderWorkspace();
 
-    expect(screen.getByRole("button", { name: "Play or pause" })
-      .parentElement?.dataset.row).toBe("2");
+    expect(screen.getByRole("button", { name: "Play or pause" }).parentElement?.dataset.row).toBe(
+      "2",
+    );
     const compact = screen.getByRole("button", { name: "Volume up" });
     expect(compact.parentElement?.dataset.row).toBe("1");
     expect(compact.classList.contains("size-compact")).toBe(true);
@@ -306,10 +317,10 @@ describe("CustomScreenWorkspace", () => {
     fireEvent(window, new Event("resize"));
     view.rerender(workspace());
 
-    expect(screen.getByRole("button", { name: "Play or pause" })
-      .parentElement?.dataset.row).toBe("1");
-    expect(screen.getByRole("button", { name: "Volume up" })
-      .parentElement?.dataset.row).toBe("2");
+    expect(screen.getByRole("button", { name: "Play or pause" }).parentElement?.dataset.row).toBe(
+      "1",
+    );
+    expect(screen.getByRole("button", { name: "Volume up" }).parentElement?.dataset.row).toBe("2");
   });
 
   it("stops hold repeat on pointer release", () => {
@@ -338,11 +349,7 @@ describe("CustomScreenWorkspace", () => {
     fireEvent.pointerCancel(repeating, { pointerId: 4 });
     fireEvent.click(screen.getByRole("button", { name: "Play or pause" }));
 
-    expect(invoke).toHaveBeenNthCalledWith(
-      2,
-      "screen.media",
-      "revision.one",
-      "button.play");
+    expect(invoke).toHaveBeenNthCalledWith(2, "screen.media", "revision.one", "button.play");
   });
 
   it("does not duplicate a canceled repeat press when its pointer click follows", () => {
@@ -354,10 +361,7 @@ describe("CustomScreenWorkspace", () => {
     fireEvent.pointerCancel(repeating, { pointerId: 4 });
     fireEvent.click(repeating, { detail: 1 });
 
-    expect(invoke).toHaveBeenCalledExactlyOnceWith(
-      "screen.media",
-      "revision.one",
-      "button.volume");
+    expect(invoke).toHaveBeenCalledExactlyOnceWith("screen.media", "revision.one", "button.volume");
   });
 
   it("renders a standalone volume slider and reuses the audio protocol", () => {
@@ -365,18 +369,20 @@ describe("CustomScreenWorkspace", () => {
     const volumeDefinition: CustomScreenDefinition = {
       ...definition,
       orientationLayoutsEnabled: false,
-      sections: [{
-        ...definition.sections[0]!,
-        id: "section.volume",
-        name: "Volume slider",
-        showHeader: false,
-        widthColumns: 6,
-        heightMode: "content",
-        rowLimit: 0,
-        kind: "volume",
-        buttons: [],
-        volumeEnabled: true
-      }]
+      sections: [
+        {
+          ...definition.sections[0]!,
+          id: "section.volume",
+          name: "Volume slider",
+          showHeader: false,
+          widthColumns: 6,
+          heightMode: "content",
+          rowLimit: 0,
+          kind: "volume",
+          buttons: [],
+          volumeEnabled: true,
+        },
+      ],
     };
     const view = render(
       <CustomScreenWorkspace
@@ -389,36 +395,46 @@ describe("CustomScreenWorkspace", () => {
         send={send}
         state="paired"
         trackpadSettings={defaultTrackpadSettings}
-      />
+      />,
     );
 
     expect(send).toHaveBeenCalledWith({ type: "audio.get" });
-    expect(view.container.querySelector<HTMLElement>(".kind-volume")?.style.gridColumn)
-      .toBe("span 6");
+    expect(view.container.querySelector<HTMLElement>(".kind-volume")?.style.gridColumn).toBe(
+      "span 6",
+    );
     const slider = screen.getByRole<HTMLInputElement>("slider", { name: "PC volume" });
     expect(slider.value).toBe("42");
     fireEvent.change(slider, { target: { value: "67" } });
-    expect(send).toHaveBeenCalledWith({ type: "audio.volume.set", inputContext: "custom-screens", volume: 67 });
+    expect(send).toHaveBeenCalledWith({
+      type: "audio.volume.set",
+      inputContext: "custom-screens",
+      volume: 67,
+    });
     fireEvent.click(screen.getByRole("button", { name: "Mute PC" }));
-    expect(send).toHaveBeenCalledWith({ type: "audio.mute.toggle", inputContext: "custom-screens" });
+    expect(send).toHaveBeenCalledWith({
+      type: "audio.mute.toggle",
+      inputContext: "custom-screens",
+    });
   });
 
   it("expands and collapses collapsible sections with a required header", () => {
     const collapsibleDefinition: CustomScreenDefinition = {
       ...definition,
       orientationLayoutsEnabled: false,
-      sections: [{
-        ...definition.sections[0]!,
-        id: "section.collapsible",
-        name: "Advanced controls",
-        kind: "buttons",
-        collapsible: true,
-        initiallyExpanded: false,
-        showHeader: true,
-        heightMode: "fill",
-        fillWeight: 2,
-        widthColumns: 6
-      }]
+      sections: [
+        {
+          ...definition.sections[0]!,
+          id: "section.collapsible",
+          name: "Advanced controls",
+          kind: "buttons",
+          collapsible: true,
+          initiallyExpanded: false,
+          showHeader: true,
+          heightMode: "fill",
+          fillWeight: 2,
+          widthColumns: 6,
+        },
+      ],
     };
 
     render(
@@ -431,7 +447,7 @@ describe("CustomScreenWorkspace", () => {
         send={vi.fn()}
         state="paired"
         trackpadSettings={defaultTrackpadSettings}
-      />
+      />,
     );
 
     const toggle = screen.getByRole("button", { name: "Advanced controls" });
@@ -452,27 +468,29 @@ describe("CustomScreenWorkspace", () => {
     const trackpadDefinition: CustomScreenDefinition = {
       ...definition,
       orientationLayoutsEnabled: false,
-      sections: [{
-        id: "section.trackpad",
-        name: "Pointer",
-        showHeader: true,
-        widthColumns: 12,
-        heightMode: "fill",
-        fillWeight: 1,
-        rowLimit: 0,
-        buttonAlignment: "start",
-        kind: "trackpad",
-        collapsible: false,
-        initiallyExpanded: true,
-        trackpadLeftClick: true,
-        trackpadRightClick: true,
-        trackpadButtonSide: "left",
-        trackpadFullscreenControl: true,
-        trackpadGyroControl: true,
-        trackpadEnabled: true,
-        volumeEnabled: true,
-        buttons: []
-      }]
+      sections: [
+        {
+          id: "section.trackpad",
+          name: "Pointer",
+          showHeader: true,
+          widthColumns: 12,
+          heightMode: "fill",
+          fillWeight: 1,
+          rowLimit: 0,
+          buttonAlignment: "start",
+          kind: "trackpad",
+          collapsible: false,
+          initiallyExpanded: true,
+          trackpadLeftClick: true,
+          trackpadRightClick: true,
+          trackpadButtonSide: "left",
+          trackpadFullscreenControl: true,
+          trackpadGyroControl: true,
+          trackpadEnabled: true,
+          volumeEnabled: true,
+          buttons: [],
+        },
+      ],
     };
 
     render(
@@ -485,7 +503,7 @@ describe("CustomScreenWorkspace", () => {
         send={send}
         state="paired"
         trackpadSettings={defaultTrackpadSettings}
-      />
+      />,
     );
 
     const layout = screen.getByRole("application", { name: "Pointer" }).parentElement!;
@@ -493,19 +511,27 @@ describe("CustomScreenWorkspace", () => {
     expect(screen.getByRole("group", { name: "Trackpad movement" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Touch" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button", { name: "Gyro" })).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: /click/i })
-      .map((button) => button.getAttribute("aria-label")))
-      .toEqual(["Right click", "Left click"]);
+    expect(
+      screen
+        .getAllByRole("button", { name: /click/i })
+        .map((button) => button.getAttribute("aria-label")),
+    ).toEqual(["Right click", "Left click"]);
 
     const leftClick = screen.getByRole("button", { name: "Left click" });
     fireEvent.pointerDown(leftClick, { button: 0, pointerId: 8 });
     fireEvent.pointerUp(leftClick, { button: 0, pointerId: 8 });
-    expect(send).toHaveBeenNthCalledWith(
-      1,
-      { type: "pointer.button", inputContext: "custom-screens", button: "left", action: "down" });
-    expect(send).toHaveBeenNthCalledWith(
-      2,
-      { type: "pointer.button", inputContext: "custom-screens", button: "left", action: "up" });
+    expect(send).toHaveBeenNthCalledWith(1, {
+      type: "pointer.button",
+      inputContext: "custom-screens",
+      button: "left",
+      action: "down",
+    });
+    expect(send).toHaveBeenNthCalledWith(2, {
+      type: "pointer.button",
+      inputContext: "custom-screens",
+      button: "left",
+      action: "up",
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Expand Pointer" }));
     expect(layout.classList.contains("is-fullscreen")).toBe(true);
@@ -519,27 +545,29 @@ describe("CustomScreenWorkspace", () => {
     const trackpadDefinition: CustomScreenDefinition = {
       ...definition,
       orientationLayoutsEnabled: false,
-      sections: [{
-        id: "section.gyro",
-        name: "Gyro pointer",
-        showHeader: true,
-        widthColumns: 12,
-        heightMode: "fill",
-        fillWeight: 1,
-        rowLimit: 0,
-        buttonAlignment: "start",
-        kind: "trackpad",
-        collapsible: false,
-        initiallyExpanded: true,
-        trackpadLeftClick: false,
-        trackpadRightClick: true,
-        trackpadButtonSide: "right",
-        trackpadFullscreenControl: true,
-        trackpadGyroControl: true,
-        trackpadEnabled: true,
-        volumeEnabled: true,
-        buttons: []
-      }]
+      sections: [
+        {
+          id: "section.gyro",
+          name: "Gyro pointer",
+          showHeader: true,
+          widthColumns: 12,
+          heightMode: "fill",
+          fillWeight: 1,
+          rowLimit: 0,
+          buttonAlignment: "start",
+          kind: "trackpad",
+          collapsible: false,
+          initiallyExpanded: true,
+          trackpadLeftClick: false,
+          trackpadRightClick: true,
+          trackpadButtonSide: "right",
+          trackpadFullscreenControl: true,
+          trackpadGyroControl: true,
+          trackpadEnabled: true,
+          volumeEnabled: true,
+          buttons: [],
+        },
+      ],
     };
     const view = render(
       <CustomScreenWorkspace
@@ -554,12 +582,13 @@ describe("CustomScreenWorkspace", () => {
         send={send}
         state="paired"
         trackpadSettings={defaultTrackpadSettings}
-      />
+      />,
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Gyro" }).getAttribute("aria-pressed"))
-        .toBe("true");
+      expect(screen.getByRole("button", { name: "Gyro" }).getAttribute("aria-pressed")).toBe(
+        "true",
+      );
     });
     const surface = screen.getByRole("application", { name: "Gyro pointer" });
 
@@ -569,7 +598,7 @@ describe("CustomScreenWorkspace", () => {
       type: "pointer.button",
       inputContext: "custom-screens",
       button: "left",
-      action: "click"
+      action: "click",
     });
     send.mockClear();
 
@@ -580,17 +609,21 @@ describe("CustomScreenWorkspace", () => {
     fireEvent.pointerUp(surface, { button: 0, isPrimary: true, pointerId: 32 });
     expect(send.mock.calls).toEqual([
       [{ type: "pointer.button", inputContext: "custom-screens", button: "right", action: "down" }],
-      [{ type: "pointer.button", inputContext: "custom-screens", button: "right", action: "up" }]
+      [{ type: "pointer.button", inputContext: "custom-screens", button: "right", action: "up" }],
     ]);
 
     vi.useFakeTimers();
     fireEvent.pointerDown(surface, { button: 0, isPrimary: true, pointerId: 34 });
     fireEvent(window, new Event("blur"));
-    act(() => { vi.advanceTimersByTime(301); });
+    act(() => {
+      vi.advanceTimersByTime(301);
+    });
     expect(surface.classList.contains("gyro-engaged")).toBe(false);
 
     fireEvent.pointerDown(surface, { button: 0, isPrimary: true, pointerId: 35 });
-    act(() => { vi.advanceTimersByTime(301); });
+    act(() => {
+      vi.advanceTimersByTime(301);
+    });
     expect(surface.classList.contains("gyro-engaged")).toBe(true);
     fireEvent(window, new Event("blur"));
     expect(surface.classList.contains("gyro-engaged")).toBe(false);
@@ -613,16 +646,19 @@ describe("CustomScreenWorkspace", () => {
         send={vi.fn()}
         state="paired"
         trackpadSettings={defaultTrackpadSettings}
-      />
+      />,
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Gyro" }).getAttribute("aria-pressed"))
-        .toBe("true");
+      expect(screen.getByRole("button", { name: "Gyro" }).getAttribute("aria-pressed")).toBe(
+        "true",
+      );
     });
     fireEvent.click(screen.getByRole("button", { name: "Gyro pointer" }));
 
-    await waitFor(() => { expect(onGyroSelectedChange).toHaveBeenLastCalledWith(false); });
+    await waitFor(() => {
+      expect(onGyroSelectedChange).toHaveBeenLastCalledWith(false);
+    });
     expect(screen.queryByRole("group", { name: "Trackpad movement" })).toBeNull();
   });
 
@@ -640,18 +676,21 @@ describe("CustomScreenWorkspace", () => {
         send={vi.fn()}
         state="paired"
         trackpadSettings={defaultTrackpadSettings}
-      />
+      />,
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Gyro" }).getAttribute("aria-pressed"))
-        .toBe("true");
+      expect(screen.getByRole("button", { name: "Gyro" }).getAttribute("aria-pressed")).toBe(
+        "true",
+      );
     });
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 900 });
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 500 });
     fireEvent(window, new Event("resize"));
 
-    await waitFor(() => { expect(onGyroSelectedChange).toHaveBeenLastCalledWith(false); });
+    await waitFor(() => {
+      expect(onGyroSelectedChange).toHaveBeenLastCalledWith(false);
+    });
     expect(screen.queryByRole("application", { name: "Gyro pointer" })).toBeNull();
   });
 
@@ -659,27 +698,29 @@ describe("CustomScreenWorkspace", () => {
     const trackpadDefinition: CustomScreenDefinition = {
       ...definition,
       orientationLayoutsEnabled: false,
-      sections: [{
-        id: "section.trackpad",
-        name: "Pointer tools",
-        showHeader: true,
-        widthColumns: 6,
-        heightMode: "fill",
-        fillWeight: 2,
-        rowLimit: 0,
-        buttonAlignment: "start",
-        kind: "trackpad",
-        collapsible: true,
-        initiallyExpanded: false,
-        trackpadFullscreenControl: true,
-        trackpadGyroControl: false,
-        trackpadLeftClick: true,
-        trackpadRightClick: true,
-        trackpadButtonSide: "right",
-        trackpadEnabled: true,
-        volumeEnabled: true,
-        buttons: []
-      }]
+      sections: [
+        {
+          id: "section.trackpad",
+          name: "Pointer tools",
+          showHeader: true,
+          widthColumns: 6,
+          heightMode: "fill",
+          fillWeight: 2,
+          rowLimit: 0,
+          buttonAlignment: "start",
+          kind: "trackpad",
+          collapsible: true,
+          initiallyExpanded: false,
+          trackpadFullscreenControl: true,
+          trackpadGyroControl: false,
+          trackpadLeftClick: true,
+          trackpadRightClick: true,
+          trackpadButtonSide: "right",
+          trackpadEnabled: true,
+          volumeEnabled: true,
+          buttons: [],
+        },
+      ],
     };
 
     render(
@@ -692,7 +733,7 @@ describe("CustomScreenWorkspace", () => {
         send={vi.fn()}
         state="paired"
         trackpadSettings={defaultTrackpadSettings}
-      />
+      />,
     );
 
     expect(screen.queryByRole("application", { name: "Pointer tools" })).toBeNull();
@@ -700,11 +741,17 @@ describe("CustomScreenWorkspace", () => {
     expect(screen.getByRole("application", { name: "Pointer tools" })).toBeTruthy();
     expect(screen.queryByRole("group", { name: "Trackpad movement" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Expand Pointer tools" }));
-    expect(screen.getByRole("application", { name: "Pointer tools" })
-      .parentElement?.classList.contains("is-fullscreen")).toBe(true);
+    expect(
+      screen
+        .getByRole("application", { name: "Pointer tools" })
+        .parentElement?.classList.contains("is-fullscreen"),
+    ).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Restore Pointer tools" }));
-    expect(screen.getByRole("application", { name: "Pointer tools" })
-      .parentElement?.classList.contains("is-fullscreen")).toBe(false);
+    expect(
+      screen
+        .getByRole("application", { name: "Pointer tools" })
+        .parentElement?.classList.contains("is-fullscreen"),
+    ).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Pointer tools" }));
     expect(screen.queryByRole("application", { name: "Pointer tools" })).toBeNull();
   });
@@ -719,7 +766,7 @@ describe("CustomScreenWorkspace", () => {
           heightMode: "fill",
           fillWeight: 1,
           portrait: { order: 0, visible: true, widthColumns: 12 },
-          landscape: { order: 0, visible: true, widthColumns: 6 }
+          landscape: { order: 0, visible: true, widthColumns: 6 },
         },
         {
           id: "section.trackpad",
@@ -742,9 +789,9 @@ describe("CustomScreenWorkspace", () => {
           landscape: { order: 1, visible: true, widthColumns: 6 },
           trackpadEnabled: true,
           volumeEnabled: true,
-          buttons: []
-        }
-      ]
+          buttons: [],
+        },
+      ],
     };
     const view = render(
       <CustomScreenWorkspace
@@ -756,20 +803,24 @@ describe("CustomScreenWorkspace", () => {
         send={vi.fn()}
         state="paired"
         trackpadSettings={defaultTrackpadSettings}
-      />
+      />,
     );
 
     expect(view.container.querySelectorAll(".custom-screen-row")).toHaveLength(2);
-    expect(Array.from(view.container.querySelectorAll<HTMLElement>(".custom-screen-row"))
-      .map(row => row.style.flexGrow)).toEqual(["1", "2"]);
+    expect(
+      Array.from(view.container.querySelectorAll<HTMLElement>(".custom-screen-row")).map(
+        (row) => row.style.flexGrow,
+      ),
+    ).toEqual(["1", "2"]);
 
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 900 });
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 500 });
     fireEvent(window, new Event("resize"));
 
     expect(view.container.querySelectorAll(".custom-screen-row")).toHaveLength(1);
-    expect(view.container.querySelector<HTMLElement>(".custom-screen-row")?.style.flexGrow)
-      .toBe("2");
+    expect(view.container.querySelector<HTMLElement>(".custom-screen-row")?.style.flexGrow).toBe(
+      "2",
+    );
   });
 });
 
@@ -799,22 +850,24 @@ function withLaserButtons(): CustomScreenDefinition {
     name: "Lasers",
     revision: "revision.lasers",
     orientationLayoutsEnabled: false,
-    sections: [{
-      ...definition.sections[0]!,
-      portrait: null,
-      landscape: null,
-      buttons: [
-        laserButton("button.default-laser", "Default laser", "default"),
-        laserButton("button.red-laser", "Red laser", "red"),
-        laserButton("button.green-laser", "Green laser", "green")
-      ]
-    }]
+    sections: [
+      {
+        ...definition.sections[0]!,
+        portrait: null,
+        landscape: null,
+        buttons: [
+          laserButton("button.default-laser", "Default laser", "default"),
+          laserButton("button.red-laser", "Red laser", "red"),
+          laserButton("button.green-laser", "Green laser", "green"),
+        ],
+      },
+    ],
   };
 }
 
 function gyroTrackpadDefinition({
   collapsible = false,
-  orientationLayoutsEnabled = false
+  orientationLayoutsEnabled = false,
 }: {
   collapsible?: boolean;
   orientationLayoutsEnabled?: boolean;
@@ -822,30 +875,28 @@ function gyroTrackpadDefinition({
   return {
     ...definition,
     orientationLayoutsEnabled,
-    sections: [{
-      ...definition.sections[0]!,
-      id: "section.gyro",
-      name: "Gyro pointer",
-      rowLimit: 0,
-      kind: "trackpad",
-      collapsible,
-      initiallyExpanded: true,
-      trackpadLeftClick: false,
-      trackpadRightClick: false,
-      trackpadFullscreenControl: true,
-      trackpadGyroControl: true,
-      portrait: { order: 0, visible: true, widthColumns: 12 },
-      landscape: { order: 0, visible: false, widthColumns: 12 },
-      buttons: []
-    }]
+    sections: [
+      {
+        ...definition.sections[0]!,
+        id: "section.gyro",
+        name: "Gyro pointer",
+        rowLimit: 0,
+        kind: "trackpad",
+        collapsible,
+        initiallyExpanded: true,
+        trackpadLeftClick: false,
+        trackpadRightClick: false,
+        trackpadFullscreenControl: true,
+        trackpadGyroControl: true,
+        portrait: { order: 0, visible: true, widthColumns: 12 },
+        landscape: { order: 0, visible: false, widthColumns: 12 },
+        buttons: [],
+      },
+    ],
   };
 }
 
-function laserButton(
-  id: string,
-  name: string,
-  color: "default" | "red" | "green"
-) {
+function laserButton(id: string, name: string, color: "default" | "red" | "green") {
   return {
     id,
     name,
@@ -856,6 +907,6 @@ function laserButton(
     repeat: false,
     row: 0,
     enabled: true,
-    laserPointerColor: color
+    laserPointerColor: color,
   };
 }

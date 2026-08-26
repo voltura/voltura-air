@@ -1,7 +1,7 @@
 {
   "name": "@voltura-air/relay",
-  "private": true,
   "version": "1.1.1",
+  "private": true,
   "license": "MIT",
   "type": "module",
   "exports": {
@@ -18,12 +18,12 @@
     "ws": "^8.21.3"
   },
   "devDependencies": {
-    "@types/node": "^26.2.0",
-    "@cloudflare/workers-types": "5.20260814.1",
+    "@cloudflare/workers-types": "5.20260825.1",
+    "@types/node": "24.13.3",
     "@types/ws": "^8.18.1",
     "tsx": "^4.23.12",
-    "typescript": "^7.0.2",
-    "vitest": "^4.0.0",
-    "wrangler": "^4.123.0"
+    "typescript": "7.0.2",
+    "vitest": "^4.1.11",
+    "wrangler": "4.126.0"
   }
 }

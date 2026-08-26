@@ -121,8 +121,7 @@
 .text-transfer-editor-surface:not(.is-editing) {
   background:
     linear-gradient(90deg, var(--trackpad-grid) 1px, transparent 1px),
-    linear-gradient(var(--trackpad-grid) 1px, transparent 1px),
-    var(--surface);
+    linear-gradient(var(--trackpad-grid) 1px, transparent 1px), var(--surface);
   background-size: 28px 28px;
 }
 
@@ -558,7 +557,6 @@
     padding-inline: 8px;
     font-size: 0.9rem;
   }
-
 }
 
 @media (orientation: landscape) {
@@ -618,5 +616,4 @@
   .snippet-save-row {
     grid-template-columns: minmax(0, 1fr);
   }
-
 }

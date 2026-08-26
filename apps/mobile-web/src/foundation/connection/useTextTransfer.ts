@@ -31,10 +31,12 @@ export function useTextTransfer(state: ConnectionState, send: (payload: ClientMe
         operationId,
         succeeded: false,
         code: "VAIR-TEXT-RESPONSE-TIMEOUT",
-        message: "The PC did not confirm the text transfer. Check the destination before retrying."
+        message: "The PC did not confirm the text transfer. Check the destination before retrying.",
       });
     }, responseTimeoutMs);
-    return () => { window.clearTimeout(timeout); };
+    return () => {
+      window.clearTimeout(timeout);
+    };
   }, [pendingTextTransfer]);
 
   useEffect(() => {
@@ -52,8 +54,12 @@ export function useTextTransfer(state: ConnectionState, send: (payload: ClientMe
       return;
     }
 
-    const timeout = window.setTimeout(() => { setTextTransferResult(null); }, resultVisibilityMs);
-    return () => { window.clearTimeout(timeout); };
+    const timeout = window.setTimeout(() => {
+      setTextTransferResult(null);
+    }, resultVisibilityMs);
+    return () => {
+      window.clearTimeout(timeout);
+    };
   }, [textTransferResult]);
 
   const requestTextTransfer = (text: string, sendEnter = false): string | null => {

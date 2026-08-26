@@ -1,6 +1,5 @@
 using System.Threading.Channels;
 using Concentus;
-using NAudio.CoreAudioApi;
 using NAudio.Wave;
 
 namespace VolturaAir.Host.Features.PhoneWebcam;
@@ -19,36 +18,47 @@ internal sealed class PhoneWebcamAudioPipeline : IAsyncDisposable
         SingleWriter = false
     });
     private readonly CancellationTokenSource _cancellation = new();
-    private readonly MMDevice _endpoint;
-    private readonly WasapiOut _output;
+    private readonly IPhoneWebcamAudioPlayer _output;
     private readonly BufferedWaveProvider _buffer;
     private Task? _worker;
     private int _failed;
     private int _invalidPacketStreak;
     private int _disposed;
 
-    internal PhoneWebcamAudioPipeline(IPhoneWebcamAudioTarget target)
+    private PhoneWebcamAudioPipeline(
+        IPhoneWebcamAudioPlayer output,
+        BufferedWaveProvider buffer)
     {
-        _endpoint = target.OpenReadyEndpoint();
-        _buffer = new BufferedWaveProvider(new WaveFormat(SampleRate, 16, Channels))
+        _output = output;
+        _buffer = buffer;
+        _output.Stopped += OnPlaybackStopped;
+    }
+
+    internal static async Task<PhoneWebcamAudioPipeline> CreateAsync(
+        IPhoneWebcamAudioTarget target,
+        IPhoneWebcamAudioDeviceFactory? deviceFactory = null)
+    {
+        var buffer = new BufferedWaveProvider(
+            new WaveFormat(SampleRate, 16, Channels),
+            MaximumBufferedAudio)
         {
-            BufferDuration = MaximumBufferedAudio,
             DiscardOnBufferOverflow = true,
             ReadFully = true
         };
-        try
-        {
-            _output = new WasapiOut(_endpoint, AudioClientShareMode.Shared, useEventSync: true, latency: 40);
-            _output.PlaybackStopped += OnPlaybackStopped;
-            _output.Init(_buffer);
-        }
-        catch
-        {
-            _output?.Dispose();
-            _endpoint.Dispose();
-            throw;
-        }
+        IPhoneWebcamAudioPlayer output = await (deviceFactory ?? PhoneWebcamAudioDeviceFactory.Instance)
+            .CreateCablePlayerAsync(target, buffer)
+            .ConfigureAwait(false);
+        return new PhoneWebcamAudioPipeline(output, buffer);
     }
+
+    internal static PhoneWebcamAudioPipeline CreateForTest(IPhoneWebcamAudioPlayer output) =>
+        new(output, new BufferedWaveProvider(
+            new WaveFormat(SampleRate, 16, Channels),
+            MaximumBufferedAudio)
+        {
+            DiscardOnBufferOverflow = true,
+            ReadFully = true
+        });
 
     internal event EventHandler? Failed;
 
@@ -103,7 +113,7 @@ internal sealed class PhoneWebcamAudioPipeline : IAsyncDisposable
         }
     }
 
-    private void OnPlaybackStopped(object? sender, StoppedEventArgs args)
+    private void OnPlaybackStopped(object? sender, PhoneWebcamAudioStoppedEventArgs args)
     {
         if (Volatile.Read(ref _disposed) == 0 && args.Exception is not null)
         {
@@ -129,28 +139,21 @@ internal sealed class PhoneWebcamAudioPipeline : IAsyncDisposable
             try { await _worker.ConfigureAwait(false); }
             catch (OperationCanceledException) { }
         }
+        _output.Stopped -= OnPlaybackStopped;
         try
         {
-            _output.PlaybackStopped -= OnPlaybackStopped;
-            try
-            {
-                _output.Stop();
-            }
-            catch (Exception exception) when (exception is not OutOfMemoryException)
-            {
-            }
-            try
-            {
-                _output.Dispose();
-            }
-            catch (Exception exception) when (exception is not OutOfMemoryException)
-            {
-            }
+            _output.Stop();
         }
-        finally
+        catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            _endpoint.Dispose();
-            _cancellation.Dispose();
         }
+        try
+        {
+            await _output.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+        }
+        _cancellation.Dispose();
     }
 }

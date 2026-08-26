@@ -6,7 +6,19 @@ import type { KeyboardInputMode } from "./KeyboardInputModeButtons";
 const repeatStartDelayMs = 400;
 const repeatIntervalMs = 55;
 
-type RepeatableKey = "Backspace" | "Delete" | "Enter" | "Tab" | "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "Home" | "End" | "PageUp" | "PageDown";
+type RepeatableKey =
+  | "Backspace"
+  | "Delete"
+  | "Enter"
+  | "Tab"
+  | "ArrowUp"
+  | "ArrowDown"
+  | "ArrowLeft"
+  | "ArrowRight"
+  | "Home"
+  | "End"
+  | "PageUp"
+  | "PageDown";
 interface KeyboardModeControllerOptions {
   committedKeyboardTextRef: React.RefObject<string>;
   keyboardTextareaRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -22,7 +34,7 @@ export function useKeyboardModeController({
   liveKeyboard,
   sendSpecial,
   setKeyboardText,
-  setLiveTyping
+  setLiveTyping,
 }: KeyboardModeControllerOptions) {
   const repeatTimeoutRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
@@ -137,7 +149,8 @@ export function useKeyboardModeController({
       }
 
       textarea.focus({ preventScroll: true });
-      const nextCaret = liveKeyboardSentinel.length + Math.max(0, Math.min(caretPosition, nextText.length));
+      const nextCaret =
+        liveKeyboardSentinel.length + Math.max(0, Math.min(caretPosition, nextText.length));
       textarea.setSelectionRange(nextCaret, nextCaret);
     });
   };
@@ -154,7 +167,7 @@ export function useKeyboardModeController({
     const end = Math.max(0, Math.max(selectionStart, selectionEnd) - liveKeyboardSentinel.length);
     return {
       start: Math.min(start, currentText.length),
-      end: Math.min(end, currentText.length)
+      end: Math.min(end, currentText.length),
     };
   };
 
@@ -177,7 +190,10 @@ export function useKeyboardModeController({
 
       if (start > 0) {
         const nextCaret = previousTextBoundary(currentText, start);
-        setLiveKeyboardText(`${currentText.slice(0, nextCaret)}${currentText.slice(end)}`, nextCaret);
+        setLiveKeyboardText(
+          `${currentText.slice(0, nextCaret)}${currentText.slice(end)}`,
+          nextCaret,
+        );
       }
       return;
     }
@@ -189,7 +205,10 @@ export function useKeyboardModeController({
       }
 
       if (end < currentText.length) {
-        setLiveKeyboardText(`${currentText.slice(0, start)}${currentText.slice(nextTextBoundary(currentText, end))}`, start);
+        setLiveKeyboardText(
+          `${currentText.slice(0, start)}${currentText.slice(nextTextBoundary(currentText, end))}`,
+          start,
+        );
       }
       return;
     }
@@ -260,7 +279,10 @@ export function useKeyboardModeController({
       }
 
       if (end < value.length) {
-        setBufferedKeyboardText(`${value.slice(0, start)}${value.slice(nextTextBoundary(value, end))}`, start);
+        setBufferedKeyboardText(
+          `${value.slice(0, start)}${value.slice(nextTextBoundary(value, end))}`,
+          start,
+        );
       }
       return;
     }
@@ -268,7 +290,10 @@ export function useKeyboardModeController({
     if (key === "Enter" || key === "Tab") {
       const insertedText = key === "Enter" ? "\n" : "\t";
       const nextCaret = start + insertedText.length;
-      setBufferedKeyboardText(`${value.slice(0, start)}${insertedText}${value.slice(end)}`, nextCaret);
+      setBufferedKeyboardText(
+        `${value.slice(0, start)}${insertedText}${value.slice(end)}`,
+        nextCaret,
+      );
       return;
     }
 
@@ -357,7 +382,9 @@ export function useKeyboardModeController({
       pressRepeatableKey(key);
       repeatTimeoutRef.current = window.setTimeout(() => {
         pressRepeatableKey(key);
-        repeatIntervalRef.current = window.setInterval(() => { pressRepeatableKey(key); }, repeatIntervalMs);
+        repeatIntervalRef.current = window.setInterval(() => {
+          pressRepeatableKey(key);
+        }, repeatIntervalMs);
       }, repeatStartDelayMs);
     },
     onPointerUp: stopRepeatingKey,
@@ -365,8 +392,10 @@ export function useKeyboardModeController({
     onPointerLeave: stopRepeatingKey,
     onLostPointerCapture: stopRepeatingKey,
     onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
-      if (event.detail === 0) { pressRepeatableKey(key); }
-    }
+      if (event.detail === 0) {
+        pressRepeatableKey(key);
+      }
+    },
   });
 
   return {
@@ -376,7 +405,7 @@ export function useKeyboardModeController({
     liveTypingId,
     sendShortcut,
     sendSpace,
-    showKeyboardInputMode
+    showKeyboardInputMode,
   };
 }
 function getLineStart(value: string, caret: number): number {
@@ -415,8 +444,9 @@ function getVerticalCaretPosition(value: string, caret: number, direction: -1 | 
 
 function textBoundaries(value: string): number[] {
   if (typeof Intl.Segmenter === "function") {
-    return [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(value)]
-      .map((part) => part.index);
+    return [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(value)].map(
+      (part) => part.index,
+    );
   }
   const boundaries = [0];
   let offset = 0;
@@ -428,7 +458,11 @@ function textBoundaries(value: string): number[] {
 }
 
 function previousTextBoundary(value: string, caret: number): number {
-  return textBoundaries(value).filter((boundary) => boundary < caret).at(-1) ?? 0;
+  return (
+    textBoundaries(value)
+      .filter((boundary) => boundary < caret)
+      .at(-1) ?? 0
+  );
 }
 
 function nextTextBoundary(value: string, caret: number): number {

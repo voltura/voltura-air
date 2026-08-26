@@ -4,7 +4,7 @@ import {
   useRef,
   type MouseEvent,
   type PointerEvent,
-  type TouchEventHandler
+  type TouchEventHandler,
 } from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp } from "lucide-react";
 import "./custom-screen-navigation-ring.css";
@@ -34,7 +34,7 @@ export function CustomScreenNavigationRing({
   onTouchEnd,
   onTouchMove,
   onTouchStart,
-  sendSpecial
+  sendSpecial,
 }: CustomScreenNavigationRingProps) {
   const repeatTimeoutRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
@@ -98,12 +98,12 @@ export function CustomScreenNavigationRing({
     event.stopPropagation();
   };
 
-  const forwardCenterTouch = (
-    handler: TouchEventHandler<HTMLDivElement>
-  ): TouchEventHandler<HTMLDivElement> => (event) => {
-    event.stopPropagation();
-    handler(event);
-  };
+  const forwardCenterTouch =
+    (handler: TouchEventHandler<HTMLDivElement>): TouchEventHandler<HTMLDivElement> =>
+    (event) => {
+      event.stopPropagation();
+      handler(event);
+    };
 
   return (
     <div
@@ -111,17 +111,85 @@ export function CustomScreenNavigationRing({
       aria-label={`${name} trackpad`}
       className="trackpad-surface custom-screen-navigation-surface"
       role="application"
-      title={enabled ? name : reason ?? "Remote input is unavailable."}
+      title={enabled ? name : (reason ?? "Remote input is unavailable.")}
       onTouchCancel={enabled ? onTouchCancel : undefined}
       onTouchEnd={enabled ? onTouchEnd : undefined}
       onTouchMove={enabled ? onTouchMove : undefined}
       onTouchStart={enabled ? onTouchStart : undefined}
     >
       <div aria-label={name} className="custom-screen-navigation-ring" role="group">
-        <button type="button" className="custom-screen-ring-zone custom-screen-ring-up" data-key="ArrowUp" disabled={!enabled} aria-label="D-pad up" onClick={click} onLostPointerCapture={stopRepeat} onPointerCancel={stopRepeat} onPointerDown={startRepeat} onPointerUp={stopRepeat} onTouchCancel={stopTouchPropagation} onTouchEnd={stopTouchPropagation} onTouchMove={stopTouchPropagation} onTouchStart={stopTouchPropagation}><ArrowUp aria-hidden="true" /></button>
-        <button type="button" className="custom-screen-ring-zone custom-screen-ring-left" data-key="ArrowLeft" disabled={!enabled} aria-label="D-pad left" onClick={click} onLostPointerCapture={stopRepeat} onPointerCancel={stopRepeat} onPointerDown={startRepeat} onPointerUp={stopRepeat} onTouchCancel={stopTouchPropagation} onTouchEnd={stopTouchPropagation} onTouchMove={stopTouchPropagation} onTouchStart={stopTouchPropagation}><ArrowLeft aria-hidden="true" /></button>
-        <button type="button" className="custom-screen-ring-zone custom-screen-ring-right" data-key="ArrowRight" disabled={!enabled} aria-label="D-pad right" onClick={click} onLostPointerCapture={stopRepeat} onPointerCancel={stopRepeat} onPointerDown={startRepeat} onPointerUp={stopRepeat} onTouchCancel={stopTouchPropagation} onTouchEnd={stopTouchPropagation} onTouchMove={stopTouchPropagation} onTouchStart={stopTouchPropagation}><ArrowRight aria-hidden="true" /></button>
-        <button type="button" className="custom-screen-ring-zone custom-screen-ring-down" data-key="ArrowDown" disabled={!enabled} aria-label="D-pad down" onClick={click} onLostPointerCapture={stopRepeat} onPointerCancel={stopRepeat} onPointerDown={startRepeat} onPointerUp={stopRepeat} onTouchCancel={stopTouchPropagation} onTouchEnd={stopTouchPropagation} onTouchMove={stopTouchPropagation} onTouchStart={stopTouchPropagation}><ArrowDown aria-hidden="true" /></button>
+        <button
+          type="button"
+          className="custom-screen-ring-zone custom-screen-ring-up"
+          data-key="ArrowUp"
+          disabled={!enabled}
+          aria-label="D-pad up"
+          onClick={click}
+          onLostPointerCapture={stopRepeat}
+          onPointerCancel={stopRepeat}
+          onPointerDown={startRepeat}
+          onPointerUp={stopRepeat}
+          onTouchCancel={stopTouchPropagation}
+          onTouchEnd={stopTouchPropagation}
+          onTouchMove={stopTouchPropagation}
+          onTouchStart={stopTouchPropagation}
+        >
+          <ArrowUp aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="custom-screen-ring-zone custom-screen-ring-left"
+          data-key="ArrowLeft"
+          disabled={!enabled}
+          aria-label="D-pad left"
+          onClick={click}
+          onLostPointerCapture={stopRepeat}
+          onPointerCancel={stopRepeat}
+          onPointerDown={startRepeat}
+          onPointerUp={stopRepeat}
+          onTouchCancel={stopTouchPropagation}
+          onTouchEnd={stopTouchPropagation}
+          onTouchMove={stopTouchPropagation}
+          onTouchStart={stopTouchPropagation}
+        >
+          <ArrowLeft aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="custom-screen-ring-zone custom-screen-ring-right"
+          data-key="ArrowRight"
+          disabled={!enabled}
+          aria-label="D-pad right"
+          onClick={click}
+          onLostPointerCapture={stopRepeat}
+          onPointerCancel={stopRepeat}
+          onPointerDown={startRepeat}
+          onPointerUp={stopRepeat}
+          onTouchCancel={stopTouchPropagation}
+          onTouchEnd={stopTouchPropagation}
+          onTouchMove={stopTouchPropagation}
+          onTouchStart={stopTouchPropagation}
+        >
+          <ArrowRight aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="custom-screen-ring-zone custom-screen-ring-down"
+          data-key="ArrowDown"
+          disabled={!enabled}
+          aria-label="D-pad down"
+          onClick={click}
+          onLostPointerCapture={stopRepeat}
+          onPointerCancel={stopRepeat}
+          onPointerDown={startRepeat}
+          onPointerUp={stopRepeat}
+          onTouchCancel={stopTouchPropagation}
+          onTouchEnd={stopTouchPropagation}
+          onTouchMove={stopTouchPropagation}
+          onTouchStart={stopTouchPropagation}
+        >
+          <ArrowDown aria-hidden="true" />
+        </button>
         <div
           aria-disabled={!enabled}
           aria-label="Mini trackpad"
@@ -139,7 +207,9 @@ export function CustomScreenNavigationRing({
           onTouchStart={enabled ? forwardCenterTouch(onTouchStart) : undefined}
           role="button"
           tabIndex={enabled ? 0 : -1}
-        ><span aria-hidden="true" /></div>
+        >
+          <span aria-hidden="true" />
+        </div>
       </div>
     </div>
   );

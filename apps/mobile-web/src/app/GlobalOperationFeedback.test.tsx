@@ -17,7 +17,7 @@ describe("GlobalOperationFeedback", () => {
         tab="trackpad"
         textTransferResult={null}
         transientFeedback={{ message: "Selected text copied.", tone: "success" }}
-      />
+      />,
     );
 
     expect(screen.getAllByRole("status")).toHaveLength(1);
@@ -39,7 +39,7 @@ describe("GlobalOperationFeedback", () => {
         tab="trackpad"
         textTransferResult={null}
         transientFeedback={null}
-      />
+      />,
     );
 
     expect(screen.getAllByRole("status")).toHaveLength(1);
@@ -62,17 +62,18 @@ describe("GlobalOperationFeedback", () => {
           action: "activate",
           succeeded: false,
           message: "PowerPoint is open, but Voltura Air could not bring its window forward.",
-          laserPointerActive: false
+          laserPointerActive: false,
         }}
         presentationSessionResult={null}
         tab="presentation"
         textTransferResult={null}
         transientFeedback={null}
-      />
+      />,
     );
 
     expect(screen.getByRole("alert").textContent).toBe(
-      "Bring PowerPoint forward failed. PowerPoint is open, but Voltura Air could not bring its window forward.");
+      "Bring PowerPoint forward failed. PowerPoint is open, but Voltura Air could not bring its window forward.",
+    );
   });
 
   it("shows session and refresh failures through the shared error toast", () => {
@@ -90,16 +91,17 @@ describe("GlobalOperationFeedback", () => {
           operationId: "break-1",
           action: "break",
           succeeded: false,
-          message: "The PC did not confirm the session change."
+          message: "The PC did not confirm the session change.",
         }}
         tab="presentation"
         textTransferResult={null}
         transientFeedback={null}
-      />
+      />,
     );
 
     expect(screen.getByRole("alert").textContent).toBe(
-      "Change break failed. The PC did not confirm the session change.");
+      "Change break failed. The PC did not confirm the session change.",
+    );
 
     rerender(
       <GlobalOperationFeedback
@@ -114,17 +116,18 @@ describe("GlobalOperationFeedback", () => {
           succeeded: false,
           message: "The PC did not confirm the refresh.",
           state: "unavailable",
-          presentations: []
+          presentations: [],
         }}
         presentationResult={null}
         presentationSessionResult={null}
         tab="presentation"
         textTransferResult={null}
         transientFeedback={null}
-      />
+      />,
     );
 
     expect(screen.getByRole("alert").textContent).toBe(
-      "Refresh PowerPoint failed. The PC did not confirm the refresh.");
+      "Refresh PowerPoint failed. The PC did not confirm the refresh.",
+    );
   });
 });

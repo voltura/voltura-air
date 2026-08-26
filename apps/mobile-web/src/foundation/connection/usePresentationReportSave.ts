@@ -3,7 +3,7 @@ import { createLocalId } from "../identity/localId";
 import type {
   ClientMessage,
   PresentationReportSavePayload,
-  PresentationReportSaveResultMessage
+  PresentationReportSaveResultMessage,
 } from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
 
@@ -16,7 +16,7 @@ interface PendingPresentationReportSave {
 
 export function usePresentationReportSave(
   state: ConnectionState,
-  send: (payload: ClientMessage) => void
+  send: (payload: ClientMessage) => void,
 ) {
   const [pendingPresentationReportSave, setPendingPresentationReportSave] =
     useState<PendingPresentationReportSave | null>(null);
@@ -43,10 +43,12 @@ export function usePresentationReportSave(
         ...pending,
         succeeded: false,
         code: "VAIR-PRESENTATION-SAVE-TIMEOUT",
-        message: "The PC did not confirm the save. Reconnect if needed, then try again."
+        message: "The PC did not confirm the save. Reconnect if needed, then try again.",
       });
     }, responseTimeoutMs);
-    return () => { window.clearTimeout(timeout); };
+    return () => {
+      window.clearTimeout(timeout);
+    };
   }, [pendingPresentationReportSave]);
 
   useEffect(() => {
@@ -62,7 +64,7 @@ export function usePresentationReportSave(
       ...pending,
       succeeded: false,
       code: "VAIR-PRESENTATION-SAVE-DISCONNECTED",
-      message: "The connection was lost before the PC confirmed the save. Reconnect and try again."
+      message: "The connection was lost before the PC confirmed the save. Reconnect and try again.",
     });
   }, [state]);
 
@@ -71,12 +73,11 @@ export function usePresentationReportSave(
       return null;
     }
 
-    const existingIdentity = retryIdentityRef.current?.reportId === payload.reportId
-      ? retryIdentityRef.current
-      : null;
+    const existingIdentity =
+      retryIdentityRef.current?.reportId === payload.reportId ? retryIdentityRef.current : null;
     const pending = existingIdentity ?? {
       operationId: createLocalId(),
-      reportId: payload.reportId
+      reportId: payload.reportId,
     };
     retryIdentityRef.current = pending;
     pendingRef.current = pending;
@@ -87,8 +88,10 @@ export function usePresentationReportSave(
   };
 
   const completePresentationReportSave = (result: PresentationReportSaveResultMessage) => {
-    if (pendingRef.current?.operationId !== result.operationId ||
-        pendingRef.current.reportId !== result.reportId) {
+    if (
+      pendingRef.current?.operationId !== result.operationId ||
+      pendingRef.current.reportId !== result.reportId
+    ) {
       return false;
     }
 
@@ -102,6 +105,6 @@ export function usePresentationReportSave(
     completePresentationReportSave,
     pendingPresentationReportSave,
     presentationReportSaveResult,
-    requestPresentationReportSave
+    requestPresentationReportSave,
   };
 }

@@ -1,4 +1,3 @@
-using NAudio.CoreAudioApi;
 using NAudio.Wave;
 
 namespace VolturaAir.Host.Features.PhoneWebcam;
@@ -12,57 +11,63 @@ internal sealed class PhoneWebcamAudioMonitor : IPhoneWebcamAudioMonitor
 {
     private static readonly TimeSpan MaximumBufferedAudio = TimeSpan.FromMilliseconds(200);
     private readonly Action<string> _reportFailure;
-    private readonly MMDevice _captureEndpoint;
-    private readonly MMDevice _playbackEndpoint;
-    private readonly WasapiCapture _capture;
-    private readonly WasapiOut _output;
+    private readonly IPhoneWebcamAudioRecorder _capture;
+    private readonly IPhoneWebcamAudioPlayer _output;
     private readonly BufferedWaveProvider _buffer;
     private int _started;
     private int _stopping;
     private int _failed;
     private int _disposed;
 
-    internal PhoneWebcamAudioMonitor(Action<string> reportFailure)
+    private PhoneWebcamAudioMonitor(
+        Action<string> reportFailure,
+        IPhoneWebcamAudioRecorder capture,
+        IPhoneWebcamAudioPlayer output,
+        BufferedWaveProvider buffer)
     {
         _reportFailure = reportFailure;
-        _captureEndpoint = OpenCableCaptureEndpoint();
-        try
-        {
-            _playbackEndpoint = OpenDefaultPlaybackEndpoint();
-        }
-        catch
-        {
-            _captureEndpoint.Dispose();
-            throw;
-        }
+        _capture = capture;
+        _output = output;
+        _buffer = buffer;
+        _capture.DataAvailable += OnDataAvailable;
+        _capture.Stopped += OnRecordingStopped;
+        _output.Stopped += OnPlaybackStopped;
+    }
 
+    internal static async Task<IPhoneWebcamAudioMonitor> CreateAsync(
+        Action<string> reportFailure,
+        IPhoneWebcamAudioDeviceFactory? deviceFactory = null)
+    {
+        IPhoneWebcamAudioDeviceFactory factory = deviceFactory ?? PhoneWebcamAudioDeviceFactory.Instance;
+        IPhoneWebcamAudioRecorder capture = await factory.CreateCableRecorderAsync().ConfigureAwait(false);
+        var buffer = new BufferedWaveProvider(capture.WaveFormat, MaximumBufferedAudio)
+        {
+            DiscardOnBufferOverflow = true,
+            ReadFully = true
+        };
         try
         {
-            _capture = new WasapiCapture(_captureEndpoint);
-            _buffer = new BufferedWaveProvider(_capture.WaveFormat)
-            {
-                BufferDuration = MaximumBufferedAudio,
-                DiscardOnBufferOverflow = true,
-                ReadFully = true
-            };
-            _output = new WasapiOut(
-                _playbackEndpoint,
-                AudioClientShareMode.Shared,
-                useEventSync: true,
-                latency: 40);
-            _capture.DataAvailable += OnDataAvailable;
-            _capture.RecordingStopped += OnRecordingStopped;
-            _output.PlaybackStopped += OnPlaybackStopped;
-            _output.Init(_buffer);
+            IPhoneWebcamAudioPlayer output = await factory.CreateDefaultPlayerAsync(buffer).ConfigureAwait(false);
+            return new PhoneWebcamAudioMonitor(reportFailure, capture, output, buffer);
         }
         catch
         {
-            _capture?.Dispose();
-            _output?.Dispose();
-            _playbackEndpoint.Dispose();
-            _captureEndpoint.Dispose();
+            await TryDisposeAsync(capture).ConfigureAwait(false);
             throw;
         }
+    }
+
+    internal static IPhoneWebcamAudioMonitor CreateForTest(
+        Action<string> reportFailure,
+        IPhoneWebcamAudioRecorder capture,
+        IPhoneWebcamAudioPlayer output)
+    {
+        var buffer = new BufferedWaveProvider(capture.WaveFormat, MaximumBufferedAudio)
+        {
+            DiscardOnBufferOverflow = true,
+            ReadFully = true
+        };
+        return new PhoneWebcamAudioMonitor(reportFailure, capture, output, buffer);
     }
 
     public void Start()
@@ -76,20 +81,20 @@ internal sealed class PhoneWebcamAudioMonitor : IPhoneWebcamAudioMonitor
         try
         {
             _output.Play();
-            _capture.StartRecording();
+            _capture.Start();
         }
         catch
         {
             Interlocked.Exchange(ref _stopping, 1);
-            TryStop(_capture.StopRecording);
+            TryStop(_capture.Stop);
             TryStop(_output.Stop);
             throw;
         }
     }
 
-    private void OnDataAvailable(object? sender, WaveInEventArgs args)
+    private void OnDataAvailable(ReadOnlySpan<byte> data)
     {
-        if (Volatile.Read(ref _stopping) != 0 || args.BytesRecorded <= 0)
+        if (Volatile.Read(ref _stopping) != 0 || data.IsEmpty)
         {
             return;
         }
@@ -100,7 +105,7 @@ internal sealed class PhoneWebcamAudioMonitor : IPhoneWebcamAudioMonitor
             {
                 _buffer.ClearBuffer();
             }
-            _buffer.AddSamples(args.Buffer, 0, args.BytesRecorded);
+            _buffer.AddSamples(data);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
@@ -108,7 +113,7 @@ internal sealed class PhoneWebcamAudioMonitor : IPhoneWebcamAudioMonitor
         }
     }
 
-    private void OnRecordingStopped(object? sender, StoppedEventArgs args)
+    private void OnRecordingStopped(object? sender, PhoneWebcamAudioStoppedEventArgs args)
     {
         if (Volatile.Read(ref _stopping) == 0)
         {
@@ -116,7 +121,7 @@ internal sealed class PhoneWebcamAudioMonitor : IPhoneWebcamAudioMonitor
         }
     }
 
-    private void OnPlaybackStopped(object? sender, StoppedEventArgs args)
+    private void OnPlaybackStopped(object? sender, PhoneWebcamAudioStoppedEventArgs args)
     {
         if (Volatile.Read(ref _stopping) == 0)
         {
@@ -132,63 +137,21 @@ internal sealed class PhoneWebcamAudioMonitor : IPhoneWebcamAudioMonitor
         }
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
-            return ValueTask.CompletedTask;
+            return;
         }
 
         Interlocked.Exchange(ref _stopping, 1);
         _capture.DataAvailable -= OnDataAvailable;
-        _capture.RecordingStopped -= OnRecordingStopped;
-        _output.PlaybackStopped -= OnPlaybackStopped;
-        TryStop(_capture.StopRecording);
+        _capture.Stopped -= OnRecordingStopped;
+        _output.Stopped -= OnPlaybackStopped;
+        TryStop(_capture.Stop);
         TryStop(_output.Stop);
-        try { _capture.Dispose(); }
-        catch (Exception exception) when (exception is not OutOfMemoryException) { }
-        try { _output.Dispose(); }
-        catch (Exception exception) when (exception is not OutOfMemoryException) { }
-        try { _playbackEndpoint.Dispose(); }
-        catch (Exception exception) when (exception is not OutOfMemoryException) { }
-        try { _captureEndpoint.Dispose(); }
-        catch (Exception exception) when (exception is not OutOfMemoryException) { }
-        return ValueTask.CompletedTask;
-    }
-
-    private static MMDevice OpenCableCaptureEndpoint()
-    {
-        using var enumerator = new MMDeviceEnumerator();
-        MMDevice? selected = null;
-        foreach (MMDevice endpoint in enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active))
-        {
-            if (selected is null && PhoneWebcamAudioTarget.IsBaseCableIdentity(
-                    endpoint.FriendlyName,
-                    endpoint.DeviceFriendlyName))
-            {
-                selected = endpoint;
-            }
-            else
-            {
-                endpoint.Dispose();
-            }
-        }
-
-        return selected ?? throw new InvalidOperationException(
-            "CABLE Output is unavailable. Enable VB-CABLE in Windows Sound settings and try again.");
-    }
-
-    private static MMDevice OpenDefaultPlaybackEndpoint()
-    {
-        using var enumerator = new MMDeviceEnumerator();
-        MMDevice endpoint = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-        if (PhoneWebcamAudioTarget.IsBaseCableIdentity(endpoint.FriendlyName, endpoint.DeviceFriendlyName))
-        {
-            endpoint.Dispose();
-            throw new InvalidOperationException(
-                "Choose speakers or headphones as the default Windows output before testing audio.");
-        }
-        return endpoint;
+        await TryDisposeAsync(_capture).ConfigureAwait(false);
+        await TryDisposeAsync(_output).ConfigureAwait(false);
     }
 
     private static void TryStop(Action stop)
@@ -196,6 +159,17 @@ internal sealed class PhoneWebcamAudioMonitor : IPhoneWebcamAudioMonitor
         try
         {
             stop();
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+        }
+    }
+
+    private static async ValueTask TryDisposeAsync(IAsyncDisposable disposable)
+    {
+        try
+        {
+            await disposable.DisposeAsync().ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {

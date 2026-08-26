@@ -19,7 +19,7 @@ const baseProps = {
   onTouchCancel: vi.fn(),
   onTouchEnd: vi.fn(),
   onTouchMove: vi.fn(),
-  onTouchStart: vi.fn()
+  onTouchStart: vi.fn(),
 };
 
 afterEach(() => {
@@ -37,7 +37,12 @@ describe("TrackpadMode volume control", () => {
   });
 
   it("does not render when disabled", () => {
-    render(<TrackpadMode {...baseProps} trackpadSettings={{ ...defaultTrackpadSettings, showVolumeControl: false }} />);
+    render(
+      <TrackpadMode
+        {...baseProps}
+        trackpadSettings={{ ...defaultTrackpadSettings, showVolumeControl: false }}
+      />,
+    );
 
     expect(screen.queryByRole("slider", { name: "PC volume" })).toBeNull();
   });
@@ -60,7 +65,9 @@ describe("TrackpadMode volume control", () => {
     render(<TrackpadMode {...baseProps} onSetVolume={onSetVolume} onToggleMute={onToggleMute} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Mute PC" }));
-    fireEvent.change(screen.getByRole("slider", { name: "PC volume" }), { target: { value: "77" } });
+    fireEvent.change(screen.getByRole("slider", { name: "PC volume" }), {
+      target: { value: "77" },
+    });
 
     expect(onToggleMute).toHaveBeenCalledOnce();
     expect(onSetVolume).toHaveBeenCalledWith(77);
@@ -69,16 +76,23 @@ describe("TrackpadMode volume control", () => {
 
 describe("TrackpadMode gyro movement", () => {
   it("gives platform-neutral recovery guidance for a denied motion decision", () => {
-    render(<TrackpadMode {...baseProps} gyro={{
-      availability: "denied",
-      enableFromUserGesture: vi.fn(),
-      engaged: false,
-      selected: true,
-      setEngaged: vi.fn(),
-      setSelected: vi.fn()
-    }} />);
+    render(
+      <TrackpadMode
+        {...baseProps}
+        gyro={{
+          availability: "denied",
+          enableFromUserGesture: vi.fn(),
+          engaged: false,
+          selected: true,
+          setEngaged: vi.fn(),
+          setSelected: vi.fn(),
+        }}
+      />,
+    );
 
-    expect(screen.getByText("Motion access denied. Reopen Voltura Air or check browser permissions")).toBeTruthy();
+    expect(
+      screen.getByText("Motion access denied. Reopen Voltura Air or check browser permissions"),
+    ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
   });
 
@@ -86,20 +100,28 @@ describe("TrackpadMode gyro movement", () => {
     vi.useFakeTimers();
     const setEngaged = vi.fn();
     const onTouchStart = vi.fn();
-    const view = render(<TrackpadMode {...baseProps} onTouchStart={onTouchStart} gyro={{
-      availability: "ready",
-      enableFromUserGesture: vi.fn(),
-      engaged: false,
-      selected: true,
-      setEngaged,
-      setSelected: vi.fn()
-    }} />);
+    const view = render(
+      <TrackpadMode
+        {...baseProps}
+        onTouchStart={onTouchStart}
+        gyro={{
+          availability: "ready",
+          enableFromUserGesture: vi.fn(),
+          engaged: false,
+          selected: true,
+          setEngaged,
+          setSelected: vi.fn(),
+        }}
+      />,
+    );
     const surface = view.container.querySelector(".trackpad-surface")!;
 
     fireEvent.pointerDown(surface, { pointerId: 41, button: 0, isPrimary: true });
     expect(setEngaged).not.toHaveBeenCalled();
 
-    act(() => { vi.advanceTimersByTime(301); });
+    act(() => {
+      vi.advanceTimersByTime(301);
+    });
     expect(setEngaged).toHaveBeenLastCalledWith(true);
 
     fireEvent.pointerUp(surface, { pointerId: 41 });
@@ -110,20 +132,30 @@ describe("TrackpadMode gyro movement", () => {
 
   it("uses a short stationary clutch tap as a primary click", () => {
     const calls: string[] = [];
-    const view = render(<TrackpadMode
-      {...baseProps}
-      onMouseButtonClick={(button) => { calls.push(`${button}-click`); }}
-      onMouseButtonDown={(button) => { calls.push(`${button}-down`); }}
-      onMouseButtonUp={(button) => { calls.push(`${button}-up`); }}
-      gyro={{
-        availability: "ready",
-        enableFromUserGesture: vi.fn(),
-        engaged: false,
-        selected: true,
-        setEngaged: (value) => { calls.push(value ? "move-on" : "move-off"); },
-        setSelected: vi.fn()
-      }}
-    />);
+    const view = render(
+      <TrackpadMode
+        {...baseProps}
+        onMouseButtonClick={(button) => {
+          calls.push(`${button}-click`);
+        }}
+        onMouseButtonDown={(button) => {
+          calls.push(`${button}-down`);
+        }}
+        onMouseButtonUp={(button) => {
+          calls.push(`${button}-up`);
+        }}
+        gyro={{
+          availability: "ready",
+          enableFromUserGesture: vi.fn(),
+          engaged: false,
+          selected: true,
+          setEngaged: (value) => {
+            calls.push(value ? "move-on" : "move-off");
+          },
+          setSelected: vi.fn(),
+        }}
+      />,
+    );
     const surface = view.container.querySelector(".trackpad-surface")!;
 
     fireEvent.pointerDown(surface, { pointerId: 51, button: 0, isPrimary: true });
@@ -136,20 +168,22 @@ describe("TrackpadMode gyro movement", () => {
     const onMouseButtonClick = vi.fn();
     const onMouseButtonDown = vi.fn();
     const onMouseButtonUp = vi.fn();
-    const view = render(<TrackpadMode
-      {...baseProps}
-      onMouseButtonClick={onMouseButtonClick}
-      onMouseButtonDown={onMouseButtonDown}
-      onMouseButtonUp={onMouseButtonUp}
-      gyro={{
-        availability: "ready",
-        enableFromUserGesture: vi.fn(),
-        engaged: false,
-        selected: true,
-        setEngaged: vi.fn(),
-        setSelected: vi.fn()
-      }}
-    />);
+    const view = render(
+      <TrackpadMode
+        {...baseProps}
+        onMouseButtonClick={onMouseButtonClick}
+        onMouseButtonDown={onMouseButtonDown}
+        onMouseButtonUp={onMouseButtonUp}
+        gyro={{
+          availability: "ready",
+          enableFromUserGesture: vi.fn(),
+          engaged: false,
+          selected: true,
+          setEngaged: vi.fn(),
+          setSelected: vi.fn(),
+        }}
+      />,
+    );
     const surface = view.container.querySelector(".trackpad-surface")!;
 
     fireEvent.pointerDown(surface, { pointerId: 52, button: 0, isPrimary: true });
@@ -162,26 +196,46 @@ describe("TrackpadMode gyro movement", () => {
 
   it("uses the touch lifecycle for a phone tap and ignores its duplicate pointer events", () => {
     const calls: string[] = [];
-    const view = render(<TrackpadMode
-      {...baseProps}
-      onMouseButtonClick={(button) => { calls.push(`${button}-click`); }}
-      onMouseButtonDown={(button) => { calls.push(`${button}-down`); }}
-      onMouseButtonUp={(button) => { calls.push(`${button}-up`); }}
-      gyro={{
-        availability: "ready",
-        enableFromUserGesture: vi.fn(),
-        engaged: false,
-        selected: true,
-        setEngaged: (value) => { calls.push(value ? "move-on" : "move-off"); },
-        setSelected: vi.fn()
-      }}
-    />);
+    const view = render(
+      <TrackpadMode
+        {...baseProps}
+        onMouseButtonClick={(button) => {
+          calls.push(`${button}-click`);
+        }}
+        onMouseButtonDown={(button) => {
+          calls.push(`${button}-down`);
+        }}
+        onMouseButtonUp={(button) => {
+          calls.push(`${button}-up`);
+        }}
+        gyro={{
+          availability: "ready",
+          enableFromUserGesture: vi.fn(),
+          engaged: false,
+          selected: true,
+          setEngaged: (value) => {
+            calls.push(value ? "move-on" : "move-off");
+          },
+          setSelected: vi.fn(),
+        }}
+      />,
+    );
     const surface = view.container.querySelector(".trackpad-surface")!;
     const touch = { identifier: 71 };
 
-    fireEvent.pointerDown(surface, { pointerId: 71, pointerType: "touch", button: 0, isPrimary: true });
+    fireEvent.pointerDown(surface, {
+      pointerId: 71,
+      pointerType: "touch",
+      button: 0,
+      isPrimary: true,
+    });
     fireEvent.touchStart(surface, { touches: [touch], changedTouches: [touch] });
-    fireEvent.pointerUp(surface, { pointerId: 71, pointerType: "touch", button: 0, isPrimary: true });
+    fireEvent.pointerUp(surface, {
+      pointerId: 71,
+      pointerType: "touch",
+      button: 0,
+      isPrimary: true,
+    });
     fireEvent.touchEnd(surface, { touches: [], changedTouches: [touch] });
 
     expect(calls).toEqual(["move-off", "left-click"]);
@@ -192,27 +246,39 @@ describe("TrackpadMode gyro movement", () => {
     const onMouseButtonDown = vi.fn();
     const onMouseButtonUp = vi.fn();
     const setEngaged = vi.fn();
-    const view = render(<TrackpadMode
-      {...baseProps}
-      onMouseButtonClick={onMouseButtonClick}
-      onMouseButtonDown={onMouseButtonDown}
-      onMouseButtonUp={onMouseButtonUp}
-      gyro={{
-        availability: "ready",
-        enableFromUserGesture: vi.fn(),
-        engaged: false,
-        selected: true,
-        setEngaged,
-        setSelected: vi.fn()
-      }}
-    />);
+    const view = render(
+      <TrackpadMode
+        {...baseProps}
+        onMouseButtonClick={onMouseButtonClick}
+        onMouseButtonDown={onMouseButtonDown}
+        onMouseButtonUp={onMouseButtonUp}
+        gyro={{
+          availability: "ready",
+          enableFromUserGesture: vi.fn(),
+          engaged: false,
+          selected: true,
+          setEngaged,
+          setSelected: vi.fn(),
+        }}
+      />,
+    );
     const surface = view.container.querySelector(".trackpad-surface")!;
 
     for (const identifier of [72, 73]) {
       const touch = { identifier };
-      fireEvent.pointerDown(surface, { pointerId: identifier, pointerType: "touch", button: 0, isPrimary: true });
+      fireEvent.pointerDown(surface, {
+        pointerId: identifier,
+        pointerType: "touch",
+        button: 0,
+        isPrimary: true,
+      });
       fireEvent.touchStart(surface, { touches: [touch], changedTouches: [touch] });
-      fireEvent.pointerUp(surface, { pointerId: identifier, pointerType: "touch", button: 0, isPrimary: true });
+      fireEvent.pointerUp(surface, {
+        pointerId: identifier,
+        pointerType: "touch",
+        button: 0,
+        isPrimary: true,
+      });
       fireEvent.touchEnd(surface, { touches: [], changedTouches: [touch] });
     }
 
@@ -227,22 +293,28 @@ describe("TrackpadMode gyro movement", () => {
   it("does not click after a held or cancelled clutch press", () => {
     const onMouseButtonDown = vi.fn();
     const onMouseButtonUp = vi.fn();
-    const view = render(<TrackpadMode
-      {...baseProps}
-      onMouseButtonDown={onMouseButtonDown}
-      onMouseButtonUp={onMouseButtonUp}
-      gyro={{
-        availability: "ready",
-        enableFromUserGesture: vi.fn(),
-        engaged: false,
-        selected: true,
-        setEngaged: vi.fn(),
-        setSelected: vi.fn()
-      }}
-    />);
+    const view = render(
+      <TrackpadMode
+        {...baseProps}
+        onMouseButtonDown={onMouseButtonDown}
+        onMouseButtonUp={onMouseButtonUp}
+        gyro={{
+          availability: "ready",
+          enableFromUserGesture: vi.fn(),
+          engaged: false,
+          selected: true,
+          setEngaged: vi.fn(),
+          setSelected: vi.fn(),
+        }}
+      />,
+    );
     const surface = view.container.querySelector(".trackpad-surface")!;
 
-    const heldDown = createEvent.pointerDown(surface, { pointerId: 53, button: 0, isPrimary: true });
+    const heldDown = createEvent.pointerDown(surface, {
+      pointerId: 53,
+      button: 0,
+      isPrimary: true,
+    });
     const heldUp = createEvent.pointerUp(surface, { pointerId: 53 });
     Object.defineProperty(heldDown, "timeStamp", { value: 100 });
     Object.defineProperty(heldUp, "timeStamp", { value: 401 });
@@ -258,21 +330,33 @@ describe("TrackpadMode gyro movement", () => {
 
   it("clicks with Enter and uses Space as the keyboard movement clutch", () => {
     const calls: string[] = [];
-    render(<TrackpadMode
-      {...baseProps}
-      onMouseButtonClick={(button) => { calls.push(`${button}-click`); }}
-      onMouseButtonDown={(button) => { calls.push(`${button}-down`); }}
-      onMouseButtonUp={(button) => { calls.push(`${button}-up`); }}
-      gyro={{
-        availability: "ready",
-        enableFromUserGesture: vi.fn(),
-        engaged: false,
-        selected: true,
-        setEngaged: (value) => { calls.push(value ? "move-on" : "move-off"); },
-        setSelected: vi.fn()
-      }}
-    />);
-    const clutch = screen.getByRole("button", { name: "Tap to click, double-tap to double-click, hold to move the mouse" });
+    render(
+      <TrackpadMode
+        {...baseProps}
+        onMouseButtonClick={(button) => {
+          calls.push(`${button}-click`);
+        }}
+        onMouseButtonDown={(button) => {
+          calls.push(`${button}-down`);
+        }}
+        onMouseButtonUp={(button) => {
+          calls.push(`${button}-up`);
+        }}
+        gyro={{
+          availability: "ready",
+          enableFromUserGesture: vi.fn(),
+          engaged: false,
+          selected: true,
+          setEngaged: (value) => {
+            calls.push(value ? "move-on" : "move-off");
+          },
+          setSelected: vi.fn(),
+        }}
+      />,
+    );
+    const clutch = screen.getByRole("button", {
+      name: "Tap to click, double-tap to double-click, hold to move the mouse",
+    });
 
     fireEvent.keyDown(clutch, { key: "Enter" });
     fireEvent.keyDown(clutch, { key: " ", code: "Space" });
@@ -285,21 +369,25 @@ describe("TrackpadMode gyro movement", () => {
     const onMouseButtonClick = vi.fn();
     const onMouseButtonDown = vi.fn();
     const onMouseButtonUp = vi.fn();
-    render(<TrackpadMode
-      {...baseProps}
-      onMouseButtonClick={onMouseButtonClick}
-      onMouseButtonDown={onMouseButtonDown}
-      onMouseButtonUp={onMouseButtonUp}
-      gyro={{
-        availability: "ready",
-        enableFromUserGesture: vi.fn(),
-        engaged: false,
-        selected: true,
-        setEngaged: vi.fn(),
-        setSelected: vi.fn()
-      }}
-    />);
-    const clutch = screen.getByRole("button", { name: "Tap to click, double-tap to double-click, hold to move the mouse" });
+    render(
+      <TrackpadMode
+        {...baseProps}
+        onMouseButtonClick={onMouseButtonClick}
+        onMouseButtonDown={onMouseButtonDown}
+        onMouseButtonUp={onMouseButtonUp}
+        gyro={{
+          availability: "ready",
+          enableFromUserGesture: vi.fn(),
+          engaged: false,
+          selected: true,
+          setEngaged: vi.fn(),
+          setSelected: vi.fn(),
+        }}
+      />,
+    );
+    const clutch = screen.getByRole("button", {
+      name: "Tap to click, double-tap to double-click, hold to move the mouse",
+    });
 
     fireEvent.click(clutch, { detail: 0 });
     fireEvent.click(clutch, { detail: 1 });
@@ -317,9 +405,11 @@ describe("TrackpadMode gyro movement", () => {
       engaged: false,
       selected: true,
       setEngaged,
-      setSelected: vi.fn()
+      setSelected: vi.fn(),
     };
-    const view = render(<TrackpadMode {...baseProps} gyro={{ ...gyroBase, availability: "ready" }} />);
+    const view = render(
+      <TrackpadMode {...baseProps} gyro={{ ...gyroBase, availability: "ready" }} />,
+    );
     const surface = view.container.querySelector(".trackpad-surface")!;
 
     fireEvent.pointerDown(surface, { pointerId: 61, button: 0, isPrimary: true });
@@ -328,7 +418,9 @@ describe("TrackpadMode gyro movement", () => {
 
     view.rerender(<TrackpadMode {...baseProps} gyro={{ ...gyroBase, availability: "ready" }} />);
     fireEvent.pointerDown(surface, { pointerId: 62, button: 0, isPrimary: true });
-    act(() => { vi.advanceTimersByTime(301); });
+    act(() => {
+      vi.advanceTimersByTime(301);
+    });
     expect(setEngaged).toHaveBeenLastCalledWith(true);
   });
 
@@ -336,19 +428,21 @@ describe("TrackpadMode gyro movement", () => {
     const onMouseButtonDown = vi.fn();
     const onMouseButtonUp = vi.fn();
     const setEngaged = vi.fn();
-    const view = render(<TrackpadMode
-      {...baseProps}
-      onMouseButtonDown={onMouseButtonDown}
-      onMouseButtonUp={onMouseButtonUp}
-      gyro={{
-        availability: "ready",
-        enableFromUserGesture: vi.fn(),
-        engaged: false,
-        selected: true,
-        setEngaged,
-        setSelected: vi.fn()
-      }}
-    />);
+    const view = render(
+      <TrackpadMode
+        {...baseProps}
+        onMouseButtonDown={onMouseButtonDown}
+        onMouseButtonUp={onMouseButtonUp}
+        gyro={{
+          availability: "ready",
+          enableFromUserGesture: vi.fn(),
+          engaged: false,
+          selected: true,
+          setEngaged,
+          setSelected: vi.fn(),
+        }}
+      />,
+    );
     const surface = view.container.querySelector(".trackpad-surface")!;
 
     fireEvent.pointerDown(surface, { pointerId: 63, button: 2, isPrimary: true });
@@ -363,19 +457,25 @@ describe("TrackpadMode gyro movement", () => {
 
   it("does not add a surface click after an explicit button tap during the clutch", () => {
     const buttonCalls: string[] = [];
-    const view = render(<TrackpadMode
-      {...baseProps}
-      onMouseButtonDown={(button) => { buttonCalls.push(`${button}-down`); }}
-      onMouseButtonUp={(button) => { buttonCalls.push(`${button}-up`); }}
-      gyro={{
-        availability: "ready",
-        enableFromUserGesture: vi.fn(),
-        engaged: false,
-        selected: true,
-        setEngaged: vi.fn(),
-        setSelected: vi.fn()
-      }}
-    />);
+    const view = render(
+      <TrackpadMode
+        {...baseProps}
+        onMouseButtonDown={(button) => {
+          buttonCalls.push(`${button}-down`);
+        }}
+        onMouseButtonUp={(button) => {
+          buttonCalls.push(`${button}-up`);
+        }}
+        gyro={{
+          availability: "ready",
+          enableFromUserGesture: vi.fn(),
+          engaged: false,
+          selected: true,
+          setEngaged: vi.fn(),
+          setSelected: vi.fn(),
+        }}
+      />,
+    );
     const surface = view.container.querySelector(".trackpad-surface")!;
     const right = screen.getByRole("button", { name: "Right" });
 
@@ -389,18 +489,27 @@ describe("TrackpadMode gyro movement", () => {
 
   it("engages movement while a mouse button is held and preserves button ordering", () => {
     const calls: string[] = [];
-    render(<TrackpadMode {...baseProps}
-      onMouseButtonDown={(button) => { calls.push(`${button}-down`); }}
-      onMouseButtonUp={(button) => { calls.push(`${button}-up`); }}
-      gyro={{
-        availability: "ready",
-        enableFromUserGesture: vi.fn(),
-        engaged: false,
-        selected: true,
-        setEngaged: (value) => { calls.push(value ? "move-on" : "move-off"); },
-        setSelected: vi.fn()
-      }}
-    />);
+    render(
+      <TrackpadMode
+        {...baseProps}
+        onMouseButtonDown={(button) => {
+          calls.push(`${button}-down`);
+        }}
+        onMouseButtonUp={(button) => {
+          calls.push(`${button}-up`);
+        }}
+        gyro={{
+          availability: "ready",
+          enableFromUserGesture: vi.fn(),
+          engaged: false,
+          selected: true,
+          setEngaged: (value) => {
+            calls.push(value ? "move-on" : "move-off");
+          },
+          setSelected: vi.fn(),
+        }}
+      />,
+    );
     const left = screen.getByRole("button", { name: "Left" });
 
     fireEvent.pointerDown(left, { pointerId: 42 });
@@ -414,35 +523,47 @@ describe("TrackpadMode two-finger mode", () => {
   it("shows an isolated Scroll and Zoom switch when Pinch zoom is enabled", () => {
     const onTouchStart = vi.fn();
     const onTwoFingerModeChange = vi.fn();
-    const view = render(<TrackpadMode
-      {...baseProps}
-      onTouchStart={onTouchStart}
-      onTwoFingerModeChange={onTwoFingerModeChange}
-      trackpadSettings={{ ...defaultTrackpadSettings, zoomGestures: true }}
-    />);
-    const scrollButton = screen.getByRole("button", { name: "Two-finger mode: Scroll. Switch to Zoom" });
+    const view = render(
+      <TrackpadMode
+        {...baseProps}
+        onTouchStart={onTouchStart}
+        onTwoFingerModeChange={onTwoFingerModeChange}
+        trackpadSettings={{ ...defaultTrackpadSettings, zoomGestures: true }}
+      />,
+    );
+    const scrollButton = screen.getByRole("button", {
+      name: "Two-finger mode: Scroll. Switch to Zoom",
+    });
 
-    fireEvent.touchStart(scrollButton, { targetTouches: [{ identifier: 1, clientX: 20, clientY: 20 }] });
+    fireEvent.touchStart(scrollButton, {
+      targetTouches: [{ identifier: 1, clientX: 20, clientY: 20 }],
+    });
     fireEvent.touchEnd(scrollButton, { targetTouches: [] });
     fireEvent.click(scrollButton);
 
     expect(onTouchStart).not.toHaveBeenCalled();
     expect(onTwoFingerModeChange).toHaveBeenCalledExactlyOnceWith("zoom");
 
-    view.rerender(<TrackpadMode
-      {...baseProps}
-      onTwoFingerModeChange={onTwoFingerModeChange}
-      trackpadSettings={{ ...defaultTrackpadSettings, zoomGestures: true }}
-      twoFingerMode="zoom"
-    />);
-    fireEvent.click(screen.getByRole("button", { name: "Two-finger mode: Zoom. Switch to Scroll" }));
+    view.rerender(
+      <TrackpadMode
+        {...baseProps}
+        onTwoFingerModeChange={onTwoFingerModeChange}
+        trackpadSettings={{ ...defaultTrackpadSettings, zoomGestures: true }}
+        twoFingerMode="zoom"
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Two-finger mode: Zoom. Switch to Scroll" }),
+    );
     expect(onTwoFingerModeChange).toHaveBeenLastCalledWith("scroll");
   });
 
   it("hides the switch when Pinch zoom is disabled", () => {
     render(<TrackpadMode {...baseProps} />);
 
-    expect(screen.queryByRole("button", { name: "Two-finger mode: Scroll. Switch to Zoom" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Two-finger mode: Scroll. Switch to Zoom" }),
+    ).toBeNull();
   });
 });
 
@@ -456,7 +577,12 @@ describe("TrackpadMode click buttons", () => {
   });
 
   it("renders right then left for left-handed layout", () => {
-    render(<TrackpadMode {...baseProps} trackpadSettings={{ ...defaultTrackpadSettings, leftHandedButtons: true }} />);
+    render(
+      <TrackpadMode
+        {...baseProps}
+        trackpadSettings={{ ...defaultTrackpadSettings, leftHandedButtons: true }}
+      />,
+    );
 
     const buttons = screen.getAllByRole("button", { name: /left|right/i });
 
@@ -464,15 +590,28 @@ describe("TrackpadMode click buttons", () => {
   });
 
   it("marks large click button layout", () => {
-    render(<TrackpadMode {...baseProps} trackpadSettings={{ ...defaultTrackpadSettings, largeClickButtons: true }} />);
+    render(
+      <TrackpadMode
+        {...baseProps}
+        trackpadSettings={{ ...defaultTrackpadSettings, largeClickButtons: true }}
+      />,
+    );
 
-    expect(document.querySelector(".trackpad-mode")?.classList.contains("large-click-buttons")).toBe(true);
+    expect(
+      document.querySelector(".trackpad-mode")?.classList.contains("large-click-buttons"),
+    ).toBe(true);
   });
 
   it("sends button down and up so buttons can be held while moving", () => {
     const onMouseButtonDown = vi.fn();
     const onMouseButtonUp = vi.fn();
-    render(<TrackpadMode {...baseProps} onMouseButtonDown={onMouseButtonDown} onMouseButtonUp={onMouseButtonUp} />);
+    render(
+      <TrackpadMode
+        {...baseProps}
+        onMouseButtonDown={onMouseButtonDown}
+        onMouseButtonUp={onMouseButtonUp}
+      />,
+    );
 
     const leftButton = screen.getByRole("button", { name: "Left" });
     fireEvent.pointerDown(leftButton, { pointerId: 7 });
@@ -485,7 +624,13 @@ describe("TrackpadMode click buttons", () => {
   it("still sends button events when pointer capture fails", () => {
     const onMouseButtonDown = vi.fn();
     const onMouseButtonUp = vi.fn();
-    render(<TrackpadMode {...baseProps} onMouseButtonDown={onMouseButtonDown} onMouseButtonUp={onMouseButtonUp} />);
+    render(
+      <TrackpadMode
+        {...baseProps}
+        onMouseButtonDown={onMouseButtonDown}
+        onMouseButtonUp={onMouseButtonUp}
+      />,
+    );
 
     const leftButton = screen.getByRole("button", { name: "Left" });
     leftButton.setPointerCapture = vi.fn(() => {
@@ -588,13 +733,23 @@ describe("TrackpadMode click buttons", () => {
   it("does not treat a callback-only rerender as a cleanup boundary", () => {
     const onMouseButtonUp = vi.fn();
     const view = render(
-      <TrackpadMode {...baseProps} onMouseButtonUp={(button) => { onMouseButtonUp(button); }} />
+      <TrackpadMode
+        {...baseProps}
+        onMouseButtonUp={(button) => {
+          onMouseButtonUp(button);
+        }}
+      />,
     );
     const leftButton = screen.getByRole("button", { name: "Left" });
     fireEvent.pointerDown(leftButton, { pointerId: 18 });
 
     view.rerender(
-      <TrackpadMode {...baseProps} onMouseButtonUp={(button) => { onMouseButtonUp(button); }} />
+      <TrackpadMode
+        {...baseProps}
+        onMouseButtonUp={(button) => {
+          onMouseButtonUp(button);
+        }}
+      />,
     );
 
     expect(onMouseButtonUp).not.toHaveBeenCalled();
@@ -609,7 +764,9 @@ describe("TrackpadMode click buttons", () => {
     const removeDocumentListener = vi.spyOn(document, "removeEventListener");
     const view = render(<TrackpadMode {...baseProps} />);
     const blurListener = addWindowListener.mock.calls.find(([type]) => type === "blur")?.[1];
-    const visibilityListener = addDocumentListener.mock.calls.find(([type]) => type === "visibilitychange")?.[1];
+    const visibilityListener = addDocumentListener.mock.calls.find(
+      ([type]) => type === "visibilitychange",
+    )?.[1];
 
     view.unmount();
 

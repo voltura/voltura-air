@@ -1,5 +1,16 @@
-import { useEffect, useEffectEvent, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { getBrowserName, getDefaultDeviceName, getDisplayMode, getPlatformName } from "../platform/clientEnvironment";
+import {
+  useEffect,
+  useEffectEvent,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from "react";
+import {
+  getBrowserName,
+  getDefaultDeviceName,
+  getDisplayMode,
+  getPlatformName,
+} from "../platform/clientEnvironment";
 import type {
   AppLaunchResultMessage,
   AudioStateMessage,
@@ -27,10 +38,15 @@ import type {
   ScreenViewStopResultMessage,
   SystemPowerResultMessage,
   TextSendResultMessage,
-  UrlOpenResultMessage
+  UrlOpenResultMessage,
 } from "../protocol/messages";
 import { clearPairTokenFromAddress } from "./clientIdentity";
-import { getNextHealthCheckDelay, getNextInputAckCheckDelay, hasExpiredInputAck, staleConnectionMs } from "./connectionHealthPolicy";
+import {
+  getNextHealthCheckDelay,
+  getNextInputAckCheckDelay,
+  hasExpiredInputAck,
+  staleConnectionMs,
+} from "./connectionHealthPolicy";
 import {
   diagnosticCodeForPairingReason,
   getDisplayPcName,
@@ -40,11 +56,24 @@ import {
   getPcUnavailableMessage,
   normalizeAudioState,
   parseRejectedCustomScreenGetResult,
-  parseServerMessage
+  parseServerMessage,
 } from "./connectionProtocol";
 import { requestHostState, trySendClientMessage } from "./connectionSocketMessages";
 import type { ConnectionError, ConnectionState, PairingAttempt } from "./connectionTypes";
-import { clearStoredReconnectKey, createPairingBootstrapMaterial, createPairingKeyMaterial, handlePairAccepted, hasStoredReconnectKey, isExpectedHostIdentity, signClientPayload, signReconnectChallenge, shouldClearStoredReconnectKeyForRejection, verifyPairingBootstrapChallenge, type PairingBootstrapMaterial, type PairingKeyMaterial } from "./pairingCredentials";
+import {
+  clearStoredReconnectKey,
+  createPairingBootstrapMaterial,
+  createPairingKeyMaterial,
+  handlePairAccepted,
+  hasStoredReconnectKey,
+  isExpectedHostIdentity,
+  signClientPayload,
+  signReconnectChallenge,
+  shouldClearStoredReconnectKeyForRejection,
+  verifyPairingBootstrapChallenge,
+  type PairingBootstrapMaterial,
+  type PairingKeyMaterial,
+} from "./pairingCredentials";
 import {
   applyHostIdentityFromAcceptance,
   applyPcNameFromHost,
@@ -53,11 +82,23 @@ import {
   saveActivePcId,
   savePcProfiles,
   upsertPcProfile,
-  type PcProfile
+  type PcProfile,
 } from "./pcProfiles";
-import { beginRelaySession, parseRelayKeyChallenge, verifyRelayHostAcceptance, type PendingRelaySession, type RelayEncryptedChannel, type RelayEncryptedSend } from "./relaySessionCrypto";
+import {
+  beginRelaySession,
+  parseRelayKeyChallenge,
+  verifyRelayHostAcceptance,
+  type PendingRelaySession,
+  type RelayEncryptedChannel,
+  type RelayEncryptedSend,
+} from "./relaySessionCrypto";
 import type { PendingMovementAck } from "./useConnectionSender";
-import { isControllerSocketClosingOrClosed, isControllerSocketConnecting, isControllerSocketOpen, type ControllerSocket } from "./controllerSocket";
+import {
+  isControllerSocketClosingOrClosed,
+  isControllerSocketConnecting,
+  isControllerSocketOpen,
+  type ControllerSocket,
+} from "./controllerSocket";
 import { connectSecureDirect } from "./secureDirect";
 
 const directConnectionTimeoutMs = 3000;
@@ -81,7 +122,15 @@ interface ConnectionSocketLifecycleOptions {
   completeCustomScreenGet: (result: CustomScreenGetResultMessage) => boolean;
   completeCustomScreenInvoke: (result: CustomScreenInvokeResultMessage) => boolean;
   rejectCustomScreenGet: (operationId: string) => boolean;
-  completeScreenViewMessage: (result: ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage | ScreenViewEndedMessage) => void;
+  completeScreenViewMessage: (
+    result:
+      | ScreenViewSourcesResultMessage
+      | ScreenViewStartResultMessage
+      | ScreenViewAnswerResultMessage
+      | ScreenViewSourceResultMessage
+      | ScreenViewStopResultMessage
+      | ScreenViewEndedMessage,
+  ) => void;
   completePhoneWebcamMessage: (result: PhoneWebcamServerMessage) => void;
   completeFileManagerMessage: (result: FileManagerServerMessage) => void;
   completePowerAction: (result: SystemPowerResultMessage) => boolean;
@@ -119,7 +168,10 @@ interface ConnectionSocketLifecycleOptions {
   socketRef: RefObject<ControllerSocket | null>;
   supportsInputAckRef: RefObject<boolean>;
   supportsVolumeControlRef: RefObject<boolean>;
-  updateCapabilitiesFromSocket: (capabilities: ServerCapabilities | undefined, connected?: boolean) => void;
+  updateCapabilitiesFromSocket: (
+    capabilities: ServerCapabilities | undefined,
+    connected?: boolean,
+  ) => void;
   updateHostStatusFromSocket: (metadata: HostStatusMetadata | undefined) => void;
 }
 
@@ -173,7 +225,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     supportsInputAckRef,
     supportsVolumeControlRef,
     updateCapabilitiesFromSocket: updateCapabilities,
-    updateHostStatusFromSocket: updateHostStatus
+    updateHostStatusFromSocket: updateHostStatus,
   } = options;
 
   const clearRuntimeStateFromSocket = useEffectEvent(clearRuntimeState);
@@ -219,7 +271,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     let verifiedHostIdentity: { publicKey: string; fingerprint: string } | null = null;
     let pendingRelaySession: PendingRelaySession | null = null;
     let relayChannel: RelayEncryptedChannel | null = null;
-  
+
     if (!connectionPcId || !connectionPcUrl) {
       clearRuntimeStateFromSocket();
       relayEncryptedSendRef.current = null;
@@ -229,12 +281,12 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         clearTimers();
       };
     }
-  
+
     const pc: PcProfile = { ...createPcProfile(connectionPcUrl), id: connectionPcId };
     const currentPc = () => getLatestConnectionPc(pc);
     const pendingPc = getPendingManualPc();
     let commitManualPcOnAcceptance = pendingPc?.id === pc.id && pendingPc.url === pc.url;
-  
+
     function touchHealthy() {
       lastHealthyAtRef.current = Date.now();
       window.clearTimeout(healthDeadlineTimer);
@@ -242,11 +294,15 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     }
 
     function clearPendingPairingToken() {
-      if (pairingAttemptRef.current.token === undefined) {return;}
+      if (pairingAttemptRef.current.token === undefined) {
+        return;
+      }
       pairingAttemptRef.current = { ...pairingAttemptRef.current, token: undefined };
-      setPairingAttempt((current) => current.token === undefined ? current : { ...current, token: undefined });
+      setPairingAttempt((current) =>
+        current.token === undefined ? current : { ...current, token: undefined },
+      );
     }
-  
+
     function clearHealthCheck() {
       window.clearTimeout(healthCheckTimer);
       window.clearTimeout(healthDeadlineTimer);
@@ -254,7 +310,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       healthCheckDueAt = undefined;
       healthDeadlineTimer = undefined;
     }
-  
+
     function clearTimers() {
       window.clearTimeout(retryTimer);
       window.clearTimeout(connectionTimer);
@@ -262,7 +318,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       retryTimer = undefined;
       connectionTimer = undefined;
     }
-  
+
     function releaseSocketListeners() {
       removeSocketListeners?.();
       removeSocketListeners = undefined;
@@ -271,24 +327,28 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       secureDirectCleanup?.();
       secureDirectCleanup = undefined;
     }
-  
+
     function scheduleRetry() {
       if (retryTimer !== undefined || disposed || !shouldRetry) {
         return;
       }
-  
+
       retryTimer = window.setTimeout(connect, retryDelayMs);
     }
-  
-    function markUnavailable(socket?: ControllerSocket, reason?: string, code = "VAIR-PAIR-HOST-UNREACHABLE") {
+
+    function markUnavailable(
+      socket?: ControllerSocket,
+      reason?: string,
+      code = "VAIR-PAIR-HOST-UNREACHABLE",
+    ) {
       if (disposed || !shouldRetry) {
         return;
       }
-  
+
       if (socket && socket !== socketRef.current) {
         return;
       }
-  
+
       hasShownUnavailable = true;
       clearRuntimeStateFromSocket();
       window.clearTimeout(connectionTimer);
@@ -298,26 +358,28 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       setLastConnectionError({ code, message: unavailableMessage });
       setState("unavailable");
       setMessage(unavailableMessage);
-  
+
       if (commitManualPcOnAcceptance) {
         commitManualPcOnAcceptance = false;
         shouldRetry = false;
         clearPendingPairingToken();
-        setPendingManualPc((current) => current?.id === pc.id && current.url === pc.url ? null : current);
+        setPendingManualPc((current) =>
+          current?.id === pc.id && current.url === pc.url ? null : current,
+        );
       }
-  
+
       if (socket) {
         releaseSocketListeners();
       }
       if (socket && (isControllerSocketOpen(socket) || isControllerSocketConnecting(socket))) {
         socket.close();
       }
-  
+
       if (shouldRetry) {
         scheduleRetry();
       }
     }
-  
+
     function reconnectIfStale() {
       if (backgroundSuspended) {
         return;
@@ -326,49 +388,70 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       if (secureSetupAbort) {
         return;
       }
-  
+
       const socket = socketRef.current;
       if (!socket || isControllerSocketClosingOrClosed(socket)) {
         connect();
         return;
       }
-  
+
       if (!isControllerSocketOpen(socket)) {
         return;
       }
-  
+
       if (hasExpiredInputAck(pendingInputAcksRef.current.values(), supportsInputAckRef.current)) {
-        markUnavailable(socket, getInputAckTimeoutMessage(currentPc(), screenshotMode), "VAIR-PAIR-INPUT-ACK-TIMEOUT");
+        markUnavailable(
+          socket,
+          getInputAckTimeoutMessage(currentPc(), screenshotMode),
+          "VAIR-PAIR-INPUT-ACK-TIMEOUT",
+        );
         return;
       }
-  
-      if (lastHealthyAtRef.current > 0 && Date.now() - lastHealthyAtRef.current > staleConnectionMs) {
-        markUnavailable(socket, getPcUnavailableMessage(currentPc(), screenshotMode), "VAIR-PAIR-STALE-CONNECTION");
+
+      if (
+        lastHealthyAtRef.current > 0 &&
+        Date.now() - lastHealthyAtRef.current > staleConnectionMs
+      ) {
+        markUnavailable(
+          socket,
+          getPcUnavailableMessage(currentPc(), screenshotMode),
+          "VAIR-PAIR-STALE-CONNECTION",
+        );
         return;
       }
-  
+
       if (!requestHostState(socket, supportsVolumeControlRef.current)) {
         markUnavailable(socket);
         return;
       }
       scheduleHealthCheck(socket);
     }
-  
+
     function scheduleHealthCheck(socket: ControllerSocket, onlyIfEarlier = false) {
-      if (disposed || backgroundSuspended || socket !== socketRef.current || !isControllerSocketOpen(socket)) {
+      if (
+        disposed ||
+        backgroundSuspended ||
+        socket !== socketRef.current ||
+        !isControllerSocketOpen(socket)
+      ) {
         return;
       }
-  
+
       const delay = Math.min(
         getNextHealthCheckDelay(
           pendingInputAcksRef.current.size,
           lastUserActivityAtRef.current,
-          lastHealthyAtRef.current
+          lastHealthyAtRef.current,
         ),
-        getNextInputAckCheckDelay(pendingInputAcksRef.current.values())
+        getNextInputAckCheckDelay(pendingInputAcksRef.current.values()),
       );
       const dueAt = Date.now() + delay;
-      if (onlyIfEarlier && healthCheckTimer !== undefined && healthCheckDueAt !== undefined && healthCheckDueAt <= dueAt) {
+      if (
+        onlyIfEarlier &&
+        healthCheckTimer !== undefined &&
+        healthCheckDueAt !== undefined &&
+        healthCheckDueAt <= dueAt
+      ) {
         return;
       }
 
@@ -379,19 +462,23 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         sendHealthCheck(socket);
       }, delay);
     }
-  
+
     function sendHealthCheck(socket: ControllerSocket) {
       healthCheckTimer = undefined;
       if (disposed || backgroundSuspended) {
         return;
       }
-  
+
       if (socket !== socketRef.current || !isControllerSocketOpen(socket)) {
         return;
       }
-  
+
       if (hasExpiredInputAck(pendingInputAcksRef.current.values(), supportsInputAckRef.current)) {
-        markUnavailable(socket, getInputAckTimeoutMessage(currentPc(), screenshotMode), "VAIR-PAIR-INPUT-ACK-TIMEOUT");
+        markUnavailable(
+          socket,
+          getInputAckTimeoutMessage(currentPc(), screenshotMode),
+          "VAIR-PAIR-INPUT-ACK-TIMEOUT",
+        );
         return;
       }
 
@@ -403,40 +490,45 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         }, queuedHealthRetryMs);
         return;
       }
-  
+
       if (!trySendClientMessage(socket, { type: "health.ping" })) {
         markUnavailable(socket);
         return;
       }
-  
+
       window.clearTimeout(healthDeadlineTimer);
-      healthDeadlineTimer = window.setTimeout(() => { markUnavailable(socket); }, healthCheckTimeoutMs);
+      healthDeadlineTimer = window.setTimeout(() => {
+        markUnavailable(socket);
+      }, healthCheckTimeoutMs);
     }
-  
+
     function connect() {
       if (disposed) {
         return;
       }
-  
+
       if (document.visibilityState === "hidden") {
         backgroundSuspended = true;
         clearTimers();
         return;
       }
-  
+
       backgroundSuspended = false;
       pendingInputAcksRef.current.clear();
       pendingMovementAckRef.current = null;
       const previousSocket = socketRef.current;
       releaseSocketListeners();
-      if (previousSocket && (isControllerSocketOpen(previousSocket) || isControllerSocketConnecting(previousSocket))) {
+      if (
+        previousSocket &&
+        (isControllerSocketOpen(previousSocket) || isControllerSocketConnecting(previousSocket))
+      ) {
         previousSocket.close();
       }
       window.clearTimeout(retryTimer);
       retryTimer = undefined;
       window.clearTimeout(connectionTimer);
       clearHealthCheck();
-  
+
       if (hasShownUnavailable) {
         const unavailableMessage = getPcUnavailableMessage(currentPc(), screenshotMode);
         setLastConnectionError({ code: "VAIR-PAIR-HOST-UNREACHABLE", message: unavailableMessage });
@@ -446,596 +538,826 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         setState("connecting");
         setMessage(`Connecting to ${getDisplayPcName(currentPc(), "", screenshotMode)}...`);
       }
-  
+
       if (pc.transportMode === "secure-direct") {
         if (!pc.relayRouteId) {
-          markUnavailable(undefined, "This Secure Direct PC address is invalid.", "VAIR-PAIR-SECURE-DIRECT-ROUTE");
+          markUnavailable(
+            undefined,
+            "This Secure Direct PC address is invalid.",
+            "VAIR-PAIR-SECURE-DIRECT-ROUTE",
+          );
           return;
         }
         const setupAbort = new AbortController();
         secureSetupAbort = setupAbort;
-        void connectSecureDirect(pc.relayRouteId, setupAbort.signal).then(({ channel, cleanup }) => {
-          if (disposed || backgroundSuspended || setupAbort.signal.aborted || secureSetupAbort !== setupAbort) {cleanup(); return;}
-          secureSetupAbort = undefined;
-          attachSocket(channel, cleanup);
-        }, () => {
-          if (setupAbort.signal.aborted || secureSetupAbort !== setupAbort) {return;}
-          secureSetupAbort = undefined;
-          if (!disposed && !backgroundSuspended) {markUnavailable(undefined, "Secure Direct could not establish a private LAN connection to this PC.", "VAIR-PAIR-SECURE-DIRECT");}
-        });
+        void connectSecureDirect(pc.relayRouteId, setupAbort.signal).then(
+          ({ channel, cleanup }) => {
+            if (
+              disposed ||
+              backgroundSuspended ||
+              setupAbort.signal.aborted ||
+              secureSetupAbort !== setupAbort
+            ) {
+              cleanup();
+              return;
+            }
+            secureSetupAbort = undefined;
+            attachSocket(channel, cleanup);
+          },
+          () => {
+            if (setupAbort.signal.aborted || secureSetupAbort !== setupAbort) {
+              return;
+            }
+            secureSetupAbort = undefined;
+            if (!disposed && !backgroundSuspended) {
+              markUnavailable(
+                undefined,
+                "Secure Direct could not establish a private LAN connection to this PC.",
+                "VAIR-PAIR-SECURE-DIRECT",
+              );
+            }
+          },
+        );
         return;
       }
       attachSocket(new WebSocket(getWebSocketUrl(pc)));
 
       function attachSocket(ws: ControllerSocket, cleanup?: () => void) {
-      secureDirectCleanup = cleanup;
-      if (ws instanceof WebSocket) {ws.binaryType = "arraybuffer";}
-      socketRef.current = ws;
-      connectionTimer = window.setTimeout(() => { markUnavailable(ws); }, getConnectionTimeoutMs(pc.transportMode));
-      let socketOpened = false;
-  
-      function onSocketOpen() {
-        if (socketOpened || disposed || ws !== socketRef.current) {
-          return;
+        secureDirectCleanup = cleanup;
+        if (ws instanceof WebSocket) {
+          ws.binaryType = "arraybuffer";
         }
-        socketOpened = true;
-  
-        if (!hasShownUnavailable) {
-          setState("connecting");
-          setMessage(`Connecting to ${getDisplayPcName(currentPc(), "", screenshotMode)}...`);
-        }
-        const currentPairingAttempt = pairingAttemptRef.current;
-        const currentProfile = currentPc();
-        pendingPairingKey = null;
-        pendingPairingBootstrap = null;
-        verifiedHostIdentity = null;
-        pendingRelaySession = null;
-        relayChannel = null;
-        relayEncryptedSendRef.current = null;
-        if (currentPairingAttempt.token !== undefined) {
-          pendingPairingKey = createPairingKeyMaterial();
-          pendingPairingBootstrap = createPairingBootstrapMaterial(currentPairingAttempt.token);
-          if (!pendingPairingKey || !pendingPairingBootstrap) {
-            markUnavailable(ws, "This browser cannot create a saved pairing. Scan from a browser with cryptographic random support.", "VAIR-PAIR-KEY-UNAVAILABLE");
+        socketRef.current = ws;
+        connectionTimer = window.setTimeout(() => {
+          markUnavailable(ws);
+        }, getConnectionTimeoutMs(pc.transportMode));
+        let socketOpened = false;
+
+        function onSocketOpen() {
+          if (socketOpened || disposed || ws !== socketRef.current) {
             return;
           }
-        } else if (!hasStoredReconnectKey(clientId, pc.id)) {
-          markUnavailable(ws, "Saved pairing is missing in this browser. Scan a fresh QR code to pair again.", "VAIR-PAIR-RECONNECT-KEY-MISSING");
-          return;
-        } else if (!currentProfile.hostIdentityFingerprint || !currentProfile.hostIdentityPublicKey) {
-          markUnavailable(ws, "This saved pairing predates authenticated PC identity. Scan a fresh QR code to pair again.", "VAIR-PAIR-HOST-IDENTITY-MISSING");
-          return;
-        }
+          socketOpened = true;
 
-        const hello: ClientMessage = {
-          type: "pair.hello",
-          clientId,
-          deviceName: deviceNameRef.current.trim() || getDefaultDeviceName(),
-          platform: getPlatformName(),
-          browser: getBrowserName(),
-          displayMode: getDisplayMode(),
-          pairTokenId: pendingPairingBootstrap?.pairTokenId,
-          clientNonce: pendingPairingBootstrap?.clientNonce,
-          reconnectPublicKey: pendingPairingKey?.reconnectPublicKey
-        };
-        ws.send(JSON.stringify(hello));
-      }
-  
-      function onSocketMessage(event: MessageEvent): Promise<void> | void {
-        if (disposed || ws !== socketRef.current) {
-          return;
-        }
-
-        const messageData: unknown = event.data;
-        if (relayChannel) {
-          return relayChannel.decryptText(messageData).then((decrypted) => {
-            if (disposed || ws !== socketRef.current) {return;}
-            if (decrypted === null) {
-              markUnavailable(ws, "The encrypted relay session was altered or replayed. Scan a fresh QR code if this continues.", "VAIR-PAIR-RELAY-ENCRYPTION");
-              return;
-            }
-            handleSocketMessage(decrypted);
-          });
-        } else if (pc.transportMode === "relay" && ws instanceof WebSocket && typeof messageData === "string") {
-          let relayMessage: unknown;
-          try { relayMessage = JSON.parse(messageData); } catch { relayMessage = null; }
-          const challenge = parseRelayKeyChallenge(relayMessage);
-          if (challenge) {
-            const hostIdentityPublicKey = verifiedHostIdentity?.publicKey ?? currentPc().hostIdentityPublicKey;
-            if (challenge.routeId !== pc.relayRouteId || challenge.clientId !== clientId || !hostIdentityPublicKey) {
-              markUnavailable(ws, "The relay session identity did not match this saved PC.", "VAIR-PAIR-RELAY-IDENTITY");
-              return;
-            }
-            pendingRelaySession = beginRelaySession(
-              challenge,
-              hostIdentityPublicKey,
-              pendingPairingKey?.privateKey ?? null,
-              (transcript) => signClientPayload(clientId, pc.id, transcript));
-            if (!pendingRelaySession) {
-              markUnavailable(ws, "This browser could not create encrypted relay session keys.", "VAIR-PAIR-RELAY-KEY");
-              return;
-            }
-            ws.send(JSON.stringify(pendingRelaySession.proof));
-            return;
+          if (!hasShownUnavailable) {
+            setState("connecting");
+            setMessage(`Connecting to ${getDisplayPcName(currentPc(), "", screenshotMode)}...`);
           }
-          if (pendingRelaySession && verifyRelayHostAcceptance(pendingRelaySession, relayMessage)) {
-            relayChannel = pendingRelaySession.channel;
-            pendingRelaySession = null;
-            const rawSend = ws.send.bind(ws);
-            const encryptedSend: RelayEncryptedSend = (data) => {
-              if (!relayChannel) {return Promise.reject(new Error("Relay encryption is not active."));}
-              return relayChannel.send((encrypted) => rawSend(encrypted), data);
-            };
-            relayEncryptedSendRef.current = encryptedSend;
-            ws.send = ((data: string | ArrayBufferLike | Blob | ArrayBufferView) => {
-              if (typeof data !== "string" || !relayChannel) {throw new TypeError("Encrypted relay messages must be JSON text.");}
-              void encryptedSend(data).catch(() => {
-                markUnavailable(ws, "The encrypted relay send queue could not keep up. Reconnecting...", "VAIR-PAIR-RELAY-BACKPRESSURE");
-              });
-            });
-            return;
-          }
-        }
-
-        handleSocketMessage(messageData);
-      }
-
-      let pendingFileTransferMessages = Promise.resolve();
-      function handleSocketMessage(messageData: unknown) {
-        const response = parseServerMessage(messageData);
-        if (response) {
-          handleValidatedSocketMessage(response);
-          return;
-        }
-        if (typeof messageData === "string" && messageData.includes("\"file.transfer.")) {
-          pendingFileTransferMessages = pendingFileTransferMessages.then(async () => {
-            const { parseFileTransferServerMessage } = await import("./fileTransferServerProtocol");
-            const transferResponse = parseFileTransferServerMessage(messageData);
-            if (transferResponse && !disposed && ws === socketRef.current) {handleValidatedSocketMessage(transferResponse);}
-          }).catch(() => markUnavailable(ws, "The file transfer protocol could not be loaded. Retrying...", "VAIR-FILE-TRANSFER-PROTOCOL"));
-          return;
-        }
-        const rejectedCustomScreenResult = parseRejectedCustomScreenGetResult(messageData);
-        if (rejectedCustomScreenResult) {
-          touchHealthy();
-          rejectCustomScreenGet(rejectedCustomScreenResult.operationId);
-          scheduleHealthCheck(ws);
-        }
-      }
-
-      function handleValidatedSocketMessage(response: ServerMessage) {
-  
-        if (response.type === "pair.challenge") {
-          sendPairProof(response.challenge);
-          return;
-        }
-
-        if (response.type === "pair.bootstrap.challenge") {
-          if (!pendingPairingBootstrap || !pendingPairingKey) {
-            markUnavailable(ws, "The PC sent an unexpected pairing challenge. Scan a fresh QR code.", "VAIR-PAIR-BOOTSTRAP-UNEXPECTED");
-            return;
-          }
-
-          const verified = verifyPairingBootstrapChallenge(
-            response,
-            pendingPairingBootstrap,
-            clientId,
-            pendingPairingKey.reconnectPublicKey
-          );
-          if (!verified) {
-            pendingPairingKey = null;
-            pendingPairingBootstrap = null;
-            markUnavailable(ws, "PC identity check failed. Scan a fresh QR code from the PC.", "VAIR-PAIR-HOST-PROOF-INVALID");
-            return;
-          }
-
-          verifiedHostIdentity = verified.hostIdentity;
-          pendingPairingBootstrap = null;
-          ws.send(JSON.stringify({ type: "pair.bootstrap.proof", clientId, proof: verified.clientProof } satisfies ClientMessage));
-          return;
-        }
-
-        if (response.type === "pair.accepted") {
-          const expectedHostFingerprint = verifiedHostIdentity?.fingerprint ?? currentPc().hostIdentityFingerprint;
-          if (!expectedHostFingerprint || !isExpectedHostIdentity(response, expectedHostFingerprint)) {
-            pendingPairingKey = null;
-            pendingPairingBootstrap = null;
-            verifiedHostIdentity = null;
-            markUnavailable(ws, "The PC identity did not match the scanned pairing code. Scan a new code directly from the PC.", "VAIR-PAIR-HOST-IDENTITY-MISMATCH");
-            return;
-          }
-          touchHealthy();
-          setConnectionEpoch((current) => current + 1);
-          if (commitManualPcOnAcceptance) {
-            commitManualPcOnAcceptance = false;
-            const acceptedPc = currentPc();
-            setPairedPcs((current) => {
-              const next = upsertPcProfile(current, acceptedPc);
-              savePcProfiles(next);
-              return next;
-            });
-            saveActivePcId(pc.id);
-            setActivePcId(pc.id);
-            setPendingManualPc((current) => current?.id === pc.id && current.url === pc.url ? null : current);
-          }
-          handlePairAccepted(response, pc.id, pendingPairingKey?.privateKey ?? null);
-          if (response.hostIdentity) {
-            setPairedPcs((current) => {
-              const next = applyHostIdentityFromAcceptance(current, pc.id, response.hostIdentity!.publicKey, response.hostIdentity!.fingerprint);
-              savePcProfiles(next);
-              return next;
-            });
-          }
+          const currentPairingAttempt = pairingAttemptRef.current;
+          const currentProfile = currentPc();
           pendingPairingKey = null;
           pendingPairingBootstrap = null;
           verifiedHostIdentity = null;
-          updateCapabilitiesFromSocket(response.capabilities);
-          updateHostStatusFromSocket(response.host);
-          if (!screenshotMode) {
-            setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName));
+          pendingRelaySession = null;
+          relayChannel = null;
+          relayEncryptedSendRef.current = null;
+          if (currentPairingAttempt.token !== undefined) {
+            pendingPairingKey = createPairingKeyMaterial();
+            pendingPairingBootstrap = createPairingBootstrapMaterial(currentPairingAttempt.token);
+            if (!pendingPairingKey || !pendingPairingBootstrap) {
+              markUnavailable(
+                ws,
+                "This browser cannot create a saved pairing. Scan from a browser with cryptographic random support.",
+                "VAIR-PAIR-KEY-UNAVAILABLE",
+              );
+              return;
+            }
+          } else if (!hasStoredReconnectKey(clientId, pc.id)) {
+            markUnavailable(
+              ws,
+              "Saved pairing is missing in this browser. Scan a fresh QR code to pair again.",
+              "VAIR-PAIR-RECONNECT-KEY-MISSING",
+            );
+            return;
+          } else if (
+            !currentProfile.hostIdentityFingerprint ||
+            !currentProfile.hostIdentityPublicKey
+          ) {
+            markUnavailable(
+              ws,
+              "This saved pairing predates authenticated PC identity. Scan a fresh QR code to pair again.",
+              "VAIR-PAIR-HOST-IDENTITY-MISSING",
+            );
+            return;
           }
-          clearPairTokenFromAddress();
-          if (pairingAttemptRef.current.token !== undefined) {
-            pairingAttemptRef.current = { ...pairingAttemptRef.current, token: undefined };
-            setPairingAttempt((current) => current.token === undefined ? current : { ...current, token: undefined });
-          }
-          window.clearTimeout(connectionTimer);
-          connectionTimer = undefined;
-          hasShownUnavailable = false;
-          setLastConnectionError(null);
-          setState("paired");
-          setMessage(`Connected to ${getDisplayPcName(currentPc(), response.pcName, screenshotMode)}`);
-          if (!requestHostState(ws, supportsVolumeControlRef.current)) {
-            markUnavailable(ws);
-          }
-          scheduleHealthCheck(ws);
-          return;
+
+          const hello: ClientMessage = {
+            type: "pair.hello",
+            clientId,
+            deviceName: deviceNameRef.current.trim() || getDefaultDeviceName(),
+            platform: getPlatformName(),
+            browser: getBrowserName(),
+            displayMode: getDisplayMode(),
+            pairTokenId: pendingPairingBootstrap?.pairTokenId,
+            clientNonce: pendingPairingBootstrap?.clientNonce,
+            reconnectPublicKey: pendingPairingKey?.reconnectPublicKey,
+          };
+          ws.send(JSON.stringify(hello));
         }
-  
-        if (response.type === "pair.rejected") {
-          shouldRetry = false;
-          if (commitManualPcOnAcceptance) {
-            commitManualPcOnAcceptance = false;
-            clearPendingPairingToken();
+
+        function onSocketMessage(event: MessageEvent): Promise<void> | void {
+          if (disposed || ws !== socketRef.current) {
+            return;
+          }
+
+          const messageData: unknown = event.data;
+          if (relayChannel) {
+            return relayChannel.decryptText(messageData).then((decrypted) => {
+              if (disposed || ws !== socketRef.current) {
+                return;
+              }
+              if (decrypted === null) {
+                markUnavailable(
+                  ws,
+                  "The encrypted relay session was altered or replayed. Scan a fresh QR code if this continues.",
+                  "VAIR-PAIR-RELAY-ENCRYPTION",
+                );
+                return;
+              }
+              handleSocketMessage(decrypted);
+            });
+          } else if (
+            pc.transportMode === "relay" &&
+            ws instanceof WebSocket &&
+            typeof messageData === "string"
+          ) {
+            let relayMessage: unknown;
+            try {
+              relayMessage = JSON.parse(messageData);
+            } catch {
+              relayMessage = null;
+            }
+            const challenge = parseRelayKeyChallenge(relayMessage);
+            if (challenge) {
+              const hostIdentityPublicKey =
+                verifiedHostIdentity?.publicKey ?? currentPc().hostIdentityPublicKey;
+              if (
+                challenge.routeId !== pc.relayRouteId ||
+                challenge.clientId !== clientId ||
+                !hostIdentityPublicKey
+              ) {
+                markUnavailable(
+                  ws,
+                  "The relay session identity did not match this saved PC.",
+                  "VAIR-PAIR-RELAY-IDENTITY",
+                );
+                return;
+              }
+              pendingRelaySession = beginRelaySession(
+                challenge,
+                hostIdentityPublicKey,
+                pendingPairingKey?.privateKey ?? null,
+                (transcript) => signClientPayload(clientId, pc.id, transcript),
+              );
+              if (!pendingRelaySession) {
+                markUnavailable(
+                  ws,
+                  "This browser could not create encrypted relay session keys.",
+                  "VAIR-PAIR-RELAY-KEY",
+                );
+                return;
+              }
+              ws.send(JSON.stringify(pendingRelaySession.proof));
+              return;
+            }
+            if (
+              pendingRelaySession &&
+              verifyRelayHostAcceptance(pendingRelaySession, relayMessage)
+            ) {
+              relayChannel = pendingRelaySession.channel;
+              pendingRelaySession = null;
+              const rawSend = ws.send.bind(ws);
+              const encryptedSend: RelayEncryptedSend = (data) => {
+                if (!relayChannel) {
+                  return Promise.reject(new Error("Relay encryption is not active."));
+                }
+                return relayChannel.send((encrypted) => rawSend(encrypted), data);
+              };
+              relayEncryptedSendRef.current = encryptedSend;
+              ws.send = (data: string | ArrayBufferLike | Blob | ArrayBufferView) => {
+                if (typeof data !== "string" || !relayChannel) {
+                  throw new TypeError("Encrypted relay messages must be JSON text.");
+                }
+                void encryptedSend(data).catch(() => {
+                  markUnavailable(
+                    ws,
+                    "The encrypted relay send queue could not keep up. Reconnecting...",
+                    "VAIR-PAIR-RELAY-BACKPRESSURE",
+                  );
+                });
+              };
+              return;
+            }
+          }
+
+          handleSocketMessage(messageData);
+        }
+
+        let pendingFileTransferMessages = Promise.resolve();
+        function handleSocketMessage(messageData: unknown) {
+          const response = parseServerMessage(messageData);
+          if (response) {
+            handleValidatedSocketMessage(response);
+            return;
+          }
+          if (typeof messageData === "string" && messageData.includes('"file.transfer.')) {
+            pendingFileTransferMessages = pendingFileTransferMessages
+              .then(async () => {
+                const { parseFileTransferServerMessage } =
+                  await import("./fileTransferServerProtocol");
+                const transferResponse = parseFileTransferServerMessage(messageData);
+                if (transferResponse && !disposed && ws === socketRef.current) {
+                  handleValidatedSocketMessage(transferResponse);
+                }
+              })
+              .catch(() =>
+                markUnavailable(
+                  ws,
+                  "The file transfer protocol could not be loaded. Retrying...",
+                  "VAIR-FILE-TRANSFER-PROTOCOL",
+                ),
+              );
+            return;
+          }
+          const rejectedCustomScreenResult = parseRejectedCustomScreenGetResult(messageData);
+          if (rejectedCustomScreenResult) {
+            touchHealthy();
+            rejectCustomScreenGet(rejectedCustomScreenResult.operationId);
+            scheduleHealthCheck(ws);
+          }
+        }
+
+        function handleValidatedSocketMessage(response: ServerMessage) {
+          if (response.type === "pair.challenge") {
+            sendPairProof(response.challenge);
+            return;
+          }
+
+          if (response.type === "pair.bootstrap.challenge") {
+            if (!pendingPairingBootstrap || !pendingPairingKey) {
+              markUnavailable(
+                ws,
+                "The PC sent an unexpected pairing challenge. Scan a fresh QR code.",
+                "VAIR-PAIR-BOOTSTRAP-UNEXPECTED",
+              );
+              return;
+            }
+
+            const verified = verifyPairingBootstrapChallenge(
+              response,
+              pendingPairingBootstrap,
+              clientId,
+              pendingPairingKey.reconnectPublicKey,
+            );
+            if (!verified) {
+              pendingPairingKey = null;
+              pendingPairingBootstrap = null;
+              markUnavailable(
+                ws,
+                "PC identity check failed. Scan a fresh QR code from the PC.",
+                "VAIR-PAIR-HOST-PROOF-INVALID",
+              );
+              return;
+            }
+
+            verifiedHostIdentity = verified.hostIdentity;
+            pendingPairingBootstrap = null;
+            ws.send(
+              JSON.stringify({
+                type: "pair.bootstrap.proof",
+                clientId,
+                proof: verified.clientProof,
+              } satisfies ClientMessage),
+            );
+            return;
+          }
+
+          if (response.type === "pair.accepted") {
+            const expectedHostFingerprint =
+              verifiedHostIdentity?.fingerprint ?? currentPc().hostIdentityFingerprint;
+            if (
+              !expectedHostFingerprint ||
+              !isExpectedHostIdentity(response, expectedHostFingerprint)
+            ) {
+              pendingPairingKey = null;
+              pendingPairingBootstrap = null;
+              verifiedHostIdentity = null;
+              markUnavailable(
+                ws,
+                "The PC identity did not match the scanned pairing code. Scan a new code directly from the PC.",
+                "VAIR-PAIR-HOST-IDENTITY-MISMATCH",
+              );
+              return;
+            }
+            touchHealthy();
+            setConnectionEpoch((current) => current + 1);
+            if (commitManualPcOnAcceptance) {
+              commitManualPcOnAcceptance = false;
+              const acceptedPc = currentPc();
+              setPairedPcs((current) => {
+                const next = upsertPcProfile(current, acceptedPc);
+                savePcProfiles(next);
+                return next;
+              });
+              saveActivePcId(pc.id);
+              setActivePcId(pc.id);
+              setPendingManualPc((current) =>
+                current?.id === pc.id && current.url === pc.url ? null : current,
+              );
+            }
+            handlePairAccepted(response, pc.id, pendingPairingKey?.privateKey ?? null);
+            if (response.hostIdentity) {
+              setPairedPcs((current) => {
+                const next = applyHostIdentityFromAcceptance(
+                  current,
+                  pc.id,
+                  response.hostIdentity!.publicKey,
+                  response.hostIdentity!.fingerprint,
+                );
+                savePcProfiles(next);
+                return next;
+              });
+            }
+            pendingPairingKey = null;
+            pendingPairingBootstrap = null;
+            verifiedHostIdentity = null;
+            updateCapabilitiesFromSocket(response.capabilities);
+            updateHostStatusFromSocket(response.host);
+            if (!screenshotMode) {
+              setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName));
+            }
+            clearPairTokenFromAddress();
+            if (pairingAttemptRef.current.token !== undefined) {
+              pairingAttemptRef.current = { ...pairingAttemptRef.current, token: undefined };
+              setPairingAttempt((current) =>
+                current.token === undefined ? current : { ...current, token: undefined },
+              );
+            }
+            window.clearTimeout(connectionTimer);
+            connectionTimer = undefined;
+            hasShownUnavailable = false;
+            setLastConnectionError(null);
+            setState("paired");
+            setMessage(
+              `Connected to ${getDisplayPcName(currentPc(), response.pcName, screenshotMode)}`,
+            );
+            if (!requestHostState(ws, supportsVolumeControlRef.current)) {
+              markUnavailable(ws);
+            }
+            scheduleHealthCheck(ws);
+            return;
+          }
+
+          if (response.type === "pair.rejected") {
+            shouldRetry = false;
+            if (commitManualPcOnAcceptance) {
+              commitManualPcOnAcceptance = false;
+              clearPendingPairingToken();
+              clearRuntimeStateFromSocket();
+              const rejectedMessage = `Pairing rejected: ${response.reason}`;
+              setLastConnectionError({
+                code: diagnosticCodeForPairingReason(response.reason),
+                message: rejectedMessage,
+              });
+              setState("rejected");
+              setMessage(rejectedMessage);
+              setPendingManualPc((current) =>
+                current?.id === pc.id && current.url === pc.url ? null : current,
+              );
+              releaseSocketListeners();
+              ws.close();
+              return;
+            }
+
+            const wasStoredReconnectRejected =
+              shouldClearStoredReconnectKeyForRejection(response.reason) &&
+              pairingAttemptRef.current.token === undefined;
+            if (shouldClearStoredReconnectKeyForRejection(response.reason)) {
+              clearStoredReconnectKey(clientId, pc.id);
+            }
+            pendingPairingKey = null;
+            pendingPairingBootstrap = null;
+            verifiedHostIdentity = null;
             clearRuntimeStateFromSocket();
             const rejectedMessage = `Pairing rejected: ${response.reason}`;
-            setLastConnectionError({ code: diagnosticCodeForPairingReason(response.reason), message: rejectedMessage });
-            setState("rejected");
-            setMessage(rejectedMessage);
-            setPendingManualPc((current) => current?.id === pc.id && current.url === pc.url ? null : current);
+            setLastConnectionError({
+              code: diagnosticCodeForPairingReason(response.reason),
+              message: rejectedMessage,
+            });
+            setState(wasStoredReconnectRejected ? "needs-pairing" : "rejected");
+            setMessage(
+              wasStoredReconnectRejected
+                ? "Saved pairing was removed on the PC. Scan a fresh QR code to pair again."
+                : rejectedMessage,
+            );
             releaseSocketListeners();
             ws.close();
             return;
           }
-  
-          const wasStoredReconnectRejected = shouldClearStoredReconnectKeyForRejection(response.reason) && pairingAttemptRef.current.token === undefined;
-          if (shouldClearStoredReconnectKeyForRejection(response.reason)) {
-            clearStoredReconnectKey(clientId, pc.id);
-          }
-          pendingPairingKey = null;
-          pendingPairingBootstrap = null;
-          verifiedHostIdentity = null;
-          clearRuntimeStateFromSocket();
-          const rejectedMessage = `Pairing rejected: ${response.reason}`;
-          setLastConnectionError({ code: diagnosticCodeForPairingReason(response.reason), message: rejectedMessage });
-          setState(wasStoredReconnectRejected ? "needs-pairing" : "rejected");
-          setMessage(wasStoredReconnectRejected ? "Saved pairing was removed on the PC. Scan a fresh QR code to pair again." : rejectedMessage);
-          releaseSocketListeners();
-          ws.close();
-          return;
-        }
-  
-        if (response.type === "status") {
-          const healthProbePending = healthDeadlineTimer !== undefined;
-          touchHealthy();
-          if (response.pcName && !screenshotMode) {
-            setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName ?? ""));
-          }
-  
-          updateHostStatusFromSocket(response.host);
-          if (!response.connected) {
-            updateCapabilitiesFromSocket(response.capabilities, false);
-            markUnavailable(ws, getPcDisconnectedMessage(currentPc(), response.message, screenshotMode), "VAIR-PAIR-HOST-DISCONNECTED");
+
+          if (response.type === "status") {
+            const healthProbePending = healthDeadlineTimer !== undefined;
+            touchHealthy();
+            if (response.pcName && !screenshotMode) {
+              setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName ?? ""));
+            }
+
+            updateHostStatusFromSocket(response.host);
+            if (!response.connected) {
+              updateCapabilitiesFromSocket(response.capabilities, false);
+              markUnavailable(
+                ws,
+                getPcDisconnectedMessage(currentPc(), response.message, screenshotMode),
+                "VAIR-PAIR-HOST-DISCONNECTED",
+              );
+              return;
+            }
+
+            updateCapabilitiesFromSocket(response.capabilities, true);
+            hasShownUnavailable = false;
+            setLastConnectionError(null);
+            setState("paired");
+            setMessage(
+              `Connected to ${getDisplayPcName(currentPc(), response.pcName ?? "", screenshotMode)}`,
+            );
+            if (healthProbePending) {
+              scheduleHealthCheck(ws);
+            }
             return;
           }
-  
-          updateCapabilitiesFromSocket(response.capabilities, true);
-          hasShownUnavailable = false;
-          setLastConnectionError(null);
-          setState("paired");
-          setMessage(`Connected to ${getDisplayPcName(currentPc(), response.pcName ?? "", screenshotMode)}`);
-          if (healthProbePending) {
+
+          if (response.type === "health.pong") {
+            touchHealthy();
+            hasShownUnavailable = false;
+            setLastConnectionError(null);
+            setState("paired");
             scheduleHealthCheck(ws);
+            return;
           }
-          return;
-        }
-  
-        if (response.type === "health.pong") {
-          touchHealthy();
-          hasShownUnavailable = false;
-          setLastConnectionError(null);
-          setState("paired");
-          scheduleHealthCheck(ws);
-          return;
-        }
-  
-        if (response.type === "input.ack") {
-          touchHealthy();
-          if (typeof response.seq === "number") {
-            pendingInputAcksRef.current.delete(response.seq);
-            if (pendingMovementAckRef.current?.sequence === response.seq) {
-              pendingMovementAckRef.current = null;
+
+          if (response.type === "input.ack") {
+            touchHealthy();
+            if (typeof response.seq === "number") {
+              pendingInputAcksRef.current.delete(response.seq);
+              if (pendingMovementAckRef.current?.sequence === response.seq) {
+                pendingMovementAckRef.current = null;
+              }
             }
-          }
-          scheduleHealthCheck(ws);
-          return;
-        }
-  
-        if (response.type === "input.error") {
-          touchHealthy();
-          if (typeof response.seq === "number") {
-            pendingInputAcksRef.current.delete(response.seq);
-            if (pendingMovementAckRef.current?.sequence === response.seq) {
-              pendingMovementAckRef.current = null;
-            }
-          }
-          const inputErrorMessage = getInputErrorMessage(response.message, currentPc(), screenshotMode);
-          setLastConnectionError({ code: response.code ?? "VAIR-PAIR-INPUT-FAILED", message: inputErrorMessage });
-          setMessage(inputErrorMessage);
-          scheduleHealthCheck(ws);
-          return;
-        }
-  
-        if (response.type === "system.power.result") {
-          touchHealthy();
-          const matched = completePowerAction(response);
-          if (matched) {
-            setMessage(response.message);
-            setLastConnectionError(response.succeeded
-              ? null
-              : { code: response.code ?? "VAIR-POWER-EXECUTION-FAILED", message: response.message });
-          }
-          if (response.action === "displayOff" && response.succeeded) {
-            window.clearTimeout(healthCheckTimer);
-            healthCheckDueAt = Date.now() + displayOffHealthCheckDelayMs;
-            healthCheckTimer = window.setTimeout(() => {
-              healthCheckDueAt = undefined;
-              sendHealthCheck(ws);
-            }, displayOffHealthCheckDelayMs);
-          } else {
             scheduleHealthCheck(ws);
+            return;
           }
-          return;
-        }
-  
-        if (response.type === "presentation.command.result") {
-          touchHealthy();
-          if (completePresentationCommand(response)) {
-            setMessage(response.message);
-            setLastConnectionError(response.succeeded
-              ? null
-              : { code: response.code ?? "VAIR-PRESENTATION-COMMAND-FAILED", message: response.message });
-          }
-          scheduleHealthCheck(ws);
-          return;
-        }
-  
-        if (response.type === "awake.result") {
-          touchHealthy();
-          if (completeAwakeChange(response)) {
-            setMessage(response.message);
-            setLastConnectionError(response.succeeded
-              ? null
-              : { code: response.code ?? "VAIR-AWAKE-EXECUTION-FAILED", message: response.message });
-          }
-          scheduleHealthCheck(ws);
-          return;
-        }
-  
-        if (response.type === "app.launch.result") {
-          touchHealthy();
-          if (completeAppLaunch(response)) {
-            setMessage(response.message);
-            setLastConnectionError(response.succeeded
-              ? null
-              : { code: response.code ?? "VAIR-APP-LAUNCH-FAILED", message: response.message });
-          }
-          scheduleHealthCheck(ws);
-          return;
-        }
-  
-        if (response.type === "url.open.result") {
-          touchHealthy();
-          if (completeUrlOpen(response)) {
-            setLastConnectionError(response.succeeded
-              ? null
-              : { code: response.code ?? "VAIR-URL-OPEN-FAILED", message: response.message });
-          }
-          scheduleHealthCheck(ws);
-          return;
-        }
-  
-        if (response.type === "text.send.result") {
-          touchHealthy();
-          if (completeTextTransfer(response)) {
-            setLastConnectionError(response.succeeded
-              ? null
-              : { code: response.code ?? "VAIR-TEXT-DELIVERY-FAILED", message: response.message });
-          }
-          scheduleHealthCheck(ws);
-          return;
-        }
-  
-        if (response.type === "clipboard.get.result") {
-          touchHealthy();
-          if (completeClipboardRead(response)) {
-            setLastConnectionError(response.succeeded
-              ? null
-              : { code: response.code ?? "VAIR-CLIPBOARD-READ-FAILED", message: response.message });
-          }
-          scheduleHealthCheck(ws);
-          return;
-        }
 
-        if (response.type === "diagnostics.get.result") {
-          touchHealthy();
-          completeDiagnostics(response);
-          scheduleHealthCheck(ws);
-          return;
-        }
-
-        if (response.type === "custom.screen.get.result") {
-          touchHealthy();
-          completeCustomScreenGet(response);
-          scheduleHealthCheck(ws);
-          return;
-        }
-
-        if (response.type === "custom.screen.invoke.result") {
-          touchHealthy();
-          if (completeCustomScreenInvoke(response) && !response.succeeded) {
+          if (response.type === "input.error") {
+            touchHealthy();
+            if (typeof response.seq === "number") {
+              pendingInputAcksRef.current.delete(response.seq);
+              if (pendingMovementAckRef.current?.sequence === response.seq) {
+                pendingMovementAckRef.current = null;
+              }
+            }
+            const inputErrorMessage = getInputErrorMessage(
+              response.message,
+              currentPc(),
+              screenshotMode,
+            );
             setLastConnectionError({
-              code: response.code ?? "VAIR-CUSTOM-SCREEN-ACTION-FAILED",
-              message: response.message
+              code: response.code ?? "VAIR-PAIR-INPUT-FAILED",
+              message: inputErrorMessage,
             });
+            setMessage(inputErrorMessage);
+            scheduleHealthCheck(ws);
+            return;
           }
-          scheduleHealthCheck(ws);
-          return;
-        }
 
-        if (response.type === "screen.view.sources.result" || response.type === "screen.view.start.result" || response.type === "screen.view.answer.result" || response.type === "screen.view.source.result" || response.type === "screen.view.stop.result" || response.type === "screen.view.ended") {
-          touchHealthy();
-          completeScreenViewMessage(response);
-          scheduleHealthCheck(ws);
-          return;
-        }
-
-        if (response.type === "phone.webcam.start.result" || response.type === "phone.webcam.answer.result" || response.type === "phone.webcam.stop.result" || response.type === "phone.webcam.ended") {
-          touchHealthy();
-          completePhoneWebcamMessage(response);
-          scheduleHealthCheck(ws);
-          return;
-        }
-
-        if (response.type.startsWith("file.")) {
-          touchHealthy();
-          completeFileManagerMessage(response as FileManagerServerMessage);
-          scheduleHealthCheck(ws);
-          return;
-        }
-
-        if (response.type === "presentation.session.result") {
-          touchHealthy();
-          if (completePresentationSession(response)) {
-            setMessage(response.message);
-            setLastConnectionError(response.succeeded
-              ? null
-              : { code: response.code ?? "VAIR-PRESENTATION-SESSION-FAILED", message: response.message });
+          if (response.type === "system.power.result") {
+            touchHealthy();
+            const matched = completePowerAction(response);
+            if (matched) {
+              setMessage(response.message);
+              setLastConnectionError(
+                response.succeeded
+                  ? null
+                  : {
+                      code: response.code ?? "VAIR-POWER-EXECUTION-FAILED",
+                      message: response.message,
+                    },
+              );
+            }
+            if (response.action === "displayOff" && response.succeeded) {
+              window.clearTimeout(healthCheckTimer);
+              healthCheckDueAt = Date.now() + displayOffHealthCheckDelayMs;
+              healthCheckTimer = window.setTimeout(() => {
+                healthCheckDueAt = undefined;
+                sendHealthCheck(ws);
+              }, displayOffHealthCheckDelayMs);
+            } else {
+              scheduleHealthCheck(ws);
+            }
+            return;
           }
-          scheduleHealthCheck(ws);
-          return;
-        }
 
-        if (response.type === "presentation.powerpoint.refresh.result") {
-          touchHealthy();
-          if (completePowerPointRefresh(response)) {
-            setMessage(response.message);
-            setLastConnectionError(response.succeeded
-              ? null
-              : { code: response.code ?? "VAIR-POWERPOINT-REFRESH-FAILED", message: response.message });
+          if (response.type === "presentation.command.result") {
+            touchHealthy();
+            if (completePresentationCommand(response)) {
+              setMessage(response.message);
+              setLastConnectionError(
+                response.succeeded
+                  ? null
+                  : {
+                      code: response.code ?? "VAIR-PRESENTATION-COMMAND-FAILED",
+                      message: response.message,
+                    },
+              );
+            }
+            scheduleHealthCheck(ws);
+            return;
           }
-          scheduleHealthCheck(ws);
-          return;
-        }
 
-        if (response.type === "presentation.powerpoint.launch.result") {
-          touchHealthy();
-          if (completePowerPointLaunch(response)) {
-            setMessage(response.message);
-            setLastConnectionError(response.succeeded
-              ? null
-              : { code: response.code ?? "VAIR-POWERPOINT-LAUNCH-FAILED", message: response.message });
+          if (response.type === "awake.result") {
+            touchHealthy();
+            if (completeAwakeChange(response)) {
+              setMessage(response.message);
+              setLastConnectionError(
+                response.succeeded
+                  ? null
+                  : {
+                      code: response.code ?? "VAIR-AWAKE-EXECUTION-FAILED",
+                      message: response.message,
+                    },
+              );
+            }
+            scheduleHealthCheck(ws);
+            return;
           }
-          scheduleHealthCheck(ws);
-          return;
-        }
 
-        if (response.type === "presentation.report.save.result") {
-          touchHealthy();
-          if (completePresentationReportSave(response)) {
-            setMessage(response.message);
-            setLastConnectionError(response.succeeded
-              ? null
-              : { code: response.code ?? "VAIR-PRESENTATION-SAVE-FAILED", message: response.message });
+          if (response.type === "app.launch.result") {
+            touchHealthy();
+            if (completeAppLaunch(response)) {
+              setMessage(response.message);
+              setLastConnectionError(
+                response.succeeded
+                  ? null
+                  : { code: response.code ?? "VAIR-APP-LAUNCH-FAILED", message: response.message },
+              );
+            }
+            scheduleHealthCheck(ws);
+            return;
           }
-          scheduleHealthCheck(ws);
-          return;
-        }
-  
-        if (response.type === "audio.state") {
-          touchHealthy();
-          if (supportsVolumeControlRef.current) {
-            setAudioStateFromSocket(normalizeAudioState(response));
+
+          if (response.type === "url.open.result") {
+            touchHealthy();
+            if (completeUrlOpen(response)) {
+              setLastConnectionError(
+                response.succeeded
+                  ? null
+                  : { code: response.code ?? "VAIR-URL-OPEN-FAILED", message: response.message },
+              );
+            }
+            scheduleHealthCheck(ws);
+            return;
           }
-          scheduleHealthCheck(ws);
-        }
-      }
 
-      function sendPairProof(challenge: string) {
-        if (disposed || ws !== socketRef.current) {
-          return;
-        }
-
-        const signature = signReconnectChallenge(clientId, pc.id, challenge);
-        if (!signature) {
-          markUnavailable(ws, "This browser cannot prove the saved pairing. Scan a fresh QR code to pair again.", "VAIR-PAIR-RECONNECT-PROOF-UNAVAILABLE");
-          return;
-        }
-
-        ws.send(JSON.stringify({ type: "pair.proof", clientId, signature }));
-      }
-  
-      function onSocketClose() {
-        if (disposed || !shouldRetry || backgroundSuspended || ws !== socketRef.current) {
-          return;
-        }
-  
-        markUnavailable(ws, getPcUnavailableMessage(currentPc(), screenshotMode), "VAIR-PAIR-SOCKET-CLOSED");
-      }
-  
-      function onSocketError() {
-        if (disposed || backgroundSuspended || ws !== socketRef.current) {
-          return;
-        }
-  
-        markUnavailable(ws);
-      }
-  
-      let receiveQueue = Promise.resolve();
-      removeSocketListeners = registerControllerSocketListeners(ws, {
-        close: onSocketClose,
-        error: onSocketError,
-        message: (event) => {
-          if (pc.transportMode === "relay") {
-            receiveQueue = receiveQueue.then(() => onSocketMessage(event));
-          } else {
-            void onSocketMessage(event);
+          if (response.type === "text.send.result") {
+            touchHealthy();
+            if (completeTextTransfer(response)) {
+              setLastConnectionError(
+                response.succeeded
+                  ? null
+                  : {
+                      code: response.code ?? "VAIR-TEXT-DELIVERY-FAILED",
+                      message: response.message,
+                    },
+              );
+            }
+            scheduleHealthCheck(ws);
+            return;
           }
-        },
-        open: () => { void onSocketOpen(); }
-      });
-      if (!(ws instanceof WebSocket) && ws.readyState === "open") {void onSocketOpen();}
+
+          if (response.type === "clipboard.get.result") {
+            touchHealthy();
+            if (completeClipboardRead(response)) {
+              setLastConnectionError(
+                response.succeeded
+                  ? null
+                  : {
+                      code: response.code ?? "VAIR-CLIPBOARD-READ-FAILED",
+                      message: response.message,
+                    },
+              );
+            }
+            scheduleHealthCheck(ws);
+            return;
+          }
+
+          if (response.type === "diagnostics.get.result") {
+            touchHealthy();
+            completeDiagnostics(response);
+            scheduleHealthCheck(ws);
+            return;
+          }
+
+          if (response.type === "custom.screen.get.result") {
+            touchHealthy();
+            completeCustomScreenGet(response);
+            scheduleHealthCheck(ws);
+            return;
+          }
+
+          if (response.type === "custom.screen.invoke.result") {
+            touchHealthy();
+            if (completeCustomScreenInvoke(response) && !response.succeeded) {
+              setLastConnectionError({
+                code: response.code ?? "VAIR-CUSTOM-SCREEN-ACTION-FAILED",
+                message: response.message,
+              });
+            }
+            scheduleHealthCheck(ws);
+            return;
+          }
+
+          if (
+            response.type === "screen.view.sources.result" ||
+            response.type === "screen.view.start.result" ||
+            response.type === "screen.view.answer.result" ||
+            response.type === "screen.view.source.result" ||
+            response.type === "screen.view.stop.result" ||
+            response.type === "screen.view.ended"
+          ) {
+            touchHealthy();
+            completeScreenViewMessage(response);
+            scheduleHealthCheck(ws);
+            return;
+          }
+
+          if (
+            response.type === "phone.webcam.start.result" ||
+            response.type === "phone.webcam.answer.result" ||
+            response.type === "phone.webcam.stop.result" ||
+            response.type === "phone.webcam.ended"
+          ) {
+            touchHealthy();
+            completePhoneWebcamMessage(response);
+            scheduleHealthCheck(ws);
+            return;
+          }
+
+          if (response.type.startsWith("file.")) {
+            touchHealthy();
+            completeFileManagerMessage(response as FileManagerServerMessage);
+            scheduleHealthCheck(ws);
+            return;
+          }
+
+          if (response.type === "presentation.session.result") {
+            touchHealthy();
+            if (completePresentationSession(response)) {
+              setMessage(response.message);
+              setLastConnectionError(
+                response.succeeded
+                  ? null
+                  : {
+                      code: response.code ?? "VAIR-PRESENTATION-SESSION-FAILED",
+                      message: response.message,
+                    },
+              );
+            }
+            scheduleHealthCheck(ws);
+            return;
+          }
+
+          if (response.type === "presentation.powerpoint.refresh.result") {
+            touchHealthy();
+            if (completePowerPointRefresh(response)) {
+              setMessage(response.message);
+              setLastConnectionError(
+                response.succeeded
+                  ? null
+                  : {
+                      code: response.code ?? "VAIR-POWERPOINT-REFRESH-FAILED",
+                      message: response.message,
+                    },
+              );
+            }
+            scheduleHealthCheck(ws);
+            return;
+          }
+
+          if (response.type === "presentation.powerpoint.launch.result") {
+            touchHealthy();
+            if (completePowerPointLaunch(response)) {
+              setMessage(response.message);
+              setLastConnectionError(
+                response.succeeded
+                  ? null
+                  : {
+                      code: response.code ?? "VAIR-POWERPOINT-LAUNCH-FAILED",
+                      message: response.message,
+                    },
+              );
+            }
+            scheduleHealthCheck(ws);
+            return;
+          }
+
+          if (response.type === "presentation.report.save.result") {
+            touchHealthy();
+            if (completePresentationReportSave(response)) {
+              setMessage(response.message);
+              setLastConnectionError(
+                response.succeeded
+                  ? null
+                  : {
+                      code: response.code ?? "VAIR-PRESENTATION-SAVE-FAILED",
+                      message: response.message,
+                    },
+              );
+            }
+            scheduleHealthCheck(ws);
+            return;
+          }
+
+          if (response.type === "audio.state") {
+            touchHealthy();
+            if (supportsVolumeControlRef.current) {
+              setAudioStateFromSocket(normalizeAudioState(response));
+            }
+            scheduleHealthCheck(ws);
+          }
+        }
+
+        function sendPairProof(challenge: string) {
+          if (disposed || ws !== socketRef.current) {
+            return;
+          }
+
+          const signature = signReconnectChallenge(clientId, pc.id, challenge);
+          if (!signature) {
+            markUnavailable(
+              ws,
+              "This browser cannot prove the saved pairing. Scan a fresh QR code to pair again.",
+              "VAIR-PAIR-RECONNECT-PROOF-UNAVAILABLE",
+            );
+            return;
+          }
+
+          ws.send(JSON.stringify({ type: "pair.proof", clientId, signature }));
+        }
+
+        function onSocketClose() {
+          if (disposed || !shouldRetry || backgroundSuspended || ws !== socketRef.current) {
+            return;
+          }
+
+          markUnavailable(
+            ws,
+            getPcUnavailableMessage(currentPc(), screenshotMode),
+            "VAIR-PAIR-SOCKET-CLOSED",
+          );
+        }
+
+        function onSocketError() {
+          if (disposed || backgroundSuspended || ws !== socketRef.current) {
+            return;
+          }
+
+          markUnavailable(ws);
+        }
+
+        let receiveQueue = Promise.resolve();
+        removeSocketListeners = registerControllerSocketListeners(ws, {
+          close: onSocketClose,
+          error: onSocketError,
+          message: (event) => {
+            if (pc.transportMode === "relay") {
+              receiveQueue = receiveQueue.then(() => onSocketMessage(event));
+            } else {
+              void onSocketMessage(event);
+            }
+          },
+          open: () => {
+            void onSocketOpen();
+          },
+        });
+        if (!(ws instanceof WebSocket) && ws.readyState === "open") {
+          void onSocketOpen();
+        }
       }
     }
-  
-    reconnectRef.current = () => { markUnavailable(socketRef.current ?? undefined, getPcUnavailableMessage(currentPc(), screenshotMode), "VAIR-PAIR-CLIENT-SEND-FAILED"); };
+
+    reconnectRef.current = () => {
+      markUnavailable(
+        socketRef.current ?? undefined,
+        getPcUnavailableMessage(currentPc(), screenshotMode),
+        "VAIR-PAIR-CLIENT-SEND-FAILED",
+      );
+    };
     rescheduleHealthCheckRef.current = () => {
       const socket = socketRef.current;
       if (isControllerSocketOpen(socket)) {
         scheduleHealthCheck(socket, true);
       }
     };
-  
+
     function suspendForBackground() {
       backgroundSuspended = true;
       clearTimers();
@@ -1047,18 +1369,18 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         socket.close();
       }
     }
-  
+
     function resumeFromBackground() {
       if (document.visibilityState === "hidden") {
         suspendForBackground();
         return;
       }
-  
+
       backgroundSuspended = false;
       lastUserActivityAtRef.current = Date.now();
       reconnectIfStale();
     }
-  
+
     window.addEventListener("focus", reconnectIfStale);
     window.addEventListener("pagehide", suspendForBackground);
     window.addEventListener("pageshow", resumeFromBackground);
@@ -1068,7 +1390,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     } else {
       connect();
     }
-  
+
     return () => {
       disposed = true;
       relayEncryptedSendRef.current = null;
@@ -1107,7 +1429,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     setState,
     socketRef,
     supportsInputAckRef,
-    supportsVolumeControlRef
+    supportsVolumeControlRef,
   ]);
 }
 
@@ -1118,9 +1440,14 @@ interface ControllerSocketListeners {
   open: () => void;
 }
 
-function registerControllerSocketListeners(socket: ControllerSocket, listeners: ControllerSocketListeners): () => void {
+function registerControllerSocketListeners(
+  socket: ControllerSocket,
+  listeners: ControllerSocketListeners,
+): () => void {
   socket.addEventListener("open", listeners.open);
-  const onMessage: EventListener = (event) => { listeners.message(event as MessageEvent); };
+  const onMessage: EventListener = (event) => {
+    listeners.message(event as MessageEvent);
+  };
   socket.addEventListener("message", onMessage);
   socket.addEventListener("close", listeners.close);
   socket.addEventListener("error", listeners.error);

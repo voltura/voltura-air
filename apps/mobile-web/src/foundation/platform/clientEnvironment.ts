@@ -26,14 +26,19 @@ export function getDefaultDeviceName(): string {
   }
 
   if (/Android/i.test(navigator.userAgent)) {
-    return /Tablet|SM-T|Nexus 7|Nexus 10/i.test(navigator.userAgent) ? "Android tablet" : "Android phone";
+    return /Tablet|SM-T|Nexus 7|Nexus 10/i.test(navigator.userAgent)
+      ? "Android tablet"
+      : "Android phone";
   }
 
   return "Mobile device";
 }
 
 export function getDisplayMode(): "browser" | "installed" | "unknown" {
-  if (window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true) {
+  if (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true
+  ) {
     return "installed";
   }
 

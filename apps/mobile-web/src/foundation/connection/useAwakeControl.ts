@@ -32,11 +32,13 @@ export function useAwakeControl(state: ConnectionState, send: (payload: ClientMe
         ...pendingOperation,
         succeeded: false,
         code: "VAIR-AWAKE-RESPONSE-TIMEOUT",
-        message: "The PC did not respond to the Keep awake request."
+        message: "The PC did not respond to the Keep awake request.",
       });
     }, responseTimeoutMs);
 
-    return () => { window.clearTimeout(timeout); };
+    return () => {
+      window.clearTimeout(timeout);
+    };
   }, [pendingOperation]);
 
   useEffect(() => {

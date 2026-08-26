@@ -12,11 +12,13 @@ describe("ErrorDialog", () => {
         message="PC identity check failed. Scan a fresh QR code from the PC."
         onClose={onClose}
         title="Connection issue"
-      />
+      />,
     );
 
     const dialog = screen.getByRole("dialog", { name: "Connection issue" });
-    expect(dialog.textContent).toContain("PC identity check failed. Scan a fresh QR code from the PC.");
+    expect(dialog.textContent).toContain(
+      "PC identity check failed. Scan a fresh QR code from the PC.",
+    );
     expect(dialog.textContent).toContain("Diagnostic code: VAIR-PAIR-HOST-PROOF-INVALID");
     expect(dialog.querySelector(".info-dialog-error-icon")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Close Connection issue" })).not.toBeNull();

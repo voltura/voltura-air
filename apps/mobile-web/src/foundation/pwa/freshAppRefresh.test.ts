@@ -1,21 +1,50 @@
 import { describe, expect, it, vi } from "vitest";
 import { refreshWithFreshAppUrl, type FreshAppRefreshEnvironment } from "./freshAppRefresh";
 
-function createEnvironment(overrides: Partial<FreshAppRefreshEnvironment> = {}): FreshAppRefreshEnvironment {
+function createEnvironment(
+  overrides: Partial<FreshAppRefreshEnvironment> = {},
+): FreshAppRefreshEnvironment {
   return {
     createFreshUrl: vi.fn(() => "https://phone.local/?refresh=1"),
     reload: vi.fn(),
     replace: vi.fn(),
-    ...overrides
+    ...overrides,
   };
 }
 
 describe("refreshWithFreshAppUrl", () => {
   it.each([
-    ["service-worker lookup", { getRegistrations: vi.fn(() => Promise.reject(new Error("lookup"))) }],
-    ["service-worker unregister", { getRegistrations: vi.fn(() => Promise.resolve([{ unregister: () => { throw new Error("unregister"); } }])) }],
-    ["cache lookup", { getCacheNames: vi.fn(() => Promise.reject(new Error("keys"))), deleteCache: vi.fn() }],
-    ["cache deletion", { getCacheNames: vi.fn(() => Promise.resolve(["voltura-air-cache-a"])), deleteCache: () => { throw new Error("delete"); } }]
+    [
+      "service-worker lookup",
+      { getRegistrations: vi.fn(() => Promise.reject(new Error("lookup"))) },
+    ],
+    [
+      "service-worker unregister",
+      {
+        getRegistrations: vi.fn(() =>
+          Promise.resolve([
+            {
+              unregister: () => {
+                throw new Error("unregister");
+              },
+            },
+          ]),
+        ),
+      },
+    ],
+    [
+      "cache lookup",
+      { getCacheNames: vi.fn(() => Promise.reject(new Error("keys"))), deleteCache: vi.fn() },
+    ],
+    [
+      "cache deletion",
+      {
+        getCacheNames: vi.fn(() => Promise.resolve(["voltura-air-cache-a"])),
+        deleteCache: () => {
+          throw new Error("delete");
+        },
+      },
+    ],
   ])("continues to navigation after a %s failure", async (_name, overrides) => {
     const environment = createEnvironment(overrides);
 
@@ -31,7 +60,7 @@ describe("refreshWithFreshAppUrl", () => {
     const deleteCache = vi.fn(() => true);
     const environment = createEnvironment({
       getCacheNames: vi.fn(() => Promise.resolve(["other-app", "voltura-air-old"])),
-      deleteCache
+      deleteCache,
     });
 
     await refreshWithFreshAppUrl(environment);
@@ -40,7 +69,11 @@ describe("refreshWithFreshAppUrl", () => {
   });
 
   it("falls back to reload when fresh URL creation fails", async () => {
-    const environment = createEnvironment({ createFreshUrl: () => { throw new Error("URL"); } });
+    const environment = createEnvironment({
+      createFreshUrl: () => {
+        throw new Error("URL");
+      },
+    });
 
     const result = await refreshWithFreshAppUrl(environment);
 
@@ -50,7 +83,11 @@ describe("refreshWithFreshAppUrl", () => {
   });
 
   it("falls back to reload when replacement throws", async () => {
-    const environment = createEnvironment({ replace: () => { throw new Error("replace"); } });
+    const environment = createEnvironment({
+      replace: () => {
+        throw new Error("replace");
+      },
+    });
 
     const result = await refreshWithFreshAppUrl(environment);
 
@@ -60,21 +97,31 @@ describe("refreshWithFreshAppUrl", () => {
 
   it("returns a handled failure when neither navigation method can start", async () => {
     const environment = createEnvironment({
-      reload: () => { throw new Error("reload"); },
-      replace: () => { throw new Error("replace"); }
+      reload: () => {
+        throw new Error("reload");
+      },
+      replace: () => {
+        throw new Error("replace");
+      },
     });
 
     await expect(refreshWithFreshAppUrl(environment)).resolves.toMatchObject({
       navigationStarted: false,
-      navigationMethod: null
+      navigationMethod: null,
     });
   });
 
   it("commits the caller's guard immediately before navigation", async () => {
     const order: string[] = [];
-    const environment = createEnvironment({ replace: () => { order.push("navigate"); } });
+    const environment = createEnvironment({
+      replace: () => {
+        order.push("navigate");
+      },
+    });
 
-    await refreshWithFreshAppUrl(environment, () => { order.push("guard"); });
+    await refreshWithFreshAppUrl(environment, () => {
+      order.push("guard");
+    });
 
     expect(order).toEqual(["guard", "navigate"]);
   });

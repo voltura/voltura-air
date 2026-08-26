@@ -1,4 +1,8 @@
-import type { FileManagerEntry, FileTransferCancelMessage, FileTransferDirection } from "../../foundation/protocol/messages";
+import type {
+  FileManagerEntry,
+  FileTransferCancelMessage,
+  FileTransferDirection,
+} from "../../foundation/protocol/messages";
 
 export interface FileTransferTarget {
   sessionId: string;
@@ -17,13 +21,24 @@ export interface FileTransferPresentation {
 }
 
 export const idleFileTransferPresentation = (message = ""): FileTransferPresentation => ({
-  active: false, fileName: "", message, needsReplacementName: false, progress: 0, readyToSave: false
+  active: false,
+  fileName: "",
+  message,
+  needsReplacementName: false,
+  progress: 0,
+  readyToSave: false,
 });
 
-export function createFileTransferCancelMessage(operationId: string, runtime: TransferRuntime): FileTransferCancelMessage {
+export function createFileTransferCancelMessage(
+  operationId: string,
+  runtime: TransferRuntime,
+): FileTransferCancelMessage {
   return {
-    type: "file.transfer.cancel", operationId,
-    ...(runtime.transferId ? { transferId: runtime.transferId } : { requestId: runtime.operationId })
+    type: "file.transfer.cancel",
+    operationId,
+    ...(runtime.transferId
+      ? { transferId: runtime.transferId }
+      : { requestId: runtime.operationId }),
   };
 }
 

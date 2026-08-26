@@ -1,7 +1,7 @@
 {
   "name": "@voltura-air/mobile-web",
-  "private": true,
   "version": "1.1.1",
+  "private": true,
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -14,45 +14,36 @@
     "bundle:check": "node ../../scripts/check-mobile-bundle-size.mjs",
     "check": "npm run typecheck && npm run lint",
     "lint": "npm run lint:code && npm run lint:styles",
-    "lint:code": "npm run lint:architecture && eslint . --max-warnings 0",
+    "lint:code": "node ../../scripts/check-lint-policy.mjs && oxlint .",
     "lint:architecture": "node --test eslint-rules/*.test.mjs",
     "lint:styles": "stylelint \"src/**/*.css\" --max-warnings 0",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest --config vitest.config.ts",
-    "typecheck": "node ../../node_modules/@typescript/native/bin/tsc --noEmit && node ../../node_modules/@typescript/native/bin/tsc --noEmit -p tsconfig.node.json"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json"
   },
   "dependencies": {
     "@noble/curves": "^2.3.0",
     "@noble/hashes": "^2.2.0",
     "jsqr": "^1.4.0",
-    "lucide-react": "^1.31.0",
+    "lucide-react": "^1.34.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.62.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
-    "@types/node": "^26.2.0",
+    "@types/node": "24.13.3",
     "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.4",
-    "@typescript/native": "npm:typescript@^7.0.2",
-    "@vitejs/plugin-react": "^6.0.4",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^6.1.0",
     "cross-env": "^10.1.0",
-    "eslint": "10.8.1",
-    "eslint-import-resolver-typescript": "^4.4.5",
-    "eslint-plugin-import-x": "^4.17.1",
-    "eslint-plugin-jsx-a11y": "^6.10.2",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-react-web-api": "^5.18.6",
-    "globals": "^17.11.0",
+    "eslint-plugin-react-web-api": "5.18.6",
     "jsdom": "^30.0.1",
     "stylelint": "^17.14.1",
     "stylelint-config-standard": "^40.0.0",
-    "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "typescript-eslint": "^8.67.0",
-    "vite": "^8.2.1",
-    "vitest": "^4.1.10"
+    "typescript": "7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
   }
 }

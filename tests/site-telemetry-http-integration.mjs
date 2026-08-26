@@ -42,35 +42,59 @@ try {
     assert.equal(method.headers.has("access-control-allow-origin"), false);
 
     await assertResponse(
-      await request(baseUrl, "/telemetry/v1/ingest.php", { method: "POST", body: "{}", headers: { "content-type": "text/plain" } }),
+      await request(baseUrl, "/telemetry/v1/ingest.php", {
+        method: "POST",
+        body: "{}",
+        headers: { "content-type": "text/plain" },
+      }),
       415,
       '{"schemaVersion":1,"status":"unsupported-media-type"}',
     );
     await assertResponse(
-      await request(baseUrl, "/telemetry/v1/ingest.php", { method: "POST", body: "x".repeat(4097), headers: jsonHeaders() }),
+      await request(baseUrl, "/telemetry/v1/ingest.php", {
+        method: "POST",
+        body: "x".repeat(4097),
+        headers: jsonHeaders(),
+      }),
       413,
       '{"schemaVersion":1,"status":"body-too-large"}',
     );
     await assertResponse(
-      await request(baseUrl, "/telemetry/v1/ingest.php", { method: "POST", body: "{", headers: jsonHeaders() }),
+      await request(baseUrl, "/telemetry/v1/ingest.php", {
+        method: "POST",
+        body: "{",
+        headers: jsonHeaders(),
+      }),
       400,
       '{"schemaVersion":1,"status":"invalid"}',
     );
 
     const body = JSON.stringify(validBatch(installationId, batchId));
     await assertResponse(
-      await request(baseUrl, "/telemetry/v1/ingest.php", { method: "POST", body, headers: jsonHeaders() }),
+      await request(baseUrl, "/telemetry/v1/ingest.php", {
+        method: "POST",
+        body,
+        headers: jsonHeaders(),
+      }),
       202,
       '{"schemaVersion":1,"status":"accepted"}',
     );
     for (let requestIndex = 1; requestIndex < 24; requestIndex += 1) {
       await assertResponse(
-        await request(baseUrl, "/telemetry/v1/ingest.php", { method: "POST", body, headers: jsonHeaders() }),
+        await request(baseUrl, "/telemetry/v1/ingest.php", {
+          method: "POST",
+          body,
+          headers: jsonHeaders(),
+        }),
         202,
         '{"schemaVersion":1,"status":"accepted"}',
       );
     }
-    const limited = await request(baseUrl, "/telemetry/v1/ingest.php", { method: "POST", body, headers: jsonHeaders() });
+    const limited = await request(baseUrl, "/telemetry/v1/ingest.php", {
+      method: "POST",
+      body,
+      headers: jsonHeaders(),
+    });
     await assertResponse(limited, 429, '{"schemaVersion":1,"status":"rate-limited"}');
     assert.equal(limited.headers.get("retry-after"), "900");
   });
@@ -108,18 +132,25 @@ try {
     "after_daily_upsert,ingest_rollback,record_server_failure_before_commit,record_server_failure_rollback",
   );
 
-  await withPhpServer(path.join(root, ".site-dev", "missing-telemetry-config.php"), async (baseUrl) => {
-    await assertResponse(
-      await request(baseUrl, "/telemetry/v1/ingest.php", { method: "POST", body: "{}", headers: jsonHeaders() }),
-      503,
-      '{"schemaVersion":1,"status":"unavailable"}',
-    );
-    await assertResponse(
-      await request(baseUrl, "/telemetry/v1/health.php"),
-      503,
-      '{"schemaVersion":1,"status":"unavailable"}',
-    );
-  });
+  await withPhpServer(
+    path.join(root, ".site-dev", "missing-telemetry-config.php"),
+    async (baseUrl) => {
+      await assertResponse(
+        await request(baseUrl, "/telemetry/v1/ingest.php", {
+          method: "POST",
+          body: "{}",
+          headers: jsonHeaders(),
+        }),
+        503,
+        '{"schemaVersion":1,"status":"unavailable"}',
+      );
+      await assertResponse(
+        await request(baseUrl, "/telemetry/v1/health.php"),
+        503,
+        '{"schemaVersion":1,"status":"unavailable"}',
+      );
+    },
+  );
   runPhp([fixturePath, "verify", installationId], testEnvironment);
   runPhp([path.join(root, "tests", "site-telemetry-integration.php")], testEnvironment);
   console.log("Telemetry HTTP endpoint integration passed.");
@@ -135,7 +166,10 @@ try {
     cleanupError = error;
   }
   if (primaryError && cleanupError) {
-    throw new AggregateError([primaryError, cleanupError], "Telemetry HTTP validation and test-table cleanup both failed.");
+    throw new AggregateError(
+      [primaryError, cleanupError],
+      "Telemetry HTTP validation and test-table cleanup both failed.",
+    );
   }
   if (cleanupError) throw cleanupError;
 }
@@ -222,7 +256,11 @@ async function verifyCleanupWriterSerialization(environment) {
       environment,
     );
     await new Promise((resolve) => setTimeout(resolve, 200));
-    assert.equal(writer.state.closed, false, "Telemetry writer bypassed the administrator cleanup lock.");
+    assert.equal(
+      writer.state.closed,
+      false,
+      "Telemetry writer bypassed the administrator cleanup lock.",
+    );
 
     cleanup.child.stdin.end("continue\n");
     await requireProcessSuccess(cleanup, "TELEMETRY_CLEANUP_RACE_DONE");
@@ -249,7 +287,10 @@ async function verifyCleanupWriterSerialization(environment) {
     );
   }
   if (cleanupErrors.length > 0) {
-    throw new AggregateError(cleanupErrors, "Telemetry cleanup serialization process cleanup failed.");
+    throw new AggregateError(
+      cleanupErrors,
+      "Telemetry cleanup serialization process cleanup failed.",
+    );
   }
   if (primaryError) throw primaryError;
 }
@@ -277,10 +318,13 @@ async function waitForProcessOutput(ownedProcess, marker, timeoutMs) {
     const onData = () => {
       if (ownedProcess.output.join("").includes(marker)) finish(resolve);
     };
-    const onClose = (code) => finish(
-      reject,
-      new Error(`Telemetry fixture exited with ${code} before '${marker}'. ${ownedProcess.errors.join("").slice(-2000)}`),
-    );
+    const onClose = (code) =>
+      finish(
+        reject,
+        new Error(
+          `Telemetry fixture exited with ${code} before '${marker}'. ${ownedProcess.errors.join("").slice(-2000)}`,
+        ),
+      );
     const timer = setTimeout(
       () => finish(reject, new Error(`Telemetry fixture did not reach '${marker}'.`)),
       timeoutMs,
@@ -302,7 +346,7 @@ async function requireProcessSuccess(ownedProcess, marker) {
   if (exitCode !== 0 || !output.includes(marker)) {
     throw new Error(
       `Telemetry fixture process failed with ${exitCode}. ` +
-      `${(ownedProcess.errors.join("") || output).slice(-2000)}`,
+        `${(ownedProcess.errors.join("") || output).slice(-2000)}`,
     );
   }
 }
@@ -339,7 +383,11 @@ function startFixtureHolder(environment) {
       if (!settled) {
         settled = true;
         clearTimeout(timer);
-        reject(new Error(`Telemetry test-table holder exited with ${code}. ${(errors.join("") || output.join("")).slice(-2000)}`));
+        reject(
+          new Error(
+            `Telemetry test-table holder exited with ${code}. ${(errors.join("") || output.join("")).slice(-2000)}`,
+          ),
+        );
       }
     });
     child.once("error", (error) => {
@@ -384,7 +432,10 @@ async function withPhpServer(configPath, action, telemetryFailures = "") {
     cleanupError = error;
   }
   if (primaryError && cleanupError) {
-    throw new AggregateError([primaryError, cleanupError], "Telemetry HTTP request and PHP server cleanup both failed.");
+    throw new AggregateError(
+      [primaryError, cleanupError],
+      "Telemetry HTTP request and PHP server cleanup both failed.",
+    );
   }
   if (cleanupError) throw cleanupError;
   if (primaryError) throw primaryError;
@@ -392,16 +443,21 @@ async function withPhpServer(configPath, action, telemetryFailures = "") {
 
 async function reservePort() {
   const server = net.createServer();
-  await new Promise((resolve, reject) => server.listen(0, "127.0.0.1", resolve).once("error", reject));
+  await new Promise((resolve, reject) =>
+    server.listen(0, "127.0.0.1", resolve).once("error", reject),
+  );
   const address = server.address();
   const port = typeof address === "object" && address ? address.port : 0;
-  await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  await new Promise((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
   return port;
 }
 
 async function waitForServer(port, child, errors) {
   for (let attempt = 0; attempt < 50; attempt += 1) {
-    if (child.exitCode !== null) throw new Error(`PHP server exited early. ${errors.join("").slice(-2000)}`);
+    if (child.exitCode !== null)
+      throw new Error(`PHP server exited early. ${errors.join("").slice(-2000)}`);
     try {
       await fetch(`http://127.0.0.1:${port}/telemetry/v1/health.php`);
       return;

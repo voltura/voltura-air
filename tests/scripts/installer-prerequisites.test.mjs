@@ -22,9 +22,12 @@ const installer = readFileSync(installerPath, "utf8");
 const packageScript = readFileSync(packageScriptPath, "utf8");
 
 test("installer transactions use native 64-bit Windows PowerShell", () => {
-  const transactionCalls = installer.match(/nsExec::ExecTo(?:Stack|Log) .*INSTALL_TRANSACTION_SCRIPT.*$/gm) ?? [];
+  const transactionCalls =
+    installer.match(/nsExec::ExecTo(?:Stack|Log) .*INSTALL_TRANSACTION_SCRIPT.*$/gm) ?? [];
   assert.ok(transactionCalls.length > 0);
-  assert.ok(transactionCalls.every((call) => call.includes("$WINDIR\\Sysnative\\WindowsPowerShell")));
+  assert.ok(
+    transactionCalls.every((call) => call.includes("$WINDIR\\Sysnative\\WindowsPowerShell")),
+  );
   assert.ok(transactionCalls.every((call) => !call.includes("$SYSDIR\\WindowsPowerShell")));
 });
 
@@ -34,9 +37,7 @@ function findMakensis() {
     process.env["PROGRAMFILES(X86)"]
       ? join(process.env["PROGRAMFILES(X86)"], "NSIS", "makensis.exe")
       : undefined,
-    process.env.ProgramFiles
-      ? join(process.env.ProgramFiles, "NSIS", "makensis.exe")
-      : undefined,
+    process.env.ProgramFiles ? join(process.env.ProgramFiles, "NSIS", "makensis.exe") : undefined,
   ].filter(Boolean);
 
   for (const candidate of candidates) {
@@ -99,9 +100,10 @@ function snapshotTree(root) {
 }
 
 function functionBody(source, name) {
-  return source.match(
-    new RegExp(`Function ${name}(?<body>[\\s\\S]*?)FunctionEnd`, "u")
-  )?.groups?.body ?? "";
+  return (
+    source.match(new RegExp(`Function ${name}(?<body>[\\s\\S]*?)FunctionEnd`, "u"))?.groups?.body ??
+    ""
+  );
 }
 
 function decodeWorstCaseCommand(command) {
@@ -114,11 +116,7 @@ function decodeWorstCaseCommand(command) {
     .replaceAll("$$", "$");
 }
 
-function componentResult({
-  initiallyInstalled,
-  childExitCode,
-  detectedAfterInstall,
-}) {
+function componentResult({ initiallyInstalled, childExitCode, detectedAfterInstall }) {
   if (initiallyInstalled) {
     return { complete: true, provisional: false, reboot: false };
   }
@@ -161,7 +159,7 @@ test("unsupported runtimes fail before creating or changing artifacts", () => {
         "-Runtime",
         "win-arm64",
       ],
-      { encoding: "utf8", windowsHide: true }
+      { encoding: "utf8", windowsHide: true },
     );
 
     assert.notEqual(result.status, 0);
@@ -187,7 +185,7 @@ test("runtime validation precedes every repository and artifact operation", () =
   ]) {
     assert.ok(
       validation < packageScript.indexOf(operation),
-      `runtime validation must precede ${operation}`
+      `runtime validation must precede ${operation}`,
     );
   }
 });
@@ -220,53 +218,32 @@ test("preprocessor output scopes prerequisites to the standard installer", () =>
 
 test("prerequisite acquisition and verification remain inline and component-specific", () => {
   assert.doesNotMatch(installer, /prerequisite[^"'\r\n]*\.ps1/iu);
-  assert.match(
-    installer,
-    /https:\/\/aka\.ms\/dotnet\/10\.0\/windowsdesktop-runtime-win-x64\.exe/u
-  );
-  assert.match(
-    installer,
-    /https:\/\/aka\.ms\/dotnet\/10\.0\/aspnetcore-runtime-win-x64\.exe/u
-  );
+  assert.match(installer, /https:\/\/aka\.ms\/dotnet\/10\.0\/windowsdesktop-runtime-win-x64\.exe/u);
+  assert.match(installer, /https:\/\/aka\.ms\/dotnet\/10\.0\/aspnetcore-runtime-win-x64\.exe/u);
   assert.match(installer, /\$PLUGINSDIR\\VolturaAir-WindowsDesktop\.exe/u);
   assert.match(installer, /\$PLUGINSDIR\\VolturaAir-AspNetCore\.exe/u);
-  assert.match(
-    installer,
-    /Status-ne \[System\.Management\.Automation\.SignatureStatus\]::Valid/u
-  );
+  assert.match(installer, /Status-ne \[System\.Management\.Automation\.SignatureStatus\]::Valid/u);
   assert.match(installer, /\$null-eq \$\$s\.SignerCertificate/u);
   assert.match(installer, /O=Microsoft Corporation/u);
   assert.match(installer, /\/install \/quiet \/norestart/u);
   assert.match(installer, /GetExitCodeProcess/u);
-  assert.equal(
-    installer.match(/\$\$ProgressPreference=\$\\'SilentlyContinue\$\\'/gu)?.length,
-    2
-  );
-  assert.equal(
-    installer.match(/Invoke-WebRequest -UseBasicParsing -TimeoutSec 300/gu)?.length,
-    2
-  );
-  assert.match(
-    installer,
-    /\^Microsoft\\\.WindowsDesktop\\\.App 10\\\.0\\\.\$\\'/u
-  );
-  assert.match(
-    installer,
-    /\^Microsoft\\\.AspNetCore\\\.App 10\\\.0\\\.\$\\'/u
-  );
+  assert.equal(installer.match(/\$\$ProgressPreference=\$\\'SilentlyContinue\$\\'/gu)?.length, 2);
+  assert.equal(installer.match(/Invoke-WebRequest -UseBasicParsing -TimeoutSec 300/gu)?.length, 2);
+  assert.match(installer, /\^Microsoft\\\.WindowsDesktop\\\.App 10\\\.0\\\.\$\\'/u);
+  assert.match(installer, /\^Microsoft\\\.AspNetCore\\\.App 10\\\.0\\\.\$\\'/u);
 });
 
 test("all staged prerequisite commands fit the active default NSIS capacity", () => {
-  const commands = [
-    ...installer.matchAll(/StrCpy \$2 '(?<command>[^\r\n]+)'/gu),
-  ].map((match) => match.groups.command);
+  const commands = [...installer.matchAll(/StrCpy \$2 '(?<command>[^\r\n]+)'/gu)].map(
+    (match) => match.groups.command,
+  );
 
   assert.equal(commands.length, 6);
   for (const command of commands) {
     const expanded = decodeWorstCaseCommand(command);
     assert.ok(
       expanded.length <= 1023,
-      `worst-case command length ${expanded.length} exceeds the 1,023-character payload`
+      `worst-case command length ${expanded.length} exceeds the 1,023-character payload`,
     );
   }
   assert.match(installer, /IntCmp \$3 \$\{NSIS_MAX_STRLEN\}/u);
@@ -280,7 +257,7 @@ test("component state handling covers installed, success, restart, and failure r
       childExitCode: undefined,
       detectedAfterInstall: true,
     }),
-    { complete: true, provisional: false, reboot: false }
+    { complete: true, provisional: false, reboot: false },
   );
   assert.deepEqual(
     componentResult({
@@ -288,7 +265,7 @@ test("component state handling covers installed, success, restart, and failure r
       childExitCode: 0,
       detectedAfterInstall: true,
     }),
-    { complete: true, provisional: false, reboot: false }
+    { complete: true, provisional: false, reboot: false },
   );
   assert.deepEqual(
     componentResult({
@@ -296,7 +273,7 @@ test("component state handling covers installed, success, restart, and failure r
       childExitCode: 0,
       detectedAfterInstall: false,
     }),
-    { complete: false, provisional: false, reboot: false }
+    { complete: false, provisional: false, reboot: false },
   );
   assert.deepEqual(
     componentResult({
@@ -304,7 +281,7 @@ test("component state handling covers installed, success, restart, and failure r
       childExitCode: 3010,
       detectedAfterInstall: true,
     }),
-    { complete: true, provisional: false, reboot: true }
+    { complete: true, provisional: false, reboot: true },
   );
   assert.deepEqual(
     componentResult({
@@ -312,7 +289,7 @@ test("component state handling covers installed, success, restart, and failure r
       childExitCode: 3010,
       detectedAfterInstall: false,
     }),
-    { complete: true, provisional: true, reboot: true }
+    { complete: true, provisional: true, reboot: true },
   );
   assert.deepEqual(
     componentResult({
@@ -320,13 +297,10 @@ test("component state handling covers installed, success, restart, and failure r
       childExitCode: 1603,
       detectedAfterInstall: false,
     }),
-    { complete: false, provisional: false, reboot: false }
+    { complete: false, provisional: false, reboot: false },
   );
 
-  for (const name of [
-    "InstallWindowsDesktopRuntime",
-    "InstallAspNetCoreRuntime",
-  ]) {
+  for (const name of ["InstallWindowsDesktopRuntime", "InstallAspNetCoreRuntime"]) {
     const body = functionBody(installer, name);
     assert.match(body, /\$0 == 0/u);
     assert.match(body, /\$0 == 3010/u);
@@ -351,7 +325,7 @@ test("both component results preserve aggregate restart state", () => {
       });
       assert.equal(
         desktop.reboot || aspNet.reboot,
-        desktopExitCode === 3010 || aspNetExitCode === 3010
+        desktopExitCode === 3010 || aspNetExitCode === 3010,
       );
       assert.equal(desktop.complete && aspNet.complete, true);
     }
@@ -377,12 +351,10 @@ test("both component results preserve aggregate restart state", () => {
 });
 
 test("prerequisites finish before the running app or installation is changed", () => {
-  const installSection = installer.match(
-    /Section "Voltura Air \(required\)" SEC_CORE(?<body>[\s\S]*?)SectionEnd/u
-  )?.groups?.body ?? "";
-  const prerequisitesComplete = installSection.lastIndexOf(
-    "Call InstallAspNetCoreRuntime"
-  );
+  const installSection =
+    installer.match(/Section "Voltura Air \(required\)" SEC_CORE(?<body>[\s\S]*?)SectionEnd/u)
+      ?.groups?.body ?? "";
+  const prerequisitesComplete = installSection.lastIndexOf("Call InstallAspNetCoreRuntime");
   assert.ok(prerequisitesComplete >= 0);
   assert.ok(prerequisitesComplete < installSection.indexOf("Call StopRunningApp"));
   assert.ok(prerequisitesComplete < installSection.indexOf('SetOutPath "$StagingDirectory"'));
@@ -392,13 +364,26 @@ test("prerequisites finish before the running app or installation is changed", (
 });
 
 test("installer journals promotion and removal before changing registration", () => {
-  const installSection = installer.match(/Section "Voltura Air \(required\)" SEC_CORE([\s\S]*?)SectionEnd/u)?.[1] ?? "";
+  const installSection =
+    installer.match(/Section "Voltura Air \(required\)" SEC_CORE([\s\S]*?)SectionEnd/u)?.[1] ?? "";
   const uninstallSection = installer.match(/Section "Uninstall"([\s\S]*?)SectionEnd/u)?.[1] ?? "";
-  assert.match(installSection, /-Action Verify[\s\S]*-Action Promote[\s\S]*--installer-health-check/u);
-  assert.match(installSection, /-Action Verify[\s\S]*SetOutPath "\$PLUGINSDIR"[\s\S]*-Action Promote/u);
+  assert.match(
+    installSection,
+    /-Action Verify[\s\S]*-Action Promote[\s\S]*--installer-health-check/u,
+  );
+  assert.match(
+    installSection,
+    /-Action Verify[\s\S]*SetOutPath "\$PLUGINSDIR"[\s\S]*-Action Promote/u,
+  );
   assert.doesNotMatch(installSection, /RMDir \/r "\$INSTDIR"/u);
-  assert.ok(uninstallSection.indexOf("-Action StageRemoval") < uninstallSection.indexOf("DeleteRegKey HKCU"));
-  assert.ok(uninstallSection.indexOf("-Action CompleteRemoval") < uninstallSection.indexOf("DeleteRegKey HKCU"));
+  assert.ok(
+    uninstallSection.indexOf("-Action StageRemoval") <
+      uninstallSection.indexOf("DeleteRegKey HKCU"),
+  );
+  assert.ok(
+    uninstallSection.indexOf("-Action CompleteRemoval") <
+      uninstallSection.indexOf("DeleteRegKey HKCU"),
+  );
   assert.doesNotMatch(uninstallSection, /RMDir \/r "\$INSTDIR"/u);
 });
 
@@ -408,9 +393,7 @@ test("cleanup and controlled failures cover every prerequisite stage", () => {
     ["InstallAspNetCoreRuntime", "CleanupAspNetCoreRuntime"],
   ]) {
     const body = functionBody(installer, installName);
-    assert.ok(
-      (body.match(new RegExp(`Call ${cleanupName}`, "gu")) ?? []).length >= 4
-    );
+    assert.ok((body.match(new RegExp(`Call ${cleanupName}`, "gu")) ?? []).length >= 4);
     assert.match(body, /Downloading/u);
     assert.match(body, /Verifying/u);
     assert.match(body, /Requesting elevation/u);
@@ -418,7 +401,7 @@ test("cleanup and controlled failures cover every prerequisite stage", () => {
     assert.match(body, /Installing the .* runtime\.\.\./u);
     assert.match(
       body,
-      /SetDetailsPrint listonly\s+DetailPrint "The Microsoft runtime installer can take several minutes\."\s+DetailPrint "Voltura Air setup continues automatically when it finishes\."\s+SetDetailsPrint both/u
+      /SetDetailsPrint listonly\s+DetailPrint "The Microsoft runtime installer can take several minutes\."\s+DetailPrint "Voltura Air setup continues automatically when it finishes\."\s+SetDetailsPrint both/u,
     );
     assert.match(body, /Validating/u);
     assert.match(body, /requires a restart/u);
@@ -430,15 +413,15 @@ test("cleanup and controlled failures cover every prerequisite stage", () => {
 test("runtime installers launch directly through NSIS elevation and preserve exit codes", () => {
   assert.match(
     installer,
-    /!macro ExecElevatedAndWait FILE_PATH PARAMETERS RESULT_VAR[\s\S]*?ShellExecuteEx[\s\S]*?WaitForSingleObject[\s\S]*?GetExitCodeProcess[\s\S]*?!macroend/u
+    /!macro ExecElevatedAndWait FILE_PATH PARAMETERS RESULT_VAR[\s\S]*?ShellExecuteEx[\s\S]*?WaitForSingleObject[\s\S]*?GetExitCodeProcess[\s\S]*?!macroend/u,
   );
   assert.match(
     functionBody(installer, "InstallWindowsDesktopRuntime"),
-    /!insertmacro ExecElevatedAndWait "\$PLUGINSDIR\\VolturaAir-WindowsDesktop\.exe" "\/install \/quiet \/norestart" \$0/u
+    /!insertmacro ExecElevatedAndWait "\$PLUGINSDIR\\VolturaAir-WindowsDesktop\.exe" "\/install \/quiet \/norestart" \$0/u,
   );
   assert.match(
     functionBody(installer, "InstallAspNetCoreRuntime"),
-    /!insertmacro ExecElevatedAndWait "\$PLUGINSDIR\\VolturaAir-AspNetCore\.exe" "\/install \/quiet \/norestart" \$0/u
+    /!insertmacro ExecElevatedAndWait "\$PLUGINSDIR\\VolturaAir-AspNetCore\.exe" "\/install \/quiet \/norestart" \$0/u,
   );
   assert.doesNotMatch(installer, /Start-Process[\s\S]*?-Verb RunAs[\s\S]*?-Wait/u);
 });
@@ -449,14 +432,13 @@ test("restart-required completion defaults to later and cannot launch the app", 
   assert.match(installer, /SetErrorLevel 0/u);
 
   const standard = preprocessInstaller({ frameworkDependent: true });
-  const finishPage = standard.match(
-    /Function "mui\.FinishPage\.Pre_[^"]+"(?<body>[\s\S]*?)FunctionEnd/u
-  )?.groups?.body ?? "";
+  const finishPage =
+    standard.match(/Function "mui\.FinishPage\.Pre_[^"]+"(?<body>[\s\S]*?)FunctionEnd/u)?.groups
+      ?.body ?? "";
   assert.match(finishPage, /IfRebootFlag/u);
   assert.match(finishPage, /MUI_TEXT_FINISH_REBOOTLATER/u);
   assert.match(finishPage, /SendMessage \$mui\.FinishPage\.RebootLater 0x00F1 1 0/u);
   assert.ok(
-    finishPage.indexOf("MUI_TEXT_FINISH_REBOOTLATER") <
-      finishPage.indexOf('"Start Voltura Air"')
+    finishPage.indexOf("MUI_TEXT_FINISH_REBOOTLATER") < finishPage.indexOf('"Start Voltura Air"'),
   );
 });

@@ -1,6 +1,16 @@
-import { getBrowserName, getDefaultDeviceName, getDisplayMode, getPlatformName } from "../platform/clientEnvironment";
+import {
+  getBrowserName,
+  getDefaultDeviceName,
+  getDisplayMode,
+  getPlatformName,
+} from "../platform/clientEnvironment";
 import { parseServerMessage } from "./connectionProtocol";
-import { hasStoredReconnectKey, isExpectedHostIdentity, signClientPayload, signReconnectChallenge } from "./pairingCredentials";
+import {
+  hasStoredReconnectKey,
+  isExpectedHostIdentity,
+  signClientPayload,
+  signReconnectChallenge,
+} from "./pairingCredentials";
 import { getWebSocketUrl, type PcProfile } from "./pcProfiles";
 import {
   beginRelaySession,
@@ -8,7 +18,7 @@ import {
   verifyRelayHostAcceptance,
   type PendingRelaySession,
   type RelayEncryptedChannel,
-  type RelayEncryptedSend
+  type RelayEncryptedSend,
 } from "./relaySessionCrypto";
 import { isControllerSocketOpen, type ControllerSocket } from "./controllerSocket";
 import { connectSecureDirect } from "./secureDirect";
@@ -20,7 +30,7 @@ export async function revokePcPairing(
   clientId: string,
   deviceName: string,
   activeSocket: ControllerSocket | null,
-  activeRelaySend: RelayEncryptedSend | null = null
+  activeRelaySend: RelayEncryptedSend | null = null,
 ): Promise<boolean> {
   if (!pc) {
     return false;
@@ -39,18 +49,29 @@ export async function revokePcPairing(
   return reconnectAndRevoke(pc, clientId, deviceName);
 }
 
-async function reconnectSecureDirectAndRevoke(pc: PcProfile, clientId: string, deviceName: string): Promise<boolean> {
-  if (!pc.relayRouteId || !pc.hostIdentityFingerprint) {return false;}
+async function reconnectSecureDirectAndRevoke(
+  pc: PcProfile,
+  clientId: string,
+  deviceName: string,
+): Promise<boolean> {
+  if (!pc.relayRouteId || !pc.hostIdentityFingerprint) {
+    return false;
+  }
   const abort = new AbortController();
   let connection: Awaited<ReturnType<typeof connectSecureDirect>>;
-  try { connection = await connectSecureDirect(pc.relayRouteId, abort.signal); }
-  catch { return false; }
+  try {
+    connection = await connectSecureDirect(pc.relayRouteId, abort.signal);
+  } catch {
+    return false;
+  }
   const { channel } = connection;
   return new Promise((resolve) => {
     let finished = false;
     const timeout = window.setTimeout(() => finish(false), revocationTimeoutMs);
     const finish = (result: boolean) => {
-      if (finished) {return;}
+      if (finished) {
+        return;
+      }
       finished = true;
       window.clearTimeout(timeout);
       channel.removeEventListener("message", onMessage);
@@ -63,29 +84,42 @@ async function reconnectSecureDirectAndRevoke(pc: PcProfile, clientId: string, d
       const response = parseServerMessage(event.data);
       if (response?.type === "pair.challenge") {
         const signature = signReconnectChallenge(clientId, pc.id, response.challenge);
-        if (!signature) {finish(false); return;}
+        if (!signature) {
+          finish(false);
+          return;
+        }
         channel.send(JSON.stringify({ type: "pair.proof", clientId, signature }));
       } else if (response?.type === "pair.accepted") {
-        if (!isExpectedHostIdentity(response, pc.hostIdentityFingerprint)) {finish(false); return;}
-        try { channel.send(JSON.stringify({ type: "pair.disconnect" })); }
-        catch { finish(false); }
+        if (!isExpectedHostIdentity(response, pc.hostIdentityFingerprint)) {
+          finish(false);
+          return;
+        }
+        try {
+          channel.send(JSON.stringify({ type: "pair.disconnect" }));
+        } catch {
+          finish(false);
+        }
       } else if (response?.type === "pair.disconnect.accepted") {
         finish(true);
-      } else if (response?.type === "pair.rejected") {finish(false);}
+      } else if (response?.type === "pair.rejected") {
+        finish(false);
+      }
     };
     const onClose = () => finish(false);
     const onError = () => finish(false);
     channel.addEventListener("message", onMessage);
     channel.addEventListener("close", onClose);
     channel.addEventListener("error", onError);
-    channel.send(JSON.stringify({
-      type: "pair.hello",
-      clientId,
-      deviceName: deviceName.trim() || getDefaultDeviceName(),
-      platform: getPlatformName(),
-      browser: getBrowserName(),
-      displayMode: getDisplayMode()
-    }));
+    channel.send(
+      JSON.stringify({
+        type: "pair.hello",
+        clientId,
+        deviceName: deviceName.trim() || getDefaultDeviceName(),
+        platform: getPlatformName(),
+        browser: getBrowserName(),
+        displayMode: getDisplayMode(),
+      }),
+    );
   });
 }
 
@@ -101,7 +135,9 @@ function reconnectAndRevoke(pc: PcProfile, clientId: string, deviceName: string)
     let closeConfirmed = false;
     let pendingRelaySession: PendingRelaySession | null = null;
     let relayChannel: RelayEncryptedChannel | null = null;
-    const timeout = window.setTimeout(() => { finish(false); }, revocationTimeoutMs);
+    const timeout = window.setTimeout(() => {
+      finish(false);
+    }, revocationTimeoutMs);
 
     function finish(succeeded: boolean) {
       if (finished) {
@@ -120,14 +156,16 @@ function reconnectAndRevoke(pc: PcProfile, clientId: string, deviceName: string)
     }
 
     function onOpen() {
-      rawSend(JSON.stringify({
-        type: "pair.hello",
-        clientId,
-        deviceName: deviceName.trim() || getDefaultDeviceName(),
-        platform: getPlatformName(),
-        browser: getBrowserName(),
-        displayMode: getDisplayMode()
-      }));
+      rawSend(
+        JSON.stringify({
+          type: "pair.hello",
+          clientId,
+          deviceName: deviceName.trim() || getDefaultDeviceName(),
+          platform: getPlatformName(),
+          browser: getBrowserName(),
+          displayMode: getDisplayMode(),
+        }),
+      );
     }
 
     function onMessage(event: MessageEvent) {
@@ -144,7 +182,11 @@ function reconnectAndRevoke(pc: PcProfile, clientId: string, deviceName: string)
         });
         return;
       }
-      if (pc.transportMode === "relay" && typeof event.data === "string" && handleRelayHandshakeMessage(event.data)) {
+      if (
+        pc.transportMode === "relay" &&
+        typeof event.data === "string" &&
+        handleRelayHandshakeMessage(event.data)
+      ) {
         return;
       }
       handleAuthenticatedMessage(event.data);
@@ -159,7 +201,11 @@ function reconnectAndRevoke(pc: PcProfile, clientId: string, deviceName: string)
       }
       const challenge = parseRelayKeyChallenge(value);
       if (challenge) {
-        if (challenge.routeId !== pc.relayRouteId || challenge.clientId !== clientId || !pc.hostIdentityPublicKey) {
+        if (
+          challenge.routeId !== pc.relayRouteId ||
+          challenge.clientId !== clientId ||
+          !pc.hostIdentityPublicKey
+        ) {
           finish(false);
           return true;
         }
@@ -167,7 +213,8 @@ function reconnectAndRevoke(pc: PcProfile, clientId: string, deviceName: string)
           challenge,
           pc.hostIdentityPublicKey,
           null,
-          (transcript) => signClientPayload(clientId, pc.id, transcript));
+          (transcript) => signClientPayload(clientId, pc.id, transcript),
+        );
         if (!pendingRelaySession) {
           finish(false);
           return true;
@@ -211,7 +258,9 @@ function reconnectAndRevoke(pc: PcProfile, clientId: string, deviceName: string)
       try {
         const text = JSON.stringify({ type: "pair.disconnect" });
         if (relayChannel) {
-          await relayChannel.send((encrypted) => { rawSend(encrypted); }, text);
+          await relayChannel.send((encrypted) => {
+            rawSend(encrypted);
+          }, text);
         } else {
           rawSend(text);
         }
@@ -247,13 +296,18 @@ function reconnectAndRevoke(pc: PcProfile, clientId: string, deviceName: string)
   });
 }
 
-function sendDisconnectAndAwaitClose(socket: ControllerSocket, relaySend: RelayEncryptedSend | null): Promise<boolean> {
+function sendDisconnectAndAwaitClose(
+  socket: ControllerSocket,
+  relaySend: RelayEncryptedSend | null,
+): Promise<boolean> {
   return new Promise((resolve) => {
     let finished = false;
     let sent = false;
     let closeObserved = false;
     let closeConfirmed = false;
-    const timeout = window.setTimeout(() => { finish(false); }, revocationTimeoutMs);
+    const timeout = window.setTimeout(() => {
+      finish(false);
+    }, revocationTimeoutMs);
     const finish = (succeeded: boolean) => {
       if (finished) {
         return;
@@ -272,7 +326,8 @@ function sendDisconnectAndAwaitClose(socket: ControllerSocket, relaySend: RelayE
     };
     const onClose = (event: Event) => {
       closeObserved = true;
-      closeConfirmed = typeof socket.readyState === "number" && isConfirmedHostClose(event as CloseEvent);
+      closeConfirmed =
+        typeof socket.readyState === "number" && isConfirmedHostClose(event as CloseEvent);
       if (sent) {
         finish(closeConfirmed);
       }
@@ -294,14 +349,21 @@ function sendDisconnectAndAwaitClose(socket: ControllerSocket, relaySend: RelayE
         send = Promise.resolve();
       }
     } catch (error) {
-      send = Promise.reject(error instanceof Error ? error : new Error("Pairing revocation send failed."));
+      send = Promise.reject(
+        error instanceof Error ? error : new Error("Pairing revocation send failed."),
+      );
     }
-    void send.then(() => {
-      sent = true;
-      if (closeObserved || socket.readyState === WebSocket.CLOSED) {
-        finish(closeConfirmed);
-      }
-    }, () => { finish(false); });
+    void send.then(
+      () => {
+        sent = true;
+        if (closeObserved || socket.readyState === WebSocket.CLOSED) {
+          finish(closeConfirmed);
+        }
+      },
+      () => {
+        finish(false);
+      },
+    );
   });
 }
 

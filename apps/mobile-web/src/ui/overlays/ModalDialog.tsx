@@ -41,7 +41,7 @@ export function ModalDialog({
   submitClassName,
   submitLabel,
   title,
-  titleAccessory
+  titleAccessory,
 }: ModalDialogProps) {
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -84,13 +84,18 @@ export function ModalDialog({
       return;
     }
 
-    invokingElementRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    invokingElementRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (typeof dialog.showModal === "function") {
       dialog.showModal();
     } else {
       dialog.setAttribute("open", "");
     }
-    (initialFocusRef?.current ?? (focusDismissAction ? dismissButtonRef.current : null) ?? dialog)?.focus();
+    (
+      initialFocusRef?.current ??
+      (focusDismissAction ? dismissButtonRef.current : null) ??
+      dialog
+    )?.focus();
   }, [focusDismissAction, initialFocusRef, isOpen]);
 
   useEffect(() => {
@@ -100,9 +105,10 @@ export function ModalDialog({
     }
 
     const visualViewport = window.visualViewport;
-    const minimumBottomConstraint = Number.parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue("--control-min-height")
-    ) || 48;
+    const minimumBottomConstraint =
+      Number.parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue("--control-min-height"),
+      ) || 48;
     let animationFrame = 0;
     let shouldRevealFocus = true;
     const updateViewportVariables = () => {
@@ -119,15 +125,15 @@ export function ModalDialog({
       dialog.style.setProperty("--modal-visual-viewport-bottom-offset", `${bottomOffset}px`);
       dialog.toggleAttribute(
         "data-visual-viewport-bottom-constrained",
-        bottomOffset >= minimumBottomConstraint
+        bottomOffset >= minimumBottomConstraint,
       );
       if (shouldRevealFocus) {
         shouldRevealFocus = false;
         const focusedElement = document.activeElement;
         if (
-          focusedElement instanceof HTMLElement
-          && dialog.contains(focusedElement)
-          && typeof focusedElement.scrollIntoView === "function"
+          focusedElement instanceof HTMLElement &&
+          dialog.contains(focusedElement) &&
+          typeof focusedElement.scrollIntoView === "function"
         ) {
           focusedElement.scrollIntoView({ block: "nearest", inline: "nearest" });
         }
@@ -139,8 +145,12 @@ export function ModalDialog({
         animationFrame = window.requestAnimationFrame(updateViewportVariables);
       }
     };
-    const scheduleResizeUpdate = () => { scheduleViewportUpdate(true); };
-    const scheduleScrollUpdate = () => { scheduleViewportUpdate(false); };
+    const scheduleResizeUpdate = () => {
+      scheduleViewportUpdate(true);
+    };
+    const scheduleScrollUpdate = () => {
+      scheduleViewportUpdate(false);
+    };
 
     updateViewportVariables();
     visualViewport?.addEventListener("resize", scheduleResizeUpdate);
@@ -164,10 +174,11 @@ export function ModalDialog({
 
     const dismissFromBackdrop = (event: MouseEvent) => {
       const bounds = dialog.getBoundingClientRect();
-      const outsideSurface = event.clientX < bounds.left
-        || event.clientX > bounds.right
-        || event.clientY < bounds.top
-        || event.clientY > bounds.bottom;
+      const outsideSurface =
+        event.clientX < bounds.left ||
+        event.clientX > bounds.right ||
+        event.clientY < bounds.top ||
+        event.clientY > bounds.bottom;
       if (outsideSurface) {
         closeDialog();
       }
@@ -234,21 +245,33 @@ export function ModalDialog({
         >
           <div className="modal-dialog-body">{children}</div>
           <div className={`modal-dialog-actions${actionsClassName ? ` ${actionsClassName}` : ""}`}>
-            {actions ?? <>
-              <button ref={dismissButtonRef} type="button" onClick={closeDialog}>{dismissLabel}</button>
-              {submitLabel && <button className={submitClassName} type="submit">{submitLabel}</button>}
-            </>}
+            {actions ?? (
+              <>
+                <button ref={dismissButtonRef} type="button" onClick={closeDialog}>
+                  {dismissLabel}
+                </button>
+                {submitLabel && (
+                  <button className={submitClassName} type="submit">
+                    {submitLabel}
+                  </button>
+                )}
+              </>
+            )}
           </div>
         </form>
       ) : (
         <>
           <div className="modal-dialog-body">{children}</div>
           <div className={`modal-dialog-actions${actionsClassName ? ` ${actionsClassName}` : ""}`}>
-            {actions ?? <button ref={dismissButtonRef} type="button" onClick={closeDialog}>{dismissLabel}</button>}
+            {actions ?? (
+              <button ref={dismissButtonRef} type="button" onClick={closeDialog}>
+                {dismissLabel}
+              </button>
+            )}
           </div>
         </>
       )}
     </dialog>,
-    document.body
+    document.body,
   );
 }

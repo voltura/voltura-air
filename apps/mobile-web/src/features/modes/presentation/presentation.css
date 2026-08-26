@@ -326,10 +326,8 @@
   align-items: center;
   gap: var(--space-md);
   border-bottom: 1px solid var(--border);
-  padding:
-    max(var(--space-md), var(--mode-top-safe-area, 0px))
-    max(var(--space-md), var(--mode-inline-safe-end, 0px))
-    var(--space-md)
+  padding: max(var(--space-md), var(--mode-top-safe-area, 0px))
+    max(var(--space-md), var(--mode-inline-safe-end, 0px)) var(--space-md)
     max(var(--space-md), var(--mode-inline-safe-start, 0px));
 }
 
@@ -445,9 +443,7 @@
   display: grid;
   gap: var(--space-sm);
   border-top: 1px solid var(--border);
-  padding:
-    var(--space-md)
-    max(var(--space-md), var(--mode-inline-safe-end, 0px))
+  padding: var(--space-md) max(var(--space-md), var(--mode-inline-safe-end, 0px))
     max(var(--space-md), var(--mode-bottom-safe-area, 0px))
     max(var(--space-md), var(--mode-inline-safe-start, 0px));
 }
@@ -739,7 +735,9 @@
   border-radius: var(--radius-large) var(--radius-large) 0 0;
 }
 
-.presentation-mode.trackpad-open .presentation-controls-panel > :not(.presentation-header, .presentation-trackpad-summary) {
+.presentation-mode.trackpad-open
+  .presentation-controls-panel
+  > :not(.presentation-header, .presentation-trackpad-summary) {
   display: none;
 }
 
@@ -772,7 +770,8 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 0 clamp(14px, 2.5vw, 22px) max(clamp(14px, 2.5vw, 22px), var(--mode-bottom-safe-area, 0px));
+  padding: 0 clamp(14px, 2.5vw, 22px)
+    max(clamp(14px, 2.5vw, 22px), var(--mode-bottom-safe-area, 0px));
 }
 
 .presentation-time {
@@ -982,11 +981,8 @@
   min-height: var(--app-viewport-height);
   color: var(--text);
   background: var(--bg);
-  padding:
-    max(14px, env(safe-area-inset-top))
-    max(14px, env(safe-area-inset-right))
-    max(14px, env(safe-area-inset-bottom))
-    max(14px, env(safe-area-inset-left));
+  padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right))
+    max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
 }
 
 .presentation-statistics-fullscreen-header {
@@ -1358,7 +1354,8 @@
 
   .presentation-timer-content {
     gap: 8px;
-    padding: 0 max(10px, var(--mode-inline-safe-end, 0px)) max(10px, var(--mode-bottom-safe-area, 0px)) max(10px, var(--mode-inline-safe-start, 0px));
+    padding: 0 max(10px, var(--mode-inline-safe-end, 0px))
+      max(10px, var(--mode-bottom-safe-area, 0px)) max(10px, var(--mode-inline-safe-start, 0px));
   }
 
   .presentation-time {
@@ -1546,10 +1543,7 @@
   }
 
   .presentation-break-history {
-    --presentation-log-safe-end: max(
-      0px,
-      calc(var(--mode-inline-safe-end, 0px) - 10px)
-    );
+    --presentation-log-safe-end: max(0px, calc(var(--mode-inline-safe-end, 0px) - 10px));
   }
 
   .presentation-header p,

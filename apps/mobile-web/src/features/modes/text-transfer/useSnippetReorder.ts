@@ -1,4 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction, type SyntheticEvent, type TouchEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+  type SyntheticEvent,
+  type TouchEvent,
+} from "react";
 import { saveTextSnippets, type SavedTextSnippet } from "../../../foundation/settings/textSnippets";
 
 const snippetLongPressMs = 450;
@@ -43,11 +52,14 @@ export function useSnippetReorder({ clientId, setSnippets, snippets }: UseSnippe
     }
   }, [draggingSnippetId, snippets]);
 
-  useEffect(() => () => {
-    if (snippetDragRef.current) {
-      window.clearTimeout(snippetDragRef.current.timer);
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      if (snippetDragRef.current) {
+        window.clearTimeout(snippetDragRef.current.timer);
+      }
+    },
+    [],
+  );
 
   const reorderSnippet = (draggedId: string, targetId: string) => {
     if (draggedId === targetId) {
@@ -83,7 +95,8 @@ export function useSnippetReorder({ clientId, setSnippets, snippets }: UseSnippe
     }
     const mode = event.currentTarget.closest<HTMLElement>(".text-transfer-mode");
     const snippetsPane = event.currentTarget.closest<HTMLElement>(".saved-snippets");
-    const scrollTarget = snippetsPane && snippetsPane.scrollHeight > snippetsPane.clientHeight ? snippetsPane : mode;
+    const scrollTarget =
+      snippetsPane && snippetsPane.scrollHeight > snippetsPane.clientHeight ? snippetsPane : mode;
     const drag = {
       active: false,
       id: snippet.id,
@@ -94,7 +107,7 @@ export function useSnippetReorder({ clientId, setSnippets, snippets }: UseSnippe
       startX: touch.clientX,
       startY: touch.clientY,
       timer: 0,
-      touchId: touch.identifier
+      touchId: touch.identifier,
     };
     drag.timer = window.setTimeout(() => {
       drag.active = true;
@@ -124,13 +137,19 @@ export function useSnippetReorder({ clientId, setSnippets, snippets }: UseSnippe
       return;
     }
 
-    const touch = Array.from(event.touches).find((candidate) => candidate.identifier === drag.touchId);
+    const touch = Array.from(event.touches).find(
+      (candidate) => candidate.identifier === drag.touchId,
+    );
     if (!touch) {
       return;
     }
 
     if (!drag.active) {
-      if (!drag.scrolling && Math.hypot(touch.clientX - drag.startX, touch.clientY - drag.startY) > snippetDragCancelDistance) {
+      if (
+        !drag.scrolling &&
+        Math.hypot(touch.clientX - drag.startX, touch.clientY - drag.startY) >
+          snippetDragCancelDistance
+      ) {
         window.clearTimeout(drag.timer);
         drag.scrolling = true;
       }
@@ -149,10 +168,14 @@ export function useSnippetReorder({ clientId, setSnippets, snippets }: UseSnippe
     event.stopPropagation();
     snippetDragScrollRef.current?.restore();
     setSnippetDragOffsetY(touch.clientY - drag.startY);
-    const targetCard = document.elementFromPoint(touch.clientX, touch.clientY)?.closest<HTMLElement>("[data-snippet-id]");
+    const targetCard = document
+      .elementFromPoint(touch.clientX, touch.clientY)
+      ?.closest<HTMLElement>("[data-snippet-id]");
     let targetId = targetCard?.dataset.snippetId;
     if (!targetId) {
-      const cards = Array.from(document.querySelectorAll<HTMLElement>(".saved-snippets [data-snippet-id]"));
+      const cards = Array.from(
+        document.querySelectorAll<HTMLElement>(".saved-snippets [data-snippet-id]"),
+      );
       const firstCard = cards[0];
       const lastCard = cards[cards.length - 1];
       if (firstCard && touch.clientY < firstCard.getBoundingClientRect().top) {
@@ -235,6 +258,6 @@ export function useSnippetReorder({ clientId, setSnippets, snippets }: UseSnippe
     snippetDragOffsetY,
     snippetReorderFeedback,
     startSnippetLongPress,
-    suppressSnippetClick
+    suppressSnippetClick,
   };
 }

@@ -27,7 +27,13 @@ export function purgeWindowsIconCache(options = {}) {
   const explorerCacheDirectory = path.join(localAppData, "Microsoft", "Windows", "Explorer");
   const rootIconCache = path.join(localAppData, "IconCache.db");
   const iconCacheResetTool = path.join(systemRoot, "System32", "ie4uinit.exe");
-  const powershell = path.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const powershell = path.join(
+    systemRoot,
+    "System32",
+    "WindowsPowerShell",
+    "v1.0",
+    "powershell.exe",
+  );
   const sessionId = getCurrentSessionId(run, options.processId ?? process.pid);
 
   log("Closing Voltura Air and refreshing the current Windows user's icon cache...");
@@ -62,9 +68,9 @@ export function purgeWindowsIconCache(options = {}) {
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "Start-Process -FilePath (Join-Path $env:SystemRoot 'explorer.exe')"
+          "Start-Process -FilePath (Join-Path $env:SystemRoot 'explorer.exe')",
         ],
-        "restart Windows Explorer"
+        "restart Windows Explorer",
       );
     } catch (error) {
       restartError = error;
@@ -74,7 +80,7 @@ export function purgeWindowsIconCache(options = {}) {
   if (purgeError && restartError) {
     throw new AggregateError(
       [purgeError, restartError],
-      "The icon cache could not be purged and Windows Explorer could not be restarted."
+      "The icon cache could not be purged and Windows Explorer could not be restarted.",
     );
   }
 
@@ -113,7 +119,7 @@ function removeCacheFile(filePath) {
 function getCurrentSessionId(run, processId) {
   const result = run("tasklist", ["/FI", `PID eq ${processId}`, "/FO", "CSV", "/NH"], {
     encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"]
+    stdio: ["ignore", "pipe", "pipe"],
   });
   assertRunSucceeded(result, "identify the current Windows session");
   const row = parseTaskListRow(result.stdout);
@@ -130,8 +136,8 @@ function findProcessId(run, imageName, sessionId) {
     ["/FI", `IMAGENAME eq ${imageName}`, "/FI", `SESSION eq ${sessionId}`, "/FO", "CSV", "/NH"],
     {
       encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"]
-    }
+      stdio: ["ignore", "pipe", "pipe"],
+    },
   );
   assertRunSucceeded(result, "inspect Windows Explorer");
 
@@ -141,15 +147,13 @@ function findProcessId(run, imageName, sessionId) {
 
 function parseTaskListRow(output) {
   const match = output?.trim().match(/^"([^"]*)","([^"]*)","([^"]*)","([^"]*)"/);
-  return match
-    ? { imageName: match[1], processId: match[2], sessionId: match[4] }
-    : null;
+  return match ? { imageName: match[1], processId: match[2], sessionId: match[4] } : null;
 }
 
 function runChecked(run, command, args, description) {
   const result = run(command, args, {
     encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"]
+    stdio: ["ignore", "pipe", "pipe"],
   });
   assertRunSucceeded(result, description);
 }
@@ -166,7 +170,10 @@ function assertRunSucceeded(result, description) {
 }
 
 const currentFilePath = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]).toLowerCase() === path.resolve(currentFilePath).toLowerCase()) {
+if (
+  process.argv[1] &&
+  path.resolve(process.argv[1]).toLowerCase() === path.resolve(currentFilePath).toLowerCase()
+) {
   try {
     purgeWindowsIconCache();
   } catch (error) {

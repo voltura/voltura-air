@@ -17,9 +17,11 @@ describe("WorkspaceErrorBoundary", () => {
 
   it("replaces a failed workspace with an actionable visible state", () => {
     const onBack = vi.fn();
-    render(<WorkspaceErrorBoundary featureName="Screen" onBack={onBack}>
-      <BrokenWorkspace />
-    </WorkspaceErrorBoundary>);
+    render(
+      <WorkspaceErrorBoundary featureName="Screen" onBack={onBack}>
+        <BrokenWorkspace />
+      </WorkspaceErrorBoundary>,
+    );
 
     expect(screen.getByRole("alert").textContent).toContain("Screen could not open");
     fireEvent.click(screen.getByRole("button", { name: "Back" }));

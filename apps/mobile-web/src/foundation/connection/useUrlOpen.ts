@@ -29,10 +29,12 @@ export function useUrlOpen(state: ConnectionState, send: (payload: ClientMessage
         operationId,
         succeeded: false,
         code: "VAIR-URL-RESPONSE-TIMEOUT",
-        message: "The PC did not confirm the open request. Retry when the connection is available."
+        message: "The PC did not confirm the open request. Retry when the connection is available.",
       });
     }, responseTimeoutMs);
-    return () => { window.clearTimeout(timeout); };
+    return () => {
+      window.clearTimeout(timeout);
+    };
   }, [pendingUrlOpen]);
 
   useEffect(() => {
@@ -50,8 +52,12 @@ export function useUrlOpen(state: ConnectionState, send: (payload: ClientMessage
       return;
     }
 
-    const timeout = window.setTimeout(() => { setUrlOpenResult(null); }, resultVisibilityMs);
-    return () => { window.clearTimeout(timeout); };
+    const timeout = window.setTimeout(() => {
+      setUrlOpenResult(null);
+    }, resultVisibilityMs);
+    return () => {
+      window.clearTimeout(timeout);
+    };
   }, [urlOpenResult]);
 
   const requestUrlOpen = (url: string): string | null => {

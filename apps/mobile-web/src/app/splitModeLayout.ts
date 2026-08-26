@@ -8,7 +8,12 @@ interface StableScreenInfo {
   width: number;
 }
 
-export function supportsSplitModeLayout(width: number, height: number, stableOrientation: StableScreenOrientation = null, isTouchDevice = false): boolean {
+export function supportsSplitModeLayout(
+  width: number,
+  height: number,
+  stableOrientation: StableScreenOrientation = null,
+  isTouchDevice = false,
+): boolean {
   const viewportSupportsSplit = width >= splitModeMinimumWidth && width > height;
   if (!isTouchDevice || stableOrientation === null) {
     return viewportSupportsSplit;

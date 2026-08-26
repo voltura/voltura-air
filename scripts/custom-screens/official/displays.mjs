@@ -1,4 +1,23 @@
 import { screen, button, buttonGrid } from "../builders/screen-builder.mjs";
 import { hostAction } from "../builders/actions.mjs";
 const id = "official.displays";
-export default screen({ id, name: "Displays", revision: "official-displays-1", category: "Windows", tags: ["Windows", "Displays", "Monitor"], shortDescription: "Turn displays off or select Windows duplicate, extend, and single-display modes.", sections: [buttonGrid(`${id}.modes`, "Display modes", [button(`${id}.off`, "Display off", hostAction("display.off"), { icon: "monitor" }), button(`${id}.duplicate`, "Duplicate", hostAction("display.duplicate"), { icon: "monitor" }), button(`${id}.extend`, "Extend", hostAction("display.extend"), { icon: "monitor" }), button(`${id}.pcOnly`, "PC only", hostAction("display.pcOnly"), { icon: "monitor" }), button(`${id}.secondOnly`, "Second only", hostAction("display.secondOnly"), { icon: "monitor" })])] });
+export default screen({
+  id,
+  name: "Displays",
+  revision: "official-displays-1",
+  category: "Windows",
+  tags: ["Windows", "Displays", "Monitor"],
+  shortDescription:
+    "Turn displays off or select Windows duplicate, extend, and single-display modes.",
+  sections: [
+    buttonGrid(`${id}.modes`, "Display modes", [
+      button(`${id}.off`, "Display off", hostAction("display.off"), { icon: "monitor" }),
+      button(`${id}.duplicate`, "Duplicate", hostAction("display.duplicate"), { icon: "monitor" }),
+      button(`${id}.extend`, "Extend", hostAction("display.extend"), { icon: "monitor" }),
+      button(`${id}.pcOnly`, "PC only", hostAction("display.pcOnly"), { icon: "monitor" }),
+      button(`${id}.secondOnly`, "Second only", hostAction("display.secondOnly"), {
+        icon: "monitor",
+      }),
+    ]),
+  ],
+});

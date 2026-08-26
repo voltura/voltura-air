@@ -5,22 +5,45 @@ const root = process.cwd();
 const checkReviews = process.argv.includes("--check");
 const unsupportedArguments = process.argv.slice(2).filter((argument) => argument !== "--check");
 if (unsupportedArguments.length > 0) {
-  throw new Error(`Unsupported option: ${unsupportedArguments.join(", ")}. Use --check to enforce strong-warning reviews.`);
+  throw new Error(
+    `Unsupported option: ${unsupportedArguments.join(", ")}. Use --check to enforce strong-warning reviews.`,
+  );
 }
 
-const reviewReasons = new Map(Object.entries(JSON.parse(
-  await readFile(path.join(root, "scripts/source-size-reviews.json"), "utf8")
-)));
+const reviewReasons = new Map(
+  Object.entries(
+    JSON.parse(await readFile(path.join(root, "scripts/source-size-reviews.json"), "utf8")),
+  ),
+);
 const reviewBytes = 12 * 1024;
 const warningBytes = 20 * 1024;
 const reviewLines = 300;
 const warningLines = 500;
 const sourceExtensions = new Set([
-  ".cs", ".css", ".html", ".js", ".jsx", ".mjs", ".nsi", ".php",
-  ".ps1", ".ts", ".tsx", ".xaml"
+  ".cs",
+  ".css",
+  ".html",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".nsi",
+  ".php",
+  ".ps1",
+  ".ts",
+  ".tsx",
+  ".xaml",
 ]);
 const excludedDirectories = new Set([
-  ".codex-temp", ".codex-tmp", ".git", ".vs", "artifacts", "bin", "coverage", "dist", "node_modules", "obj"
+  ".codex-temp",
+  ".codex-tmp",
+  ".git",
+  ".vs",
+  "artifacts",
+  "bin",
+  "coverage",
+  "dist",
+  "node_modules",
+  "obj",
 ]);
 const excludedPathPrefixes = [
   "apps/mobile-web/public/",
@@ -28,11 +51,9 @@ const excludedPathPrefixes = [
   "apps/public-site/dev-app/",
   "apps/public-site/assets/",
   "apps/public-site/screens/assets/",
-  "installer/assets/"
+  "installer/assets/",
 ];
-const excludedPaths = new Set([
-  "apps/public-site/stats.html"
-]);
+const excludedPaths = new Set(["apps/public-site/stats.html"]);
 
 async function collect(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -45,15 +66,17 @@ async function collect(directory) {
 
     const absolutePath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
-      files.push(...await collect(absolutePath));
+      files.push(...(await collect(absolutePath)));
       continue;
     }
 
     const relativePath = path.relative(root, absolutePath).split(path.sep).join("/");
-    if (!sourceExtensions.has(path.extname(entry.name).toLowerCase()) ||
-        excludedPaths.has(relativePath) ||
-        excludedPathPrefixes.some((prefix) => relativePath.startsWith(prefix)) ||
-        /(?:^|\/)(?:[^/]+\.g\.cs|[^/]+\.generated\.[^/]+)$/.test(relativePath)) {
+    if (
+      !sourceExtensions.has(path.extname(entry.name).toLowerCase()) ||
+      excludedPaths.has(relativePath) ||
+      excludedPathPrefixes.some((prefix) => relativePath.startsWith(prefix)) ||
+      /(?:^|\/)(?:[^/]+\.g\.cs|[^/]+\.generated\.[^/]+)$/.test(relativePath)
+    ) {
       continue;
     }
 
@@ -74,7 +97,7 @@ const reviewCandidates = (await collect(root)).sort((left, right) => {
   return rightScore - leftScore;
 });
 const strongWarnings = reviewCandidates.filter(
-  (file) => file.size > warningBytes || file.lineCount > warningLines
+  (file) => file.size > warningBytes || file.lineCount > warningLines,
 );
 const strongWarningPaths = new Set(strongWarnings.map((file) => file.relativePath));
 const reviewErrors = [];
@@ -88,7 +111,9 @@ for (const file of strongWarnings) {
 
 for (const reviewedPath of reviewReasons.keys()) {
   if (!strongWarningPaths.has(reviewedPath)) {
-    reviewErrors.push(`Source-size review is stale because the file is no longer a strong warning: ${reviewedPath}`);
+    reviewErrors.push(
+      `Source-size review is stale because the file is no longer a strong warning: ${reviewedPath}`,
+    );
   }
 }
 
@@ -99,10 +124,12 @@ if (reviewCandidates.length === 0) {
   for (const file of reviewCandidates) {
     const strongWarning = file.size > warningBytes || file.lineCount > warningLines;
     const marker = strongWarning
-      ? reviewReasons.has(file.relativePath) ? "reviewed" : "WARNING"
+      ? reviewReasons.has(file.relativePath)
+        ? "reviewed"
+        : "WARNING"
       : "review";
     console.log(
-      `${(file.size / 1024).toFixed(1).padStart(6)} KB  ${String(file.lineCount).padStart(5)} lines  ${marker.padEnd(7)}  ${file.relativePath}`
+      `${(file.size / 1024).toFixed(1).padStart(6)} KB  ${String(file.lineCount).padStart(5)} lines  ${marker.padEnd(7)}  ${file.relativePath}`,
     );
   }
 }

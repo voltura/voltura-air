@@ -12,11 +12,7 @@ const clientPort = process.env.VOLTURA_AIR_CLIENT_PORT ?? "5173";
 const restartExitCode = 23;
 let shuttingDown = false;
 let developmentReadyReported = false;
-const args = [
-  "run",
-  "--project",
-  "apps/windows-host/VolturaAir.Host.csproj"
-];
+const args = ["run", "--project", "apps/windows-host/VolturaAir.Host.csproj"];
 const useViteClient =
   process.env.VOLTURA_AIR_USE_VITE_CLIENT === "1" ||
   process.env.VOLTURA_AIR_USE_VITE_CLIENT?.toLowerCase() === "true" ||
@@ -47,7 +43,7 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 function startHost() {
   const next = spawn("dotnet", args, {
     stdio: ["inherit", "pipe", "inherit"],
-    env: { ...process.env, VOLTURA_AIR_DEV_HOST: "1" }
+    env: { ...process.env, VOLTURA_AIR_DEV_HOST: "1" },
   });
   pipeHostOutput(next);
   next.on("exit", (code, signal) => {
@@ -85,7 +81,7 @@ function pipeHostOutput(host) {
       const now = Date.now();
       writeDevReady({
         stepDurationMilliseconds: now - Number(process.env.VOLTURA_AIR_DEV_HOST_STARTED_AT),
-        totalDurationMilliseconds: now - Number(process.env.VOLTURA_AIR_DEV_TOTAL_STARTED_AT)
+        totalDurationMilliseconds: now - Number(process.env.VOLTURA_AIR_DEV_TOTAL_STARTED_AT),
       });
       return;
     }
@@ -121,11 +117,13 @@ async function waitForClientFiles() {
       if (attempt === clientFileRetryCount) {
         throw new Error(
           `Mobile client files were not found at ${clientEntryPath} after ${clientFileRetryCount} retries. Run npm run build --workspace apps/mobile-web and try again.`,
-          { cause: error }
+          { cause: error },
         );
       }
 
-      console.warn(`Mobile client files are not ready; retrying in ${clientFileRetryDelayMs / 1000} seconds (${attempt + 1}/${clientFileRetryCount})...`);
+      console.warn(
+        `Mobile client files are not ready; retrying in ${clientFileRetryDelayMs / 1000} seconds (${attempt + 1}/${clientFileRetryCount})...`,
+      );
       await new Promise((resolve) => setTimeout(resolve, clientFileRetryDelayMs));
     }
   }

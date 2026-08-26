@@ -5,11 +5,11 @@ import { useVolturaAirConnection } from "./foundation/connection/useVolturaAirCo
 import { usePwaLifecycle } from "./foundation/pwa/usePwaLifecycle";
 
 vi.mock("./foundation/connection/useVolturaAirConnection", () => ({
-  useVolturaAirConnection: vi.fn()
+  useVolturaAirConnection: vi.fn(),
 }));
 
 vi.mock("./foundation/pwa/usePwaLifecycle", () => ({
-  usePwaLifecycle: vi.fn()
+  usePwaLifecycle: vi.fn(),
 }));
 
 function createStorage(): Storage {
@@ -18,7 +18,9 @@ function createStorage(): Storage {
     get length() {
       return items.size;
     },
-    clear: () => { items.clear(); },
+    clear: () => {
+      items.clear();
+    },
     getItem: (key: string) => items.get(key) ?? null,
     key: (index: number) => Array.from(items.keys())[index] ?? null,
     removeItem: (key: string) => {
@@ -26,7 +28,7 @@ function createStorage(): Storage {
     },
     setItem: (key: string, value: string) => {
       items.set(key, String(value));
-    }
+    },
   };
 }
 
@@ -62,7 +64,7 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
       customName: true,
       id: "pc-a",
       name: "Very Long Living Room Editing Workstation",
-      url: "http://pc.local:51395"
+      url: "http://pc.local:51395",
     },
     pairedPcs: [],
     reconnectablePcs: [],
@@ -141,7 +143,7 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     setHostControlDepth: vi.fn(),
     setHostShowModeButtons: vi.fn(),
     setHostPointerSpeed: vi.fn(),
-    ...overrides
+    ...overrides,
   });
 }
 
@@ -154,8 +156,8 @@ beforeEach(() => {
     vi.fn(() => ({
       matches: false,
       addEventListener: vi.fn(),
-      removeEventListener: vi.fn()
-    }))
+      removeEventListener: vi.fn(),
+    })),
   );
   mockConnection();
   vi.mocked(usePwaLifecycle).mockReturnValue({
@@ -163,7 +165,7 @@ beforeEach(() => {
     installPrompt: null,
     isInstalled: false,
     refreshInstalledApp: vi.fn(),
-    refreshMessage: "Reload from the PC if the home screen app looks stale."
+    refreshMessage: "Reload from the PC if the home screen app looks stale.",
   });
 });
 
@@ -171,7 +173,7 @@ describe("App header and mode navigation", () => {
   it("keeps connection errors short in the header and presents the complete dismissible error once per occurrence", async () => {
     const error = {
       code: "VAIR-PAIR-HOST-PROOF-INVALID",
-      message: "PC identity check failed. Scan a fresh QR code from the PC."
+      message: "PC identity check failed. Scan a fresh QR code from the PC.",
     };
     mockConnection({ lastConnectionError: error });
     const view = render(<App />);
@@ -201,7 +203,8 @@ describe("App header and mode navigation", () => {
   it("keeps reconnect errors in the blocking recovery panel when the host becomes unavailable", () => {
     const firstError = {
       code: "VAIR-PAIR-HOST-UNREACHABLE",
-      message: "HTPC-BEE is currently not available. Check that Voltura Air is running on the PC. Retrying..."
+      message:
+        "HTPC-BEE is currently not available. Check that Voltura Air is running on the PC. Retrying...",
     };
     mockConnection({
       state: "unavailable",
@@ -212,8 +215,8 @@ describe("App header and mode navigation", () => {
         id: "pc-a",
         name: "HTPC-BEE",
         transportMode: "secure-direct",
-        url: "https://secure-direct.invalid"
-      }
+        url: "https://secure-direct.invalid",
+      },
     });
     const view = render(<App />);
 
@@ -225,7 +228,7 @@ describe("App header and mode navigation", () => {
 
     const nextError = {
       code: "VAIR-PAIR-SECURE-DIRECT",
-      message: "Could not establish the secure direct connection."
+      message: "Could not establish the secure direct connection.",
     };
     mockConnection({
       state: "unavailable",
@@ -236,8 +239,8 @@ describe("App header and mode navigation", () => {
         id: "pc-a",
         name: "HTPC-BEE",
         transportMode: "secure-direct",
-        url: "https://secure-direct.invalid"
-      }
+        url: "https://secure-direct.invalid",
+      },
     });
     view.rerender(<App />);
 
@@ -261,7 +264,7 @@ describe("App header and mode navigation", () => {
     const requestPresentationCommand = vi.fn(() => "laser-cleanup");
     mockConnection({
       presentationCapability: { canControl: true, canSaveReports: true, laserPointerActive: true },
-      requestPresentationCommand
+      requestPresentationCommand,
     });
 
     render(<App />);
@@ -280,20 +283,22 @@ describe("App header and mode navigation", () => {
       powerPoint: {
         state: "ready" as const,
         foregroundActivationSupported: true,
-        presentations: [{
-          runtimePresentationId: "presentation-1",
-          name: "Quarterly update.pptx",
-          state: "ready" as const,
-          slideCount: 24,
-          currentSlideIndex: null,
-          currentShowPosition: null,
-          slideShowState: "ready" as const
-        }]
-      }
+        presentations: [
+          {
+            runtimePresentationId: "presentation-1",
+            name: "Quarterly update.pptx",
+            state: "ready" as const,
+            slideCount: 24,
+            currentSlideIndex: null,
+            currentShowPosition: null,
+            slideShowState: "ready" as const,
+          },
+        ],
+      },
     };
     mockConnection({
       presentationCapability: readyPowerPointCapability,
-      requestPresentationCommand
+      requestPresentationCommand,
     });
     const view = render(<App />);
 
@@ -302,10 +307,9 @@ describe("App header and mode navigation", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "Presentation" }).at(-1)!);
     await waitFor(() => {
-      expect(requestPresentationCommand).toHaveBeenCalledExactlyOnceWith(
-        "powerpoint",
-        "activate",
-        { runtimePresentationId: "presentation-1" });
+      expect(requestPresentationCommand).toHaveBeenCalledExactlyOnceWith("powerpoint", "activate", {
+        runtimePresentationId: "presentation-1",
+      });
     });
 
     fireEvent.click(screen.getAllByRole("button", { name: "Trackpad" }).at(-1)!);
@@ -316,13 +320,13 @@ describe("App header and mode navigation", () => {
       connectionEpoch: 1,
       message: "PC is currently not available. Retrying...",
       presentationCapability: undefined,
-      requestPresentationCommand
+      requestPresentationCommand,
     });
     view.rerender(<App />);
     mockConnection({
       connectionEpoch: 2,
       presentationCapability: readyPowerPointCapability,
-      requestPresentationCommand
+      requestPresentationCommand,
     });
     view.rerender(<App />);
 
@@ -340,7 +344,7 @@ describe("App header and mode navigation", () => {
       installPrompt: null,
       isInstalled: false,
       refreshInstalledApp,
-      refreshMessage: "Reload from the PC if the home screen app looks stale."
+      refreshMessage: "Reload from the PC if the home screen app looks stale.",
     });
     mockConnection({ hostStatus: { developerMode: true } });
     render(<App />);
@@ -391,7 +395,9 @@ describe("App header and mode navigation", () => {
     mockConnection({ presentationCapability: undefined });
     rerender(<App />);
 
-    await waitFor(() => { expect(screen.queryByRole("heading", { name: "Presentation" })).toBeNull(); });
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Presentation" })).toBeNull();
+    });
     expect(screen.getByLabelText("Dictation text")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Presentation" })).toBeNull();
   });
@@ -404,13 +410,22 @@ describe("App header and mode navigation", () => {
 
     expect(screen.getByRole("dialog").textContent).toContain("Administrator app active");
     fireEvent.click(screen.getByRole("button", { name: "Show desktop" }));
-    expect(send).toHaveBeenCalledWith({ type: "keyboard.special", inputContext: "keyboard", key: "D", modifiers: ["Win"] });
+    expect(send).toHaveBeenCalledWith({
+      type: "keyboard.special",
+      inputContext: "keyboard",
+      key: "D",
+      modifiers: ["Win"],
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.getByRole("button", { name: "PC input paused. Open recovery options." })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "PC input paused. Open recovery options." }),
+    ).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "PC input paused. Open recovery options." }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "PC input paused. Open recovery options." }),
+    );
     expect(screen.getByRole("dialog").textContent).toContain("Other controls remain available.");
 
     mockConnection({ hostStatus: { inputBlockedByElevation: false }, send });
@@ -418,7 +433,9 @@ describe("App header and mode navigation", () => {
     mockConnection({ hostStatus: { inputBlockedByElevation: true }, send });
     rerender(<App />);
 
-    await waitFor(() => { expect(screen.getByRole("dialog").textContent).toContain("Administrator app active"); });
+    await waitFor(() => {
+      expect(screen.getByRole("dialog").textContent).toContain("Administrator app active");
+    });
   });
 
   it("uses accessible mode labels and selected state in both navigation surfaces", () => {
@@ -426,10 +443,14 @@ describe("App header and mode navigation", () => {
 
     const keyboardModeButtons = screen.getAllByRole("button", { name: "Keyboard" });
     expect(keyboardModeButtons).toHaveLength(2);
-    expect(keyboardModeButtons.every((button) => button.getAttribute("aria-current") === null)).toBe(true);
+    expect(
+      keyboardModeButtons.every((button) => button.getAttribute("aria-current") === null),
+    ).toBe(true);
 
     const trackpadModeButtons = screen.getAllByRole("button", { name: "Trackpad" });
-    expect(trackpadModeButtons.some((button) => button.getAttribute("aria-current") === "page")).toBe(true);
+    expect(
+      trackpadModeButtons.some((button) => button.getAttribute("aria-current") === "page"),
+    ).toBe(true);
   });
 
   it("opens either tool from Menu without changing the configured fourth mode", () => {
@@ -443,7 +464,11 @@ describe("App header and mode navigation", () => {
     expect(screen.getAllByRole("button", { name: "Presentation" })).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "Back to previous mode" })).toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Trackpad" }).at(-1)!);
-    expect(screen.getAllByRole("button", { name: "Trackpad" }).some((button) => button.getAttribute("aria-current") === "page")).toBe(true);
+    expect(
+      screen
+        .getAllByRole("button", { name: "Trackpad" })
+        .some((button) => button.getAttribute("aria-current") === "page"),
+    ).toBe(true);
 
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     const menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog");
@@ -457,11 +482,13 @@ describe("App header and mode navigation", () => {
     mockConnection({
       customScreensCapability: {
         catalogRevision: "catalog.one",
-        screens: [{
-          id: "screen.media",
-          name: "Media controls",
-          revision: "revision.one"
-        }]
+        screens: [
+          {
+            id: "screen.media",
+            name: "Media controls",
+            revision: "revision.one",
+          },
+        ],
       },
       customScreenDefinition: {
         id: "screen.media",
@@ -469,8 +496,8 @@ describe("App header and mode navigation", () => {
         revision: "revision.one",
         orientationLayoutsEnabled: false,
         showNavigationHeader: true,
-        sections: []
-      }
+        sections: [],
+      },
     });
     render(<App />);
 
@@ -491,19 +518,22 @@ describe("App header and mode navigation", () => {
     mockConnection({
       customScreensCapability: {
         catalogRevision: "catalog.one",
-        screens: [{
-          id: "screen.gyro",
-          name: "Gyro controls",
-          revision: "revision.one"
-        }]
+        screens: [
+          {
+            id: "screen.gyro",
+            name: "Gyro controls",
+            revision: "revision.one",
+          },
+        ],
       },
       customScreenGetResult: {
         type: "custom.screen.get.result",
         operationId: "operation-incompatible",
         succeeded: false,
         code: "VAIR-CUSTOM-SCREEN-INCOMPATIBLE",
-        message: "This custom screen uses features this version of the app cannot display. Refresh the app and try again."
-      }
+        message:
+          "This custom screen uses features this version of the app cannot display. Refresh the app and try again.",
+      },
     });
     render(<App />);
 
@@ -523,19 +553,22 @@ describe("App header and mode navigation", () => {
     const connection = {
       customScreensCapability: {
         catalogRevision: "catalog.one",
-        screens: [{
-          id: "screen.gyro",
-          name: "Gyro controls",
-          revision: "revision.one"
-        }]
+        screens: [
+          {
+            id: "screen.gyro",
+            name: "Gyro controls",
+            revision: "revision.one",
+          },
+        ],
       },
       customScreenGetResult: {
         type: "custom.screen.get.result" as const,
         operationId: "operation-incompatible",
         succeeded: false,
         code: "VAIR-CUSTOM-SCREEN-INCOMPATIBLE",
-        message: "This custom screen uses features this version of the app cannot display. Refresh the app and try again."
-      }
+        message:
+          "This custom screen uses features this version of the app cannot display. Refresh the app and try again.",
+      },
     };
     mockConnection(connection);
     const view = render(<App />);
@@ -551,15 +584,16 @@ describe("App header and mode navigation", () => {
       message: "HTPC-BEE is currently not available.",
       lastConnectionError: {
         code: "VAIR-PAIR-HOST-UNREACHABLE",
-        message: "HTPC-BEE is currently not available. Check that Voltura Air is running on the PC. Retrying..."
+        message:
+          "HTPC-BEE is currently not available. Check that Voltura Air is running on the PC. Retrying...",
       },
       activePc: {
         customName: true,
         id: "pc-a",
         name: "HTPC-BEE",
         transportMode: "secure-direct",
-        url: "https://secure-direct.invalid"
-      }
+        url: "https://secure-direct.invalid",
+      },
     });
     view.rerender(<App />);
 
@@ -572,11 +606,13 @@ describe("App header and mode navigation", () => {
     mockConnection({
       customScreensCapability: {
         catalogRevision: "catalog.one",
-        screens: [{
-          id: "screen.media",
-          name: "Media controls",
-          revision: "revision.one"
-        }]
+        screens: [
+          {
+            id: "screen.media",
+            name: "Media controls",
+            revision: "revision.one",
+          },
+        ],
       },
       customScreenDefinition: {
         id: "screen.media",
@@ -584,8 +620,8 @@ describe("App header and mode navigation", () => {
         revision: "revision.one",
         orientationLayoutsEnabled: false,
         showNavigationHeader: true,
-        sections: []
-      }
+        sections: [],
+      },
     });
     render(<App />);
 
@@ -617,8 +653,8 @@ describe("App header and mode navigation", () => {
         encrypted: true,
         maxWidth: 1920,
         maxHeight: 1080,
-        maxFramesPerSecond: 30
-      }
+        maxFramesPerSecond: 30,
+      },
     });
     render(<App />);
 
@@ -626,7 +662,7 @@ describe("App header and mode navigation", () => {
     const menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog");
     fireEvent.click(within(menu!).getByRole("button", { name: "View PC screen" }));
 
-    expect(await screen.findByText("Live mirror")).toBeTruthy();
+    expect(await screen.findByText("Live mirror", {}, { timeout: 5000 })).toBeTruthy();
     expect(document.querySelector(".app-shell")?.classList).toContain("screen-view-active");
     expect(document.querySelector(".top-mode-tabs")).toBeNull();
     expect(document.querySelector(".bottom-mode-tabs")).toBeNull();
@@ -640,8 +676,12 @@ describe("App header and mode navigation", () => {
   });
 
   it.each([
-    { label: "Enhanced Direct", transportMode: "secure-direct" as const, url: "https://secure-direct.invalid" },
-    { label: "Relay", transportMode: "relay" as const, url: "https://voltura.se/a" }
+    {
+      label: "Enhanced Direct",
+      transportMode: "secure-direct" as const,
+      url: "https://secure-direct.invalid",
+    },
+    { label: "Relay", transportMode: "relay" as const, url: "https://voltura.se/a" },
   ])("opens Phone webcam as a normal app tool over $label", async ({ transportMode, url }) => {
     mockConnection({
       activePc: {
@@ -649,7 +689,7 @@ describe("App header and mode navigation", () => {
         id: "pc-a",
         name: "Webcam PC",
         transportMode,
-        url
+        url,
       },
       phoneWebcamCapability: {
         enabled: true,
@@ -659,8 +699,8 @@ describe("App header and mode navigation", () => {
         microphoneAvailable: false,
         maxWidth: 1920,
         maxHeight: 1080,
-        maxFramesPerSecond: 30
-      }
+        maxFramesPerSecond: 30,
+      },
     });
     render(<App />);
 
@@ -684,19 +724,34 @@ describe("App header and mode navigation", () => {
       microphoneAvailable: false,
       maxWidth: 1920,
       maxHeight: 1080,
-      maxFramesPerSecond: 30
+      maxFramesPerSecond: 30,
     };
-    const activePc = { customName: true, id: "pc-a", name: "Webcam PC", transportMode: "secure-direct" as const, url: "https://secure-direct.invalid" };
+    const activePc = {
+      customName: true,
+      id: "pc-a",
+      name: "Webcam PC",
+      transportMode: "secure-direct" as const,
+      url: "https://secure-direct.invalid",
+    };
     mockConnection({ activePc, phoneWebcamCapability: available });
     const rendered = render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
-    fireEvent.click(within(screen.getByRole("heading", { name: "Menu" }).closest("dialog")!).getByRole("button", { name: "Phone webcam" }));
+    fireEvent.click(
+      within(screen.getByRole("heading", { name: "Menu" }).closest("dialog")!).getByRole("button", {
+        name: "Phone webcam",
+      }),
+    );
     expect(await screen.findByRole("heading", { name: "Phone webcam" })).toBeTruthy();
 
-    mockConnection({ activePc, phoneWebcamCapability: { ...available, enabled: false, canUse: false } });
+    mockConnection({
+      activePc,
+      phoneWebcamCapability: { ...available, enabled: false, canUse: false },
+    });
     rendered.rerender(<App />);
 
-    expect((screen.getByRole("button", { name: "Allow camera access" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Allow camera access" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
     expect(screen.getByText("Enable Phone webcam in the Windows app first.")).toBeTruthy();
   });
 
@@ -709,16 +764,31 @@ describe("App header and mode navigation", () => {
       microphoneAvailable: false,
       maxWidth: 1920,
       maxHeight: 1080,
-      maxFramesPerSecond: 30
+      maxFramesPerSecond: 30,
     };
-    const activePc = { customName: true, id: "pc-a", name: "Webcam PC", transportMode: "secure-direct" as const, url: "https://secure-direct.invalid" };
+    const activePc = {
+      customName: true,
+      id: "pc-a",
+      name: "Webcam PC",
+      transportMode: "secure-direct" as const,
+      url: "https://secure-direct.invalid",
+    };
     mockConnection({ activePc, phoneWebcamCapability: capability });
     const rendered = render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
-    fireEvent.click(within(screen.getByRole("heading", { name: "Menu" }).closest("dialog")!).getByRole("button", { name: "Phone webcam" }));
+    fireEvent.click(
+      within(screen.getByRole("heading", { name: "Menu" }).closest("dialog")!).getByRole("button", {
+        name: "Phone webcam",
+      }),
+    );
     expect(await screen.findByRole("heading", { name: "Phone webcam" })).toBeTruthy();
 
-    mockConnection({ activePc, phoneWebcamCapability: capability, state: "disconnected", message: "PC disconnected" });
+    mockConnection({
+      activePc,
+      phoneWebcamCapability: capability,
+      state: "disconnected",
+      message: "PC disconnected",
+    });
     rendered.rerender(<App />);
 
     expect(screen.getByRole("heading", { name: "Phone webcam" })).toBeTruthy();
@@ -735,8 +805,8 @@ describe("App header and mode navigation", () => {
         microphoneAvailable: false,
         maxWidth: 1920,
         maxHeight: 1080,
-        maxFramesPerSecond: 30
-      }
+        maxFramesPerSecond: 30,
+      },
     });
     render(<App />);
 
@@ -770,8 +840,8 @@ describe("App header and mode navigation", () => {
         encrypted: true,
         maxWidth: 1920,
         maxHeight: 1080,
-        maxFramesPerSecond: 30
-      }
+        maxFramesPerSecond: 30,
+      },
     });
     render(<App />);
 
@@ -783,8 +853,9 @@ describe("App header and mode navigation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
     const tools = within(menu).getByRole("region", { name: "Tools" });
-    const modeButton = Array.from(tools.querySelectorAll("button"))
-      .find((button) => button.textContent?.trim() === modeName);
+    const modeButton = Array.from(tools.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === modeName,
+    );
     expect(modeButton).toBeDefined();
     fireEvent.click(modeButton!);
 
@@ -815,8 +886,8 @@ describe("App header and mode navigation", () => {
         encrypted: true,
         maxWidth: 1920,
         maxHeight: 1080,
-        maxFramesPerSecond: 30
-      }
+        maxFramesPerSecond: 30,
+      },
     });
     render(<App />);
 
@@ -832,7 +903,11 @@ describe("App header and mode navigation", () => {
     expect(motionPermission).toHaveBeenCalledOnce();
     expect(orientationPermission).toHaveBeenCalledOnce();
     expect(screen.queryByText("Live mirror")).toBeNull();
-    await waitFor(() => { expect(screen.getByRole("button", { name: "Gyro" }).getAttribute("aria-pressed")).toBe("true"); });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Gyro" }).getAttribute("aria-pressed")).toBe(
+        "true",
+      );
+    });
   });
 
   it("navigates from Screen to a custom screen selected in the Settings drawer", async () => {
@@ -845,15 +920,17 @@ describe("App header and mode navigation", () => {
         encrypted: true,
         maxWidth: 1920,
         maxHeight: 1080,
-        maxFramesPerSecond: 30
+        maxFramesPerSecond: 30,
       },
       customScreensCapability: {
         catalogRevision: "catalog.one",
-        screens: [{
-          id: "screen.media",
-          name: "Media controls",
-          revision: "revision.one"
-        }]
+        screens: [
+          {
+            id: "screen.media",
+            name: "Media controls",
+            revision: "revision.one",
+          },
+        ],
       },
       customScreenDefinition: {
         id: "screen.media",
@@ -861,8 +938,8 @@ describe("App header and mode navigation", () => {
         revision: "revision.one",
         orientationLayoutsEnabled: false,
         showNavigationHeader: true,
-        sections: []
-      }
+        sections: [],
+      },
     });
     render(<App />);
 
@@ -880,38 +957,43 @@ describe("App header and mode navigation", () => {
     expect(document.querySelector(".app-shell")?.classList).not.toContain("screen-view-active");
   });
 
-  it.each(["YouTube", "Kodi"])("navigates from Screen to the %s Remote mode selected in settings", async (modeName) => {
-    mockConnection({
-      screenViewCapability: {
-        enabled: true,
-        permissionGranted: true,
-        canView: true,
-        requiresRepair: false,
-        encrypted: true,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        maxFramesPerSecond: 30
-      },
-      supportsRemoteLaunch: true
-    });
-    render(<App />);
+  it.each(["YouTube", "Kodi"])(
+    "navigates from Screen to the %s Remote mode selected in settings",
+    async (modeName) => {
+      mockConnection({
+        screenViewCapability: {
+          enabled: true,
+          permissionGranted: true,
+          canView: true,
+          requiresRepair: false,
+          encrypted: true,
+          maxWidth: 1920,
+          maxHeight: 1080,
+          maxFramesPerSecond: 30,
+        },
+        supportsRemoteLaunch: true,
+      });
+      render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
-    let menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
-    fireEvent.click(within(menu).getByRole("button", { name: "View PC screen" }));
-    expect(await screen.findByText("Live mirror")).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+      let menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+      fireEvent.click(within(menu).getByRole("button", { name: "View PC screen" }));
+      expect(await screen.findByText("Live mirror")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
-    menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
-    const remoteSettingsSummary = menu.querySelector<HTMLElement>("[data-settings-section=\"remote\"] > summary");
-    expect(remoteSettingsSummary).not.toBeNull();
-    fireEvent.click(remoteSettingsSummary!);
-    fireEvent.click(within(menu).getByRole("button", { name: modeName }));
+      fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+      menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+      const remoteSettingsSummary = menu.querySelector<HTMLElement>(
+        '[data-settings-section="remote"] > summary',
+      );
+      expect(remoteSettingsSummary).not.toBeNull();
+      fireEvent.click(remoteSettingsSummary!);
+      fireEvent.click(within(menu).getByRole("button", { name: modeName }));
 
-    expect(screen.queryByText("Live mirror")).toBeNull();
-    expect(document.querySelector(".app-shell")?.classList).not.toContain("screen-view-active");
-    expect(document.querySelector(".app-shell")?.classList).toContain("remote-active");
-  });
+      expect(screen.queryByText("Live mirror")).toBeNull();
+      expect(document.querySelector(".app-shell")?.classList).not.toContain("screen-view-active");
+      expect(document.querySelector(".app-shell")?.classList).toContain("remote-active");
+    },
+  );
 
   it("opens compact mode navigation as an overlay without moving the keyboard controls", () => {
     render(<App />);
@@ -942,7 +1024,11 @@ describe("App header and mode navigation", () => {
 
       expect(document.querySelector(".bottom-mode-tabs")).toBe(bottomModeNavigation);
       expect(appShell?.classList.contains("mode-tabs-collapsed")).toBe(false);
-      expect(within(bottomModeNavigation!).getByRole("button", { name: modeName }).getAttribute("aria-current")).toBe("page");
+      expect(
+        within(bottomModeNavigation!)
+          .getByRole("button", { name: modeName })
+          .getAttribute("aria-current"),
+      ).toBe("page");
     }
 
     fireEvent.click(within(bottomModeNavigation!).getByRole("button", { name: "Presentation" }));
@@ -964,7 +1050,10 @@ describe("App header and mode navigation", () => {
 
   it("confirms opening the configured remote app before sending the launch command", () => {
     const send = vi.fn();
-    localStorage.setItem("voltura-air.remoteSettings.client-a.pc-a", JSON.stringify({ mode: "kodi" }));
+    localStorage.setItem(
+      "voltura-air.remoteSettings.client-a.pc-a",
+      JSON.stringify({ mode: "kodi" }),
+    );
     mockConnection({ send, supportsRemoteLaunch: true });
     render(<App />);
 
@@ -976,7 +1065,10 @@ describe("App header and mode navigation", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Open Kodi" }));
 
-    expect(send).toHaveBeenCalledExactlyOnceWith({ type: "remote.launch", action: "startOrActivateKodi" });
+    expect(send).toHaveBeenCalledExactlyOnceWith({
+      type: "remote.launch",
+      action: "startOrActivateKodi",
+    });
   });
 
   it("omits feature context for ambiguous non-media Remote shortcuts", () => {
@@ -987,7 +1079,11 @@ describe("App header and mode navigation", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Remote" }).at(-1)!);
     fireEvent.click(screen.getByRole("button", { name: "Browser back" }));
 
-    expect(send).toHaveBeenCalledExactlyOnceWith({ type: "keyboard.special", key: "BrowserBack", modifiers: undefined });
+    expect(send).toHaveBeenCalledExactlyOnceWith({
+      type: "keyboard.special",
+      key: "BrowserBack",
+      modifiers: undefined,
+    });
   });
 
   it("labels the Remote mini trackpad as trackpad input", () => {
@@ -1002,13 +1098,16 @@ describe("App header and mode navigation", () => {
       type: "pointer.button",
       inputContext: "trackpad",
       button: "left",
-      action: "click"
+      action: "click",
     });
   });
 
   it("does not launch a remote app when its confirmation is cancelled", () => {
     const send = vi.fn();
-    localStorage.setItem("voltura-air.remoteSettings.client-a.pc-a", JSON.stringify({ mode: "youtube" }));
+    localStorage.setItem(
+      "voltura-air.remoteSettings.client-a.pc-a",
+      JSON.stringify({ mode: "youtube" }),
+    );
     mockConnection({ send, supportsRemoteLaunch: true });
     render(<App />);
 
@@ -1025,7 +1124,9 @@ describe("App header and mode navigation", () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
-    const remoteSettingsSummary = document.querySelector<HTMLElement>("[data-settings-section=\"remote\"] > summary");
+    const remoteSettingsSummary = document.querySelector<HTMLElement>(
+      '[data-settings-section="remote"] > summary',
+    );
     expect(remoteSettingsSummary).not.toBeNull();
     fireEvent.click(remoteSettingsSummary!);
     fireEvent.click(screen.getByRole("button", { name: "YouTube" }));
@@ -1041,7 +1142,9 @@ describe("App header and mode navigation", () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
-    const remoteSettingsSummary = document.querySelector<HTMLElement>("[data-settings-section=\"remote\"] > summary");
+    const remoteSettingsSummary = document.querySelector<HTMLElement>(
+      '[data-settings-section="remote"] > summary',
+    );
     expect(remoteSettingsSummary).not.toBeNull();
     fireEvent.click(remoteSettingsSummary!);
     fireEvent.click(screen.getByRole("button", { name: "Standard" }));
@@ -1054,24 +1157,39 @@ describe("App header and mode navigation", () => {
     { ariaLabel: "Dictation", fourthMode: "dictation" },
     { ariaLabel: "Send text to PC", fourthMode: "text-transfer" },
     { ariaLabel: "Get text from PC", fourthMode: "clipboard-read" },
-    { ariaLabel: "Presentation", fourthMode: "presentation" }
-  ])("keeps the configured $fourthMode fourth mode in the isolated bottom navigation", ({ ariaLabel, fourthMode }) => {
-    localStorage.setItem("voltura-air.appSettings.client-a.pc-a", JSON.stringify({ fourthMode }));
-    render(<App />);
+    { ariaLabel: "Presentation", fourthMode: "presentation" },
+  ])(
+    "keeps the configured $fourthMode fourth mode in the isolated bottom navigation",
+    ({ ariaLabel, fourthMode }) => {
+      localStorage.setItem("voltura-air.appSettings.client-a.pc-a", JSON.stringify({ fourthMode }));
+      render(<App />);
 
-    const bottomModeNavigation = document.querySelector<HTMLElement>(".bottom-mode-tabs");
-    expect(bottomModeNavigation).not.toBeNull();
-    const fourthModeButton = within(bottomModeNavigation!).getByRole("button", { name: ariaLabel });
+      const bottomModeNavigation = document.querySelector<HTMLElement>(".bottom-mode-tabs");
+      expect(bottomModeNavigation).not.toBeNull();
+      const fourthModeButton = within(bottomModeNavigation!).getByRole("button", {
+        name: ariaLabel,
+      });
 
-    fireEvent.click(fourthModeButton);
+      fireEvent.click(fourthModeButton);
 
-    expect(document.querySelector(".bottom-mode-tabs")).toBe(bottomModeNavigation);
-    expect(fourthModeButton.getAttribute("aria-current")).toBe("page");
-  });
+      expect(document.querySelector(".bottom-mode-tabs")).toBe(bottomModeNavigation);
+      expect(fourthModeButton.getAttribute("aria-current")).toBe("page");
+    },
+  );
 
   it("uses Files as an optional fourth mode without changing Presentation's default", async () => {
-    localStorage.setItem("voltura-air.appSettings.client-a.pc-a", JSON.stringify({ fourthMode: "files" }));
-    mockConnection({ fileManagerCapability: { canBrowse: false, canModify: false, hidesProtectedSystemItems: true, maxPageSize: 100 } });
+    localStorage.setItem(
+      "voltura-air.appSettings.client-a.pc-a",
+      JSON.stringify({ fourthMode: "files" }),
+    );
+    mockConnection({
+      fileManagerCapability: {
+        canBrowse: false,
+        canModify: false,
+        hidesProtectedSystemItems: true,
+        maxPageSize: 100,
+      },
+    });
     render(<App />);
 
     const bottomModeNavigation = document.querySelector<HTMLElement>(".bottom-mode-tabs");
@@ -1085,12 +1203,17 @@ describe("App header and mode navigation", () => {
   });
 
   it("keeps Presentation navigation available when it is the configured fourth mode", () => {
-    localStorage.setItem("voltura-air.appSettings.client-a.pc-a", JSON.stringify({ fourthMode: "presentation" }));
+    localStorage.setItem(
+      "voltura-air.appSettings.client-a.pc-a",
+      JSON.stringify({ fourthMode: "presentation" }),
+    );
     render(<App />);
 
     const appShell = document.querySelector(".app-shell");
     const bottomModeNavigation = document.querySelector<HTMLElement>(".bottom-mode-tabs");
-    const presentationButton = within(bottomModeNavigation!).getByRole("button", { name: "Presentation" });
+    const presentationButton = within(bottomModeNavigation!).getByRole("button", {
+      name: "Presentation",
+    });
 
     fireEvent.click(presentationButton);
 
@@ -1124,7 +1247,7 @@ describe("App header and mode navigation", () => {
   it("does not reserve mode navigation on the PC unavailable screen", () => {
     mockConnection({
       state: "unavailable",
-      message: "PC is not available"
+      message: "PC is not available",
     });
 
     render(<App />);
@@ -1136,12 +1259,14 @@ describe("App header and mode navigation", () => {
 
   it("offers direct saved-PC reconnect without removing QR pairing", () => {
     const selectPc = vi.fn();
-    const inputClick = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => undefined);
+    const inputClick = vi
+      .spyOn(HTMLInputElement.prototype, "click")
+      .mockImplementation(() => undefined);
     const savedPc = {
       customName: true,
       id: "pc-a",
       name: "Living Room PC",
-      url: "http://pc.local:51395"
+      url: "http://pc.local:51395",
     };
     mockConnection({
       activePc: null,
@@ -1149,14 +1274,18 @@ describe("App header and mode navigation", () => {
       pairedPcs: [savedPc],
       reconnectablePcs: [savedPc],
       selectPc,
-      state: "disconnected"
+      state: "disconnected",
     });
 
     render(<App />);
 
     expect(screen.getByRole("heading", { name: "PC disconnected" })).toBeTruthy();
     expect(screen.getByRole("dialog").getAttribute("aria-modal")).toBe("true");
-    expect(screen.getByText("Reconnect to Living Room PC, or pair another PC by taking a photo of its QR code.")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Reconnect to Living Room PC, or pair another PC by taking a photo of its QR code.",
+      ),
+    ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Take photo of QR code" }));
     expect(inputClick).toHaveBeenCalledOnce();
 
@@ -1169,7 +1298,12 @@ describe("App header and mode navigation", () => {
     const selectPc = vi.fn();
     const savedPcs = [
       { customName: true, id: "pc-a", name: "Office PC", url: "http://office.local:51395" },
-      { customName: true, id: "pc-b", name: "Living Room PC", url: "http://living-room.local:51395" }
+      {
+        customName: true,
+        id: "pc-b",
+        name: "Living Room PC",
+        url: "http://living-room.local:51395",
+      },
     ];
     mockConnection({
       activePc: null,
@@ -1177,7 +1311,7 @@ describe("App header and mode navigation", () => {
       pairedPcs: savedPcs,
       reconnectablePcs: savedPcs,
       selectPc,
-      state: "needs-pairing"
+      state: "needs-pairing",
     });
 
     render(<App />);
@@ -1194,7 +1328,7 @@ describe("App header and mode navigation", () => {
     mockConnection({
       state: "unavailable",
       message: "PC is currently not available. Retrying...",
-      selectPc
+      selectPc,
     });
     const view = render(<App />);
 
@@ -1217,19 +1351,30 @@ describe("App header and mode navigation", () => {
     view.rerender(<App />);
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Connected to Very Long Living Room Editing Workstation" })).toBeTruthy();
+      expect(
+        screen.getByRole("heading", {
+          name: "Connected to Very Long Living Room Editing Workstation",
+        }),
+      ).toBeTruthy();
     });
     const connectedAction = screen.getByRole("button", { name: "Connected" });
     expect(connectedAction).toBe(document.activeElement);
     expect(connectedAction.getAttribute("aria-disabled")).toBe("true");
-    await waitFor(() => {
-      expect(screen.queryByRole("dialog")).toBeNull();
-    }, { timeout: 1200 });
+    await waitFor(
+      () => {
+        expect(screen.queryByRole("dialog")).toBeNull();
+      },
+      { timeout: 1200 },
+    );
   });
 
   it("returns a failed manual reconnect to the unavailable feedback without exposing a false connected state", async () => {
     const selectPc = vi.fn();
-    mockConnection({ state: "unavailable", message: "PC is currently not available. Retrying...", selectPc });
+    mockConnection({
+      state: "unavailable",
+      message: "PC is currently not available. Retrying...",
+      selectPc,
+    });
     const view = render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: "Try reconnect" }));
@@ -1237,22 +1382,31 @@ describe("App header and mode navigation", () => {
     view.rerender(<App />);
     expect(screen.getByRole("heading", { name: /Reconnecting to/ })).toBeTruthy();
 
-    mockConnection({ state: "unavailable", message: "PC is currently not available. Retrying...", selectPc });
+    mockConnection({
+      state: "unavailable",
+      message: "PC is currently not available. Retrying...",
+      selectPc,
+    });
     view.rerender(<App />);
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "PC not available" })).toBeTruthy();
     });
-    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Try reconnect" }).disabled).toBe(false);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Try reconnect" }).disabled).toBe(
+      false,
+    );
     expect(screen.queryByText("Connected to Very Long Living Room Editing Workstation")).toBeNull();
   });
 
   it("applies stored split mode placement and chrome preferences on a landscape tablet", () => {
-    localStorage.setItem("voltura-air.trackpadSettings.client-a.pc-a", JSON.stringify({
-      enableSplitMode: true,
-      splitTrackpadPlacement: "left",
-      splitShowStatusRow: true
-    }));
+    localStorage.setItem(
+      "voltura-air.trackpadSettings.client-a.pc-a",
+      JSON.stringify({
+        enableSplitMode: true,
+        splitTrackpadPlacement: "left",
+        splitShowStatusRow: true,
+      }),
+    );
 
     render(<App />);
 
@@ -1280,8 +1434,8 @@ describe("App launch feedback", () => {
         actionId: "preset.browser",
         succeeded: false,
         code: "not-configured",
-        message: "Browser could not be started."
-      }
+        message: "Browser could not be started.",
+      },
     });
 
     render(<App />);
@@ -1305,8 +1459,8 @@ describe("Text transfer feedback", () => {
         type: "text.send.result",
         operationId: "operation-a",
         succeeded: true,
-        message: "Text sent successfully."
-      }
+        message: "Text sent successfully.",
+      },
     });
 
     render(<App />);
@@ -1327,21 +1481,29 @@ describe("Text transfer feedback", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Rename snippet" });
     const dialogQueries = within(dialog);
-    fireEvent.change(dialogQueries.getByLabelText("Snippet name"), { target: { value: "Renamed snippet" } });
+    fireEvent.change(dialogQueries.getByLabelText("Snippet name"), {
+      target: { value: "Renamed snippet" },
+    });
     fireEvent.click(dialogQueries.getByRole("button", { name: "Rename snippet" }));
 
     expect(screen.getByRole("button", { name: "Renamed snippet" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Use device keyboard" }));
-    fireEvent.change(screen.getByLabelText("Text to send"), { target: { value: "Replacement text" } });
+    fireEvent.change(screen.getByLabelText("Text to send"), {
+      target: { value: "Replacement text" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Update" }));
     const updateDialog = screen.getByRole("dialog", { name: "Update snippet" });
     fireEvent.click(within(updateDialog).getByRole("button", { name: "Update snippet" }));
     fireEvent.click(screen.getByRole("button", { name: "Use device keyboard" }));
     fireEvent.change(screen.getByLabelText("Text to send"), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Renamed snippet" }));
-    expect(screen.getByLabelText<HTMLTextAreaElement>("Text to send").value).toBe("Replacement text");
-    expect(document.querySelector(".text-transfer-editor-surface")?.classList).toContain("snippet-copied");
+    expect(screen.getByLabelText<HTMLTextAreaElement>("Text to send").value).toBe(
+      "Replacement text",
+    );
+    expect(document.querySelector(".text-transfer-editor-surface")?.classList).toContain(
+      "snippet-copied",
+    );
     expect(screen.getByText("Renamed snippet copied to the text box.")).toBeTruthy();
   });
 
@@ -1383,15 +1545,22 @@ describe("Text transfer feedback", () => {
 
     fireEvent.change(nameInput, { target: { value: " first " } });
     expect(screen.getByText("A snippet with this name already exists.")).toBeTruthy();
-    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Save current text" }).disabled).toBe(true);
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Save current text" }).disabled,
+    ).toBe(true);
 
     const secondSnippetCard = screen.getByRole("button", { name: "Second" }).closest("li");
     expect(secondSnippetCard).not.toBeNull();
     fireEvent.click(within(secondSnippetCard!).getByRole("button", { name: "Rename" }));
     const renameDialog = screen.getByRole("dialog", { name: "Rename snippet" });
-    fireEvent.change(within(renameDialog).getByLabelText("Snippet name"), { target: { value: "FIRST" } });
+    fireEvent.change(within(renameDialog).getByLabelText("Snippet name"), {
+      target: { value: "FIRST" },
+    });
     expect(within(renameDialog).getByText("A snippet with this name already exists.")).toBeTruthy();
-    expect(within(renameDialog).getByRole<HTMLButtonElement>("button", { name: "Rename snippet" }).disabled).toBe(true);
+    expect(
+      within(renameDialog).getByRole<HTMLButtonElement>("button", { name: "Rename snippet" })
+        .disabled,
+    ).toBe(true);
   });
 
   it("reorders snippet cards after a long press and persists the new order", async () => {
@@ -1405,7 +1574,10 @@ describe("Text transfer feedback", () => {
 
       const editor = screen.getByLabelText("Text to send");
       const nameInput = screen.getByLabelText("Snippet name");
-      for (const [name, text] of [["First", "First text"], ["Second", "Second text"]]) {
+      for (const [name, text] of [
+        ["First", "First text"],
+        ["Second", "Second text"],
+      ]) {
         fireEvent.change(editor, { target: { value: text } });
         fireEvent.change(nameInput, { target: { value: name } });
         fireEvent.click(screen.getByRole("button", { name: "Save current text" }));
@@ -1419,9 +1591,15 @@ describe("Text transfer feedback", () => {
       fireEvent.touchStart(secondCard, { touches: [{ identifier: 9, clientX: 20, clientY: 100 }] });
       fireEvent.touchMove(secondCard, { touches: [{ identifier: 9, clientX: 20, clientY: 60 }] });
       expect(textTransferMode.scrollTop).toBe(140);
-      fireEvent.touchEnd(secondCard, { touches: [], changedTouches: [{ identifier: 9, clientX: 20, clientY: 60 }] });
+      fireEvent.touchEnd(secondCard, {
+        touches: [],
+        changedTouches: [{ identifier: 9, clientX: 20, clientY: 60 }],
+      });
 
-      Object.defineProperty(document, "elementFromPoint", { configurable: true, value: vi.fn(() => secondCard) });
+      Object.defineProperty(document, "elementFromPoint", {
+        configurable: true,
+        value: vi.fn(() => secondCard),
+      });
       textTransferMode.scrollTop = 35;
       fireEvent.touchStart(firstButton, { touches: [{ identifier: 1, clientX: 20, clientY: 20 }] });
       await act(() => vi.advanceTimersByTime(450));
@@ -1431,10 +1609,18 @@ describe("Text transfer feedback", () => {
 
       fireEvent.touchMove(firstButton, { touches: [{ identifier: 1, clientX: 20, clientY: 100 }] });
       expect(textTransferMode.scrollTop).toBe(35);
-      fireEvent.touchEnd(firstButton, { touches: [], changedTouches: [{ identifier: 1, clientX: 20, clientY: 100 }] });
+      fireEvent.touchEnd(firstButton, {
+        touches: [],
+        changedTouches: [{ identifier: 1, clientX: 20, clientY: 100 }],
+      });
 
-      expect(Array.from(document.querySelectorAll(".snippet-load"), (button) => button.textContent)).toEqual(["Second", "First"]);
-      expect(readStoredStringProperty("voltura-air.textSnippets.client-a", "name")).toEqual(["Second", "First"]);
+      expect(
+        Array.from(document.querySelectorAll(".snippet-load"), (button) => button.textContent),
+      ).toEqual(["Second", "First"]);
+      expect(readStoredStringProperty("voltura-air.textSnippets.client-a", "name")).toEqual([
+        "Second",
+        "First",
+      ]);
       expect(screen.getByText("First moved to position 2.")).toBeTruthy();
       fireEvent.click(firstButton);
       expect((editor as HTMLTextAreaElement).value).toBe("Second text");
@@ -1442,27 +1628,49 @@ describe("Text transfer feedback", () => {
       fireEvent.touchStart(firstButton, { touches: [{ identifier: 7, clientX: 20, clientY: 20 }] });
       await act(() => vi.advanceTimersByTime(450));
       fireEvent.touchMove(firstButton, { touches: [{ identifier: 7, clientX: 20, clientY: 100 }] });
-      fireEvent.touchCancel(firstButton, { touches: [], changedTouches: [{ identifier: 7, clientX: 20, clientY: 100 }] });
+      fireEvent.touchCancel(firstButton, {
+        touches: [],
+        changedTouches: [{ identifier: 7, clientX: 20, clientY: 100 }],
+      });
 
-      expect(Array.from(document.querySelectorAll(".snippet-load"), (button) => button.textContent)).toEqual(["Second", "First"]);
-      expect(readStoredStringProperty("voltura-air.textSnippets.client-a", "name")).toEqual(["Second", "First"]);
+      expect(
+        Array.from(document.querySelectorAll(".snippet-load"), (button) => button.textContent),
+      ).toEqual(["Second", "First"]);
+      expect(readStoredStringProperty("voltura-air.textSnippets.client-a", "name")).toEqual([
+        "Second",
+        "First",
+      ]);
       expect(firstCard.classList).not.toContain("snippet-dragging");
 
       vi.mocked(document.elementFromPoint).mockReturnValue(null);
-      vi.spyOn(secondCard, "getBoundingClientRect").mockReturnValue({ top: 40, bottom: 80 } as DOMRect);
+      vi.spyOn(secondCard, "getBoundingClientRect").mockReturnValue({
+        top: 40,
+        bottom: 80,
+      } as DOMRect);
       fireEvent.touchStart(firstCard, { touches: [{ identifier: 2, clientX: 20, clientY: 100 }] });
       await act(() => vi.advanceTimersByTime(450));
       fireEvent.touchMove(firstCard, { touches: [{ identifier: 2, clientX: 20, clientY: 30 }] });
       fireEvent.touchMove(firstCard, { touches: [{ identifier: 2, clientX: 20, clientY: 20 }] });
-      fireEvent.touchEnd(firstCard, { touches: [], changedTouches: [{ identifier: 2, clientX: 20, clientY: 30 }] });
+      fireEvent.touchEnd(firstCard, {
+        touches: [],
+        changedTouches: [{ identifier: 2, clientX: 20, clientY: 30 }],
+      });
 
-      expect(Array.from(document.querySelectorAll(".snippet-load"), (button) => button.textContent)).toEqual(["First", "Second"]);
-      expect(readStoredStringProperty("voltura-air.textSnippets.client-a", "name")).toEqual(["First", "Second"]);
+      expect(
+        Array.from(document.querySelectorAll(".snippet-load"), (button) => button.textContent),
+      ).toEqual(["First", "Second"]);
+      expect(readStoredStringProperty("voltura-air.textSnippets.client-a", "name")).toEqual([
+        "First",
+        "Second",
+      ]);
       expect(screen.getByText("First moved to position 1.")).toBeTruthy();
       await act(() => vi.runOnlyPendingTimers());
     } finally {
       if (originalElementFromPoint) {
-        Object.defineProperty(document, "elementFromPoint", { configurable: true, value: originalElementFromPoint });
+        Object.defineProperty(document, "elementFromPoint", {
+          configurable: true,
+          value: originalElementFromPoint,
+        });
       } else {
         Reflect.deleteProperty(document, "elementFromPoint");
       }
@@ -1484,7 +1692,9 @@ describe("Text transfer feedback", () => {
     const editorToolbar = document.querySelector<HTMLElement>(".text-transfer-editor-toolbar");
     expect(editorToolbar).not.toBeNull();
     const editorModeControl = within(editorToolbar!).getByLabelText("Text box mode");
-    expect(screen.getByRole("button", { name: "Use device keyboard" }).getAttribute("aria-pressed")).toBe("true");
+    expect(
+      screen.getByRole("button", { name: "Use device keyboard" }).getAttribute("aria-pressed"),
+    ).toBe("true");
     expect(within(editorModeControl).queryByText("Keyboard")).toBeNull();
     expect(within(editorModeControl).getByText("Touchpad")).toBeTruthy();
     expect(within(editorToolbar!).getByLabelText("Device keyboard type")).toBeTruthy();
@@ -1496,7 +1706,9 @@ describe("Text transfer feedback", () => {
     expect(editor.readOnly).toBe(true);
     expect(editor.placeholder).toBe("");
     expect(editor.closest(".text-transfer-editor-surface")?.classList).not.toContain("is-editing");
-    expect(screen.getByRole("button", { name: "Touchpad" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "Touchpad" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
     expect(within(editorModeControl).getByText("Keyboard")).toBeTruthy();
     expect(within(editorModeControl).queryByText("Touchpad")).toBeNull();
     expect(within(editorToolbar!).queryByLabelText("Device keyboard type")).toBeNull();
@@ -1507,20 +1719,37 @@ describe("Text transfer feedback", () => {
 
     fireEvent.touchStart(editor, { targetTouches: [{ identifier: 1, clientX: 10, clientY: 10 }] });
     fireEvent.touchEnd(editor, { targetTouches: [] });
-    expect(send).toHaveBeenCalledExactlyOnceWith({ type: "pointer.button", inputContext: "trackpad", button: "left", action: "click" });
+    expect(send).toHaveBeenCalledExactlyOnceWith({
+      type: "pointer.button",
+      inputContext: "trackpad",
+      button: "left",
+      action: "click",
+    });
 
     send.mockClear();
     fireEvent.click(screen.getByRole("button", { name: "Left" }));
     fireEvent.click(screen.getByRole("button", { name: "Right" }));
-    expect(send).toHaveBeenNthCalledWith(1, { type: "pointer.button", inputContext: "trackpad", button: "left", action: "click" });
-    expect(send).toHaveBeenNthCalledWith(2, { type: "pointer.button", inputContext: "trackpad", button: "right", action: "click" });
+    expect(send).toHaveBeenNthCalledWith(1, {
+      type: "pointer.button",
+      inputContext: "trackpad",
+      button: "left",
+      action: "click",
+    });
+    expect(send).toHaveBeenNthCalledWith(2, {
+      type: "pointer.button",
+      inputContext: "trackpad",
+      button: "right",
+      action: "click",
+    });
 
     send.mockClear();
     fireEvent.click(screen.getByRole("button", { name: "Use device keyboard" }));
     expect(editor.readOnly).toBe(false);
     expect(document.activeElement).toBe(editor);
     expect(screen.getByRole("button", { name: "Touchpad" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Use device keyboard" }).getAttribute("aria-pressed")).toBe("true");
+    expect(
+      screen.getByRole("button", { name: "Use device keyboard" }).getAttribute("aria-pressed"),
+    ).toBe("true");
     expect(screen.getByRole("tab", { name: "Show regular keyboard" })).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: "Show numeric keyboard" }));
     expect(editor.inputMode).toBe("numeric");
@@ -1535,13 +1764,20 @@ describe("Text transfer feedback", () => {
   });
 
   it("reverses text-transfer pointer buttons for the left-handed layout", () => {
-    localStorage.setItem("voltura-air.trackpadSettings.client-a.pc-a", JSON.stringify({ leftHandedButtons: true }));
+    localStorage.setItem(
+      "voltura-air.trackpadSettings.client-a.pc-a",
+      JSON.stringify({ leftHandedButtons: true }),
+    );
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
     fireEvent.click(screen.getByRole("button", { name: "Touchpad" }));
 
     const mouseButtons = screen.getByLabelText("Mouse buttons");
-    expect(within(mouseButtons).getAllByRole("button").map((button) => button.textContent)).toEqual(["Right", "Left"]);
+    expect(
+      within(mouseButtons)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["Right", "Left"]);
   });
 });

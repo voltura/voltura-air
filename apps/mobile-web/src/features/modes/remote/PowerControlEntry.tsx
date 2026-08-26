@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { Power } from "lucide-react";
-import type { AwakeCapability, AwakeResultMessage, PowerCapabilities, SystemPowerAction, SystemPowerResultMessage } from "../../../foundation/protocol/messages";
+import type {
+  AwakeCapability,
+  AwakeResultMessage,
+  PowerCapabilities,
+  SystemPowerAction,
+  SystemPowerResultMessage,
+} from "../../../foundation/protocol/messages";
 import { PowerControlSheet } from "./PowerControlSheet";
 
 export interface AwakeControlProps {
@@ -18,7 +24,19 @@ type PowerControlEntryProps = AwakeControlProps & {
   result: SystemPowerResultMessage | null;
 };
 
-export function PowerControlEntry({ awake = null, awakeResult = null, capabilities, onAction, onAwakeChange = () => { /* Optional host capability. */ }, onOpen, pendingAction, pendingAwakeChange = null, result }: PowerControlEntryProps) {
+export function PowerControlEntry({
+  awake = null,
+  awakeResult = null,
+  capabilities,
+  onAction,
+  onAwakeChange = () => {
+    /* Optional host capability. */
+  },
+  onOpen,
+  pendingAction,
+  pendingAwakeChange = null,
+  result,
+}: PowerControlEntryProps) {
   const [isOpen, setIsOpen] = useState(false);
   if (!capabilities) {
     return null;
@@ -39,7 +57,21 @@ export function PowerControlEntry({ awake = null, awakeResult = null, capabiliti
         <Power aria-hidden="true" />
         <span>Power</span>
       </button>
-      {isOpen && <PowerControlSheet awake={awake} awakeResult={awakeResult} capabilities={capabilities} onAction={onAction} onAwakeChange={onAwakeChange} onClose={() => { setIsOpen(false); }} pendingAction={pendingAction} pendingAwakeChange={pendingAwakeChange} result={result} />}
+      {isOpen && (
+        <PowerControlSheet
+          awake={awake}
+          awakeResult={awakeResult}
+          capabilities={capabilities}
+          onAction={onAction}
+          onAwakeChange={onAwakeChange}
+          onClose={() => {
+            setIsOpen(false);
+          }}
+          pendingAction={pendingAction}
+          pendingAwakeChange={pendingAwakeChange}
+          result={result}
+        />
+      )}
     </>
   );
 }

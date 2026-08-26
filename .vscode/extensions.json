@@ -1,6 +1,3 @@
 {
-  "recommendations": [
-    "ms-dotnettools.csdevkit",
-    "ms-vscode.cpptools"
-  ]
+  "recommendations": ["ms-dotnettools.csdevkit", "ms-vscode.cpptools"]
 }

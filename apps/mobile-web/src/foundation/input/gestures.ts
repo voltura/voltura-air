@@ -1,4 +1,9 @@
-import type { PointerButtonMessage, PointerMoveMessage, PointerWheelMessage, PointerZoomMessage } from "../protocol/messages";
+import type {
+  PointerButtonMessage,
+  PointerMoveMessage,
+  PointerWheelMessage,
+  PointerZoomMessage,
+} from "../protocol/messages";
 
 export interface TouchPoint {
   id: number;
@@ -6,7 +11,11 @@ export interface TouchPoint {
   y: number;
 }
 
-export type GestureOutput = PointerMoveMessage | PointerWheelMessage | PointerZoomMessage | PointerButtonMessage;
+export type GestureOutput =
+  | PointerMoveMessage
+  | PointerWheelMessage
+  | PointerZoomMessage
+  | PointerButtonMessage;
 
 export interface TrackpadSettings {
   verticalScroll: boolean;
@@ -57,31 +66,77 @@ export const defaultTrackpadSettings: TrackpadSettings = {
   splitShowStatusRow: true,
   hapticFeedback: false,
   leftHandedButtons: false,
-  largeClickButtons: false
+  largeClickButtons: false,
 };
 
 export function normalizeTrackpadSettings(value: unknown): TrackpadSettings {
-  const candidate = typeof value === "object" && value !== null
-    ? value as Partial<Record<keyof TrackpadSettings, unknown>>
-    : {};
+  const candidate =
+    typeof value === "object" && value !== null
+      ? (value as Partial<Record<keyof TrackpadSettings, unknown>>)
+      : {};
   return {
-    verticalScroll: typeof candidate.verticalScroll === "boolean" ? candidate.verticalScroll : defaultTrackpadSettings.verticalScroll,
-    horizontalScroll: typeof candidate.horizontalScroll === "boolean" ? candidate.horizontalScroll : defaultTrackpadSettings.horizontalScroll,
+    verticalScroll:
+      typeof candidate.verticalScroll === "boolean"
+        ? candidate.verticalScroll
+        : defaultTrackpadSettings.verticalScroll,
+    horizontalScroll:
+      typeof candidate.horizontalScroll === "boolean"
+        ? candidate.horizontalScroll
+        : defaultTrackpadSettings.horizontalScroll,
     scrollDirection: candidate.scrollDirection === "inverted" ? "inverted" : "normal",
-    pointerSpeed: typeof candidate.pointerSpeed === "number" ? Math.max(10, Math.min(100, candidate.pointerSpeed)) : defaultTrackpadSettings.pointerSpeed,
-    gyroSensitivity: typeof candidate.gyroSensitivity === "number" ? Math.max(25, Math.min(200, Math.round(candidate.gyroSensitivity / 5) * 5)) : defaultTrackpadSettings.gyroSensitivity,
-    pointerSmoothing: typeof candidate.pointerSmoothing === "boolean" ? candidate.pointerSmoothing : defaultTrackpadSettings.pointerSmoothing,
-    pointerAcceleration: typeof candidate.pointerAcceleration === "boolean" ? candidate.pointerAcceleration : defaultTrackpadSettings.pointerAcceleration,
-    scrollAcceleration: typeof candidate.scrollAcceleration === "boolean" ? candidate.scrollAcceleration : defaultTrackpadSettings.scrollAcceleration,
-    tapToClick: typeof candidate.tapToClick === "boolean" ? candidate.tapToClick : defaultTrackpadSettings.tapToClick,
-    zoomGestures: typeof candidate.zoomGestures === "boolean" ? candidate.zoomGestures : defaultTrackpadSettings.zoomGestures,
-    showVolumeControl: typeof candidate.showVolumeControl === "boolean" ? candidate.showVolumeControl : defaultTrackpadSettings.showVolumeControl,
-    enableSplitMode: typeof candidate.enableSplitMode === "boolean" ? candidate.enableSplitMode : defaultTrackpadSettings.enableSplitMode,
+    pointerSpeed:
+      typeof candidate.pointerSpeed === "number"
+        ? Math.max(10, Math.min(100, candidate.pointerSpeed))
+        : defaultTrackpadSettings.pointerSpeed,
+    gyroSensitivity:
+      typeof candidate.gyroSensitivity === "number"
+        ? Math.max(25, Math.min(200, Math.round(candidate.gyroSensitivity / 5) * 5))
+        : defaultTrackpadSettings.gyroSensitivity,
+    pointerSmoothing:
+      typeof candidate.pointerSmoothing === "boolean"
+        ? candidate.pointerSmoothing
+        : defaultTrackpadSettings.pointerSmoothing,
+    pointerAcceleration:
+      typeof candidate.pointerAcceleration === "boolean"
+        ? candidate.pointerAcceleration
+        : defaultTrackpadSettings.pointerAcceleration,
+    scrollAcceleration:
+      typeof candidate.scrollAcceleration === "boolean"
+        ? candidate.scrollAcceleration
+        : defaultTrackpadSettings.scrollAcceleration,
+    tapToClick:
+      typeof candidate.tapToClick === "boolean"
+        ? candidate.tapToClick
+        : defaultTrackpadSettings.tapToClick,
+    zoomGestures:
+      typeof candidate.zoomGestures === "boolean"
+        ? candidate.zoomGestures
+        : defaultTrackpadSettings.zoomGestures,
+    showVolumeControl:
+      typeof candidate.showVolumeControl === "boolean"
+        ? candidate.showVolumeControl
+        : defaultTrackpadSettings.showVolumeControl,
+    enableSplitMode:
+      typeof candidate.enableSplitMode === "boolean"
+        ? candidate.enableSplitMode
+        : defaultTrackpadSettings.enableSplitMode,
     splitTrackpadPlacement: candidate.splitTrackpadPlacement === "left" ? "left" : "right",
-    splitShowStatusRow: typeof candidate.splitShowStatusRow === "boolean" ? candidate.splitShowStatusRow : defaultTrackpadSettings.splitShowStatusRow,
-    hapticFeedback: typeof candidate.hapticFeedback === "boolean" ? candidate.hapticFeedback : defaultTrackpadSettings.hapticFeedback,
-    leftHandedButtons: typeof candidate.leftHandedButtons === "boolean" ? candidate.leftHandedButtons : defaultTrackpadSettings.leftHandedButtons,
-    largeClickButtons: typeof candidate.largeClickButtons === "boolean" ? candidate.largeClickButtons : defaultTrackpadSettings.largeClickButtons
+    splitShowStatusRow:
+      typeof candidate.splitShowStatusRow === "boolean"
+        ? candidate.splitShowStatusRow
+        : defaultTrackpadSettings.splitShowStatusRow,
+    hapticFeedback:
+      typeof candidate.hapticFeedback === "boolean"
+        ? candidate.hapticFeedback
+        : defaultTrackpadSettings.hapticFeedback,
+    leftHandedButtons:
+      typeof candidate.leftHandedButtons === "boolean"
+        ? candidate.leftHandedButtons
+        : defaultTrackpadSettings.leftHandedButtons,
+    largeClickButtons:
+      typeof candidate.largeClickButtons === "boolean"
+        ? candidate.largeClickButtons
+        : defaultTrackpadSettings.largeClickButtons,
   };
 }
 
@@ -111,7 +166,12 @@ export class GestureRecognizer {
     this.smoothedPointerDelta = null;
   }
 
-  move(points: TouchPoint[], _time: number, settings: TrackpadSettings = defaultTrackpadSettings, twoFingerMode: TwoFingerMode = "scroll"): GestureOutput[] {
+  move(
+    points: TouchPoint[],
+    _time: number,
+    settings: TrackpadSettings = defaultTrackpadSettings,
+    twoFingerMode: TwoFingerMode = "scroll",
+  ): GestureOutput[] {
     if (this.mode === "cancelled" || this.mode === "idle") {
       return [];
     }
@@ -155,8 +215,8 @@ export class GestureRecognizer {
         {
           type: "pointer.move",
           dx: round(dx * pointerSensitivity * speedFactor(settings.pointerSpeed)),
-          dy: round(dy * pointerSensitivity * speedFactor(settings.pointerSpeed))
-        }
+          dy: round(dy * pointerSensitivity * speedFactor(settings.pointerSpeed)),
+        },
       ];
     }
 
@@ -173,7 +233,10 @@ export class GestureRecognizer {
       const previousSpan = span(this.lastPoints);
       const startSpan = span(this.startPoints);
       this.maxDistance = Math.max(this.maxDistance, distance(currentCenter, startCenter));
-      this.maxTwoFingerSpanChange = Math.max(this.maxTwoFingerSpanChange, Math.abs(currentSpan - startSpan));
+      this.maxTwoFingerSpanChange = Math.max(
+        this.maxTwoFingerSpanChange,
+        Math.abs(currentSpan - startSpan),
+      );
 
       let dx = currentCenter.x - previousCenter.x;
       let dy = currentCenter.y - previousCenter.y;
@@ -203,7 +266,9 @@ export class GestureRecognizer {
       const wheelDy = settings.verticalScroll ? round(dy * wheelSensitivity * direction) : 0;
 
       this.twoFingerGestureActive ||= wheelDx !== 0 || wheelDy !== 0;
-      return wheelDx === 0 && wheelDy === 0 ? [] : [{ type: "pointer.wheel", dx: wheelDx, dy: wheelDy }];
+      return wheelDx === 0 && wheelDy === 0
+        ? []
+        : [{ type: "pointer.wheel", dx: wheelDx, dy: wheelDy }];
     }
 
     return [];
@@ -215,7 +280,12 @@ export class GestureRecognizer {
     const maxDistance = this.maxDistance;
     this.mode = "idle";
 
-    if (settings.tapToClick && mode === "pointer" && duration <= tapMs && maxDistance <= tapDistance) {
+    if (
+      settings.tapToClick &&
+      mode === "pointer" &&
+      duration <= tapMs &&
+      maxDistance <= tapDistance
+    ) {
       return [{ type: "pointer.button", button: "left", action: "click" }];
     }
 
@@ -223,7 +293,13 @@ export class GestureRecognizer {
       return [{ type: "pointer.button", button: "right", action: "click" }];
     }
 
-    if (mode === "twoFinger" && !this.twoFingerGestureActive && duration <= tapMs && maxDistance <= scrollTapDistance && this.maxTwoFingerSpanChange <= scrollTapDistance) {
+    if (
+      mode === "twoFinger" &&
+      !this.twoFingerGestureActive &&
+      duration <= tapMs &&
+      maxDistance <= scrollTapDistance &&
+      this.maxTwoFingerSpanChange <= scrollTapDistance
+    ) {
       return [{ type: "pointer.button", button: "right", action: "click" }];
     }
 
@@ -231,11 +307,13 @@ export class GestureRecognizer {
   }
 }
 
-export function touchesFromList(touches: ArrayLike<{ identifier: number; clientX: number; clientY: number }>): TouchPoint[] {
+export function touchesFromList(
+  touches: ArrayLike<{ identifier: number; clientX: number; clientY: number }>,
+): TouchPoint[] {
   return Array.from(touches, (touch) => ({
     id: touch.identifier,
     x: touch.clientX,
-    y: touch.clientY
+    y: touch.clientY,
   }));
 }
 
@@ -247,7 +325,7 @@ function center(points: TouchPoint[]): TouchPoint {
   return {
     id: -1,
     x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
-    y: points.reduce((sum, point) => sum + point.y, 0) / points.length
+    y: points.reduce((sum, point) => sum + point.y, 0) / points.length,
   };
 }
 
@@ -268,17 +346,25 @@ function speedFactor(pointerSpeed: number): number {
   return Math.max(10, Math.min(100, pointerSpeed)) / 100;
 }
 
-function accelerationFactor(distance: number, fullSpeedDistance: number, maximumBoost: number): number {
+function accelerationFactor(
+  distance: number,
+  fullSpeedDistance: number,
+  maximumBoost: number,
+): number {
   return 1 + Math.min(distance / fullSpeedDistance, 1) * maximumBoost;
 }
 
-function smoothDelta(dx: number, dy: number, previous: { dx: number; dy: number } | null): { dx: number; dy: number } {
+function smoothDelta(
+  dx: number,
+  dy: number,
+  previous: { dx: number; dy: number } | null,
+): { dx: number; dy: number } {
   if (!previous) {
     return { dx, dy };
   }
 
   return {
     dx: previous.dx * (1 - pointerSmoothingWeight) + dx * pointerSmoothingWeight,
-    dy: previous.dy * (1 - pointerSmoothingWeight) + dy * pointerSmoothingWeight
+    dy: previous.dy * (1 - pointerSmoothingWeight) + dy * pointerSmoothingWeight,
   };
 }

@@ -10,7 +10,7 @@ export function getNextReleaseVersion(version) {
   const match = odometerVersionPattern.exec(version);
   if (!match) {
     throw new Error(
-      `Release bump requires a stable version with single-digit minor and patch components; received '${version}'. Use npm run release -- <version> to choose the next version explicitly.`
+      `Release bump requires a stable version with single-digit minor and patch components; received '${version}'. Use npm run release -- <version> to choose the next version explicitly.`,
     );
   }
 

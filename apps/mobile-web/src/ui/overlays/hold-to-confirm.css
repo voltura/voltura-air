@@ -6,7 +6,11 @@
   min-height: 58px;
   overflow: hidden;
   border-color: color-mix(in srgb, var(--danger) 62%, var(--border));
-  background: linear-gradient(90deg, var(--danger) var(--hold-progress), color-mix(in srgb, var(--danger) 12%, var(--surface-raised)) var(--hold-progress));
+  background: linear-gradient(
+    90deg,
+    var(--danger) var(--hold-progress),
+    color-mix(in srgb, var(--danger) 12%, var(--surface-raised)) var(--hold-progress)
+  );
   color: var(--text);
   touch-action: none;
 }

@@ -20,7 +20,10 @@ class MockWebSocket {
   static instances: MockWebSocket[] = [];
 
   readyState = MockWebSocket.CONNECTING;
-  listeners = new Map<string, ((event: { code?: number; data?: string; reason?: string }) => void)[]>();
+  listeners = new Map<
+    string,
+    ((event: { code?: number; data?: string; reason?: string }) => void)[]
+  >();
 
   constructor(public url: string) {
     MockWebSocket.instances.push(this);
@@ -29,29 +32,19 @@ class MockWebSocket {
   addEventListener = vi.fn(
     (
       type: string,
-      listener: (event: {
-        code?: number;
-        data?: string;
-        reason?: string;
-      }) => void,
+      listener: (event: { code?: number; data?: string; reason?: string }) => void,
     ) => {
-    this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
-  },
+      this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
+    },
   );
   removeEventListener = vi.fn(
     (
       type: string,
-      listener: (event: {
-        code?: number;
-        data?: string;
-        reason?: string;
-      }) => void,
+      listener: (event: { code?: number; data?: string; reason?: string }) => void,
     ) => {
       this.listeners.set(
         type,
-        (this.listeners.get(type) ?? []).filter(
-          (candidate) => candidate !== listener,
-        ),
+        (this.listeners.get(type) ?? []).filter((candidate) => candidate !== listener),
       );
     },
   );
@@ -60,10 +53,7 @@ class MockWebSocket {
   });
   send = vi.fn();
 
-  dispatch(
-    type: string,
-    event: { code?: number; data?: string; reason?: string } = {},
-  ) {
+  dispatch(type: string, event: { code?: number; data?: string; reason?: string } = {}) {
     for (const listener of this.listeners.get(type) ?? []) {
       listener(event);
     }
@@ -74,7 +64,9 @@ class MockControllerDataChannel extends EventTarget {
   bufferedAmount = 0;
   readyState: RTCDataChannelState = "open";
   send = vi.fn();
-  close = vi.fn(() => { this.readyState = "closed"; });
+  close = vi.fn(() => {
+    this.readyState = "closed";
+  });
 
   message(data: string) {
     this.dispatchEvent(new MessageEvent("message", { data }));
@@ -112,7 +104,9 @@ function createStorage(): Storage {
     get length() {
       return items.size;
     },
-    clear: () => { items.clear(); },
+    clear: () => {
+      items.clear();
+    },
     getItem: (key: string) => items.get(key) ?? null,
     key: (index: number) => Array.from(items.keys())[index] ?? null,
     removeItem: (key: string) => {
@@ -125,7 +119,8 @@ function createStorage(): Storage {
 }
 
 const testHostIdentity = {
-  publicKey: "BGsX0fLhLEJH-Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWT-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU",
+  publicKey:
+    "BGsX0fLhLEJH-Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWT-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU",
   fingerprint: "aYvqY9xEo0RmP_FCmuoQhA",
 };
 
@@ -145,7 +140,11 @@ function base64Url(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
-function createTestHostProof(token: string, hello: { clientId: string; clientNonce: string; reconnectPublicKey: string }, serverNonce: string): string {
+function createTestHostProof(
+  token: string,
+  hello: { clientId: string; clientNonce: string; reconnectPublicKey: string },
+  serverNonce: string,
+): string {
   const encoder = new TextEncoder();
   const transcript = [
     "VolturaAir pairing host:v1",
@@ -165,10 +164,7 @@ function storeReconnectKey(clientId: string, pcId: string): string {
     throw new Error("Expected test browser to create reconnect key material.");
   }
 
-  localStorage.setItem(
-    `voltura-air.reconnect-key.${clientId}.${pcId}`,
-    key.privateKey,
-  );
+  localStorage.setItem(`voltura-air.reconnect-key.${clientId}.${pcId}`, key.privateKey);
   return key.privateKey;
 }
 
@@ -185,30 +181,16 @@ beforeEach(() => {
 });
 describe("shouldClearStoredReconnectKeyForRejection", () => {
   it("keeps reconnect keys for token and protocol-shape pairing failures", () => {
-    expect(shouldClearStoredReconnectKeyForRejection("stale-token")).toBe(
-      false,
-    );
-    expect(shouldClearStoredReconnectKeyForRejection("expired-token")).toBe(
-      false,
-    );
-    expect(shouldClearStoredReconnectKeyForRejection("invalid-token")).toBe(
-      false,
-    );
-    expect(shouldClearStoredReconnectKeyForRejection("rate-limited")).toBe(
-      false,
-    );
-    expect(shouldClearStoredReconnectKeyForRejection("invalid-message")).toBe(
-      false,
-    );
+    expect(shouldClearStoredReconnectKeyForRejection("stale-token")).toBe(false);
+    expect(shouldClearStoredReconnectKeyForRejection("expired-token")).toBe(false);
+    expect(shouldClearStoredReconnectKeyForRejection("invalid-token")).toBe(false);
+    expect(shouldClearStoredReconnectKeyForRejection("rate-limited")).toBe(false);
+    expect(shouldClearStoredReconnectKeyForRejection("invalid-message")).toBe(false);
   });
 
   it("clears reconnect keys only when the host rejects the registered key", () => {
-    expect(shouldClearStoredReconnectKeyForRejection("device-revoked")).toBe(
-      true,
-    );
-    expect(shouldClearStoredReconnectKeyForRejection("invalid-proof")).toBe(
-      true,
-    );
+    expect(shouldClearStoredReconnectKeyForRejection("device-revoked")).toBe(true);
+    expect(shouldClearStoredReconnectKeyForRejection("invalid-proof")).toBe(true);
   });
 });
 describe("useVolturaAirConnection", () => {
@@ -253,17 +235,28 @@ describe("useVolturaAirConnection", () => {
     localStorage.setItem("voltura-air.activePcId", pc.id);
     storeReconnectKey("client-a", pc.id);
     const { result } = renderHook(() => useVolturaAirConnection());
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
 
-    act(() => { result.current.pairWithToken("a".repeat(32), "http://candidate.local:51395"); });
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(2); });
+    act(() => {
+      result.current.pairWithToken("a".repeat(32), "http://candidate.local:51395");
+    });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(2);
+    });
     dispatchSocketEvent(getSocket(1), "error");
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(3); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(3);
+    });
 
     const fallback = getSocket(2);
     fallback.readyState = MockWebSocket.OPEN;
     dispatchSocketEvent(fallback, "open");
-    const hello = JSON.parse(fallback.send.mock.calls.at(-1)?.[0] as string) as Record<string, unknown>;
+    const hello = JSON.parse(fallback.send.mock.calls.at(-1)?.[0] as string) as Record<
+      string,
+      unknown
+    >;
     expect(hello.type).toBe("pair.hello");
     expect(hello).not.toHaveProperty("reconnectPublicKey");
     expect(hello).not.toHaveProperty("clientNonce");
@@ -274,8 +267,12 @@ describe("useVolturaAirConnection", () => {
     vi.mocked(connectSecureDirect).mockReturnValue(new Promise(() => undefined));
     const { result } = renderHook(() => useVolturaAirConnection());
 
-    act(() => { result.current.pairWithToken("a".repeat(32), `https://voltura.se/s/${route}`); });
-    await waitFor(() => { expect(connectSecureDirect).toHaveBeenCalledTimes(1); });
+    act(() => {
+      result.current.pairWithToken("a".repeat(32), `https://voltura.se/s/${route}`);
+    });
+    await waitFor(() => {
+      expect(connectSecureDirect).toHaveBeenCalledTimes(1);
+    });
     act(() => {
       window.dispatchEvent(new Event("focus"));
       window.dispatchEvent(new PageTransitionEvent("pageshow"));
@@ -296,42 +293,56 @@ describe("useVolturaAirConnection", () => {
     });
     const { result } = renderHook(() => useVolturaAirConnection());
 
-    act(() => { result.current.pairWithToken(token, `https://voltura.se/s/${route}`); });
-    await waitFor(() => { expect(channel.send).toHaveBeenCalledTimes(1); });
+    act(() => {
+      result.current.pairWithToken(token, `https://voltura.se/s/${route}`);
+    });
+    await waitFor(() => {
+      expect(channel.send).toHaveBeenCalledTimes(1);
+    });
     const hello = JSON.parse(channel.send.mock.calls[0]![0] as string) as {
       clientId: string;
       clientNonce: string;
       reconnectPublicKey: string;
     };
 
-    act(() => { channel.dispatchEvent(new Event("open")); });
+    act(() => {
+      channel.dispatchEvent(new Event("open"));
+    });
     expect(channel.send).toHaveBeenCalledTimes(1);
 
     const serverNonce = "B".repeat(43);
     act(() => {
-      channel.message(JSON.stringify({
-        type: "pair.bootstrap.challenge",
-        clientId: hello.clientId,
-        clientNonce: hello.clientNonce,
-        serverNonce,
-        hostIdentity: testHostIdentity,
-        proof: createTestHostProof(token, hello, serverNonce),
-      }));
+      channel.message(
+        JSON.stringify({
+          type: "pair.bootstrap.challenge",
+          clientId: hello.clientId,
+          clientNonce: hello.clientNonce,
+          serverNonce,
+          hostIdentity: testHostIdentity,
+          proof: createTestHostProof(token, hello, serverNonce),
+        }),
+      );
     });
-    await waitFor(() => { expect(channel.send).toHaveBeenCalledTimes(2); });
+    await waitFor(() => {
+      expect(channel.send).toHaveBeenCalledTimes(2);
+    });
     expect(channel.send.mock.calls[1]![0]).toContain('"type":"pair.bootstrap.proof"');
     expect(result.current.lastConnectionError).toBeNull();
 
     act(() => {
-      channel.message(JSON.stringify({
-        type: "pair.accepted",
-        clientId: hello.clientId,
-        pcName: "Secure Direct PC",
-        paired: true,
-        hostIdentity: testHostIdentity,
-      }));
+      channel.message(
+        JSON.stringify({
+          type: "pair.accepted",
+          clientId: hello.clientId,
+          pcName: "Secure Direct PC",
+          paired: true,
+          hostIdentity: testHostIdentity,
+        }),
+      );
     });
-    await waitFor(() => { expect(result.current.state).toBe("paired"); });
+    await waitFor(() => {
+      expect(result.current.state).toBe("paired");
+    });
     expect(connectSecureDirect).toHaveBeenCalledTimes(1);
     expect(channel.close).not.toHaveBeenCalled();
     expect(cleanup).not.toHaveBeenCalled();
@@ -349,8 +360,12 @@ describe("useVolturaAirConnection", () => {
       });
       const { result } = renderHook(() => useVolturaAirConnection());
 
-      act(() => { result.current.pairWithToken(token, `https://voltura.se/s/${route}`); });
-      await waitFor(() => { expect(channel.send).toHaveBeenCalledTimes(1); });
+      act(() => {
+        result.current.pairWithToken(token, `https://voltura.se/s/${route}`);
+      });
+      await waitFor(() => {
+        expect(channel.send).toHaveBeenCalledTimes(1);
+      });
       const hello = JSON.parse(channel.send.mock.calls[0]![0] as string) as {
         clientId: string;
         clientNonce: string;
@@ -358,37 +373,61 @@ describe("useVolturaAirConnection", () => {
       };
       const serverNonce = "B".repeat(43);
       act(() => {
-        channel.message(JSON.stringify({
-          type: "pair.bootstrap.challenge",
-          clientId: hello.clientId,
-          clientNonce: hello.clientNonce,
-          serverNonce,
-          hostIdentity: testHostIdentity,
-          proof: createTestHostProof(token, hello, serverNonce),
-        }));
+        channel.message(
+          JSON.stringify({
+            type: "pair.bootstrap.challenge",
+            clientId: hello.clientId,
+            clientNonce: hello.clientNonce,
+            serverNonce,
+            hostIdentity: testHostIdentity,
+            proof: createTestHostProof(token, hello, serverNonce),
+          }),
+        );
       });
-      await waitFor(() => { expect(channel.send).toHaveBeenCalledTimes(2); });
+      await waitFor(() => {
+        expect(channel.send).toHaveBeenCalledTimes(2);
+      });
       act(() => {
-        channel.message(JSON.stringify({
-          type: "pair.accepted",
-          clientId: hello.clientId,
-          pcName: "Secure Direct PC",
-          paired: true,
-          capabilities: { inputAck: true },
-          hostIdentity: testHostIdentity,
-        }));
+        channel.message(
+          JSON.stringify({
+            type: "pair.accepted",
+            clientId: hello.clientId,
+            pcName: "Secure Direct PC",
+            paired: true,
+            capabilities: { inputAck: true },
+            hostIdentity: testHostIdentity,
+          }),
+        );
       });
-      await waitFor(() => { expect(result.current.state).toBe("paired"); });
+      await waitFor(() => {
+        expect(result.current.state).toBe("paired");
+      });
 
       await act(() => vi.advanceTimersByTime(10_000));
-      expect(channel.send.mock.calls.filter(([payload]) => payload === JSON.stringify({ type: "health.ping" }))).toHaveLength(1);
-      act(() => { channel.message(JSON.stringify({ type: "health.pong" })); });
+      expect(
+        channel.send.mock.calls.filter(
+          ([payload]) => payload === JSON.stringify({ type: "health.ping" }),
+        ),
+      ).toHaveLength(1);
+      act(() => {
+        channel.message(JSON.stringify({ type: "health.pong" }));
+      });
       await act(() => vi.advanceTimersByTime(10_000));
-      expect(channel.send.mock.calls.filter(([payload]) => payload === JSON.stringify({ type: "health.ping" }))).toHaveLength(2);
-      act(() => { channel.message(JSON.stringify({ type: "health.pong" })); });
+      expect(
+        channel.send.mock.calls.filter(
+          ([payload]) => payload === JSON.stringify({ type: "health.ping" }),
+        ),
+      ).toHaveLength(2);
+      act(() => {
+        channel.message(JSON.stringify({ type: "health.pong" }));
+      });
 
       await act(() => vi.advanceTimersByTime(20_000));
-      expect(channel.send.mock.calls.filter(([payload]) => payload === JSON.stringify({ type: "health.ping" }))).toHaveLength(2);
+      expect(
+        channel.send.mock.calls.filter(
+          ([payload]) => payload === JSON.stringify({ type: "health.ping" }),
+        ),
+      ).toHaveLength(2);
 
       act(() => {
         for (let index = 0; index < 5; index += 1) {
@@ -396,21 +435,35 @@ describe("useVolturaAirConnection", () => {
         }
       });
       await act(() => vi.advanceTimersByTime(1000));
-      expect(channel.send.mock.calls.filter(([payload]) => payload === JSON.stringify({ type: "health.ping" }))).toHaveLength(2);
+      expect(
+        channel.send.mock.calls.filter(
+          ([payload]) => payload === JSON.stringify({ type: "health.ping" }),
+        ),
+      ).toHaveLength(2);
       const movement = channel.send.mock.calls
         .map(([payload]) => JSON.parse(payload as string) as { type?: string; seq?: number })
         .find((payload) => payload.type === "pointer.move" && payload.seq !== undefined);
       expect(movement?.seq).toBeTypeOf("number");
-      act(() => { channel.message(JSON.stringify({ type: "input.ack", seq: movement!.seq })); });
+      act(() => {
+        channel.message(JSON.stringify({ type: "input.ack", seq: movement!.seq }));
+      });
       await act(() => vi.advanceTimersByTime(6500));
       expect(result.current.state).toBe("paired");
 
       channel.bufferedAmount = 128;
       await act(() => vi.advanceTimersByTime(3500));
-      expect(channel.send.mock.calls.filter(([payload]) => payload === JSON.stringify({ type: "health.ping" }))).toHaveLength(2);
+      expect(
+        channel.send.mock.calls.filter(
+          ([payload]) => payload === JSON.stringify({ type: "health.ping" }),
+        ),
+      ).toHaveLength(2);
       channel.bufferedAmount = 0;
       await act(() => vi.advanceTimersByTime(5000));
-      expect(channel.send.mock.calls.filter(([payload]) => payload === JSON.stringify({ type: "health.ping" }))).toHaveLength(3);
+      expect(
+        channel.send.mock.calls.filter(
+          ([payload]) => payload === JSON.stringify({ type: "health.ping" }),
+        ),
+      ).toHaveLength(3);
       await act(() => vi.advanceTimersByTime(6500));
 
       expect(result.current.state).toBe("unavailable");
@@ -428,16 +481,14 @@ describe("useVolturaAirConnection", () => {
       unmount = renderHook(() => useVolturaAirConnection()).unmount;
     }).not.toThrow();
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     expect(getSocket(0).url).toMatch(/^wss?:\/\//);
     expect(getSocket(0).url).not.toContain("javascript");
     expect(getSocket(0).url).not.toContain("null");
-    expect(localStorage.getItem("voltura-air.pcProfiles")).not.toContain(
-      "javascript",
-    );
-    expect(localStorage.getItem("voltura-air.pcProfiles")).not.toContain(
-      '"null"',
-    );
+    expect(localStorage.getItem("voltura-air.pcProfiles")).not.toContain("javascript");
+    expect(localStorage.getItem("voltura-air.pcProfiles")).not.toContain('"null"');
     unmount?.();
   });
 
@@ -450,13 +501,19 @@ describe("useVolturaAirConnection", () => {
     storeReconnectKey("client-a", pc.id);
     const errors: Event[] = [];
     const rejections: Event[] = [];
-    const onError = (event: Event) => { errors.push(event); };
-    const onRejection = (event: Event) => { rejections.push(event); };
+    const onError = (event: Event) => {
+      errors.push(event);
+    };
+    const onRejection = (event: Event) => {
+      rejections.push(event);
+    };
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onRejection);
 
     const { result, unmount } = renderHook(() => useVolturaAirConnection());
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     const socket = getSocket(0);
     socket.readyState = MockWebSocket.OPEN;
     dispatchSocketEvent(socket, "open");
@@ -485,7 +542,9 @@ describe("useVolturaAirConnection", () => {
     dispatchSocketEvent(socket, "message", {
       data: JSON.stringify({ type: "audio.state", volume: 44, muted: false }),
     });
-    await waitFor(() => { expect(result.current.audioState?.volume).toBe(44); });
+    await waitFor(() => {
+      expect(result.current.audioState?.volume).toBe(44);
+    });
     const snapshot = {
       state: result.current.state,
       message: result.current.message,
@@ -538,7 +597,9 @@ describe("useVolturaAirConnection", () => {
 
     const { result } = renderHook(() => useVolturaAirConnection());
 
-    await waitFor(() => { expect(result.current.state).toBe("needs-pairing"); });
+    await waitFor(() => {
+      expect(result.current.state).toBe("needs-pairing");
+    });
     expect(MockWebSocket.instances).toHaveLength(0);
   });
 
@@ -549,21 +610,17 @@ describe("useVolturaAirConnection", () => {
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
     localStorage.setItem("voltura-air.activePcId", pc.id);
     storeReconnectKey("client-a", pc.id);
-    window.history.pushState(
-      null,
-      "",
-      "/pair?t=short&v=0.6.1&h=http%3A%2F%2Fpc-two.local%3A51395",
-    );
+    window.history.pushState(null, "", "/pair?t=short&v=0.6.1&h=http%3A%2F%2Fpc-two.local%3A51395");
 
     const { result } = renderHook(() => useVolturaAirConnection());
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     expect(getSocket(0).url).toBe("ws://pc.local:51395/ws");
     expect(result.current.activePc).toEqual(pc);
     expect(result.current.pairedPcs).toEqual([pc]);
-    expect(
-      JSON.parse(localStorage.getItem("voltura-air.pcProfiles") ?? "[]"),
-    ).toEqual([pc]);
+    expect(JSON.parse(localStorage.getItem("voltura-air.pcProfiles") ?? "[]")).toEqual([pc]);
     expect(localStorage.getItem("voltura-air.activePcId")).toBe(pc.id);
   });
 
@@ -575,16 +632,14 @@ describe("useVolturaAirConnection", () => {
 
     const { unmount } = renderHook(() => useVolturaAirConnection());
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     const socket = getSocket(0);
     unmount();
 
     expect(socket.removeEventListener).toHaveBeenCalledTimes(4);
-    expect(
-      [...socket.listeners.values()].every(
-        (listeners) => listeners.length === 0,
-      ),
-    ).toBe(true);
+    expect([...socket.listeners.values()].every((listeners) => listeners.length === 0)).toBe(true);
     expect(socket.close).toHaveBeenCalledOnce();
   });
 
@@ -598,7 +653,9 @@ describe("useVolturaAirConnection", () => {
 
     const { result } = renderHook(() => useVolturaAirConnection());
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     const socket = getSocket(0);
     socket.readyState = MockWebSocket.OPEN;
     dispatchSocketEvent(socket, "open");
@@ -640,30 +697,28 @@ describe("useVolturaAirConnection", () => {
 
     const { result } = renderHook(() => useVolturaAirConnection());
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     const socket = getSocket(0);
     socket.readyState = MockWebSocket.OPEN;
     dispatchSocketEvent(socket, "open");
     await waitFor(() => {
-      expect(socket.send).toHaveBeenCalledWith(
-        expect.stringContaining('"type":"pair.hello"'),
-      );
+      expect(socket.send).toHaveBeenCalledWith(expect.stringContaining('"type":"pair.hello"'));
     });
-    expect(socket.send).toHaveBeenCalledWith(
-      expect.not.stringContaining("reconnect-key"),
-    );
+    expect(socket.send).toHaveBeenCalledWith(expect.not.stringContaining("reconnect-key"));
 
     dispatchSocketEvent(socket, "message", {
       data: JSON.stringify({ type: "pair.rejected", reason: "invalid-proof" }),
     });
 
-    await waitFor(() => { expect(result.current.state).toBe("needs-pairing"); });
+    await waitFor(() => {
+      expect(result.current.state).toBe("needs-pairing");
+    });
     expect(result.current.message).toBe(
       "Saved pairing was removed on the PC. Scan a fresh QR code to pair again.",
     );
-    expect(
-      localStorage.getItem(`voltura-air.reconnect-key.client-a.${pc.id}`),
-    ).toBeNull();
+    expect(localStorage.getItem(`voltura-air.reconnect-key.client-a.${pc.id}`)).toBeNull();
     expect(result.current.reconnectablePcs).toHaveLength(0);
   });
 
@@ -677,10 +732,14 @@ describe("useVolturaAirConnection", () => {
 
     const { result } = renderHook(() => useVolturaAirConnection());
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     expect(result.current.reconnectablePcs).toEqual([pc]);
 
-    act(() => { result.current.disconnectActivePc(); });
+    act(() => {
+      result.current.disconnectActivePc();
+    });
 
     await waitFor(() => {
       expect(result.current.activePc).toBeNull();
@@ -700,7 +759,9 @@ describe("useVolturaAirConnection", () => {
 
     const { result } = renderHook(() => useVolturaAirConnection());
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     const socket = getSocket(0);
     socket.readyState = MockWebSocket.OPEN;
     dispatchSocketEvent(socket, "open");
@@ -714,19 +775,19 @@ describe("useVolturaAirConnection", () => {
       }),
     });
 
-    await waitFor(() => { expect(result.current.hostStatus?.pointerSpeed).toBe(65); });
-    expect(socket.send).toHaveBeenCalledWith(
-      expect.stringContaining('"type":"status.get"'),
-    );
-    expect(socket.send).not.toHaveBeenCalledWith(
-      expect.stringContaining("pointerSpeed"),
-    );
+    await waitFor(() => {
+      expect(result.current.hostStatus?.pointerSpeed).toBe(65);
+    });
+    expect(socket.send).toHaveBeenCalledWith(expect.stringContaining('"type":"status.get"'));
+    expect(socket.send).not.toHaveBeenCalledWith(expect.stringContaining("pointerSpeed"));
 
     act(() => {
       result.current.setHostPointerSpeed(45);
     });
 
-    await waitFor(() => { expect(result.current.hostStatus?.pointerSpeed).toBe(45); });
+    await waitFor(() => {
+      expect(result.current.hostStatus?.pointerSpeed).toBe(45);
+    });
     expect(socket.send).toHaveBeenCalledWith(
       JSON.stringify({ type: "pointer.speed.set", pointerSpeed: 45 }),
     );
@@ -735,7 +796,9 @@ describe("useVolturaAirConnection", () => {
       result.current.setHostCustomPointer(true);
     });
 
-    await waitFor(() => { expect(result.current.hostStatus?.customPointerEnabled).toBe(true); });
+    await waitFor(() => {
+      expect(result.current.hostStatus?.customPointerEnabled).toBe(true);
+    });
     expect(socket.send).toHaveBeenCalledWith(
       JSON.stringify({ type: "custom.pointer.set", enabled: true }),
     );
@@ -751,14 +814,18 @@ describe("useVolturaAirConnection", () => {
 
     const { result } = renderHook(() => useVolturaAirConnection());
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     const staleSocket = getSocket(0);
 
     act(() => {
       result.current.addManualPc("http://pc-two.local:51395");
     });
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(2); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(2);
+    });
     dispatchSocketEvent(staleSocket, "open");
     dispatchSocketEvent(staleSocket, "message", {
       data: JSON.stringify({
@@ -771,9 +838,7 @@ describe("useVolturaAirConnection", () => {
 
     expect(result.current.state).toBe("connecting");
     expect(result.current.message).not.toContain("Stale PC");
-    expect(
-      localStorage.getItem(`voltura-air.reconnect-key.client-a.${pc.id}`),
-    ).not.toBeNull();
+    expect(localStorage.getItem(`voltura-air.reconnect-key.client-a.${pc.id}`)).not.toBeNull();
   });
 
   it("discards an unreachable manual address without changing the saved PC", async () => {
@@ -786,39 +851,35 @@ describe("useVolturaAirConnection", () => {
 
     const { result } = renderHook(() => useVolturaAirConnection());
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     act(() => {
       result.current.addManualPc("http://jjjjjjjj");
     });
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(2); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(2);
+    });
     const candidateSocket = getSocket(1);
     expect(candidateSocket.url).toBe("ws://jjjjjjjj/ws");
     expect(result.current.activePc).toEqual(pc);
     expect(result.current.pairedPcs).toEqual([pc]);
-    expect(
-      JSON.parse(localStorage.getItem("voltura-air.pcProfiles") ?? "[]"),
-    ).toEqual([pc]);
+    expect(JSON.parse(localStorage.getItem("voltura-air.pcProfiles") ?? "[]")).toEqual([pc]);
     expect(localStorage.getItem("voltura-air.activePcId")).toBe(pc.id);
 
     dispatchSocketEvent(candidateSocket, "error");
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(3); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(3);
+    });
     expect(getSocket(2).url).toBe("ws://pc.local:51395/ws");
     expect(result.current.activePc).toEqual(pc);
     expect(result.current.pairedPcs).toEqual([pc]);
-    expect(
-      JSON.parse(localStorage.getItem("voltura-air.pcProfiles") ?? "[]"),
-    ).toEqual([pc]);
+    expect(JSON.parse(localStorage.getItem("voltura-air.pcProfiles") ?? "[]")).toEqual([pc]);
     expect(localStorage.getItem("voltura-air.activePcId")).toBe(pc.id);
-    expect(
-      localStorage.getItem(`voltura-air.reconnect-key.client-a.${pc.id}`),
-    ).not.toBeNull();
-    expect(
-      localStorage.getItem(
-        "voltura-air.reconnect-key.client-a.http://jjjjjjjj",
-      ),
-    ).toBeNull();
+    expect(localStorage.getItem(`voltura-air.reconnect-key.client-a.${pc.id}`)).not.toBeNull();
+    expect(localStorage.getItem("voltura-air.reconnect-key.client-a.http://jjjjjjjj")).toBeNull();
   });
 
   it("stores a token pairing reconnect key only after the host accepts it", async () => {
@@ -832,21 +893,21 @@ describe("useVolturaAirConnection", () => {
 
     const { result } = renderHook(() => useVolturaAirConnection());
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     act(() => {
       result.current.pairWithToken("pair-token", candidateUrl);
     });
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(2); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(2);
+    });
     const candidateSocket = getSocket(1);
     expect(result.current.activePc).toEqual(pc);
     expect(result.current.pairedPcs).toEqual([pc]);
     expect(localStorage.getItem("voltura-air.activePcId")).toBe(pc.id);
-    expect(
-      localStorage.getItem(
-        `voltura-air.reconnect-key.client-a.${candidateUrl}`,
-      ),
-    ).toBeNull();
+    expect(localStorage.getItem(`voltura-air.reconnect-key.client-a.${candidateUrl}`)).toBeNull();
 
     candidateSocket.readyState = MockWebSocket.OPEN;
     dispatchSocketEvent(candidateSocket, "open");
@@ -866,7 +927,9 @@ describe("useVolturaAirConnection", () => {
         proof: createTestHostProof("pair-token", hello, serverNonce),
       }),
     });
-    expect(candidateSocket.send).toHaveBeenCalledWith(expect.stringContaining('"type":"pair.bootstrap.proof"'));
+    expect(candidateSocket.send).toHaveBeenCalledWith(
+      expect.stringContaining('"type":"pair.bootstrap.proof"'),
+    );
     dispatchSocketEvent(candidateSocket, "message", {
       data: JSON.stringify({
         type: "pair.accepted",
@@ -876,25 +939,27 @@ describe("useVolturaAirConnection", () => {
       }),
     });
 
-    await waitFor(() => { expect(result.current.activePc?.id).toBe(candidateUrl); });
-    expect(result.current.pairedPcs.map((profile) => profile.id)).toEqual([
-      pc.id,
-      candidateUrl,
-    ]);
+    await waitFor(() => {
+      expect(result.current.activePc?.id).toBe(candidateUrl);
+    });
+    expect(result.current.pairedPcs.map((profile) => profile.id)).toEqual([pc.id, candidateUrl]);
     const storedProfiles: unknown = JSON.parse(
       localStorage.getItem("voltura-air.pcProfiles") ?? "[]",
     );
     expect(
       Array.isArray(storedProfiles)
-        ? (storedProfiles as unknown[]).flatMap((profile) => typeof profile === "object" && profile !== null && typeof (profile as { id?: unknown }).id === "string" ? [(profile as { id: string }).id] : [],
+        ? (storedProfiles as unknown[]).flatMap((profile) =>
+            typeof profile === "object" &&
+            profile !== null &&
+            typeof (profile as { id?: unknown }).id === "string"
+              ? [(profile as { id: string }).id]
+              : [],
           )
         : [],
     ).toEqual([pc.id, candidateUrl]);
     expect(localStorage.getItem("voltura-air.activePcId")).toBe(candidateUrl);
     expect(
-      localStorage.getItem(
-        `voltura-air.reconnect-key.client-a.${candidateUrl}`,
-      ),
+      localStorage.getItem(`voltura-air.reconnect-key.client-a.${candidateUrl}`),
     ).not.toBeNull();
   });
 
@@ -908,7 +973,9 @@ describe("useVolturaAirConnection", () => {
 
     const { result } = renderHook(() => useVolturaAirConnection());
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     const socket = getSocket(0);
     socket.readyState = MockWebSocket.OPEN;
     dispatchSocketEvent(socket, "open");
@@ -922,7 +989,9 @@ describe("useVolturaAirConnection", () => {
       }),
     });
 
-    await waitFor(() => { expect(result.current.state).toBe("paired"); });
+    await waitFor(() => {
+      expect(result.current.state).toBe("paired");
+    });
     socket.readyState = MockWebSocket.CLOSED;
 
     act(() => {
@@ -930,12 +999,8 @@ describe("useVolturaAirConnection", () => {
     });
 
     expect(result.current.state).toBe("unavailable");
-    expect(result.current.lastConnectionError?.code).toBe(
-      "VAIR-PAIR-CLIENT-SEND-FAILED",
-    );
-    expect(socket.send).not.toHaveBeenCalledWith(
-      expect.stringContaining('"type":"pointer.move"'),
-    );
+    expect(result.current.lastConnectionError?.code).toBe("VAIR-PAIR-CLIENT-SEND-FAILED");
+    expect(socket.send).not.toHaveBeenCalledWith(expect.stringContaining('"type":"pointer.move"'));
   });
 
   it("surfaces current input errors without disconnecting the socket", async () => {
@@ -948,7 +1013,9 @@ describe("useVolturaAirConnection", () => {
 
     const { result } = renderHook(() => useVolturaAirConnection());
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     const socket = getSocket(0);
     socket.readyState = MockWebSocket.OPEN;
     dispatchSocketEvent(socket, "open");
@@ -972,12 +1039,8 @@ describe("useVolturaAirConnection", () => {
     });
 
     expect(result.current.state).toBe("paired");
-    expect(result.current.message).toBe(
-      "Windows did not accept this input action. Try again.",
-    );
-    expect(result.current.lastConnectionError?.code).toBe(
-      "VAIR-INPUT-NATIVE-SEND-FAILED",
-    );
+    expect(result.current.message).toBe("Windows did not accept this input action. Try again.");
+    expect(result.current.lastConnectionError?.code).toBe("VAIR-INPUT-NATIVE-SEND-FAILED");
     expect(socket.close).not.toHaveBeenCalled();
   });
 
@@ -991,7 +1054,9 @@ describe("useVolturaAirConnection", () => {
 
     const { result } = renderHook(() => useVolturaAirConnection());
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     const socket = getSocket(0);
     socket.readyState = MockWebSocket.OPEN;
     dispatchSocketEvent(socket, "open");
@@ -1047,9 +1112,7 @@ describe("useVolturaAirConnection", () => {
 
     expect(result.current.state).toBe("paired");
     expect(result.current.message).toContain("Windows locking is disabled");
-    expect(result.current.lastConnectionError?.code).toBe(
-      "VAIR-POWER-LOCK-DISABLED",
-    );
+    expect(result.current.lastConnectionError?.code).toBe("VAIR-POWER-LOCK-DISABLED");
     expect(result.current.pendingPowerAction).toBeNull();
     expect(result.current.powerActionResult?.succeeded).toBe(false);
     expect(socket.close).not.toHaveBeenCalled();
@@ -1067,7 +1130,9 @@ describe("useVolturaAirConnection", () => {
 
       const { result } = renderHook(() => useVolturaAirConnection());
 
-      await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+      await waitFor(() => {
+        expect(MockWebSocket.instances).toHaveLength(1);
+      });
       const socket = getSocket(0);
       socket.readyState = MockWebSocket.OPEN;
       dispatchSocketEvent(socket, "open");
@@ -1080,7 +1145,9 @@ describe("useVolturaAirConnection", () => {
         }),
       });
 
-      act(() => { result.current.requestPowerAction("displayOff"); });
+      act(() => {
+        result.current.requestPowerAction("displayOff");
+      });
       const displayOffRequest = socket.send.mock.calls
         .map(
           ([payload]) =>
@@ -1096,16 +1163,15 @@ describe("useVolturaAirConnection", () => {
           operationId: displayOffRequest?.operationId,
           action: "displayOff",
           succeeded: true,
-          message: "Windows accepted the display-off request. Physical input may be required to wake.",
+          message:
+            "Windows accepted the display-off request. Physical input may be required to wake.",
         }),
       });
 
       await act(() => vi.advanceTimersByTime(7500));
       expect(result.current.state).toBe("unavailable");
       expect(socket.close).toHaveBeenCalledTimes(1);
-      expect(socket.send).toHaveBeenCalledWith(
-        JSON.stringify({ type: "health.ping" }),
-      );
+      expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ type: "health.ping" }));
     } finally {
       vi.useRealTimers();
     }
@@ -1122,7 +1188,9 @@ describe("useVolturaAirConnection", () => {
       storeReconnectKey("client-a", pc.id);
 
       const { result } = renderHook(() => useVolturaAirConnection());
-      await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+      await waitFor(() => {
+        expect(MockWebSocket.instances).toHaveLength(1);
+      });
       const socket = getSocket(0);
       socket.readyState = MockWebSocket.OPEN;
       dispatchSocketEvent(socket, "open");
@@ -1135,9 +1203,13 @@ describe("useVolturaAirConnection", () => {
         }),
       });
 
-      act(() => { result.current.requestCustomScreen("screen.future"); });
+      act(() => {
+        result.current.requestCustomScreen("screen.future");
+      });
       const request = socket.send.mock.calls
-        .map(([payload]) => JSON.parse(payload as string) as { type?: string; operationId?: string })
+        .map(
+          ([payload]) => JSON.parse(payload as string) as { type?: string; operationId?: string },
+        )
         .find((payload) => payload.type === "custom.screen.get");
 
       await act(() => vi.advanceTimersByTime(10_000));
@@ -1178,7 +1250,9 @@ describe("useVolturaAirConnection", () => {
       storeReconnectKey("client-a", pc.id);
 
       const { result } = renderHook(() => useVolturaAirConnection());
-      await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+      await waitFor(() => {
+        expect(MockWebSocket.instances).toHaveLength(1);
+      });
       const socket = getSocket(0);
       socket.readyState = MockWebSocket.OPEN;
       dispatchSocketEvent(socket, "open");
@@ -1223,7 +1297,9 @@ describe("useVolturaAirConnection", () => {
 
     const { result } = renderHook(() => useVolturaAirConnection());
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     const socket = getSocket(0);
     socket.readyState = MockWebSocket.OPEN;
     dispatchSocketEvent(socket, "open");
@@ -1244,14 +1320,8 @@ describe("useVolturaAirConnection", () => {
 
     expect(result.current.state).toBe("unavailable");
     expect(socket.removeEventListener).toHaveBeenCalledTimes(4);
-    expect(
-      [...socket.listeners.values()].every(
-        (listeners) => listeners.length === 0,
-      ),
-    ).toBe(true);
-    expect(result.current.lastConnectionError?.code).toBe(
-      "VAIR-PAIR-SOCKET-CLOSED",
-    );
+    expect([...socket.listeners.values()].every((listeners) => listeners.length === 0)).toBe(true);
+    expect(result.current.lastConnectionError?.code).toBe("VAIR-PAIR-SOCKET-CLOSED");
     expect(result.current.message).toBe(
       "PC is currently not available. Check that Voltura Air is running on the PC. Retrying...",
     );
@@ -1276,7 +1346,9 @@ describe("useVolturaAirConnection", () => {
       storeReconnectKey("client-a", pc.id);
 
       const { result } = renderHook(() => useVolturaAirConnection());
-      await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+      await waitFor(() => {
+        expect(MockWebSocket.instances).toHaveLength(1);
+      });
 
       dispatchSocketEvent(getSocket(0), "error");
       expect(result.current.state).toBe("unavailable");
@@ -1314,16 +1386,15 @@ describe("useVolturaAirConnection", () => {
       url: "http://pc-b.local:51395",
     };
     localStorage.setItem("voltura-air.clientId", "client-a");
-    localStorage.setItem(
-      "voltura-air.pcProfiles",
-      JSON.stringify([active, inactive]),
-    );
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([active, inactive]));
     localStorage.setItem("voltura-air.activePcId", active.id);
     storeReconnectKey("client-a", active.id);
     storeReconnectKey("client-a", inactive.id);
 
     const { result } = renderHook(() => useVolturaAirConnection());
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     const socket = getSocket(0);
     socket.readyState = MockWebSocket.OPEN;
     dispatchSocketEvent(socket, "open");
@@ -1358,7 +1429,9 @@ describe("useVolturaAirConnection", () => {
     dispatchSocketEvent(socket, "message", {
       data: JSON.stringify({ type: "audio.state", volume: 38, muted: true }),
     });
-    await waitFor(() => { expect(result.current.audioState?.volume).toBe(38); });
+    await waitFor(() => {
+      expect(result.current.audioState?.volume).toBe(38);
+    });
     const runtimeSnapshot = () => ({
       activePc: result.current.activePc,
       state: result.current.state,
@@ -1376,12 +1449,18 @@ describe("useVolturaAirConnection", () => {
     });
     const expectedRuntime = runtimeSnapshot();
 
-    act(() => { result.current.forgetPc("http://missing.local:51395"); });
+    act(() => {
+      result.current.forgetPc("http://missing.local:51395");
+    });
     expect(runtimeSnapshot()).toEqual(expectedRuntime);
     expect(result.current.pairedPcs).toEqual([active, inactive]);
 
-    act(() => { result.current.forgetPc(inactive.id); });
-    await waitFor(() => { expect(result.current.pairedPcs).toEqual([active, inactive]); });
+    act(() => {
+      result.current.forgetPc(inactive.id);
+    });
+    await waitFor(() => {
+      expect(result.current.pairedPcs).toEqual([active, inactive]);
+    });
     expect(runtimeSnapshot()).toEqual(expectedRuntime);
     expect(
       localStorage.getItem(`voltura-air.reconnect-key.client-a.${inactive.id}`),
@@ -1396,10 +1475,16 @@ describe("useVolturaAirConnection", () => {
       ).not.toBeNull();
     });
 
-    act(() => { result.current.forgetPc(inactive.id); });
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(3); });
+    act(() => {
+      result.current.forgetPc(inactive.id);
+    });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(3);
+    });
     dispatchSocketEvent(getSocket(2), "error");
-    await waitFor(() => { expect(result.current.pairedPcs).toEqual([active, inactive]); });
+    await waitFor(() => {
+      expect(result.current.pairedPcs).toEqual([active, inactive]);
+    });
     expect(runtimeSnapshot()).toEqual(expectedRuntime);
     expect(
       localStorage.getItem(`voltura-air.reconnect-key.client-a.${inactive.id}`),
@@ -1422,30 +1507,31 @@ describe("useVolturaAirConnection", () => {
       url: "http://pc-b.local:51395",
     };
     localStorage.setItem("voltura-air.clientId", "client-a");
-    localStorage.setItem(
-      "voltura-air.pcProfiles",
-      JSON.stringify([active, inactive]),
-    );
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([active, inactive]));
     localStorage.setItem("voltura-air.activePcId", active.id);
     storeReconnectKey("client-a", active.id);
     storeReconnectKey("client-a", inactive.id);
     const { result } = renderHook(() => useVolturaAirConnection());
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     const socket = getSocket(0);
     socket.readyState = MockWebSocket.OPEN;
 
-    act(() => { result.current.forgetPc(active.id); });
+    act(() => {
+      result.current.forgetPc(active.id);
+    });
     expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ type: "pair.disconnect" }));
     dispatchSocketEvent(socket, "close", { code: 1000, reason: "Host closed session" });
 
-    await waitFor(() => { expect(result.current.state).toBe("needs-pairing"); });
+    await waitFor(() => {
+      expect(result.current.state).toBe("needs-pairing");
+    });
     expect(result.current.activePc).toBeNull();
     expect(result.current.pairedPcs).toEqual([inactive]);
     expect(result.current.hostStatus).toBeNull();
     expect(result.current.powerCapabilities).toBeNull();
-    expect(
-      localStorage.getItem(`voltura-air.reconnect-key.client-a.${active.id}`),
-    ).toBeNull();
+    expect(localStorage.getItem(`voltura-air.reconnect-key.client-a.${active.id}`)).toBeNull();
     expect(
       localStorage.getItem(`voltura-air.reconnect-key.client-a.${inactive.id}`),
     ).not.toBeNull();
@@ -1464,15 +1550,21 @@ describe("useVolturaAirConnection", () => {
     localStorage.setItem("voltura-air.activePcId", active.id);
     storeReconnectKey("client-a", active.id);
     const { result } = renderHook(() => useVolturaAirConnection());
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     const socket = getSocket(0);
     socket.readyState = MockWebSocket.OPEN;
 
-    act(() => { result.current.forgetPc(active.id); });
+    act(() => {
+      result.current.forgetPc(active.id);
+    });
     expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ type: "pair.disconnect" }));
     dispatchSocketEvent(socket, "close", { code: 1000, reason: "Host closed session" });
 
-    await waitFor(() => { expect(result.current.state).toBe("needs-pairing"); });
+    await waitFor(() => {
+      expect(result.current.state).toBe("needs-pairing");
+    });
     expect(result.current.activePc).toBeNull();
     expect(result.current.pairedPcs).toEqual([]);
     expect(result.current.audioState).toBeNull();
@@ -1491,20 +1583,26 @@ describe("useVolturaAirConnection", () => {
 
     const { result } = renderHook(() => useVolturaAirConnection());
 
-    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+    await waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
     const oldSocket = getSocket(0);
     oldSocket.readyState = MockWebSocket.OPEN;
     dispatchSocketEvent(oldSocket, "open");
     oldSocket.readyState = MockWebSocket.CLOSED;
     dispatchSocketEvent(oldSocket, "close");
-    await waitFor(() => { expect(result.current.state).toBe("unavailable"); });
+    await waitFor(() => {
+      expect(result.current.state).toBe("unavailable");
+    });
 
     act(() => {
       result.current.beginNewPairing();
     });
     dispatchSocketEvent(oldSocket, "close");
 
-    await waitFor(() => { expect(result.current.state).toBe("needs-pairing"); });
+    await waitFor(() => {
+      expect(result.current.state).toBe("needs-pairing");
+    });
     expect(result.current.activePc).toBeNull();
     expect(result.current.pairedPcs).toContainEqual(pc);
     expect(result.current.message).toBe("Choose a PC or scan a pairing QR.");

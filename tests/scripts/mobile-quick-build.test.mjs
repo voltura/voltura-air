@@ -8,7 +8,7 @@ import {
   createFileFingerprint,
   createOutputFingerprint,
   isCurrentMobileQuickBuild,
-  MOBILE_QUICK_BUILD_STATE_SCHEMA_VERSION
+  MOBILE_QUICK_BUILD_STATE_SCHEMA_VERSION,
 } from "../../scripts/build-mobile-quick.mjs";
 
 const temporaryDirectories = [];
@@ -36,15 +36,21 @@ test("mobile quick build state is current only when inputs and outputs are uncha
     schemaVersion: MOBILE_QUICK_BUILD_STATE_SCHEMA_VERSION,
     inputFingerprint,
     outputFingerprint,
-    webBuildId: "build-1"
+    webBuildId: "build-1",
   };
 
   assert.equal(isCurrentMobileQuickBuild(state, inputFingerprint, outputFingerprint, ""), true);
-  assert.equal(isCurrentMobileQuickBuild(state, inputFingerprint, outputFingerprint, "build-2"), false);
+  assert.equal(
+    isCurrentMobileQuickBuild(state, inputFingerprint, outputFingerprint, "build-2"),
+    false,
+  );
 
   writeFileSync(inputPath, "export const value = 2;\n");
   const changedInputFingerprint = createFileFingerprint([inputPath], repositoryRoot);
-  assert.equal(isCurrentMobileQuickBuild(state, changedInputFingerprint, outputFingerprint, ""), false);
+  assert.equal(
+    isCurrentMobileQuickBuild(state, changedInputFingerprint, outputFingerprint, ""),
+    false,
+  );
 });
 
 test("mobile quick build state is stale when the output directory is missing", () => {
@@ -59,7 +65,7 @@ test("mobile quick build state is stale when the output directory is missing", (
     schemaVersion: MOBILE_QUICK_BUILD_STATE_SCHEMA_VERSION,
     inputFingerprint,
     outputFingerprint: "previous-output",
-    webBuildId: "build-1"
+    webBuildId: "build-1",
   };
 
   assert.equal(isCurrentMobileQuickBuild(state, inputFingerprint, null, ""), false);

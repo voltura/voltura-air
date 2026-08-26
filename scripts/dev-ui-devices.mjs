@@ -14,7 +14,7 @@ export const devUiDevices = [
   device("Voltura 412x915 - Large Android", 412, 915, 3, "phone"),
   device("Voltura 430x932 - iPhone Pro Max", 430, 932, 3, "phone"),
   device("Voltura 768x1024 - Small Tablet", 768, 1024, 2, "tablet"),
-  device("Voltura 820x1180 - iPad Air", 820, 1180, 2, "tablet")
+  device("Voltura 820x1180 - iPad Air", 820, 1180, 2, "tablet"),
 ];
 
 fs.rm = async function rmAndSeedDevUiDevices(target, options) {
@@ -28,9 +28,11 @@ fs.rm = async function rmAndSeedDevUiDevices(target, options) {
 };
 
 export function getDevUiDevice(name = process.env.VOLTURA_AIR_DEV_UI_DEVICE) {
-  return devUiDevices.find((item) => item.title === (name ?? defaultDevUiDeviceName)) ??
+  return (
+    devUiDevices.find((item) => item.title === (name ?? defaultDevUiDeviceName)) ??
     devUiDevices.find((item) => item.title === defaultDevUiDeviceName) ??
-    devUiDevices[0];
+    devUiDevices[0]
+  );
 }
 
 async function seedDevUiDevices(userDataDir) {
@@ -96,7 +98,7 @@ function device(title, width, height, dpr, type) {
     screen: {
       horizontal: { width: height, height: width },
       "device-pixel-ratio": dpr,
-      vertical: { width, height }
+      vertical: { width, height },
     },
     capabilities: ["touch", "mobile"],
     "user-agent": "",
@@ -105,15 +107,15 @@ function device(title, width, height, dpr, type) {
       {
         title: "",
         orientation: "vertical",
-        insets: { left: 0, top: 0, right: 0, bottom: 0 }
+        insets: { left: 0, top: 0, right: 0, bottom: 0 },
       },
       {
         title: "",
         orientation: "horizontal",
-        insets: { left: 0, top: 0, right: 0, bottom: 0 }
-      }
+        insets: { left: 0, top: 0, right: 0, bottom: 0 },
+      },
     ],
     "dual-screen": false,
-    show: "Default"
+    show: "Default",
   };
 }

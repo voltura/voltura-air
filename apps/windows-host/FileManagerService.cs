@@ -831,12 +831,21 @@ internal sealed class FileManagerService : IAsyncDisposable
     {
         if (action == "dismiss")
         {
-            if (_jobs.TryGetValue(jobId, out var terminalJob) && terminalJob.OwnerClientId == clientId &&
-                terminalJob.State is FileJobState.Completed or FileJobState.Failed or FileJobState.Canceled &&
-                TryDetachRecoveryArtifacts(terminalJob) &&
-                _jobs.TryRemove(jobId, out var removedJob))
+            var dismissed = false;
+            lock (_queueGate)
             {
-                removedJob.Cancellation.Dispose();
+                if (Volatile.Read(ref _disposeStarted) != 0) return false;
+                if (_jobs.TryGetValue(jobId, out var terminalJob) && terminalJob.OwnerClientId == clientId &&
+                    terminalJob.State is FileJobState.Completed or FileJobState.Failed or FileJobState.Canceled &&
+                    TryDetachRecoveryArtifacts(terminalJob) &&
+                    _jobs.TryRemove(jobId, out var removedJob))
+                {
+                    removedJob.Cancellation.Dispose();
+                    dismissed = true;
+                }
+            }
+            if (dismissed)
+            {
                 JobChanged?.Invoke(this, clientId);
                 return true;
             }
@@ -950,10 +959,15 @@ internal sealed class FileManagerService : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposeStarted, 1) != 0) return;
+        FileJob[] jobs;
+        lock (_queueGate)
+        {
+            jobs = [.. _jobs.Values];
+        }
         _locationUpdates.Writer.TryComplete();
         await _lifetime.CancelAsync().ConfigureAwait(false);
         _queueSignal.Release();
-        foreach (var job in _jobs.Values)
+        foreach (var job in jobs)
         {
             job.PauseGate.Resume();
             job.Conflict?.TrySetResult("cancel");
@@ -963,7 +977,7 @@ internal sealed class FileManagerService : IAsyncDisposable
         try { await _locationWorker.ConfigureAwait(false); } catch (OperationCanceledException) { }
         _journalUpdates.Writer.TryComplete();
         try { await _journalWorker.ConfigureAwait(false); } catch (OperationCanceledException) { }
-        foreach (var job in _jobs.Values) job.Cancellation.Dispose();
+        foreach (var job in jobs) job.Cancellation.Dispose();
         _queueSignal.Dispose();
         _lifetime.Dispose();
     }
@@ -1726,12 +1740,16 @@ internal sealed class FileManagerService : IAsyncDisposable
 
     private void PruneTerminalJobs(string clientId)
     {
-        foreach (var stale in _jobs.Values
-                     .Where(job => job.OwnerClientId == clientId && IsTerminalJob(job.State) && job.TemporaryPaths.IsEmpty && job.BackupPaths.IsEmpty)
-                     .OrderByDescending(job => job.Sequence)
-                     .Skip(32))
+        lock (_queueGate)
         {
-            if (_jobs.TryRemove(stale.Id, out var removed)) removed.Cancellation.Dispose();
+            if (Volatile.Read(ref _disposeStarted) != 0) return;
+            foreach (var stale in _jobs.Values
+                         .Where(job => job.OwnerClientId == clientId && IsTerminalJob(job.State) && job.TemporaryPaths.IsEmpty && job.BackupPaths.IsEmpty)
+                         .OrderByDescending(job => job.Sequence)
+                         .Skip(32))
+            {
+                if (_jobs.TryRemove(stale.Id, out var removed)) removed.Cancellation.Dispose();
+            }
         }
     }
     private static bool IsUnsafeDestination(string source, string destinationDirectory)

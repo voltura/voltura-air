@@ -5,7 +5,11 @@ import { GestureDebugMode } from "./GestureDebugMode";
 
 describe("GestureDebugMode", () => {
   it("renders active settings", () => {
-    render(<GestureDebugMode trackpadSettings={{ ...defaultTrackpadSettings, pointerSpeed: 65, pointerSmoothing: true }} />);
+    render(
+      <GestureDebugMode
+        trackpadSettings={{ ...defaultTrackpadSettings, pointerSpeed: 65, pointerSmoothing: true }}
+      />,
+    );
 
     expect(screen.getByText("65%")).toBeTruthy();
     expect(screen.getByText("Smoothing")).toBeTruthy();
@@ -17,10 +21,10 @@ describe("GestureDebugMode", () => {
 
     const surface = screen.getByText("Touch here");
     fireEvent.touchStart(surface, {
-      targetTouches: [{ identifier: 1, clientX: 100, clientY: 100 }]
+      targetTouches: [{ identifier: 1, clientX: 100, clientY: 100 }],
     });
     fireEvent.touchMove(surface, {
-      targetTouches: [{ identifier: 1, clientX: 110, clientY: 96 }]
+      targetTouches: [{ identifier: 1, clientX: 110, clientY: 96 }],
     });
 
     expect(screen.getByText("13.5")).toBeTruthy();
@@ -33,7 +37,7 @@ describe("GestureDebugMode", () => {
 
     const surface = screen.getByText("Touch here");
     fireEvent.touchStart(surface, {
-      targetTouches: [{ identifier: 1, clientX: 100, clientY: 100 }]
+      targetTouches: [{ identifier: 1, clientX: 100, clientY: 100 }],
     });
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
 
@@ -45,7 +49,7 @@ describe("GestureDebugMode", () => {
 
     const surface = screen.getByText("Touch here");
     fireEvent.touchStart(surface, {
-      targetTouches: [{ identifier: 1, clientX: 100, clientY: 100 }]
+      targetTouches: [{ identifier: 1, clientX: 100, clientY: 100 }],
     });
 
     expect(screen.getByText("Touches").nextSibling?.textContent).toBe("1");

@@ -1,6 +1,10 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { saveActivePcId, savePcProfiles, type PcProfile } from "./pcProfiles";
-import { clearPairTokenFromAddress, deviceNameKey, ensureClientMetadataInAddress } from "./clientIdentity";
+import {
+  clearPairTokenFromAddress,
+  deviceNameKey,
+  ensureClientMetadataInAddress,
+} from "./clientIdentity";
 import type { PairingAttempt } from "./connectionTypes";
 import { writeLocalStorage } from "../platform/browserStorage";
 
@@ -16,7 +20,16 @@ interface ConnectionPersistenceOptions {
 }
 
 export function useConnectionPersistence(options: ConnectionPersistenceOptions): void {
-  const { activePcId, clientId, deviceName, deviceNameRef, hasInitialPairing, pairedPcs, pairingAttempt, pairingAttemptRef } = options;
+  const {
+    activePcId,
+    clientId,
+    deviceName,
+    deviceNameRef,
+    hasInitialPairing,
+    pairedPcs,
+    pairingAttempt,
+    pairingAttemptRef,
+  } = options;
   const initialPairingPendingRef = useRef(hasInitialPairing);
 
   useEffect(() => {
@@ -38,10 +51,14 @@ export function useConnectionPersistence(options: ConnectionPersistenceOptions):
     pairingAttemptRef.current = pairingAttempt;
   }, [pairingAttempt, pairingAttemptRef]);
 
-  useEffect(() => { savePcProfiles(pairedPcs); }, [pairedPcs]);
+  useEffect(() => {
+    savePcProfiles(pairedPcs);
+  }, [pairedPcs]);
   useEffect(() => {
     if (initialPairingPendingRef.current) {
-      if (activePcId === null) {return;}
+      if (activePcId === null) {
+        return;
+      }
       initialPairingPendingRef.current = false;
     }
     saveActivePcId(activePcId);

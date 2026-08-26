@@ -4,7 +4,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CustomScreenNavigationRing } from "./CustomScreenNavigationRing";
 
 describe("CustomScreenNavigationRing", () => {
-  afterEach(() => { vi.useRealTimers(); });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it("repeats directions and exposes a keyboard-accessible mini-trackpad", () => {
     vi.useFakeTimers();
@@ -21,9 +23,7 @@ describe("CustomScreenNavigationRing", () => {
     expect(sendSpecial).toHaveBeenNthCalledWith(2, "ArrowDown");
     expect(sendSpecial).toHaveBeenNthCalledWith(3, "ArrowDown");
 
-    fireEvent.keyDown(
-      screen.getByRole("button", { name: "Mini trackpad" }),
-      { key: "Enter" });
+    fireEvent.keyDown(screen.getByRole("button", { name: "Mini trackpad" }), { key: "Enter" });
     expect(onCenterKey).toHaveBeenCalledExactlyOnceWith();
   });
 
@@ -32,8 +32,7 @@ describe("CustomScreenNavigationRing", () => {
     const onCenterKey = vi.fn();
     renderRing({ enabled: false, sendSpecial, onCenterKey });
 
-    expect(screen.getByRole<HTMLButtonElement>("button", { name: "D-pad up" }).disabled)
-      .toBe(true);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "D-pad up" }).disabled).toBe(true);
     const center = screen.getByRole("button", { name: "Mini trackpad" });
     expect(center.getAttribute("aria-disabled")).toBe("true");
     expect(center.getAttribute("tabindex")).toBe("-1");
@@ -54,7 +53,7 @@ describe("CustomScreenNavigationRing", () => {
       fireEvent.click(up, { detail: 1 });
 
       expect(sendSpecial).toHaveBeenCalledExactlyOnceWith("ArrowUp");
-    }
+    },
   );
 
   it("uses the surrounding regular trackpad surface without treating directions as pointer input", () => {
@@ -62,7 +61,7 @@ describe("CustomScreenNavigationRing", () => {
     renderRing({ onTouchStart });
 
     const surface = screen.getByRole("application", {
-      name: "Navigation ring trackpad"
+      name: "Navigation ring trackpad",
     });
     expect(surface.classList.contains("trackpad-surface")).toBe(true);
 
@@ -81,7 +80,7 @@ function renderRing({
   enabled = true,
   onCenterKey = vi.fn(),
   onTouchStart = vi.fn(),
-  sendSpecial = vi.fn()
+  sendSpecial = vi.fn(),
 }: {
   enabled?: boolean;
   onCenterKey?: () => void;
@@ -98,6 +97,6 @@ function renderRing({
       onTouchMove={vi.fn()}
       onTouchStart={onTouchStart}
       sendSpecial={sendSpecial}
-    />
+    />,
   );
 }

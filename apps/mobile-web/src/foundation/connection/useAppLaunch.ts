@@ -34,11 +34,13 @@ export function useAppLaunch(state: ConnectionState, send: (payload: ClientMessa
         operationId: pending.operationId,
         succeeded: false,
         code: "VAIR-APP-LAUNCH-RESPONSE-TIMEOUT",
-        message: "The PC did not respond to the application launch request."
+        message: "The PC did not respond to the application launch request.",
       });
     }, responseTimeoutMs);
 
-    return () => { window.clearTimeout(timeout); };
+    return () => {
+      window.clearTimeout(timeout);
+    };
   }, [pendingAppLaunchId]);
 
   useEffect(() => {
@@ -56,8 +58,12 @@ export function useAppLaunch(state: ConnectionState, send: (payload: ClientMessa
       return;
     }
 
-    const timeout = window.setTimeout(() => { setAppLaunchResult(null); }, resultVisibilityMs);
-    return () => { window.clearTimeout(timeout); };
+    const timeout = window.setTimeout(() => {
+      setAppLaunchResult(null);
+    }, resultVisibilityMs);
+    return () => {
+      window.clearTimeout(timeout);
+    };
   }, [appLaunchResult]);
 
   const requestAppLaunch = (actionId: string) => {

@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createLocalId } from "../identity/localId";
-import type { ClientMessage, PowerPointLaunchResultMessage, PowerPointRefreshResultMessage, PresentationAction, PresentationCommandOptions, PresentationCommandResultMessage, PresentationSessionAction, PresentationSessionResultMessage, PresentationTarget } from "../protocol/messages";
+import type {
+  ClientMessage,
+  PowerPointLaunchResultMessage,
+  PowerPointRefreshResultMessage,
+  PresentationAction,
+  PresentationCommandOptions,
+  PresentationCommandResultMessage,
+  PresentationSessionAction,
+  PresentationSessionResultMessage,
+  PresentationTarget,
+} from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
 
 // A started PowerPoint COM mutation cannot be cancelled safely. The host keeps
@@ -33,15 +43,26 @@ export interface PendingPowerPointLaunch {
   presentationId: string;
 }
 
-export function usePresentationControl(state: ConnectionState, send: (payload: ClientMessage) => void) {
-  const [pendingPresentationCommand, setPendingPresentationCommand] = useState<PendingPresentationCommand | null>(null);
-  const [pendingPresentationSession, setPendingPresentationSession] = useState<PendingPresentationSession | null>(null);
-  const [pendingPowerPointRefresh, setPendingPowerPointRefresh] = useState<PendingPowerPointRefresh | null>(null);
-  const [pendingPowerPointLaunch, setPendingPowerPointLaunch] = useState<PendingPowerPointLaunch | null>(null);
-  const [presentationResult, setPresentationResult] = useState<PresentationCommandResultMessage | null>(null);
-  const [presentationSessionResult, setPresentationSessionResult] = useState<PresentationSessionResultMessage | null>(null);
-  const [powerPointRefreshResult, setPowerPointRefreshResult] = useState<PowerPointRefreshResultMessage | null>(null);
-  const [powerPointLaunchResult, setPowerPointLaunchResult] = useState<PowerPointLaunchResultMessage | null>(null);
+export function usePresentationControl(
+  state: ConnectionState,
+  send: (payload: ClientMessage) => void,
+) {
+  const [pendingPresentationCommand, setPendingPresentationCommand] =
+    useState<PendingPresentationCommand | null>(null);
+  const [pendingPresentationSession, setPendingPresentationSession] =
+    useState<PendingPresentationSession | null>(null);
+  const [pendingPowerPointRefresh, setPendingPowerPointRefresh] =
+    useState<PendingPowerPointRefresh | null>(null);
+  const [pendingPowerPointLaunch, setPendingPowerPointLaunch] =
+    useState<PendingPowerPointLaunch | null>(null);
+  const [presentationResult, setPresentationResult] =
+    useState<PresentationCommandResultMessage | null>(null);
+  const [presentationSessionResult, setPresentationSessionResult] =
+    useState<PresentationSessionResultMessage | null>(null);
+  const [powerPointRefreshResult, setPowerPointRefreshResult] =
+    useState<PowerPointRefreshResultMessage | null>(null);
+  const [powerPointLaunchResult, setPowerPointLaunchResult] =
+    useState<PowerPointLaunchResultMessage | null>(null);
   const pendingRef = useRef<PendingPresentationCommand | null>(null);
   const pendingSessionRef = useRef<PendingPresentationSession | null>(null);
   const pendingRefreshRef = useRef<PendingPowerPointRefresh | null>(null);
@@ -65,12 +86,15 @@ export function usePresentationControl(state: ConnectionState, send: (payload: C
         ...pending,
         succeeded: false,
         code: "VAIR-PRESENTATION-RESPONSE-TIMEOUT",
-        message: "The PC did not confirm the presentation command. Check the connection before retrying.",
-        laserPointerActive: false
+        message:
+          "The PC did not confirm the presentation command. Check the connection before retrying.",
+        laserPointerActive: false,
       });
     }, presentationCommandResponseTimeoutMs);
 
-    return () => { window.clearTimeout(timeout); };
+    return () => {
+      window.clearTimeout(timeout);
+    };
   }, [pendingPresentationCommand]);
 
   useEffect(() => {
@@ -91,11 +115,14 @@ export function usePresentationControl(state: ConnectionState, send: (payload: C
         ...pending,
         succeeded: false,
         code: "VAIR-POWERPOINT-LAUNCH-RESPONSE-TIMEOUT",
-        message: "The PC did not confirm the presentation launch. Check PowerPoint before retrying."
+        message:
+          "The PC did not confirm the presentation launch. Check PowerPoint before retrying.",
       });
     }, presentationCommandResponseTimeoutMs);
 
-    return () => { window.clearTimeout(timeout); };
+    return () => {
+      window.clearTimeout(timeout);
+    };
   }, [pendingPowerPointLaunch]);
 
   useEffect(() => {
@@ -117,11 +144,13 @@ export function usePresentationControl(state: ConnectionState, send: (payload: C
         action: pending.action,
         succeeded: false,
         code: "VAIR-PRESENTATION-SESSION-RESPONSE-TIMEOUT",
-        message: "The PC did not confirm the session change. Check the connection and retry."
+        message: "The PC did not confirm the session change. Check the connection and retry.",
       });
     }, presentationSessionResponseTimeoutMs);
 
-    return () => { window.clearTimeout(timeout); };
+    return () => {
+      window.clearTimeout(timeout);
+    };
   }, [pendingPresentationSession]);
 
   useEffect(() => {
@@ -144,11 +173,13 @@ export function usePresentationControl(state: ConnectionState, send: (payload: C
         code: "VAIR-POWERPOINT-REFRESH-RESPONSE-TIMEOUT",
         message: "The PC did not confirm the refresh. Check the connection and retry.",
         state: "unavailable",
-        presentations: []
+        presentations: [],
       });
     }, powerPointRefreshResponseTimeoutMs);
 
-    return () => { window.clearTimeout(timeout); };
+    return () => {
+      window.clearTimeout(timeout);
+    };
   }, [pendingPowerPointRefresh]);
 
   useEffect(() => {
@@ -175,43 +206,48 @@ export function usePresentationControl(state: ConnectionState, send: (payload: C
       return;
     }
 
-    const timeout = window.setTimeout(() => { setPresentationResult(null); }, resultVisibilityMs);
-    return () => { window.clearTimeout(timeout); };
+    const timeout = window.setTimeout(() => {
+      setPresentationResult(null);
+    }, resultVisibilityMs);
+    return () => {
+      window.clearTimeout(timeout);
+    };
   }, [presentationResult]);
 
-  const requestPresentationCommand = useCallback((
-    target: PresentationTarget,
-    action: PresentationAction,
-    options?: boolean | PresentationCommandOptions
-  ): string | null => {
-    if (state !== "paired") {
-      return null;
-    }
-
-    const commandOptions = typeof options === "boolean"
-      ? { enabled: options }
-      : options;
-    const pending = {
-      operationId: createLocalId(),
-      target,
-      action,
-      ...commandOptions
-    } satisfies PendingPresentationCommand;
-    if (pendingRef.current !== null) {
-      if (action === "pointer" && commandOptions?.enabled === false) {
-        send({ type: "presentation.command", ...pending });
-        return pending.operationId;
+  const requestPresentationCommand = useCallback(
+    (
+      target: PresentationTarget,
+      action: PresentationAction,
+      options?: boolean | PresentationCommandOptions,
+    ): string | null => {
+      if (state !== "paired") {
+        return null;
       }
 
-      return null;
-    }
+      const commandOptions = typeof options === "boolean" ? { enabled: options } : options;
+      const pending = {
+        operationId: createLocalId(),
+        target,
+        action,
+        ...commandOptions,
+      } satisfies PendingPresentationCommand;
+      if (pendingRef.current !== null) {
+        if (action === "pointer" && commandOptions?.enabled === false) {
+          send({ type: "presentation.command", ...pending });
+          return pending.operationId;
+        }
 
-    pendingRef.current = pending;
-    setPendingPresentationCommand(pending);
-    setPresentationResult(null);
-    send({ type: "presentation.command", ...pending });
-    return pending.operationId;
-  }, [send, state]);
+        return null;
+      }
+
+      pendingRef.current = pending;
+      setPendingPresentationCommand(pending);
+      setPresentationResult(null);
+      send({ type: "presentation.command", ...pending });
+      return pending.operationId;
+    },
+    [send, state],
+  );
 
   const completePresentationCommand = (result: PresentationCommandResultMessage) => {
     if (pendingRef.current?.operationId !== result.operationId) {
@@ -224,33 +260,36 @@ export function usePresentationControl(state: ConnectionState, send: (payload: C
     return true;
   };
 
-  const requestPresentationSession = useCallback((
-    action: PresentationSessionAction,
-    options?: { enabled?: boolean; runtimePresentationId?: string }
-  ): string | null => {
-    if (state !== "paired") {
-      return null;
-    }
+  const requestPresentationSession = useCallback(
+    (
+      action: PresentationSessionAction,
+      options?: { enabled?: boolean; runtimePresentationId?: string },
+    ): string | null => {
+      if (state !== "paired") {
+        return null;
+      }
 
-    if (pendingSessionRef.current !== null) {
-      return null;
-    }
+      if (pendingSessionRef.current !== null) {
+        return null;
+      }
 
-    const pending = {
-      operationId: createLocalId(),
-      action
-    } satisfies PendingPresentationSession;
-    pendingSessionRef.current = pending;
-    setPendingPresentationSession(pending);
-    setPresentationSessionResult(null);
-    send({
-      type: "presentation.session",
-      operationId: pending.operationId,
-      action,
-      ...options
-    });
-    return pending.operationId;
-  }, [send, state]);
+      const pending = {
+        operationId: createLocalId(),
+        action,
+      } satisfies PendingPresentationSession;
+      pendingSessionRef.current = pending;
+      setPendingPresentationSession(pending);
+      setPresentationSessionResult(null);
+      send({
+        type: "presentation.session",
+        operationId: pending.operationId,
+        action,
+        ...options,
+      });
+      return pending.operationId;
+    },
+    [send, state],
+  );
 
   const completePresentationSession = (result: PresentationSessionResultMessage) => {
     if (pendingSessionRef.current?.operationId !== result.operationId) {
@@ -288,18 +327,24 @@ export function usePresentationControl(state: ConnectionState, send: (payload: C
     return true;
   };
 
-  const requestPowerPointLaunch = useCallback((presentationId: string): string | null => {
-    if (state !== "paired" || pendingLaunchRef.current !== null) {
-      return null;
-    }
+  const requestPowerPointLaunch = useCallback(
+    (presentationId: string): string | null => {
+      if (state !== "paired" || pendingLaunchRef.current !== null) {
+        return null;
+      }
 
-    const pending = { operationId: createLocalId(), presentationId } satisfies PendingPowerPointLaunch;
-    pendingLaunchRef.current = pending;
-    setPendingPowerPointLaunch(pending);
-    setPowerPointLaunchResult(null);
-    send({ type: "presentation.powerpoint.launch", ...pending });
-    return pending.operationId;
-  }, [send, state]);
+      const pending = {
+        operationId: createLocalId(),
+        presentationId,
+      } satisfies PendingPowerPointLaunch;
+      pendingLaunchRef.current = pending;
+      setPendingPowerPointLaunch(pending);
+      setPowerPointLaunchResult(null);
+      send({ type: "presentation.powerpoint.launch", ...pending });
+      return pending.operationId;
+    },
+    [send, state],
+  );
 
   const completePowerPointLaunch = (result: PowerPointLaunchResultMessage) => {
     if (pendingLaunchRef.current?.operationId !== result.operationId) {
@@ -328,6 +373,6 @@ export function usePresentationControl(state: ConnectionState, send: (payload: C
     requestPowerPointRefresh,
     requestPowerPointLaunch,
     requestPresentationCommand,
-    requestPresentationSession
+    requestPresentationSession,
   };
 }

@@ -18,24 +18,29 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const transactionScriptPath = fileURLToPath(
-  new URL("../../installer/InstallTransaction.ps1", import.meta.url)
+  new URL("../../installer/InstallTransaction.ps1", import.meta.url),
 );
 
 function writeInstallerPayload(directory, contents) {
   mkdirSync(directory);
   writeFileSync(join(directory, "payload.txt"), contents, "utf8");
   const hash = createHash("sha256").update(contents).digest("hex");
-  writeFileSync(
-    join(directory, "installer-payload.sha256"),
-    `${hash} *payload.txt\n`,
-    "utf8"
-  );
+  writeFileSync(join(directory, "installer-payload.sha256"), `${hash} *payload.txt\n`, "utf8");
 }
 
 function runTransaction(action, installDirectory, journalPath, stagingDirectory) {
   const args = [
-    "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", transactionScriptPath,
-    "-Action", action, "-InstallDirectory", installDirectory, "-JournalPath", journalPath,
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    transactionScriptPath,
+    "-Action",
+    action,
+    "-InstallDirectory",
+    installDirectory,
+    "-JournalPath",
+    journalPath,
   ];
   if (stagingDirectory) args.push("-StagingDirectory", stagingDirectory);
   const result = spawnSync("powershell.exe", args, {
@@ -114,18 +119,23 @@ test("installer recovery completes a journaled upgrade before its first rename",
   try {
     writeInstallerPayload(install, "old");
     writeInstallerPayload(staging, "new");
-    const manifestHash = (directory) => createHash("sha256")
-      .update(readFileSync(join(directory, "installer-payload.sha256")))
-      .digest("hex");
-    writeFileSync(journal, JSON.stringify({
-      kind: "voltura-air-installer",
-      mode: "upgrade",
-      installDirectory: install,
-      stagingDirectory: staging,
-      backupDirectory: backup,
-      oldManifestHash: manifestHash(install),
-      newManifestHash: manifestHash(staging),
-    }), "utf8");
+    const manifestHash = (directory) =>
+      createHash("sha256")
+        .update(readFileSync(join(directory, "installer-payload.sha256")))
+        .digest("hex");
+    writeFileSync(
+      journal,
+      JSON.stringify({
+        kind: "voltura-air-installer",
+        mode: "upgrade",
+        installDirectory: install,
+        stagingDirectory: staging,
+        backupDirectory: backup,
+        oldManifestHash: manifestHash(install),
+        newManifestHash: manifestHash(staging),
+      }),
+      "utf8",
+    );
 
     runTransaction("Recover", install, journal);
 

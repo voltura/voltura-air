@@ -3,16 +3,11 @@ import { useAppTheme } from "./useAppTheme";
 
 export function CustomScreenBrowserPreviewRoot({
   controlDepth,
-  screenId
+  screenId,
 }: {
   controlDepth: boolean;
   screenId: string;
 }) {
   useAppTheme();
-  return (
-    <CustomScreenBrowserPreview
-      controlDepth={controlDepth}
-      screenId={screenId}
-    />
-  );
+  return <CustomScreenBrowserPreview controlDepth={controlDepth} screenId={screenId} />;
 }

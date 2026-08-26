@@ -17,7 +17,7 @@ const defaultPlacementOrder: AnchoredHintPlacement[] = [
   "above-start",
   "above-end",
   "right",
-  "left"
+  "left",
 ];
 
 const viewportPadding = 12;
@@ -27,7 +27,7 @@ export function useAnchoredHintPosition({
   autoUpdate = true,
   fallbackPlacements,
   open,
-  preferredPlacement
+  preferredPlacement,
 }: UseAnchoredHintPositionOptions) {
   const [hintElement, setHintElement] = useState<HTMLDivElement | null>(null);
 
@@ -56,9 +56,8 @@ export function useAnchoredHintPosition({
         animationFrame = window.requestAnimationFrame(updateLayout);
       }
     };
-    const resizeObserver = typeof ResizeObserver === "function"
-      ? new ResizeObserver(scheduleLayoutUpdate)
-      : null;
+    const resizeObserver =
+      typeof ResizeObserver === "function" ? new ResizeObserver(scheduleLayoutUpdate) : null;
 
     visualViewport?.addEventListener("resize", scheduleLayoutUpdate);
     visualViewport?.addEventListener("scroll", scheduleLayoutUpdate);
@@ -87,7 +86,7 @@ function applyCurrentLayout(
   anchorElement: HTMLElement,
   hintElement: HTMLElement,
   preferredPlacement: AnchoredHintPlacement | undefined,
-  fallbackPlacements: AnchoredHintPlacement[] | undefined
+  fallbackPlacements: AnchoredHintPlacement[] | undefined,
 ) {
   const anchorRect = anchorElement.getBoundingClientRect();
   const visualViewport = window.visualViewport;
@@ -101,20 +100,20 @@ function applyCurrentLayout(
     bottom: viewportTop + viewportHeight - viewportPadding,
     left: viewportLeft + viewportPadding,
     right: viewportLeft + viewportWidth - viewportPadding,
-    top: viewportTop + viewportPadding
+    top: viewportTop + viewportPadding,
   };
   const placements = [
     preferredPlacement ?? "below-center",
-    ...(fallbackPlacements ?? defaultPlacementOrder)
+    ...(fallbackPlacements ?? defaultPlacementOrder),
   ].filter((placement, index, ordered) => ordered.indexOf(placement) === index);
 
   for (const placement of placements) {
     const point = getPlacementPoint(placement, anchorRect, hintRect, 8);
     if (
-      point.left >= bounds.left
-      && point.top >= bounds.top
-      && point.left + hintRect.width <= bounds.right
-      && point.top + hintRect.height <= bounds.bottom
+      point.left >= bounds.left &&
+      point.top >= bounds.top &&
+      point.left + hintRect.width <= bounds.right &&
+      point.top + hintRect.height <= bounds.bottom
     ) {
       applyLayout(hintElement, placement, point.left, point.top, anchorRect, hintRect, false);
       return;
@@ -130,7 +129,7 @@ function applyCurrentLayout(
     clamp(point.top, bounds.top, Math.max(bounds.top, bounds.bottom - hintRect.height)),
     anchorRect,
     hintRect,
-    true
+    true,
   );
 }
 
@@ -138,7 +137,7 @@ function getPlacementPoint(
   placement: AnchoredHintPlacement,
   anchorRect: DOMRect,
   hintRect: DOMRect,
-  gap: number
+  gap: number,
 ) {
   const anchorCenterX = anchorRect.left + anchorRect.width / 2;
   const anchorCenterY = anchorRect.top + anchorRect.height / 2;
@@ -150,7 +149,10 @@ function getPlacementPoint(
     return { left: anchorRect.right - hintRect.width, top: anchorRect.bottom + gap };
   }
   if (placement === "above-center") {
-    return { left: anchorCenterX - hintRect.width / 2, top: anchorRect.top - hintRect.height - gap };
+    return {
+      left: anchorCenterX - hintRect.width / 2,
+      top: anchorRect.top - hintRect.height - gap,
+    };
   }
   if (placement === "above-start") {
     return { left: anchorRect.left, top: anchorRect.top - hintRect.height - gap };
@@ -162,7 +164,10 @@ function getPlacementPoint(
     return { left: anchorRect.right + gap, top: anchorCenterY - hintRect.height / 2 };
   }
   if (placement === "left") {
-    return { left: anchorRect.left - hintRect.width - gap, top: anchorCenterY - hintRect.height / 2 };
+    return {
+      left: anchorRect.left - hintRect.width - gap,
+      top: anchorCenterY - hintRect.height / 2,
+    };
   }
   return { left: anchorCenterX - hintRect.width / 2, top: anchorRect.bottom + gap };
 }
@@ -174,10 +179,18 @@ function applyLayout(
   top: number,
   anchorRect: DOMRect,
   hintRect: DOMRect,
-  clamped: boolean
+  clamped: boolean,
 ) {
-  const arrowX = clamp(anchorRect.left + anchorRect.width / 2 - left, 16, Math.max(16, hintRect.width - 16));
-  const arrowY = clamp(anchorRect.top + anchorRect.height / 2 - top, 16, Math.max(16, hintRect.height - 16));
+  const arrowX = clamp(
+    anchorRect.left + anchorRect.width / 2 - left,
+    16,
+    Math.max(16, hintRect.width - 16),
+  );
+  const arrowY = clamp(
+    anchorRect.top + anchorRect.height / 2 - top,
+    16,
+    Math.max(16, hintRect.height - 16),
+  );
   hintElement.dataset.placement = placement;
   hintElement.toggleAttribute("data-clamped", clamped);
   hintElement.style.setProperty("--anchored-hint-arrow-x", `${arrowX}px`);

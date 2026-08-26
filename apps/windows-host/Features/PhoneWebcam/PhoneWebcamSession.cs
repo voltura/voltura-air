@@ -743,7 +743,10 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             PhoneWebcamVideoPipeline? video = null;
             try
             {
-                if (pending.UseMicrophone) audio = new PhoneWebcamAudioPipeline(audioTarget);
+                if (pending.UseMicrophone)
+                {
+                    audio = await PhoneWebcamAudioPipeline.CreateAsync(audioTarget).ConfigureAwait(false);
+                }
                 video = new PhoneWebcamVideoPipeline(feature, frameSequence);
                 return new ActiveSession(pending, video, audio);
             }

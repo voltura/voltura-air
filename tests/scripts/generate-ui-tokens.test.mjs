@@ -15,7 +15,7 @@ const fixtureFiles = [
   "apps/mobile-web/src/styles/generated/tokens.css",
   "apps/mobile-web/src/ui/tokens.g.ts",
   "apps/windows-host/Styles/Generated/UiTokens.xaml",
-  "apps/windows-host/UiTokens.g.cs"
+  "apps/windows-host/UiTokens.g.cs",
 ];
 
 async function createFixture() {
@@ -39,7 +39,11 @@ async function withFixture(action) {
 }
 
 async function runTokenCheck(root) {
-  return executeFile(process.execPath, [path.join(root, "scripts/generate-ui-tokens.mjs"), "--check"], { cwd: root });
+  return executeFile(
+    process.execPath,
+    [path.join(root, "scripts/generate-ui-tokens.mjs"), "--check"],
+    { cwd: root },
+  );
 }
 
 async function useCrlfGeneratedFiles(root) {
@@ -64,12 +68,9 @@ test("still rejects generated token content that is genuinely stale", async () =
     const css = await readFile(cssPath, "utf8");
     await writeFile(cssPath, css.replace("--space-sm: 8px;", "--space-sm: 9px;"), "utf8");
 
-    await assert.rejects(
-      runTokenCheck(root),
-      (error) => {
-        assert.match(String(error.stderr), /tokens\.css is stale/u);
-        return true;
-      }
-    );
+    await assert.rejects(runTokenCheck(root), (error) => {
+      assert.match(String(error.stderr), /tokens\.css is stale/u);
+      return true;
+    });
   });
 });

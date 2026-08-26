@@ -6,10 +6,15 @@ import { refreshWithFreshAppUrl, type FreshAppRefreshResult } from "./freshAppRe
 import { shouldRefreshWebClient, usePwaLifecycle } from "./usePwaLifecycle";
 
 vi.mock("./freshAppRefresh", () => ({
-  refreshWithFreshAppUrl: vi.fn()
+  refreshWithFreshAppUrl: vi.fn(),
 }));
 
-const activePc: PcProfile = { customName: false, id: "https://pc.local", name: "PC", url: "https://pc.local" };
+const activePc: PcProfile = {
+  customName: false,
+  id: "https://pc.local",
+  name: "PC",
+  url: "https://pc.local",
+};
 const relayPc: PcProfile = {
   customName: false,
   id: "relay:voltura-cloud-v1:abcdefghijklmnopqrstuv",
@@ -17,26 +22,34 @@ const relayPc: PcProfile = {
   url: "https://voltura.se/a/abcdefghijklmnopqrstuv",
   transportMode: "relay",
   relayRouteId: "abcdefghijklmnopqrstuv",
-  relayServiceId: "voltura-cloud-v1"
+  relayServiceId: "voltura-cloud-v1",
 };
 const secureDirectPc: PcProfile = {
   ...relayPc,
   url: "https://voltura.se/s/abcdefghijklmnopqrstuv",
-  transportMode: "secure-direct"
+  transportMode: "secure-direct",
 };
-const successfulRefresh: FreshAppRefreshResult = { navigationStarted: true, navigationMethod: "replace", warnings: [] };
-const failedRefresh: FreshAppRefreshResult = { navigationStarted: false, navigationMethod: null, warnings: ["failed"] };
+const successfulRefresh: FreshAppRefreshResult = {
+  navigationStarted: true,
+  navigationMethod: "replace",
+  warnings: [],
+};
+const failedRefresh: FreshAppRefreshResult = {
+  navigationStarted: false,
+  navigationMethod: null,
+  warnings: ["failed"],
+};
 
 function createOptions(
   hostStatus: { webClientBuildId?: string } | null = { webClientBuildId: "build-b" },
-  selectedPc: PcProfile = activePc
+  selectedPc: PcProfile = activePc,
 ) {
   return {
     activePc: selectedPc,
     autoRefresh: true,
     clientId: "client-a",
     hostStatus,
-    state: "paired" as const
+    state: "paired" as const,
   };
 }
 
@@ -52,7 +65,10 @@ function deferred<T>() {
 
 beforeEach(() => {
   vi.stubGlobal("__WEB_BUILD_ID__", "build-a");
-  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false })));
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(() => ({ matches: false })),
+  );
   vi.mocked(refreshWithFreshAppUrl).mockReset();
   sessionStorage.clear();
 });
@@ -80,10 +96,12 @@ describe("PWA web build refresh", () => {
       return Promise.resolve(successfulRefresh);
     });
     const { rerender } = renderHook(({ options }) => usePwaLifecycle(options), {
-      initialProps: { options: createOptions() }
+      initialProps: { options: createOptions() },
     });
 
-    await waitFor(() => { expect(sessionStorage.getItem(refreshKey)).toBe("true"); });
+    await waitFor(() => {
+      expect(sessionStorage.getItem(refreshKey)).toBe("true");
+    });
     rerender({ options: createOptions({ webClientBuildId: "build-b" }) });
 
     expect(refreshWithFreshAppUrl).toHaveBeenCalledOnce();
@@ -97,9 +115,11 @@ describe("PWA web build refresh", () => {
       return pending.promise;
     });
     const { rerender } = renderHook(({ options }) => usePwaLifecycle(options), {
-      initialProps: { options: createOptions() }
+      initialProps: { options: createOptions() },
     });
-    await waitFor(() => { expect(refreshWithFreshAppUrl).toHaveBeenCalledOnce(); });
+    await waitFor(() => {
+      expect(refreshWithFreshAppUrl).toHaveBeenCalledOnce();
+    });
 
     rerender({ options: createOptions({ webClientBuildId: "build-b" }) });
     expect(refreshWithFreshAppUrl).toHaveBeenCalledOnce();
@@ -122,14 +142,18 @@ describe("PWA web build refresh", () => {
       });
     const refreshKey = getAutoRefreshSessionKey("client-a", activePc.id, "build-b");
     const { result, rerender } = renderHook(({ options }) => usePwaLifecycle(options), {
-      initialProps: { options: createOptions() }
+      initialProps: { options: createOptions() },
     });
 
-    await waitFor(() => { expect(result.current.refreshMessage).toContain("Could not refresh"); });
+    await waitFor(() => {
+      expect(result.current.refreshMessage).toContain("Could not refresh");
+    });
     expect(sessionStorage.getItem(refreshKey)).toBeNull();
     rerender({ options: createOptions({ webClientBuildId: "build-b" }) });
 
-    await waitFor(() => { expect(refreshWithFreshAppUrl).toHaveBeenCalledTimes(2); });
+    await waitFor(() => {
+      expect(refreshWithFreshAppUrl).toHaveBeenCalledTimes(2);
+    });
     expect(sessionStorage.getItem(refreshKey)).toBe("true");
   });
 
@@ -149,12 +173,18 @@ describe("PWA web build refresh", () => {
     const pending = deferred<FreshAppRefreshResult>();
     vi.mocked(refreshWithFreshAppUrl).mockReturnValue(pending.promise);
     const { result } = renderHook(() => usePwaLifecycle(createOptions()));
-    await waitFor(() => { expect(refreshWithFreshAppUrl).toHaveBeenCalledOnce(); });
+    await waitFor(() => {
+      expect(refreshWithFreshAppUrl).toHaveBeenCalledOnce();
+    });
 
     let manualRefresh!: Promise<void>;
-    act(() => { manualRefresh = result.current.refreshInstalledApp(); });
+    act(() => {
+      manualRefresh = result.current.refreshInstalledApp();
+    });
     expect(refreshWithFreshAppUrl).toHaveBeenCalledOnce();
-    act(() => { pending.resolve(successfulRefresh); });
+    act(() => {
+      pending.resolve(successfulRefresh);
+    });
     await manualRefresh;
   });
 });

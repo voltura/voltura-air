@@ -7,13 +7,18 @@ export const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.met
 
 export function prepareReleaseUnlocked(version) {
   if (!version) throw new Error("A release version is required.");
-  const result = spawnSync("pwsh", ["-NoProfile", "-File", path.join(repositoryRoot, "scripts", "prepare-release.ps1"), version], {
-    cwd: repositoryRoot,
-    stdio: "inherit",
-    windowsHide: true
-  });
+  const result = spawnSync(
+    "pwsh",
+    ["-NoProfile", "-File", path.join(repositoryRoot, "scripts", "prepare-release.ps1"), version],
+    {
+      cwd: repositoryRoot,
+      stdio: "inherit",
+      windowsHide: true,
+    },
+  );
   if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(`Release preparation failed with exit code ${result.status ?? "unknown"}.`);
+  if (result.status !== 0)
+    throw new Error(`Release preparation failed with exit code ${result.status ?? "unknown"}.`);
 }
 
 export function prepareRelease(version) {

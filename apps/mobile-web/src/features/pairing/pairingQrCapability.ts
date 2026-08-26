@@ -1,6 +1,6 @@
 export function canUseLivePairingQrScanner(
   protocol = window.location.protocol,
-  mediaDevices = navigator.mediaDevices
+  mediaDevices = navigator.mediaDevices,
 ): boolean {
   return protocol === "https:" && typeof mediaDevices?.getUserMedia === "function";
 }

@@ -10,9 +10,13 @@ export function useScreenViewFullscreen() {
 
   async function enterImmersive() {
     const workspace = workspaceRef.current;
-    if (!workspace || immersive) {return;}
+    if (!workspace || immersive) {
+      return;
+    }
     setImmersive(true);
-    if (!workspace.requestFullscreen) {return;}
+    if (!workspace.requestFullscreen) {
+      return;
+    }
     try {
       await workspace.requestFullscreen({ navigationUI: "hide" });
       nativeFullscreenRef.current = document.fullscreenElement === workspace;
@@ -30,7 +34,11 @@ export function useScreenViewFullscreen() {
     fullscreenExitTimerRef.current = undefined;
     setImmersive(false);
     if (workspace && document.fullscreenElement === workspace && document.exitFullscreen) {
-      try {await document.exitFullscreen();} catch { /* The in-app fallback still exits. */ }
+      try {
+        await document.exitFullscreen();
+      } catch {
+        /* The in-app fallback still exits. */
+      }
     }
   }
 
@@ -41,10 +49,13 @@ export function useScreenViewFullscreen() {
         window.clearTimeout(fullscreenExitTimerRef.current);
         fullscreenExitTimerRef.current = window.setTimeout(() => {
           fullscreenExitTimerRef.current = undefined;
-          const exitedAcrossOrientation = nativeOrientationRef.current !== null &&
+          const exitedAcrossOrientation =
+            nativeOrientationRef.current !== null &&
             nativeOrientationRef.current !== currentOrientation();
           nativeOrientationRef.current = null;
-          if (!exitedAcrossOrientation) {setImmersive(false);}
+          if (!exitedAcrossOrientation) {
+            setImmersive(false);
+          }
         }, 200);
       }
     };
@@ -69,14 +80,17 @@ export function useScreenViewFullscreen() {
     };
   }, []);
 
-  useEffect(() => () => {
-    nativeFullscreenRef.current = false;
-    nativeOrientationRef.current = null;
-    const workspace = workspaceRef.current;
-    if (workspace && document.fullscreenElement === workspace && document.exitFullscreen) {
-      void document.exitFullscreen().catch(() => undefined);
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      nativeFullscreenRef.current = false;
+      nativeOrientationRef.current = null;
+      const workspace = workspaceRef.current;
+      if (workspace && document.fullscreenElement === workspace && document.exitFullscreen) {
+        void document.exitFullscreen().catch(() => undefined);
+      }
+    },
+    [],
+  );
 
   return { workspaceRef, immersive, enterImmersive, exitImmersive };
 }

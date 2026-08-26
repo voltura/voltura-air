@@ -18,11 +18,13 @@ const javaScriptFiles = entries
   .map((entry) => entry.name);
 const initialJavaScriptFiles = Array.from(
   indexHtml.matchAll(/<script\b[^>]*\bsrc="\/assets\/([^"]+\.js)"/gu),
-  (match) => match[1]
+  (match) => match[1],
 );
 
 if (javaScriptFiles.length === 0) {
-  throw new Error("The mobile bundle contains no JavaScript assets. Build the mobile client before checking its bundle.");
+  throw new Error(
+    "The mobile bundle contains no JavaScript assets. Build the mobile client before checking its bundle.",
+  );
 }
 
 if (initialJavaScriptFiles.length === 0) {
@@ -33,9 +35,9 @@ const initialSizes = await sumJavaScriptSizes(initialJavaScriptFiles);
 const totalSizes = await sumJavaScriptSizes(javaScriptFiles);
 console.log(
   `Mobile initial JavaScript: ${formatKilobytes(initialSizes.rawBytes)} raw, ${formatKilobytes(initialSizes.brotliBytes)} Brotli ` +
-  `(${initialJavaScriptFiles.length} asset${initialJavaScriptFiles.length === 1 ? "" : "s"}). ` +
-  `Total emitted JavaScript: ${formatKilobytes(totalSizes.rawBytes)} raw, ${formatKilobytes(totalSizes.brotliBytes)} Brotli ` +
-  `(${javaScriptFiles.length} asset${javaScriptFiles.length === 1 ? "" : "s"}).`
+    `(${initialJavaScriptFiles.length} asset${initialJavaScriptFiles.length === 1 ? "" : "s"}). ` +
+    `Total emitted JavaScript: ${formatKilobytes(totalSizes.rawBytes)} raw, ${formatKilobytes(totalSizes.brotliBytes)} Brotli ` +
+    `(${javaScriptFiles.length} asset${javaScriptFiles.length === 1 ? "" : "s"}).`,
 );
 
 const findings = [];
@@ -46,7 +48,9 @@ if (initialSizes.brotliBytes > maximumBrotliJavaScriptBytes) {
   findings.push(`Brotli JavaScript exceeds ${formatKilobytes(maximumBrotliJavaScriptBytes)}`);
 }
 if (findings.length > 0) {
-  throw new Error(`Mobile initial bundle budget exceeded: ${findings.join("; ")}. Review ownership or deliberately revise the measured budget.`);
+  throw new Error(
+    `Mobile initial bundle budget exceeded: ${findings.join("; ")}. Review ownership or deliberately revise the measured budget.`,
+  );
 }
 
 async function sumJavaScriptSizes(files) {

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getNextHealthCheckDelay, getNextInputAckCheckDelay, hasExpiredInputAck } from "./connectionHealthPolicy";
+import {
+  getNextHealthCheckDelay,
+  getNextInputAckCheckDelay,
+  hasExpiredInputAck,
+} from "./connectionHealthPolicy";
 
 describe("connection health policy", () => {
   it("only expires acknowledged input when the capability is active", () => {

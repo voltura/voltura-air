@@ -1,12 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { consumeRelayRate, decodeEnvelope, maximumBufferedBytes, maximumDevicesPerRoom, maximumRelayPayloadBytes, relayEnvelopeKind, RelayRoom, type RelayRateState, type RelaySocket } from "../src/core/index";
+import {
+  consumeRelayRate,
+  decodeEnvelope,
+  maximumBufferedBytes,
+  maximumDevicesPerRoom,
+  maximumRelayPayloadBytes,
+  relayEnvelopeKind,
+  RelayRoom,
+  type RelayRateState,
+  type RelaySocket,
+} from "../src/core/index";
 
 class FakeSocket implements RelaySocket {
   bufferedAmount = 0;
   readonly sent: Uint8Array[] = [];
   closed?: { code: number; reason: string };
-  send(value: Uint8Array): void { this.sent.push(value); }
-  close(code: number, reason: string): void { this.closed = { code, reason }; }
+  send(value: Uint8Array): void {
+    this.sent.push(value);
+  }
+  close(code: number, reason: string): void {
+    this.closed = { code, reason };
+  }
 }
 
 describe("RelayRoom", () => {
@@ -33,7 +47,9 @@ describe("RelayRoom", () => {
     room.attachDevice(device, sessionId);
 
     expect(room.forwardDevicePayload(device, new Uint8Array(maximumRelayPayloadBytes))).toBe(true);
-    expect(room.forwardDevicePayload(device, new Uint8Array(maximumRelayPayloadBytes + 1))).toBe(false);
+    expect(room.forwardDevicePayload(device, new Uint8Array(maximumRelayPayloadBytes + 1))).toBe(
+      false,
+    );
     expect(device.closed?.reason).toBe("Message is too large");
   });
 

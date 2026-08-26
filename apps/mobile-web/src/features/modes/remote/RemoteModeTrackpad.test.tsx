@@ -42,7 +42,11 @@ describe("RemoteMode mini trackpad", () => {
   it("turns a Kodi mini trackpad tap into Enter instead of a left click", () => {
     const onPointerButtonClick = vi.fn();
     const sendSpecial = vi.fn();
-    renderRemote({ remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "kodi" }, onPointerButtonClick, sendSpecial });
+    renderRemote({
+      remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "kodi" },
+      onPointerButtonClick,
+      sendSpecial,
+    });
 
     const trackpad = screen.getByRole("button", { name: "Mini trackpad" });
     fireEvent.pointerDown(trackpad, { button: 0, pointerId: 1, clientX: 10, clientY: 20 });
@@ -59,7 +63,11 @@ describe("RemoteMode mini trackpad", () => {
   it("turns Kodi mini trackpad keyboard activation into Enter", () => {
     const onPointerButtonClick = vi.fn();
     const sendSpecial = vi.fn();
-    renderRemote({ remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "kodi" }, onPointerButtonClick, sendSpecial });
+    renderRemote({
+      remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "kodi" },
+      onPointerButtonClick,
+      sendSpecial,
+    });
 
     fireEvent.keyDown(screen.getByRole("button", { name: "Mini trackpad" }), { key: "Enter" });
 

@@ -9,11 +9,11 @@ const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 afterEach(() => {
   Object.defineProperty(window, "visualViewport", {
     configurable: true,
-    value: originalVisualViewport
+    value: originalVisualViewport,
   });
   Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
     configurable: true,
-    value: originalScrollIntoView
+    value: originalScrollIntoView,
   });
 });
 
@@ -41,18 +41,15 @@ function ManualEntryDialog() {
 describe("ModalDialog", () => {
   it("focuses the dialog surface by default without visually focusing its close control", () => {
     render(
-      <ModalDialog
-        dismissLabel="Done"
-        isOpen
-        onClose={() => undefined}
-        title="Information"
-      >
+      <ModalDialog dismissLabel="Done" isOpen onClose={() => undefined} title="Information">
         <p>Details</p>
-      </ModalDialog>
+      </ModalDialog>,
     );
 
     expect(document.activeElement).toBe(screen.getByRole("dialog", { name: "Information" }));
-    expect(screen.getByRole("button", { name: "Close Information" })).not.toBe(document.activeElement);
+    expect(screen.getByRole("button", { name: "Close Information" })).not.toBe(
+      document.activeElement,
+    );
   });
 
   it("keeps the focused control reachable when the visual viewport shrinks", async () => {
@@ -60,21 +57,24 @@ describe("ModalDialog", () => {
       height: 500,
       offsetLeft: 0,
       offsetTop: 0,
-      width: 390
+      width: 390,
     });
     const scrollIntoView = vi.fn();
     Object.defineProperty(window, "visualViewport", {
       configurable: true,
-      value: visualViewport as unknown as VisualViewport
+      value: visualViewport as unknown as VisualViewport,
     });
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
       configurable: true,
-      value: scrollIntoView
+      value: scrollIntoView,
     });
 
     render(<ManualEntryDialog />);
-    expect(screen.getByRole("dialog", { name: "Enter host manually" })
-      .classList.contains("modal-dialog-landscape-wide")).toBe(true);
+    expect(
+      screen
+        .getByRole("dialog", { name: "Enter host manually" })
+        .classList.contains("modal-dialog-landscape-wide"),
+    ).toBe(true);
     const input = screen.getByRole("textbox", { name: "Host" });
     expect(document.activeElement).toBe(input);
     scrollIntoView.mockClear();
@@ -87,8 +87,9 @@ describe("ModalDialog", () => {
     });
     const dialog = screen.getByRole("dialog", { name: "Enter host manually" });
     expect(dialog.hasAttribute("data-visual-viewport-bottom-constrained")).toBe(true);
-    expect(dialog.style.getPropertyValue("--modal-visual-viewport-bottom-offset"))
-      .toBe(`${window.innerHeight - 190}px`);
+    expect(dialog.style.getPropertyValue("--modal-visual-viewport-bottom-offset")).toBe(
+      `${window.innerHeight - 190}px`,
+    );
 
     visualViewport.height = window.innerHeight - 20;
     visualViewport.dispatchEvent(new Event("resize"));

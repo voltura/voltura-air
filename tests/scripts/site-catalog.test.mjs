@@ -137,7 +137,10 @@ test("catalog sort options use the site color treatment when opened", () => {
   const script = read("apps/public-site/screens/preview.js");
   assert.match(index, /data-catalog-sort/u);
   assert.match(index, /role="listbox"/u);
-  assert.match(styles, /\.catalog-page \.catalog-sort-option:hover,[\s\S]*background: var\(--accent-strong\);/u);
+  assert.match(
+    styles,
+    /\.catalog-page \.catalog-sort-option:hover,[\s\S]*background: var\(--accent-strong\);/u,
+  );
   assert.match(script, /sort\.classList\.add\("is-enhanced"\)/u);
   assert.match(script, /select\.value = option\.dataset\.sortValue/u);
 });
@@ -151,7 +154,10 @@ test("catalog search reveals a tag-style clear control only for entered text", (
   assert.match(index, /aria-label="Clear search" hidden/u);
   assert.match(script, /clear\.hidden = input\.value\.length === 0/u);
   assert.match(script, /input\.value = ""/u);
-  assert.match(styles, /\.catalog-page \.catalog-query \.catalog-query-clear[\s\S]*transform: translateY\(-50%\)/u);
+  assert.match(
+    styles,
+    /\.catalog-page \.catalog-query \.catalog-query-clear[\s\S]*transform: translateY\(-50%\)/u,
+  );
   assert.match(styles, /\.catalog-page \.catalog-query-clear\[hidden\][\s\S]*display: none;/u);
 });
 
@@ -168,7 +174,10 @@ test("administrators can permanently delete a listed screen after confirmation",
   assert.match(view, /<a class="button secondary" href="download\.php\?id=/u);
   assert.match(view, /catalog-delete-button catalog-delete-open/u);
   assert.match(view, /class="catalog-delete-dialog"/u);
-  assert.match(index, /This permanently removes the screen, ratings, reports, and downloadable package\./u);
+  assert.match(
+    index,
+    /This permanently removes the screen, ratings, reports, and downloadable package\./u,
+  );
   assert.match(endpoint, /air_screen_require_admin\(\)/u);
   assert.match(endpoint, /air_screen_require_csrf\(\)/u);
   assert.match(endpoint, /status = 'approved'/u);
@@ -214,7 +223,10 @@ test("submission history uses linked rows, status pills, and an empty state", ()
   assert.match(styles, /\.catalog-remove-rejected-dialog::backdrop/u);
   assert.match(styles, /\.catalog-remove-rejected-icon::before/u);
   assert.match(styles, /\.catalog-remove-rejected-icon::after/u);
-  assert.match(styles, /\.catalog-remove-rejected-icon::before[\s\S]*translate\(-50%, -50%\) rotate\(45deg\)/u);
+  assert.match(
+    styles,
+    /\.catalog-remove-rejected-icon::before[\s\S]*translate\(-50%, -50%\) rotate\(45deg\)/u,
+  );
   assert.match(styles, /\.catalog-submission-status\.is-pending/u);
   assert.match(styles, /\.catalog-submission-status\.is-approved/u);
   assert.match(styles, /\.catalog-submission-status\.is-rejected/u);
@@ -235,9 +247,9 @@ test("screen submission tags use an accessible removable pill editor", () => {
   assert.match(upload, /name="tags"[^>]*data-tags-value/u);
   assert.match(edit, /name="tags"[^>]*data-tags-value/u);
   assert.match(layout, /src="tag-editor\.js" defer/u);
-  assert.match(script, /event.key === ' '/u);
-  assert.match(script, /event.key === ','/u);
-  assert.match(script, /addEventListener\('blur', commit\)/u);
+  assert.match(script, /event\.key === ["'] ["']/u);
+  assert.match(script, /event\.key === ["'],["']/u);
+  assert.match(script, /addEventListener\(["']blur["'], commit\)/u);
   assert.match(script, /Remove tag \$\{tag\}/u);
   assert.doesNotMatch(script, /remove\.textContent/u);
   assert.doesNotMatch(script, /remove\.title/u);
@@ -288,7 +300,10 @@ test("rejection requires feedback that the author can read and clear by resubmit
   const edit = read("apps/public-site/screens/edit.php");
   assert.match(moderation, /\$status === 'rejected' && \$feedback === ''/u);
   assert.match(moderation, /name="rejection_feedback" maxlength="1000"/u);
-  assert.match(moderation, /in_array\(\$status, \['approved', 'rejected'\], true\) && \$feedback !== '' \? \$feedback : null/u);
+  assert.match(
+    moderation,
+    /in_array\(\$status, \['approved', 'rejected'\], true\) && \$feedback !== '' \? \$feedback : null/u,
+  );
   assert.match(upload, /Reviewer feedback:/u);
   assert.match(edit, /Reviewer feedback/u);
   assert.match(edit, /status IN \('approved', 'rejected'\) THEN 'pending'/u);
@@ -313,10 +328,7 @@ test("production uploads notify catalog administrators after persistence", () =>
   const upload = read("apps/public-site/screens/upload.php");
   const library = read("apps/public-site/screens/lib.php");
   assert.match(upload, /air_screen_notify_moderators/u);
-  assert.ok(
-    upload.indexOf("$stmt->execute") <
-      upload.indexOf("air_screen_notify_moderators"),
-  );
+  assert.ok(upload.indexOf("$stmt->execute") < upload.indexOf("air_screen_notify_moderators"));
   assert.match(library, /SELECT email FROM air_screen_users WHERE role = 'admin'/u);
   assert.match(library, /VOLTURA_AIR_SITE_DEV/u);
   assert.match(library, /no-reply@voltura\.se/u);
@@ -356,8 +368,7 @@ test("screen reports are emailed to Voltura Air after persistence", () => {
   assert.match(endpoint, /INSERT INTO air_screen_reports/u);
   assert.match(endpoint, /air_screen_notify_screen_report/u);
   assert.ok(
-    endpoint.indexOf("$stmt->execute") <
-      endpoint.indexOf("air_screen_notify_screen_report"),
+    endpoint.indexOf("$stmt->execute") < endpoint.indexOf("air_screen_notify_screen_report"),
   );
   assert.match(library, /function air_screen_notify_screen_report/u);
   assert.match(library, /@mail\('air@voltura\.se'/u);
@@ -375,13 +386,15 @@ test("moderation emails approval or rejection status to the submitter", () => {
   assert.match(moderation, /SELECT p\.name, u\.email/u);
   assert.match(moderation, /air_screen_notify_submitter_status/u);
   assert.ok(
-    moderation.indexOf("$stmt->execute") <
-      moderation.indexOf("air_screen_notify_submitter_status"),
+    moderation.indexOf("$stmt->execute") < moderation.indexOf("air_screen_notify_submitter_status"),
   );
   assert.match(library, /function air_screen_notify_submitter_status/u);
   assert.match(library, /\['approved', 'rejected'\]/u);
   assert.match(library, /Reviewer feedback/u);
-  assert.match(moderation, /Optional for approval &middot; Required for rejection &middot; Emailed to author/u);
+  assert.match(
+    moderation,
+    /Optional for approval &middot; Required for rejection &middot; Emailed to author/u,
+  );
   assert.match(library, /View published screen/u);
   assert.match(library, /View my submissions/u);
   assert.match(library, /VOLTURA_AIR_SITE_DEV/u);
@@ -406,7 +419,10 @@ test("notification emails share an Outlook-compatible presentation shell", () =>
   assert.match(shell, /AIR_SCREEN_ORIGIN \. '\/"/u);
   assert.match(shell, /This is an automated email from Voltura Air\. Replies are not monitored\./u);
   assert.match(library, /air_screen_notification_subject\('Review needed', \$screenName\)/u);
-  assert.match(library, /air_screen_notification_subject\(\$approved \? 'Approved' : 'Rejected', \$screenName\)/u);
+  assert.match(
+    library,
+    /air_screen_notification_subject\(\$approved \? 'Approved' : 'Rejected', \$screenName\)/u,
+  );
   assert.match(library, /preg_replace\('\/\[\\r\\n\]\+\/u', ' ', \$screenName\)/u);
   assert.match(library, /mb_encode_mimeheader/u);
   assert.match(shell, /border-top:6px solid #0d8f7d/u);
@@ -475,10 +491,22 @@ test("admins can atomically bulk-import the generated official screen bundle", (
   assert.match(importer, /official_source = 'voltura'/u);
   assert.match(importer, /screen_id = :screenId/u);
   assert.match(importer, /air_screen_enqueue_cleanup/u);
-  assert.match(importer, /DELETE FROM air_screen_packages WHERE id = :id AND official_source = 'voltura'/u);
-  assert.match(importer, /air_screen_write_content_file\(\$item\['finalPath'\], \$item\['json'\]\)/u);
-  assert.ok(importer.indexOf("air_screen_official_import_failure('stage_write')") < importer.indexOf("SELECT GET_LOCK('voltura_air_official_import', 30)"));
-  assert.match(importer, /hash_equals\(\$item\['hash'\], \(string\)hash_file\('sha256', \$item\['finalPath'\]\)\)/u);
+  assert.match(
+    importer,
+    /DELETE FROM air_screen_packages WHERE id = :id AND official_source = 'voltura'/u,
+  );
+  assert.match(
+    importer,
+    /air_screen_write_content_file\(\$item\['finalPath'\], \$item\['json'\]\)/u,
+  );
+  assert.ok(
+    importer.indexOf("air_screen_official_import_failure('stage_write')") <
+      importer.indexOf("SELECT GET_LOCK('voltura_air_official_import', 30)"),
+  );
+  assert.match(
+    importer,
+    /hash_equals\(\$item\['hash'\], \(string\)hash_file\('sha256', \$item\['finalPath'\]\)\)/u,
+  );
   assert.match(importer, /air_screen_official_import_failure\('db_committed'\)/u);
   assert.match(importer, /VOLTURA_AIR_OFFICIAL_IMPORT_FAIL/u);
   assert.match(schema, /official_source VARCHAR\(64\) NULL/u);
@@ -486,17 +514,33 @@ test("admins can atomically bulk-import the generated official screen bundle", (
   assert.match(schema, /screen_id VARCHAR\(64\) NOT NULL/u);
   assert.match(schema, /is_official BOOLEAN NOT NULL DEFAULT FALSE/u);
   assert.match(library, /'urlOpen', 'knownApp', 'hostAction'/u);
-  assert.doesNotMatch(library.slice(library.indexOf("function air_screen_validate_package")), /'appLaunch'/u);
+  assert.doesNotMatch(
+    library.slice(library.indexOf("function air_screen_validate_package")),
+    /'appLaunch'/u,
+  );
 });
 
 test("the PHP package boundary executes the current semantic contract", () => {
   const source = officialScreens[0].screen;
-  const run = screen => {
-    const library = fileURLToPath(new URL("../../apps/public-site/screens/lib.php", import.meta.url)).replaceAll("\\", "/").replaceAll("'", "\\'");
-    return spawnSync("php", ["-d", "display_errors=1", "-r", `require '${library}'; try { air_screen_validate_package(file_get_contents('php://stdin')); echo 'accepted'; } catch (Throwable $error) { fwrite(STDERR, $error->getMessage()); exit(2); }`], {
-      encoding: "utf8",
-      input: stableJson({ packageVersion: 1, format: "voltura-air.custom-screen", screen })
-    });
+  const run = (screen) => {
+    const library = fileURLToPath(
+      new URL("../../apps/public-site/screens/lib.php", import.meta.url),
+    )
+      .replaceAll("\\", "/")
+      .replaceAll("'", "\\'");
+    return spawnSync(
+      "php",
+      [
+        "-d",
+        "display_errors=1",
+        "-r",
+        `require '${library}'; try { air_screen_validate_package(file_get_contents('php://stdin')); echo 'accepted'; } catch (Throwable $error) { fwrite(STDERR, $error->getMessage()); exit(2); }`,
+      ],
+      {
+        encoding: "utf8",
+        input: stableJson({ packageVersion: 1, format: "voltura-air.custom-screen", screen }),
+      },
+    );
   };
   assert.equal(run(source).status, 0);
   const gyro = structuredClone(source);
@@ -509,15 +553,42 @@ test("the PHP package boundary executes the current semantic contract", () => {
   sixRows.sections[0].buttons[0].landscape = { order: 0, visible: true, row: 6 };
   assert.equal(run(sixRows).status, 0);
   const invalidValues = [
-    screen => { screen.sections[0].widthColumns = 5; },
-    screen => { screen.sections[0].trackpadGyroControl = "true"; },
-    screen => { screen.sections[0].rowLimit = 7; },
-    screen => { screen.sections[0].rowLimit = 6; screen.sections[0].buttons[0].row = 7; },
-    screen => { screen.sections[0].buttons[0].portrait = { order: 0, visible: true, row: 7 }; },
-    screen => { screen.sections[0].buttons[0].action = { kind: "urlOpen", url: "file:///Windows/System32/calc.exe" }; },
-    screen => { screen.sections[0].buttons[0].action = { kind: "shortcut", key: "UnsupportedKey", modifiers: [] }; screen.sections[0].buttons[0].presentation = "label"; },
-    screen => { screen.sections[0].buttons[0].action = { kind: "builtIn", builtIn: "unknown.action" }; },
-    screen => { screen.sections[0].buttons[0].action = { kind: "knownApp", actionId: "arbitrary.exe" }; }
+    (screen) => {
+      screen.sections[0].widthColumns = 5;
+    },
+    (screen) => {
+      screen.sections[0].trackpadGyroControl = "true";
+    },
+    (screen) => {
+      screen.sections[0].rowLimit = 7;
+    },
+    (screen) => {
+      screen.sections[0].rowLimit = 6;
+      screen.sections[0].buttons[0].row = 7;
+    },
+    (screen) => {
+      screen.sections[0].buttons[0].portrait = { order: 0, visible: true, row: 7 };
+    },
+    (screen) => {
+      screen.sections[0].buttons[0].action = {
+        kind: "urlOpen",
+        url: "file:///Windows/System32/calc.exe",
+      };
+    },
+    (screen) => {
+      screen.sections[0].buttons[0].action = {
+        kind: "shortcut",
+        key: "UnsupportedKey",
+        modifiers: [],
+      };
+      screen.sections[0].buttons[0].presentation = "label";
+    },
+    (screen) => {
+      screen.sections[0].buttons[0].action = { kind: "builtIn", builtIn: "unknown.action" };
+    },
+    (screen) => {
+      screen.sections[0].buttons[0].action = { kind: "knownApp", actionId: "arbitrary.exe" };
+    },
   ];
   for (const mutate of invalidValues) {
     const invalid = structuredClone(source);
@@ -560,7 +631,10 @@ test("a signed-in user can remove only their own existing rating", () => {
   const endpoint = read("apps/public-site/screens/rate.php");
   const view = read("apps/public-site/screens/view.php");
   assert.match(endpoint, /\$remove = \(\$_POST\['action'\] \?\? ''\) === 'remove'/u);
-  assert.match(endpoint, /DELETE FROM air_screen_ratings WHERE package_id = :package AND user_id = :user/u);
+  assert.match(
+    endpoint,
+    /DELETE FROM air_screen_ratings WHERE package_id = :package AND user_id = :user/u,
+  );
   assert.match(endpoint, /ratingRemoved=1/u);
   assert.match(view, /if \(\$userRating !== null\)/u);
   assert.match(view, />Remove rating<\/button>/u);

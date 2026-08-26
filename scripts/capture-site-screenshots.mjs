@@ -211,13 +211,13 @@ async function captureKodiRemote(page) {
     if (clientId) {
       localStorage.setItem(
         `voltura-air.remoteSettings.${clientId}`,
-        JSON.stringify({ navigationRing: true, mode: "kodi" }),
+        JSON.stringify({ navigationRing: true, mode: "kodi", startKodi: false }),
       );
     }
     if (clientId && pcId) {
       localStorage.setItem(
         `voltura-air.remoteSettings.${clientId}.${pcId}`,
-        JSON.stringify({ navigationRing: true, mode: "kodi" }),
+        JSON.stringify({ navigationRing: true, mode: "kodi", startKodi: false }),
       );
     }
   });

@@ -58,7 +58,7 @@ test("public screenshot inventory stays curated and aligned", async () => {
     captureScript,
     /"--site-screenshot-mode"[\s\S]*"--site-screenshot-output"[\s\S]*"--isolated-test-mode"/u,
   );
-  assert.match(hostProgram, /BeginIsolatedScope\(\)[\s\S]*SetHighDpiMode/u);
+  assert.match(hostProgram, /SetHighDpiMode\(Forms\.HighDpiMode\.PerMonitorV2\)[\s\S]*BeginIsolatedScope\(\)/u);
   assert.match(
     hostProgram,
     /offscreenSiteScreenshot[\s\S]*if \(!offscreenSiteScreenshot\)[\s\S]*startupWindow\.Show\(\)/u,
@@ -78,6 +78,7 @@ test("public screenshot inventory stays curated and aligned", async () => {
   assert.match(captureScript, /waitForTrackpadVolume\(page\)[\s\S]*iphoneLight/u);
   assert.match(captureScript, /\.trackpad-mode \.volume-control/u);
   assert.match(captureScript, /getByRole\("button", \{ name: "Remote", exact: true \}\)/u);
+  assert.match(captureScript, /mode: "kodi", startKodi: false/u);
   assert.match(
     captureScript,
     /getByText\("Switch modes from here\.", \{ exact: true \}\)[\s\S]*state: "visible"[\s\S]*state: "hidden"[\s\S]*page\.screenshot\(\{ path: outputs\.iphoneKodiDark \}\)/u,

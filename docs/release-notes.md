@@ -6,6 +6,13 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.1.2
+
+- Updated the third-party components used by Voltura Air and refreshed its
+  internal quality checks. This release does not add new user-facing features.
+- Improved cleanup reliability when Files, View PC screen, or Phone Webcam
+  audio is stopping or cannot finish starting.
+
 ## v1.1.1
 
 - Added a simple visual guide explaining how Direct local network and Cloud relay connections work, and simplified the connection-setting descriptions.

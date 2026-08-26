@@ -2,6 +2,13 @@ using System.Net.WebSockets;
 
 namespace VolturaAir.Host;
 
+internal enum FileTransferSourceKind
+{
+    FileEntry,
+    ScreenCapture,
+    Upload
+}
+
 internal sealed class FileTransferSession(
     string id,
     string clientId,
@@ -9,7 +16,8 @@ internal sealed class FileTransferSession(
     WebSocket socket,
     string direction,
     string fileName,
-    long declaredSize)
+    long declaredSize,
+    FileTransferSourceKind sourceKind = FileTransferSourceKind.FileEntry)
 {
     private sealed class CancellationOwner
     {
@@ -27,6 +35,7 @@ internal sealed class FileTransferSession(
     public string Direction { get; } = direction;
     public string FileName { get; } = fileName;
     public long DeclaredSize { get; } = declaredSize;
+    public FileTransferSourceKind SourceKind { get; } = sourceKind;
     public CancellationTokenSource Cancellation => _cancellation.Source;
     public CancellationToken CancellationToken => _cancellation.Token;
     public TaskCompletionSource StartPublished { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -60,7 +69,8 @@ internal sealed class FileTransferPendingStart(
     string clientId,
     string direction,
     WebSocket socket,
-    CancellationTokenSource cancellation) : IDisposable
+    CancellationTokenSource cancellation,
+    FileTransferSourceKind sourceKind = FileTransferSourceKind.FileEntry) : IDisposable
 {
     private readonly Lock _gate = new();
     private CancellationTokenSource? _cancellation = cancellation;
@@ -69,6 +79,7 @@ internal sealed class FileTransferPendingStart(
 
     public string ClientId { get; } = clientId;
     public string Direction { get; } = direction;
+    public FileTransferSourceKind SourceKind { get; } = sourceKind;
     public WebSocket Socket { get; } = socket;
     public CancellationToken Token { get { lock (_gate) return _cancellation?.Token ?? new(canceled: true); } }
     public Task Task { get; set; } = System.Threading.Tasks.Task.CompletedTask;

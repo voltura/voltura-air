@@ -1,19 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { subscribeFileManagerResults } from "../../foundation/connection/fileManagerResultBus";
-import { signClientPayload } from "../../foundation/connection/pairingCredentials";
-import type { PcProfile } from "../../foundation/connection/pcProfiles";
-import { createLocalId } from "../../foundation/identity/localId";
+import { subscribeFileManagerResults } from "../connection/fileManagerResultBus";
+import { signClientPayload } from "../connection/pairingCredentials";
+import type { PcProfile } from "../connection/pcProfiles";
+import { createLocalId } from "../identity/localId";
 import type {
   ClientMessage,
   FileTransferDirection,
   FileTransferOfferMessage,
   FileTransferResultMessage,
-} from "../../foundation/protocol/messages";
-import { hasOnlyRelayCandidates, waitForIceGathering } from "../../foundation/webrtc/iceGathering";
-import {
-  hashSessionDescription,
-  verifyHostSessionSignature,
-} from "../../foundation/webrtc/sessionCrypto";
+} from "../protocol/messages";
+import { hasOnlyRelayCandidates, waitForIceGathering } from "../webrtc/iceGathering";
+import { hashSessionDescription, verifyHostSessionSignature } from "../webrtc/sessionCrypto";
 import {
   createFileTransferAcknowledgement,
   createFileTransferDataRecord,
@@ -32,15 +29,21 @@ import {
   createFileTransferAnswerTranscript,
   createFileTransferOfferTranscript,
   createFileTransferStartTranscript,
+  createScreenCaptureTransferStartTranscript,
 } from "./fileTransferTranscripts";
 import {
   createFileTransferCancelMessage,
   idleFileTransferPresentation as idlePresentation,
   type FileTransferTarget,
+  type ScreenCaptureTransferTarget,
   type TransferRuntime,
 } from "./fileTransferRuntime";
 
-export type { FileTransferPresentation, FileTransferTarget } from "./fileTransferRuntime";
+export type {
+  FileTransferPresentation,
+  FileTransferTarget,
+  ScreenCaptureTransferTarget,
+} from "./fileTransferRuntime";
 
 const maximumSafeFileSize = Number.MAX_SAFE_INTEGER;
 
@@ -465,7 +468,9 @@ export function useFileTransfer(
       runtimeRef.current = null;
       await closeRuntime(runtime, true);
       setPresentation(idlePresentation(message.message));
-      onUploadCompleted?.(runtime.target.panel, message.fileName);
+      if (runtime.target.kind === "file") {
+        onUploadCompleted?.(runtime.target.panel, message.fileName);
+      }
     },
     [closeRuntime, fail, onUploadCompleted],
   );
@@ -556,6 +561,38 @@ export function useFileTransfer(
       }
       const operationId = createLocalId();
       runtime.operationId = operationId;
+      if (runtime.target.kind === "screen-capture") {
+        const transcript = createScreenCaptureTransferStartTranscript(
+          clientId,
+          hostPublicKey,
+          operationId,
+          runtime.target.screenOperationId,
+          runtime.target.displayId,
+        );
+        const signature = signClientPayload(clientId, activePc.id, transcript);
+        if (!signature) {
+          fail(runtime, "Pair this device again to transfer files.", false);
+          return;
+        }
+        setPresentation({
+          active: true,
+          fileName: runtime.fileName,
+          message: "Capturing…",
+          needsReplacementName: false,
+          progress: 0,
+          readyToSave: false,
+        });
+        send({
+          type: "file.transfer.start",
+          operationId,
+          direction: "download",
+          source: "screen-capture",
+          screenOperationId: runtime.target.screenOperationId,
+          displayId: runtime.target.displayId,
+          clientSignature: signature,
+        });
+        return;
+      }
       const entryId = runtime.direction === "download" ? runtime.target.entryId : "";
       const fileName = runtime.direction === "upload" ? runtime.fileName : "";
       const declaredSize = runtime.direction === "upload" ? runtime.declaredSize : null;
@@ -643,11 +680,52 @@ export function useFileTransfer(
         receiveChain: Promise.resolve(),
         pumping: false,
         target: {
+          kind: "file",
           sessionId: target.sessionId,
           panel: target.panel,
           revision: target.revision,
           entryId: target.entry?.id ?? "",
         },
+      };
+      runtimeRef.current = runtime;
+      publishStart(runtime);
+    },
+    [activePc.hostIdentityPublicKey, canSaveToDevice, enabled, publishStart],
+  );
+
+  const startScreenCapture = useCallback(
+    (target: ScreenCaptureTransferTarget) => {
+      if (
+        !enabled ||
+        !canSaveToDevice ||
+        runtimeRef.current ||
+        !activePc.hostIdentityPublicKey ||
+        typeof RTCPeerConnection === "undefined"
+      ) {
+        return;
+      }
+      const runtime: TransferRuntime = {
+        operationId: "",
+        transferId: "",
+        direction: "download",
+        fileName: "PC screenshot",
+        declaredSize: 0,
+        uploadFile: null,
+        peer: null,
+        channel: null,
+        offerHash: "",
+        writable: null,
+        directory: null,
+        handle: null,
+        readyFile: null,
+        storedName: "",
+        received: 0,
+        sent: 0,
+        acknowledged: 0,
+        transportComplete: false,
+        receiveChain: Promise.resolve(),
+        pumping: false,
+        target: { kind: "screen-capture", ...target },
       };
       runtimeRef.current = runtime;
       publishStart(runtime);
@@ -723,6 +801,7 @@ export function useFileTransfer(
     presentation,
     retryUploadName,
     saveReadyFile,
+    startScreenCapture,
     startDownload: (target: FileTransferTarget) => start("download", target, null),
     startUpload: (target: FileTransferTarget, file: File) => start("upload", target, file),
   };

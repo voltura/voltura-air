@@ -22,7 +22,8 @@ networks that block inbound PC connections.
   cursor movement, scrolling, and up to 10× local zoom. Direct viewing adapts up
   to the display, hardware, receiving device, and network capabilities; Relay
   offers High, Standard, and Data saver quality choices under the existing usage
-  protections.
+  protections. A camera action captures the watched display as a native,
+  cursor-free PNG and opens the device's existing Save/Share flow.
 - Use a selected paired-phone camera as `Voltura Air Webcam` in Windows apps.
   Enhanced Direct is free and unlimited; Relay initially shares the existing
   service usage limits. Optional microphone audio is off by default, can be muted

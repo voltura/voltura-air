@@ -54,6 +54,12 @@ export default function ScreenViewBrowserPreviewRoot() {
           maxHeight: 1080,
           maxFramesPerSecond: 30,
           directPointer: { permissionGranted: mouseState !== "permission-blocked" },
+          screenshot: {
+            transferPermissionGranted: true,
+            format: "image/png",
+            maxPixels: 33_177_600,
+            maxBytes: 67_108_864,
+          },
         }}
         clientId="preview-client"
         onBack={() => {

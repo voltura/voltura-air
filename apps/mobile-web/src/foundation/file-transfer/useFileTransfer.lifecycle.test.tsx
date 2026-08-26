@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { publishFileManagerResult } from "../../foundation/connection/fileManagerResultBus";
-import type { ClientMessage } from "../../foundation/protocol/messages";
+import { publishFileManagerResult } from "../connection/fileManagerResultBus";
+import type { ClientMessage } from "../protocol/messages";
 
 const storage = vi.hoisted(() => {
   const file = new File([], "transfer.partial");
@@ -24,14 +24,14 @@ const storage = vi.hoisted(() => {
   };
 });
 
-vi.mock("../../foundation/connection/pairingCredentials", () => ({
+vi.mock("../connection/pairingCredentials", () => ({
   signClientPayload: () => "client-signature",
 }));
-vi.mock("../../foundation/webrtc/iceGathering", () => ({
+vi.mock("../webrtc/iceGathering", () => ({
   hasOnlyRelayCandidates: () => true,
   waitForIceGathering: () => Promise.resolve(),
 }));
-vi.mock("../../foundation/webrtc/sessionCrypto", () => ({
+vi.mock("../webrtc/sessionCrypto", () => ({
   hashSessionDescription: () => "sdp-hash",
   verifyHostSessionSignature: () => true,
 }));
@@ -102,6 +102,47 @@ describe("useFileTransfer download lifecycle", () => {
     storage.prepare.mockReset();
     storage.prepare.mockResolvedValue(storage.prepared);
     storage.writable.abort.mockClear();
+  });
+
+  it("starts a screenshot download bound to the active screen operation and display", () => {
+    vi.stubGlobal("RTCPeerConnection", TestPeerConnection);
+    const sent: ClientMessage[] = [];
+    const send = (message: ClientMessage) => sent.push(message);
+    let transfer: ReturnType<typeof useFileTransfer> | null = null;
+    function Harness() {
+      transfer = useFileTransfer(
+        {
+          customName: false,
+          id: "pc",
+          name: "PC",
+          url: "https://pc.invalid",
+          hostIdentityPublicKey: "host-key",
+          transportMode: "secure-direct",
+        },
+        "client",
+        true,
+        send,
+      );
+      return null;
+    }
+    render(<Harness />);
+
+    act(() =>
+      transfer!.startScreenCapture({
+        screenOperationId: "screen-request",
+        displayId: "display-1-1",
+      }),
+    );
+
+    expect(sent.at(-1)).toMatchObject({
+      type: "file.transfer.start",
+      direction: "download",
+      source: "screen-capture",
+      screenOperationId: "screen-request",
+      displayId: "display-1-1",
+      clientSignature: "client-signature",
+    });
+    expect(transfer!.presentation.message).toBe("Capturing…");
   });
 
   it("cancels a pending start by request ID before the host issues a transfer ID", () => {

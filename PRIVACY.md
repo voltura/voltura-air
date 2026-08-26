@@ -99,6 +99,14 @@ metering, warning, and quota cutoff. Its purpose-bound credentials expire after
 observe network metadata and encrypted byte counts but cannot decrypt the
 DTLS-protected file content.
 
+The user can explicitly capture the currently watched display as a cursor-free
+PNG. The PC holds that PNG only in bounded memory until transfer completes or
+fails and creates no screenshot file, history, timer, or background capture. The
+receiving browser uses the same per-tab temporary storage and Save/Share cleanup
+rules as a PC-file download. Official Relay admission conservatively estimates
+three times the PNG size plus 1 MiB against aggregate monthly usage; those
+analytics may lag and concurrent sessions are not reserved.
+
 When Phone webcam is enabled and permitted, selected phone camera video and optional,
 explicitly enabled microphone audio travel on WebRTC DTLS-SRTP media tracks to the
 paired Windows host. Camera frames, audio samples, encoded media, SDP, credentials,

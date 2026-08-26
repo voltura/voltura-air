@@ -117,7 +117,7 @@
         </article>
         <article>
           <h2>View PC screen from a touch device</h2>
-          <p>View one selected Windows display live on a phone or tablet. Use touch gestures for cursor movement, local zoom and pan, and scrolling, with a separate Click control for precise clicks.</p>
+          <p>View one selected Windows display live on a phone or tablet. Use touch gestures for cursor movement, local zoom and pan, and scrolling, with a separate Click control for precise clicks. Capture the watched display as a native PNG and save or share it from the device.</p>
         </article>
         <article>
           <h2>Use your phone as a webcam</h2>

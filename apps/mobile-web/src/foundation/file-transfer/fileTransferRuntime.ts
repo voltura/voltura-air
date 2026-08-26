@@ -2,7 +2,7 @@ import type {
   FileManagerEntry,
   FileTransferCancelMessage,
   FileTransferDirection,
-} from "../../foundation/protocol/messages";
+} from "../protocol/messages";
 
 export interface FileTransferTarget {
   sessionId: string;
@@ -10,6 +10,15 @@ export interface FileTransferTarget {
   revision: string;
   entry: FileManagerEntry | null;
 }
+
+export interface ScreenCaptureTransferTarget {
+  screenOperationId: string;
+  displayId: string;
+}
+
+type RuntimeTarget =
+  | ({ kind: "file" } & Omit<FileTransferTarget, "entry"> & { entryId: string })
+  | ({ kind: "screen-capture" } & ScreenCaptureTransferTarget);
 
 export interface FileTransferPresentation {
   active: boolean;
@@ -63,5 +72,5 @@ export interface TransferRuntime {
   transportComplete: boolean;
   receiveChain: Promise<void>;
   pumping: boolean;
-  target: Omit<FileTransferTarget, "entry"> & { entryId: string };
+  target: RuntimeTarget;
 }

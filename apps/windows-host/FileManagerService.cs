@@ -59,11 +59,11 @@ internal sealed record FileManagerProperties(
     DateTimeOffset AccessedUtc,
     string[] Attributes);
 internal sealed record FileManagerSelection(bool All, string[] EntryIds, string[] ExcludedEntryIds);
-internal sealed class FileTransferDownloadSource(string name, long size, FileStream stream) : IAsyncDisposable
+internal sealed class FileTransferDownloadSource(string name, long size, Stream stream) : IAsyncDisposable
 {
     public string Name { get; } = name;
     public long Size { get; } = size;
-    public FileStream Stream { get; } = stream;
+    public Stream Stream { get; } = stream;
     public ValueTask DisposeAsync() => Stream.DisposeAsync();
 }
 internal delegate Task FileUploadReceiver(Stream destination, Action<long> committed, CancellationToken cancellationToken);

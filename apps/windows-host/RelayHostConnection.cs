@@ -121,6 +121,8 @@ internal sealed class RelayHostConnection : IAsyncDisposable
                     await TryUpdateUsageSnapshotAsync(response, cancellationToken);
                 }
                 _log.Write(new AppLogEntry("relay_turn", "windows_host", Action: code == "quota-blocked" ? "turn_quota_block" : "credential_refresh_failed", Outcome: "blocked", Code: code));
+                if (IsOfficialFileTransferQuotaRejection(_endpoint.IsOfficial, response.StatusCode, purpose))
+                    throw new RelayQuotaReachedException();
                 return null;
             }
             using var document = await ReadBoundedJsonAsync(response.Content, cancellationToken);
@@ -139,6 +141,7 @@ internal sealed class RelayHostConnection : IAsyncDisposable
         var usage = ParseUsageSnapshot(root);
         if (root.ValueKind != JsonValueKind.Object ||
             !root.TryGetProperty("allowed", out var allowed) || allowed.ValueKind != JsonValueKind.True || usage is null ||
+            (_endpoint.IsOfficial && usage.CutoffBytes is null) ||
             !root.TryGetProperty("expiresAt", out var expiresValue) || expiresValue.ValueKind != JsonValueKind.String ||
             !DateTimeOffset.TryParse(expiresValue.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var expiresAt) ||
             expiresAt <= _timeProvider.GetUtcNow().AddSeconds(30) ||
@@ -182,8 +185,19 @@ internal sealed class RelayHostConnection : IAsyncDisposable
         var hostUris = parsed.SelectMany(server => server.Urls.Select(url =>
             $"{url[..url.IndexOf(':')]}:{Uri.EscapeDataString(server.Username)}:{Uri.EscapeDataString(server.Credential)}@{url[(url.IndexOf(':') + 1)..]}"))
             .ToArray();
-        return new RelayTurnConfiguration(parsed, hostUris, expiresAt, usage.Bytes, usage.CheckedAt, effective);
+        return new RelayTurnConfiguration(
+            parsed,
+            hostUris,
+            expiresAt,
+            usage.Bytes,
+            usage.CheckedAt,
+            effective,
+            _endpoint.IsOfficial ? usage.WarningBytes : null,
+            _endpoint.IsOfficial ? usage.CutoffBytes : null);
     }
+
+    internal static bool IsOfficialFileTransferQuotaRejection(bool isOfficial, HttpStatusCode statusCode, string? purpose) =>
+        isOfficial && statusCode == HttpStatusCode.TooManyRequests && purpose == "file-transfer";
 
     private async Task TryUpdateUsageSnapshotAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {

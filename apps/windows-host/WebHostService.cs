@@ -341,14 +341,6 @@ public sealed class WebHostService : IAsyncDisposable
             _transport);
         _fileManager = new FileManagerService(hideProtectedItems: statusFactory.HideProtectedFileSystemItems);
         _fileManagerCommands = new FileManagerCommandHandler(_fileManager, statusFactory, _transport, pairingManager, _appLog);
-        _fileTransfers = new FileTransferCoordinator(
-            _fileManager,
-            statusFactory,
-            pairingManager,
-            _transport,
-            TransportMode == ConnectionTransportMode.Relay,
-            GetFileTransferRelayTurnConfigurationAsync,
-            fileTransferPeerFactory ?? (isolatedTestMode ? new IsolatedFileTransferWebRtcPeerFactory() : null));
         var inputCommands = new InputCommandHandler(
             inputDispatcher,
             _powerController,
@@ -374,6 +366,15 @@ public sealed class WebHostService : IAsyncDisposable
             inputDispatcher,
             _powerController);
         _screenViewCommands = new ScreenViewCommandHandler(_screenView, _transport, GetRelayTurnConfigurationAsync, _appLog);
+        _fileTransfers = new FileTransferCoordinator(
+            _fileManager,
+            _screenView,
+            statusFactory,
+            pairingManager,
+            _transport,
+            TransportMode == ConnectionTransportMode.Relay,
+            GetFileTransferRelayTurnConfigurationAsync,
+            fileTransferPeerFactory ?? (isolatedTestMode ? new IsolatedFileTransferWebRtcPeerFactory() : null));
         var resolvedPhoneWebcam = phoneWebcamFeature ?? PhoneWebcamFeature.CreateUnavailable();
         var phoneWebcamCoordinator = new PhoneWebcamCoordinator(
             pairingManager,

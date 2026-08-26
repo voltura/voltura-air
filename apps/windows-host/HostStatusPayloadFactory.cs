@@ -150,6 +150,13 @@ internal sealed class HostStatusPayloadFactory(
             maxHeight = LegacyScreenViewHeightMarker,
             maxFramesPerSecond = LegacyScreenViewFrameRateMarker,
             receiverQualityFeedback = true,
+            screenshot = new
+            {
+                transferPermissionGranted = permissions.AllowFileTransfer && pairingManager.HasCurrentHostIdentity(clientId),
+                format = ScreenViewScreenshotLimits.Format,
+                maxPixels = ScreenViewScreenshotLimits.MaximumPixels,
+                maxBytes = ScreenViewScreenshotLimits.MaximumEncodedBytes
+            },
             directPointer = new
             {
                 permissionGranted = permissions.AllowRemoteInput

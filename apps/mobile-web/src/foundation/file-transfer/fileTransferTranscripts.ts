@@ -13,6 +13,16 @@ export function createFileTransferStartTranscript(
   return `VolturaAir file-transfer:start:v1\n${clientId}\n${hostPublicKey}\n${requestId}\n${direction}\n${sessionId}\n${panel}\n${revision}\n${entryId}\n${fileName}\n${declaredSize ?? ""}`;
 }
 
+export function createScreenCaptureTransferStartTranscript(
+  clientId: string,
+  hostPublicKey: string,
+  requestId: string,
+  screenOperationId: string,
+  displayId: string,
+) {
+  return `VolturaAir screen-capture-transfer:start:v1\n${clientId}\n${hostPublicKey}\n${requestId}\n${screenOperationId}\n${displayId}`;
+}
+
 export function createFileTransferOfferTranscript(
   clientId: string,
   hostPublicKey: string,

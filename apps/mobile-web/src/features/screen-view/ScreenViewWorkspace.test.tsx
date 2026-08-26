@@ -96,6 +96,35 @@ describe("ScreenViewWorkspace", () => {
     expect(container.querySelector(".screen-view-direct-pointer.active")).not.toBeNull();
   });
 
+  it("shows an accessible camera action only for a live capable view", () => {
+    render(
+      <ScreenViewWorkspace
+        activePc={{ customName: false, id: "preview", name: "PC", url: "http://127.0.0.1" }}
+        browserPreviewState="active"
+        capability={{
+          ...capability,
+          screenshot: {
+            transferPermissionGranted: true,
+            format: "image/png",
+            maxPixels: 33_177_600,
+            maxBytes: 67_108_864,
+          },
+        }}
+        clientId="preview-client"
+        onBack={vi.fn()}
+        onOpenKeyboard={vi.fn()}
+        send={vi.fn()}
+        state="paired"
+        trackpadSettings={defaultTrackpadSettings}
+      />,
+    );
+
+    const camera = screen.getByRole("button", { name: "Capture PC screenshot" });
+    expect(camera).toBeTruthy();
+    expect(camera.hasAttribute("disabled")).toBe(true);
+    expect(camera.getAttribute("title")).toContain("Save or Share");
+  });
+
   it("opens and requests sources without requiring secure-context randomUUID", async () => {
     const send = vi.fn<(message: ClientMessage) => void>();
     const originalRandomUuid = crypto.randomUUID;

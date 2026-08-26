@@ -116,7 +116,7 @@ internal static class ClientMessageValidator
             ["file.job.control"] = Fields("type", "operationId", "jobId", "action"),
             ["file.job.reorder"] = Fields("type", "operationId", "jobId", "direction"),
             ["file.job.conflict.resolve"] = Fields("type", "operationId", "jobId", "resolution", "applyToAll"),
-            ["file.transfer.start"] = Fields("type", "operationId", "direction", "sessionId", "panel", "revision", "entryId", "fileName", "declaredSize", "clientSignature"),
+            ["file.transfer.start"] = Fields("type", "operationId", "direction", "source", "sessionId", "panel", "revision", "entryId", "fileName", "declaredSize", "screenOperationId", "displayId", "clientSignature"),
             ["file.transfer.answer"] = Fields("type", "operationId", "transferId", "answerSdp", "clientSignature"),
             ["file.transfer.cancel"] = Fields("type", "operationId", "transferId", "requestId"),
             ["audio.mute.toggle"] = Fields("type", "inputContext"),
@@ -609,9 +609,26 @@ internal static class ClientMessageValidator
 
     private static bool IsValidFileTransferStart(JsonElement root)
     {
-        if (!IsValidFilePanelRequest(root, requireRevision: true) ||
+        if (!IsValidFileOperationId(root) ||
             !TryGetRequiredString(root, "direction", 16, allowEmpty: false, out var direction) ||
             !TryGetRequiredString(root, "clientSignature", MaxCredentialLength, allowEmpty: false, out _)) return false;
+        if (root.TryGetProperty("source", out var source))
+        {
+            return source.ValueKind == JsonValueKind.String && source.GetString() == "screen-capture" &&
+                direction == "download" &&
+                TryGetRequiredString(root, "screenOperationId", MaxOperationIdLength, allowEmpty: false, out var screenOperationId) &&
+                IsValidOperationId(screenOperationId) &&
+                TryGetRequiredString(root, "displayId", MaxCredentialLength, allowEmpty: false, out _) &&
+                !root.TryGetProperty("sessionId", out _) &&
+                !root.TryGetProperty("panel", out _) &&
+                !root.TryGetProperty("revision", out _) &&
+                !root.TryGetProperty("entryId", out _) &&
+                !root.TryGetProperty("fileName", out _) &&
+                !root.TryGetProperty("declaredSize", out _);
+        }
+        if (!IsValidFilePanelRequest(root, requireRevision: true) ||
+            root.TryGetProperty("screenOperationId", out _) ||
+            root.TryGetProperty("displayId", out _)) return false;
         if (direction == "download")
         {
             return TryGetRequiredString(root, "entryId", MaxCredentialLength, allowEmpty: false, out _) &&

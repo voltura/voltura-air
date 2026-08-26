@@ -343,7 +343,7 @@ export interface FileConflictResolveMessage {
   applyToAll: boolean;
 }
 export type FileTransferDirection = "download" | "upload";
-export interface FileTransferStartMessage {
+export interface FileEntryTransferStartMessage {
   type: "file.transfer.start";
   operationId: string;
   direction: FileTransferDirection;
@@ -355,6 +355,18 @@ export interface FileTransferStartMessage {
   declaredSize?: number;
   clientSignature: string;
 }
+export interface ScreenCaptureTransferStartMessage {
+  type: "file.transfer.start";
+  operationId: string;
+  direction: "download";
+  source: "screen-capture";
+  screenOperationId: string;
+  displayId: string;
+  clientSignature: string;
+}
+export type FileTransferStartMessage =
+  | FileEntryTransferStartMessage
+  | ScreenCaptureTransferStartMessage;
 export interface FileTransferAnswerMessage {
   type: "file.transfer.answer";
   operationId: string;
@@ -519,6 +531,12 @@ export interface ScreenViewCapability {
   maxHeight: number;
   maxFramesPerSecond: number;
   receiverQualityFeedback?: true;
+  screenshot?: {
+    transferPermissionGranted: boolean;
+    format: "image/png";
+    maxPixels: number;
+    maxBytes: number;
+  };
   directPointer?: {
     permissionGranted: boolean;
   };

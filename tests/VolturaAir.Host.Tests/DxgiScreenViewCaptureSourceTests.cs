@@ -4,6 +4,28 @@ using System.Drawing;
 
 public sealed class DxgiScreenViewCaptureSourceTests
 {
+    [Fact]
+    public void ScreenshotEncodingStreamStopsOnCancellation()
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var stream = new DxgiScreenViewCaptureSource.BoundedScreenshotStream(64, cancellation.Token);
+        cancellation.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() => stream.Write([1, 2, 3]));
+        Assert.Equal(0, stream.Length);
+    }
+
+    [Fact]
+    public void ScreenshotEncodingStreamRejectsTheFirstByteBeyondItsBound()
+    {
+        using var stream = new DxgiScreenViewCaptureSource.BoundedScreenshotStream(3, CancellationToken.None);
+
+        stream.Write([1, 2, 3]);
+        Assert.Throws<IOException>(() => stream.WriteByte(4));
+        Assert.True(stream.LimitExceeded);
+        Assert.Equal(3, stream.Length);
+    }
+
     [Theory]
     [InlineData(true, 0, 0, false)]
     [InlineData(true, 1, 0, true)]

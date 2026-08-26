@@ -52,6 +52,9 @@ public sealed class FileTransferProtocolTests
             "VolturaAir file-transfer:start:v1\nclient\nhost-key\nrequest\nupload\nsession\nleft\nrevision\n\nreport.txt\n0",
             FileTransferNegotiation.StartTranscript("client", "host-key", "request", "upload", "session", "left", "revision", "", "report.txt", 0));
         Assert.Equal(
+            "VolturaAir screen-capture-transfer:start:v1\nclient\nhost-key\nrequest\nscreen-request\ndisplay-1-1",
+            FileTransferNegotiation.ScreenCaptureStartTranscript("client", "host-key", "request", "screen-request", "display-1-1"));
+        Assert.Equal(
             "VolturaAir file-transfer:offer:v1\nclient\nhost-key\nrequest\ntransfer\ndownload\nreport.txt\n12\noffer-hash",
             FileTransferNegotiation.OfferTranscript("client", "host-key", "request", "transfer", "download", "report.txt", 12, "offer-hash"));
         Assert.Equal(
@@ -61,6 +64,65 @@ public sealed class FileTransferProtocolTests
         Assert.Equal(TimeSpan.FromSeconds(60), FileTransferProtocol.InactivityTimeout);
         Assert.Equal(64 * 1024, FileTransferProtocol.MaximumPayloadBytes);
         Assert.Equal(1024 * 1024, FileTransferProtocol.MaximumUnacknowledgedBytes);
+    }
+
+    [Theory]
+    [InlineData(849_000_000_000, 850_000_000_000, 1000, false)]
+    [InlineData(850_000_000_000, 850_000_000_000, 1, true)]
+    [InlineData(849_999_000_000, 850_000_000_000, 1, true)]
+    [InlineData(0, 850_000_000_000, long.MaxValue, true)]
+    public void ScreenCaptureRelayAdmissionUsesBoundedProjectedUsage(long usage, long cutoff, long payload, bool rejected)
+    {
+        Assert.Equal(rejected, FileTransferNegotiation.WouldReachRelayCutoff(usage, cutoff, payload));
+        Assert.False(FileTransferNegotiation.WouldReachRelayCutoff(usage, null, payload));
+    }
+
+    [Fact]
+    public async Task OfficialRelayQuotaRejectionUsesTheScreenshotFailureBeforeCreatingAPeer()
+    {
+        await using var peer = new TrackingDisposePeer();
+        var transfer = new FileTransferSession(
+            "transfer", "client", "request", null!, "download", "capture.png", 12,
+            FileTransferSourceKind.ScreenCapture);
+
+        await Assert.ThrowsAsync<FileTransferWebRtcException>(() => FileTransferNegotiation.RunAsync(
+            transfer,
+            true,
+            _ => Task.FromException<RelayTurnConfiguration?>(new RelayQuotaReachedException()),
+            new SinglePeerFactory(peer),
+            null!,
+            null!,
+            _ => Task.CompletedTask,
+            CancellationToken.None));
+
+        Assert.Equal("relay-quota-projected", transfer.FailureCode);
+        Assert.Equal("Screenshot not sent because it would reach the monthly Relay usage limit.", transfer.FailureMessage);
+        Assert.Null(transfer.Peer);
+        transfer.Cancellation.Dispose();
+    }
+
+    [Fact]
+    public async Task OfficialRelayQuotaRejectionDoesNotApplyScreenshotCopyToFilesTransfers()
+    {
+        await using var peer = new TrackingDisposePeer();
+        var transfer = new FileTransferSession(
+            "transfer", "client", "request", null!, "download", "report.txt", 12,
+            FileTransferSourceKind.FileEntry);
+
+        await Assert.ThrowsAsync<FileTransferWebRtcException>(() => FileTransferNegotiation.RunAsync(
+            transfer,
+            true,
+            _ => Task.FromException<RelayTurnConfiguration?>(new RelayQuotaReachedException()),
+            new SinglePeerFactory(peer),
+            null!,
+            null!,
+            _ => Task.CompletedTask,
+            CancellationToken.None));
+
+        Assert.Null(transfer.FailureCode);
+        Assert.Null(transfer.FailureMessage);
+        Assert.Null(transfer.Peer);
+        transfer.Cancellation.Dispose();
     }
 
     [Fact]
@@ -240,7 +302,7 @@ public sealed class FileTransferProtocolTests
         };
         await runner.ShutdownAsync([cleanup]);
 
-        Assert.True(downloadSource.Stream.SafeFileHandle.IsClosed);
+        Assert.True(Assert.IsType<FileStream>(downloadSource.Stream).SafeFileHandle.IsClosed);
         Assert.Null(cleanup.DownloadSource);
         Assert.True(runner.TryAcquireSlot());
         runner.ReleaseSlot();

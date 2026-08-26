@@ -36,6 +36,12 @@ internal static class ProtocolFrameAssert
         ["phone.webcam.answer.result"] = ["operationId", "succeeded", "message"],
         ["phone.webcam.stop.result"] = ["operationId", "succeeded", "message"],
         ["phone.webcam.ended"] = ["operationId", "reason", "message"],
+        ["file.transfer.start.result"] = ["operationId", "succeeded", "message"],
+        ["file.transfer.offer"] = ["transferId", "direction", "fileName", "declaredSize", "offerSdp", "hostSignature"],
+        ["file.transfer.answer.result"] = ["operationId", "succeeded", "message"],
+        ["file.transfer.cancel.result"] = ["operationId", "succeeded", "message"],
+        ["file.transfer.status"] = ["transferId", "direction", "state", "bytesCompleted", "bytesTotal"],
+        ["file.transfer.result"] = ["transferId", "direction", "succeeded", "message", "fileName", "declaredSize"],
         ["audio.state"] = ["volume", "muted"]
     };
 

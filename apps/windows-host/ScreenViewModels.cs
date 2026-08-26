@@ -2,6 +2,13 @@ using System.Text.Json.Serialization;
 
 namespace VolturaAir.Host;
 
+internal static class ScreenViewScreenshotLimits
+{
+    internal const long MaximumPixels = 7680L * 4320L;
+    internal const long MaximumEncodedBytes = 64L * 1024L * 1024L;
+    internal const string Format = "image/png";
+}
+
 public enum ScreenViewRotation
 {
     Identity,
@@ -35,6 +42,13 @@ internal sealed record ScreenViewStartResult(
     RelayScreenQuality? RelayScreenQuality = null);
 
 internal sealed record ScreenViewOperationResult(bool Succeeded, string Code, string Message);
+
+internal sealed record ScreenViewScreenshotResult(
+    bool Succeeded,
+    string Code,
+    string Message,
+    string? FileName = null,
+    ScreenViewScreenshot? Screenshot = null);
 
 internal sealed record ScreenPointerDispatchResult(bool Succeeded, string Code, string Message);
 
@@ -82,6 +96,11 @@ public sealed record ScreenViewEncodedFrame(
     bool IsKeyFrame,
     ScreenViewCursorUpdate? Cursor = null);
 
+public sealed record ScreenViewScreenshot(Stream Content, long Length, int Width, int Height) : IAsyncDisposable
+{
+    public ValueTask DisposeAsync() => Content.DisposeAsync();
+}
+
 public interface IScreenViewCaptureSource
 {
     IReadOnlyList<ScreenViewSource> GetSources();
@@ -94,6 +113,10 @@ public interface IScreenViewCaptureSource
         Task.FromException<ScreenViewEncodedFrame?>(new ScreenViewCaptureException(
             "encoder-unavailable",
             "This screen capture source does not provide WebRTC video."));
+    ScreenViewScreenshot CaptureScreenshot(string sourceId, CancellationToken cancellationToken) =>
+        throw new ScreenViewCaptureException(
+            "screenshot-unavailable",
+            "This screen capture source does not provide screenshots.");
     void EndCapture();
 }
 

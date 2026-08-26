@@ -8,8 +8,10 @@ create one. Keep the shared notices in
 
 ## v1.1.2
 
+- Added a camera button to **View PC screen** so you can take a screenshot of
+  your PC display and save or share it from your phone, tablet, or other device.
 - Updated the third-party components used by Voltura Air and refreshed its
-  internal quality checks. This release does not add new user-facing features.
+  internal quality checks.
 - Improved cleanup reliability when Files, View PC screen, or Phone Webcam
   audio is stopping or cannot finish starting.
 

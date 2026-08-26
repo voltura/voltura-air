@@ -5,6 +5,8 @@ namespace VolturaAir.Host;
 
 internal static class FileTransferNegotiation
 {
+    internal const long ScreenCaptureRelayFixedAllowanceBytes = 1024 * 1024;
+
     internal static async Task<RelayTurnConfiguration?> RunAsync(
         FileTransferSession transfer,
         bool relayMode,
@@ -20,8 +22,35 @@ internal static class FileTransferNegotiation
         signaling.CancelAfter(signalingLifetime ?? FileTransferProtocol.SignalingLifetime);
         try
         {
-            RelayTurnConfiguration? relay = relayMode ? await getRelayTurnConfiguration(signaling.Token).ConfigureAwait(false) : null;
+            RelayTurnConfiguration? relay;
+            try
+            {
+                relay = relayMode ? await getRelayTurnConfiguration(signaling.Token).ConfigureAwait(false) : null;
+            }
+            catch (RelayQuotaReachedException)
+            {
+                if (transfer.SourceKind == FileTransferSourceKind.ScreenCapture)
+                {
+                    lock (transfer.Gate)
+                    {
+                        transfer.FailureCode ??= "relay-quota-projected";
+                        transfer.FailureMessage ??= "Screenshot not sent because it would reach the monthly Relay usage limit.";
+                    }
+                    throw new FileTransferWebRtcException(transfer.FailureMessage);
+                }
+                throw new FileTransferWebRtcException("Relay credentials were unavailable.");
+            }
             if (relayMode && relay is null) throw new FileTransferWebRtcException("Relay credentials were unavailable.");
+            if (relay is not null && transfer.SourceKind == FileTransferSourceKind.ScreenCapture &&
+                WouldReachRelayCutoff(relay.UsageBytes, relay.CutoffBytes, transfer.DeclaredSize))
+            {
+                lock (transfer.Gate)
+                {
+                    transfer.FailureCode ??= "relay-quota-projected";
+                    transfer.FailureMessage ??= "Screenshot not sent because it would reach the monthly Relay usage limit.";
+                }
+                throw new FileTransferWebRtcException(transfer.FailureMessage);
+            }
             IFileTransferWebRtcPeer peer = peerFactory.Create(relay is null ? null : new FileTransferPeerConfiguration(relay.HostIceServerUris, RelayOnly: true));
             bool admitted;
             lock (transfer.Gate)
@@ -70,9 +99,26 @@ internal static class FileTransferNegotiation
 
     internal static string StartTranscript(string clientId, string hostPublicKey, string operationId, string direction, string sessionId, string panel, string revision, string entryId, string fileName, long? declaredSize) =>
         $"VolturaAir file-transfer:start:v1\n{clientId}\n{hostPublicKey}\n{operationId}\n{direction}\n{sessionId}\n{panel}\n{revision}\n{entryId}\n{fileName}\n{declaredSize?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty}";
+    internal static string ScreenCaptureStartTranscript(string clientId, string hostPublicKey, string operationId, string screenOperationId, string displayId) =>
+        $"VolturaAir screen-capture-transfer:start:v1\n{clientId}\n{hostPublicKey}\n{operationId}\n{screenOperationId}\n{displayId}";
     internal static string OfferTranscript(string clientId, string hostPublicKey, string operationId, string transferId, string direction, string fileName, long declaredSize, string offerHash) =>
         $"VolturaAir file-transfer:offer:v1\n{clientId}\n{hostPublicKey}\n{operationId}\n{transferId}\n{direction}\n{fileName}\n{declaredSize.ToString(System.Globalization.CultureInfo.InvariantCulture)}\n{offerHash}";
     internal static string AnswerTranscript(string clientId, string hostPublicKey, string operationId, string transferId, string direction, string fileName, long declaredSize, string offerHash, string answerHash) =>
         $"VolturaAir file-transfer:answer:v1\n{clientId}\n{hostPublicKey}\n{operationId}\n{transferId}\n{direction}\n{fileName}\n{declaredSize.ToString(System.Globalization.CultureInfo.InvariantCulture)}\n{offerHash}\n{answerHash}";
     internal static string HashSdp(string sdp) => ScreenViewHostIdentity.Base64Url(SHA256.HashData(Encoding.UTF8.GetBytes(sdp)));
+
+    internal static bool WouldReachRelayCutoff(long usageBytes, long? cutoffBytes, long payloadBytes)
+    {
+        if (cutoffBytes is null) return false;
+        if (usageBytes >= cutoffBytes.Value) return true;
+        try
+        {
+            long projected = checked(checked(payloadBytes * 3) + ScreenCaptureRelayFixedAllowanceBytes);
+            return checked(usageBytes + projected) >= cutoffBytes.Value;
+        }
+        catch (OverflowException)
+        {
+            return true;
+        }
+    }
 }

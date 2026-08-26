@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   ChevronLeft,
+  Camera,
   Keyboard,
   Maximize2,
   Minimize2,
@@ -17,6 +18,8 @@ import {
   MousePointer2,
   Play,
   Square,
+  Share2,
+  X,
 } from "lucide-react";
 import type { ConnectionState } from "../../foundation/connection/connectionTypes";
 import type { PcProfile } from "../../foundation/connection/pcProfiles";
@@ -52,6 +55,8 @@ import {
   type ScreenViewTransform,
 } from "./screenViewTransform";
 import { useScreenViewFullscreen } from "./useScreenViewFullscreen";
+import { supportsDeviceTransferStorage } from "../../foundation/file-transfer/fileTransferDeviceStorage";
+import { useFileTransfer } from "../../foundation/file-transfer/useFileTransfer";
 import {
   screenViewQualityFromStats,
   startScreenViewQualityMonitor,
@@ -66,6 +71,7 @@ interface Props {
   clientId: string;
   onBack: () => void;
   onOpenKeyboard: () => void;
+  onTransferNotice?: (message: string, tone: "success" | "error" | "neutral") => void;
   send: (message: ClientMessage) => void;
   state: ConnectionState;
   trackpadSettings: TrackpadSettings;
@@ -91,6 +97,7 @@ export default function ScreenViewWorkspace({
   clientId,
   onBack,
   onOpenKeyboard,
+  onTransferNotice,
   send,
   state,
   trackpadSettings,
@@ -133,7 +140,9 @@ export default function ScreenViewWorkspace({
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const eventsRef = useRef<RTCDataChannel | null>(null);
   const pendingOfferRef = useRef<PendingOffer | null>(null);
-  const activeOperationRef = useRef<string | null>(null);
+  const activeOperationRef = useRef<string | null>(
+    browserPreviewState ? "browser-preview-operation" : null,
+  );
   const sourcesRequestRef = useRef<string | null>(null);
   const pendingSourceRef = useRef<PendingSource | null>(null);
   const pendingAnswerRef = useRef<string | null>(null);
@@ -163,6 +172,20 @@ export default function ScreenViewWorkspace({
   const directMoveFrameRef = useRef<number | undefined>(undefined);
   const directGuidanceTimeoutRef = useRef<number | undefined>(undefined);
   const directWheelRemainderRef = useRef({ dx: 0, dy: 0 });
+  const screenshotTransfer = useFileTransfer(
+    activePc,
+    clientId,
+    state === "paired" &&
+      capability.canView &&
+      capability.permissionGranted &&
+      capability.screenshot?.transferPermissionGranted === true,
+    send,
+    undefined,
+    onTransferNotice,
+  );
+  const supportsScreenshotStorage = supportsDeviceTransferStorage();
+  const screenshotBusy =
+    screenshotTransfer.presentation.active || screenshotTransfer.presentation.readyToSave;
 
   function applyViewTransform(next: ScreenViewTransform) {
     viewTransformRef.current = next;
@@ -1150,25 +1173,61 @@ export default function ScreenViewWorkspace({
         onTouchCancel={onScreenTouchCancel}
       >
         {viewing && (
-          <button
-            type="button"
-            className="screen-view-fullscreen-toggle"
-            onTouchStart={stopScreenGesture}
-            onTouchMove={stopScreenGesture}
-            onTouchEnd={stopScreenGesture}
-            onTouchCancel={stopScreenGesture}
-            onClick={() => {
-              if (immersive) {
-                void exitImmersive();
-              } else {
-                void enterImmersive();
-              }
-            }}
-            aria-label={immersive ? "Exit full screen" : "View PC screen full screen"}
-            title={immersive ? "Exit full screen" : "View full screen"}
-          >
-            {immersive ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
-          </button>
+          <div className="screen-view-top-actions">
+            {capability.screenshot && activeOperationRef.current && (
+              <button
+                type="button"
+                className="screen-view-camera-action"
+                onTouchStart={stopScreenGesture}
+                onTouchMove={stopScreenGesture}
+                onTouchEnd={stopScreenGesture}
+                onTouchCancel={stopScreenGesture}
+                disabled={
+                  screenshotBusy ||
+                  !supportsScreenshotStorage ||
+                  !capability.screenshot.transferPermissionGranted
+                }
+                onClick={() => {
+                  const screenOperationId = activeOperationRef.current;
+                  if (screenOperationId && selected) {
+                    screenshotTransfer.startScreenCapture({
+                      screenOperationId,
+                      displayId: selected,
+                    });
+                  }
+                }}
+                aria-label="Capture PC screenshot"
+                title={
+                  !capability.screenshot.transferPermissionGranted
+                    ? "Allow Transfer files for this device on the PC"
+                    : !supportsScreenshotStorage
+                      ? "This browser cannot stage a screenshot for Save or Share"
+                      : "Capture this PC display"
+                }
+              >
+                <Camera aria-hidden="true" />
+              </button>
+            )}
+            <button
+              type="button"
+              className="screen-view-fullscreen-toggle"
+              onTouchStart={stopScreenGesture}
+              onTouchMove={stopScreenGesture}
+              onTouchEnd={stopScreenGesture}
+              onTouchCancel={stopScreenGesture}
+              onClick={() => {
+                if (immersive) {
+                  void exitImmersive();
+                } else {
+                  void enterImmersive();
+                }
+              }}
+              aria-label={immersive ? "Exit full screen" : "View PC screen full screen"}
+              title={immersive ? "Exit full screen" : "View full screen"}
+            >
+              {immersive ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
+            </button>
+          </div>
         )}
         {viewing && (
           <div className="screen-view-overlay-actions">
@@ -1311,6 +1370,50 @@ export default function ScreenViewWorkspace({
           >
             {viewTransform.scale.toFixed(1)}×
           </button>
+        )}
+        {(screenshotTransfer.presentation.active ||
+          screenshotTransfer.presentation.readyToSave) && (
+          <div
+            className="screen-view-screenshot-transfer"
+            role="status"
+            onTouchStart={stopScreenGesture}
+            onTouchMove={stopScreenGesture}
+            onTouchEnd={stopScreenGesture}
+            onTouchCancel={stopScreenGesture}
+          >
+            <div>
+              <strong>{screenshotTransfer.presentation.fileName}</strong>
+              <span>{screenshotTransfer.presentation.message}</span>
+            </div>
+            {screenshotTransfer.presentation.active && (
+              <progress max={1} value={screenshotTransfer.presentation.progress} />
+            )}
+            {screenshotTransfer.presentation.readyToSave ? (
+              <div className="screen-view-screenshot-ready-actions">
+                <button type="button" onClick={() => void screenshotTransfer.saveReadyFile()}>
+                  <Share2 aria-hidden="true" /> Save / Share
+                </button>
+                <button
+                  type="button"
+                  className="screen-view-screenshot-icon-action"
+                  aria-label="Discard screenshot"
+                  title="Discard"
+                  onClick={() => void screenshotTransfer.discardReadyFile()}
+                >
+                  <X aria-hidden="true" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="screen-view-screenshot-icon-action"
+                aria-label="Cancel screenshot transfer"
+                onClick={screenshotTransfer.cancel}
+              >
+                <X aria-hidden="true" />
+              </button>
+            )}
+          </div>
         )}
       </div>
       <div className="screen-view-controls">

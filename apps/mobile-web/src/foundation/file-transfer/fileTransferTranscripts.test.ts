@@ -2,10 +2,25 @@ import { describe, expect, it } from "vitest";
 import {
   createFileTransferAnswerTranscript,
   createFileTransferOfferTranscript,
+  createScreenCaptureTransferStartTranscript,
   createFileTransferStartTranscript,
 } from "./fileTransferTranscripts";
 
 describe("file-transfer signed transcripts", () => {
+  it("binds a screen capture to the active screen operation and display", () => {
+    expect(
+      createScreenCaptureTransferStartTranscript(
+        "client",
+        "host-key",
+        "request",
+        "screen-request",
+        "display-1-1",
+      ),
+    ).toBe(
+      "VolturaAir screen-capture-transfer:start:v1\nclient\nhost-key\nrequest\nscreen-request\ndisplay-1-1",
+    );
+  });
+
   it("binds request, identities, metadata, and both SDP hashes exactly", () => {
     expect(
       createFileTransferStartTranscript(

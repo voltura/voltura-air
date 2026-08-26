@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text.Json;
@@ -45,6 +46,38 @@ public sealed class RelayHostConnectionTests
 
         Assert.Equal(RelayScreenQuality.Standard, configuration.EffectiveQuality);
         Assert.Single(configuration.IceServers);
+    }
+
+    [Fact]
+    public async Task OfficialTurnConfigurationRequiresProviderCutoffWhileCustomRelayDoesNot()
+    {
+        await using var official = CreateConnection(RelayEndpointDescriptor.Official());
+        await using var custom = CreateConnection();
+        using var withoutCutoff = JsonDocument.Parse(ValidTurnResponse);
+        using var withCutoff = JsonDocument.Parse(
+            ValidTurnResponse
+                .Replace("\"checkedAt\": \"2026-08-03T20:00:00Z\",", "\"checkedAt\": \"2026-08-03T20:00:00Z\",\n          \"usageWarningBytes\": 800000000000,\n          \"usageCutoffBytes\": 850000000000,", StringComparison.Ordinal)
+                .Replace("turns:turn.example.com:443?transport=tcp", "turns:turn.cloudflare.com:443?transport=tcp", StringComparison.Ordinal));
+
+        Assert.Null(official.ParseTurnConfiguration(withoutCutoff.RootElement, RelayScreenQuality.Standard));
+        RelayTurnConfiguration officialConfiguration = Assert.IsType<RelayTurnConfiguration>(
+            official.ParseTurnConfiguration(withCutoff.RootElement, RelayScreenQuality.Standard));
+        Assert.NotNull(custom.ParseTurnConfiguration(withoutCutoff.RootElement, RelayScreenQuality.Standard));
+        RelayTurnConfiguration customConfiguration = Assert.IsType<RelayTurnConfiguration>(
+            custom.ParseTurnConfiguration(withCutoff.RootElement, RelayScreenQuality.Standard));
+        Assert.Equal(850_000_000_000, officialConfiguration.CutoffBytes);
+        Assert.Null(customConfiguration.WarningBytes);
+        Assert.Null(customConfiguration.CutoffBytes);
+    }
+
+    [Theory]
+    [InlineData(true, "file-transfer", true)]
+    [InlineData(false, "file-transfer", false)]
+    [InlineData(true, null, false)]
+    public void OnlyOfficialFileTransferQuotaResponsesUseVolturaQuotaFailure(bool isOfficial, string? purpose, bool expected)
+    {
+        Assert.Equal(expected, RelayHostConnection.IsOfficialFileTransferQuotaRejection(
+            isOfficial, HttpStatusCode.TooManyRequests, purpose));
     }
 
     [Theory]
@@ -227,8 +260,8 @@ public sealed class RelayHostConnectionTests
         Assert.Equal(64, connection.PendingDeviceCloseCount);
     }
 
-    private static RelayHostConnection CreateConnection() => new(
-        new RelayEndpointDescriptor(
+    private static RelayHostConnection CreateConnection(RelayEndpointDescriptor? endpoint = null) => new(
+        endpoint ?? new RelayEndpointDescriptor(
             "custom-v1",
             new Uri("https://relay.example.com"),
             new Uri("wss://relay.example.com"),

@@ -8,13 +8,19 @@ internal sealed record RelayUsageSnapshot(
     long? WarningBytes,
     long? CutoffBytes);
 
+internal sealed class RelayQuotaReachedException : Exception
+{
+}
+
 internal sealed record RelayTurnConfiguration(
     IReadOnlyList<RelayIceServer> IceServers,
     IReadOnlyList<string> HostIceServerUris,
     DateTimeOffset ExpiresAt,
     long UsageBytes,
     DateTimeOffset CheckedAt,
-    RelayScreenQuality EffectiveQuality)
+    RelayScreenQuality EffectiveQuality,
+    long? WarningBytes = null,
+    long? CutoffBytes = null)
 {
     public int MaximumBitrate => EffectiveQuality switch
     {

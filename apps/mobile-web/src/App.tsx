@@ -954,6 +954,12 @@ export function App() {
                   setIsScreenViewOpen(false);
                   selectModeTabWithPresentationGuard("keyboard", "selector");
                 }}
+                onTransferNotice={(message, tone) => {
+                  setTransientFeedback({
+                    message,
+                    tone: tone === "neutral" ? "pending" : tone,
+                  });
+                }}
                 send={send}
                 state={state}
                 trackpadSettings={effectiveTrackpadSettings}

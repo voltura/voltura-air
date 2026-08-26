@@ -1,5 +1,7 @@
+using System.ComponentModel;
 using System.Security.Cryptography;
 using System.Text;
+using System.Runtime.InteropServices;
 
 namespace VolturaAir.Host;
 
@@ -317,6 +319,73 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         return new(true, "accepted", "The mirrored display was changed.");
     }
 
+    public async Task<ScreenViewScreenshotResult> CaptureScreenshotAsync(
+        string clientId,
+        string screenOperationId,
+        string displayId,
+        CancellationToken cancellationToken,
+        DateTimeOffset? capturedAt = null)
+    {
+        if (!_statusFactory.CanViewScreen(clientId) || !_statusFactory.CanTransferFiles(clientId))
+            return new(false, "permission-denied", "Screen viewing and file transfer must both be allowed for this device.");
+
+        ActiveView? active;
+        ScreenViewSource source;
+        lock (_gate)
+        {
+            active = _active?.ClientId == clientId &&
+                _active.OperationId == screenOperationId &&
+                string.Equals(_active.DisplayId, displayId, StringComparison.Ordinal)
+                ? _active
+                : null;
+            if (active is null)
+                return new(false, "screen-session-stale", "The requested PC display is no longer the active Screen View.");
+            source = active.Source;
+        }
+
+        ScreenViewScreenshot screenshot;
+        try
+        {
+            screenshot = await Task.Run(
+                () => _capture.CaptureScreenshot(source.Id, cancellationToken),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return new(false, "canceled", "Screenshot capture canceled.");
+        }
+        catch (ScreenViewCaptureException ex)
+        {
+            return new(false, ex.Code, ex.Message);
+        }
+        catch (Exception ex) when (ex is ExternalException or IOException or InvalidOperationException or NotSupportedException or Win32Exception or ArgumentException)
+        {
+            return new(false, "screenshot-failed", "Windows could not capture the selected display.");
+        }
+
+        bool stillAuthorized;
+        lock (_gate)
+        {
+            stillAuthorized = ReferenceEquals(_active, active) &&
+                active.OperationId == screenOperationId &&
+                string.Equals(active.DisplayId, displayId, StringComparison.Ordinal) &&
+                _statusFactory.CanViewScreen(clientId) &&
+                _statusFactory.CanTransferFiles(clientId);
+        }
+        if (!stillAuthorized)
+        {
+            await screenshot.DisposeAsync().ConfigureAwait(false);
+            return new(false, "screen-session-stale", "The active Screen View changed before the screenshot was ready.");
+        }
+
+        return new(
+            true,
+            "accepted",
+            "Screenshot ready to transfer.",
+            CreateScreenshotFileName(source.Label, capturedAt ?? DateTimeOffset.Now),
+            screenshot);
+    }
+
     public void ReportQuality(string clientId, string operationId, ScreenViewReceiverQuality quality)
     {
         ActiveView? active;
@@ -489,6 +558,14 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         extent <= 1
             ? 0
             : (int)Math.Round((double)(coordinate - origin) * ushort.MaxValue / (extent - 1), MidpointRounding.AwayFromZero);
+
+    internal static string CreateScreenshotFileName(string displayLabel, DateTimeOffset capturedAt)
+    {
+        char[] invalid = Path.GetInvalidFileNameChars();
+        string safeLabel = string.Concat(displayLabel.Select(character => invalid.Contains(character) ? '-' : character));
+        safeLabel = string.IsNullOrWhiteSpace(safeLabel) ? "Display" : safeLabel.Trim();
+        return $"Voltura Air - {safeLabel} - {capturedAt:yyyy-MM-dd HH-mm-ss}.png";
+    }
 
     private async Task SendFramesAsync(ActiveView active, CancellationToken cancellationToken)
     {

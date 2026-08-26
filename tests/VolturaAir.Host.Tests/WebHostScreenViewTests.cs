@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text;
@@ -8,6 +9,172 @@ namespace VolturaAir.Host.Tests;
 [Collection(AppPermissionSettingsCollection.Name)]
 public sealed class WebHostScreenViewTests : WebHostServiceTestBase
 {
+    [Fact]
+    public async Task ActiveScreenCanPrepareAnAuthenticatedMemoryOnlyScreenshotTransfer()
+    {
+        HostPermissionSet originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true, AllowFileTransfer = true });
+            var capture = new FakeScreenViewCaptureSource();
+            await using var fixture = await WebHostFixture.StartAsync(screenViewCapture: capture);
+            using var reconnectKey = new PairingTestKey();
+            using WebSocket control = await ConnectAsync(fixture.WebHost);
+            await PairAsync(control, fixture.Manager, reconnectKey);
+            JsonElement status = await SendUntilTypeAsync(control, new { type = "status.get" }, "status");
+            JsonElement screenshotCapability = status.GetProperty("capabilities").GetProperty("screenView").GetProperty("screenshot");
+            Assert.True(screenshotCapability.GetProperty("transferPermissionGranted").GetBoolean());
+            Assert.Equal("image/png", screenshotCapability.GetProperty("format").GetString());
+            Assert.Equal(33_177_600, screenshotCapability.GetProperty("maxPixels").GetInt64());
+            Assert.Equal(64L * 1024 * 1024, screenshotCapability.GetProperty("maxBytes").GetInt64());
+
+            const string screenOperationId = "screen-screenshot-start";
+            const string displayId = "display-1";
+            JsonElement start = await StartAsync(control, reconnectKey, screenOperationId, displayId);
+            const string answer = "v=0\r\no=phone 1 1 IN IP4 127.0.0.1\r\ns=answer\r\nt=0 0\r\n";
+            string answerTranscript = $"VolturaAir screen-view:answer:v2:client-screen:{screenOperationId}:{displayId}:{HashSdp(start.GetProperty("offerSdp").GetString()!)}:{HashSdp(answer)}";
+            JsonElement answered = await SendUntilTypeAsync(control, new
+            {
+                type = "screen.view.answer",
+                operationId = screenOperationId,
+                answerSdp = answer,
+                clientSignature = reconnectKey.SignPayload(answerTranscript)
+            }, "screen.view.answer.result");
+            Assert.True(answered.GetProperty("succeeded").GetBoolean());
+            await capture.Captured.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            const string transferOperationId = "screenshot-transfer-1";
+            string transferTranscript = FileTransferNegotiation.ScreenCaptureStartTranscript(
+                "client-screen",
+                fixture.Manager.HostIdentity.PublicKey,
+                transferOperationId,
+                screenOperationId,
+                displayId);
+            JsonElement transfer = await SendUntilTypeAsync(control, new
+            {
+                type = "file.transfer.start",
+                operationId = transferOperationId,
+                direction = "download",
+                source = "screen-capture",
+                screenOperationId,
+                displayId,
+                clientSignature = reconnectKey.SignPayload(transferTranscript)
+            }, "file.transfer.start.result");
+
+            Assert.True(transfer.GetProperty("succeeded").GetBoolean());
+            Assert.Equal(1, capture.ScreenshotCaptureCalls);
+            Assert.Equal(displayId, capture.LastScreenshotSourceId);
+            Assert.NotNull(transfer.GetProperty("transferId").GetString());
+
+            JsonElement replay = await SendUntilTypeAsync(control, new
+            {
+                type = "file.transfer.start",
+                operationId = transferOperationId,
+                direction = "download",
+                source = "screen-capture",
+                screenOperationId,
+                displayId,
+                clientSignature = reconnectKey.SignPayload(transferTranscript)
+            }, "file.transfer.start.result");
+
+            Assert.False(replay.GetProperty("succeeded").GetBoolean());
+            Assert.Equal("duplicate-request", replay.GetProperty("code").GetString());
+            Assert.Equal(1, capture.ScreenshotCaptureCalls);
+
+            const string busyOperationId = "screenshot-transfer-busy";
+            string busyTranscript = FileTransferNegotiation.ScreenCaptureStartTranscript(
+                "client-screen",
+                fixture.Manager.HostIdentity.PublicKey,
+                busyOperationId,
+                screenOperationId,
+                displayId);
+            JsonElement busy = await SendUntilTypeAsync(control, new
+            {
+                type = "file.transfer.start",
+                operationId = busyOperationId,
+                direction = "download",
+                source = "screen-capture",
+                screenOperationId,
+                displayId,
+                clientSignature = reconnectKey.SignPayload(busyTranscript)
+            }, "file.transfer.start.result");
+
+            Assert.False(busy.GetProperty("succeeded").GetBoolean());
+            Assert.Equal("busy", busy.GetProperty("code").GetString());
+            Assert.Equal(1, capture.ScreenshotCaptureCalls);
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public async Task NativeScreenshotFailureReturnsABoundedResult()
+    {
+        HostPermissionSet originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true, AllowFileTransfer = true });
+            var capture = new FakeScreenViewCaptureSource { ScreenshotFailure = new Win32Exception("Injected capture failure.") };
+            await using var fixture = await WebHostFixture.StartAsync(screenViewCapture: capture);
+            using var reconnectKey = new PairingTestKey();
+            using WebSocket control = await ConnectAsync(fixture.WebHost);
+            await PairAsync(control, fixture.Manager, reconnectKey);
+
+            const string screenOperationId = "screen-screenshot-failure";
+            const string displayId = "display-1";
+            JsonElement start = await StartAsync(control, reconnectKey, screenOperationId, displayId);
+            const string answer = "v=0\r\no=phone 1 1 IN IP4 127.0.0.1\r\ns=answer\r\nt=0 0\r\n";
+            string answerTranscript = $"VolturaAir screen-view:answer:v2:client-screen:{screenOperationId}:{displayId}:{HashSdp(start.GetProperty("offerSdp").GetString()!)}:{HashSdp(answer)}";
+            JsonElement answered = await SendUntilTypeAsync(control, new
+            {
+                type = "screen.view.answer",
+                operationId = screenOperationId,
+                answerSdp = answer,
+                clientSignature = reconnectKey.SignPayload(answerTranscript)
+            }, "screen.view.answer.result");
+            Assert.True(answered.GetProperty("succeeded").GetBoolean());
+            await capture.Captured.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            const string transferOperationId = "screenshot-transfer-failure";
+            string transferTranscript = FileTransferNegotiation.ScreenCaptureStartTranscript(
+                "client-screen", fixture.Manager.HostIdentity.PublicKey, transferOperationId, screenOperationId, displayId);
+            JsonElement transfer = await SendUntilTypeAsync(control, new
+            {
+                type = "file.transfer.start",
+                operationId = transferOperationId,
+                direction = "download",
+                source = "screen-capture",
+                screenOperationId,
+                displayId,
+                clientSignature = reconnectKey.SignPayload(transferTranscript)
+            }, "file.transfer.start.result");
+
+            Assert.False(transfer.GetProperty("succeeded").GetBoolean());
+            Assert.Equal("screenshot-failed", transfer.GetProperty("code").GetString());
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public void ScreenshotFileNameUsesTheDisplayLabelAndLocalCaptureTime()
+    {
+        Assert.Equal(
+            "Voltura Air - Display 1 - 2026-08-26 14-32-07.png",
+            ScreenViewCoordinator.CreateScreenshotFileName(
+                "Display 1",
+                new DateTimeOffset(2026, 8, 26, 14, 32, 7, TimeSpan.FromHours(2))));
+        Assert.Equal(
+            "Voltura Air - Display-1 - 2026-08-26 14-32-07.png",
+            ScreenViewCoordinator.CreateScreenshotFileName(
+                "Display/1",
+                new DateTimeOffset(2026, 8, 26, 14, 32, 7, TimeSpan.FromHours(2))));
+    }
+
     [Fact]
     public async Task TestServerBindsOfferAndAnswerToThePairedClientAndReleasesCaptureOnStop()
     {
@@ -348,8 +515,11 @@ public sealed class WebHostScreenViewTests : WebHostServiceTestBase
             [new("display-1", "Display 1", 800, 600, true), new("display-2", "Display 2", 1280, 720, false)];
         public TaskCompletionSource Captured { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int EndCaptureCalls { get; private set; }
+        public int ScreenshotCaptureCalls { get; private set; }
+        public string? LastScreenshotSourceId { get; private set; }
         public IReadOnlyList<ScreenViewSource> Sources { get; set; } = DefaultSources;
         public ScreenViewCaptureException? DiscoveryFailure { get; set; }
+        public Exception? ScreenshotFailure { get; set; }
         public IReadOnlyList<ScreenViewSource> GetSources() =>
             DiscoveryFailure is null ? Sources : throw DiscoveryFailure;
         public Task<ScreenViewEncodedFrame?> CaptureVideoAsync(string sourceId, ScreenViewCaptureProfile profile, int bitrate, bool forceKeyFrame, CancellationToken cancellationToken)
@@ -357,6 +527,15 @@ public sealed class WebHostScreenViewTests : WebHostServiceTestBase
             cancellationToken.ThrowIfCancellationRequested();
             Captured.TrySetResult();
             return Task.FromResult<ScreenViewEncodedFrame?>(new([0, 0, 0, 1, 0x65, 1], 800, 600, 30, true));
+        }
+        public ScreenViewScreenshot CaptureScreenshot(string sourceId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ScreenshotCaptureCalls++;
+            LastScreenshotSourceId = sourceId;
+            if (ScreenshotFailure is not null) throw ScreenshotFailure;
+            var content = new MemoryStream([137, 80, 78, 71], writable: false);
+            return new(content, content.Length, 800, 600);
         }
         public void EndCapture() => EndCaptureCalls++;
     }

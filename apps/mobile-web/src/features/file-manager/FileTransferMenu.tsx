@@ -3,8 +3,11 @@ import { ArrowRightLeft, Download, Share2, Upload, X } from "lucide-react";
 import type { PcProfile } from "../../foundation/connection/pcProfiles";
 import type { ClientMessage } from "../../foundation/protocol/messages";
 import { ModalDialog } from "../../ui/overlays/ModalDialog";
-import { supportsDeviceTransferStorage } from "./fileTransferDeviceStorage";
-import { useFileTransfer, type FileTransferTarget } from "./useFileTransfer";
+import { supportsDeviceTransferStorage } from "../../foundation/file-transfer/fileTransferDeviceStorage";
+import {
+  useFileTransfer,
+  type FileTransferTarget,
+} from "../../foundation/file-transfer/useFileTransfer";
 
 export function FileTransferMenu({
   activePc,

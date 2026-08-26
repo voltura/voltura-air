@@ -134,6 +134,53 @@ describe("connection protocol policy", () => {
     ).toBeNull();
   });
 
+  it("accepts only the exact optional screenshot capability", () => {
+    const capability = {
+      enabled: true,
+      permissionGranted: true,
+      canView: true,
+      requiresRepair: false,
+      encrypted: true,
+      maxWidth: 1920,
+      maxHeight: 1080,
+      maxFramesPerSecond: 30,
+    };
+    const screenshot = {
+      transferPermissionGranted: true,
+      format: "image/png",
+      maxPixels: 33_177_600,
+      maxBytes: 64 * 1024 * 1024,
+    };
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          type: "status",
+          connected: true,
+          capabilities: { screenView: { ...capability, screenshot } },
+        }),
+      ),
+    ).not.toBeNull();
+
+    for (const invalidScreenshot of [
+      true,
+      { ...screenshot, transferPermissionGranted: "yes" },
+      { ...screenshot, format: "image/jpeg" },
+      { ...screenshot, maxPixels: -1 },
+      { ...screenshot, maxBytes: 64 * 1024 * 1024 + 1 },
+      { ...screenshot, extra: true },
+    ]) {
+      expect(
+        parseServerMessage(
+          JSON.stringify({
+            type: "status",
+            connected: true,
+            capabilities: { screenView: { ...capability, screenshot: invalidScreenshot } },
+          }),
+        ),
+      ).toBeNull();
+    }
+  });
+
   it("accepts enhanced capability authority only with an explicit boolean", () => {
     expect(
       parseServerMessage(

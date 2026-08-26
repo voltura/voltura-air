@@ -154,6 +154,14 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - One authorized device can view one selected display at a time. Multiple
   displays are selectable before or during viewing; another device receives a
   busy result. Leaving the workspace stops viewing.
+- While a display is live, a camera action can copy one cursor-free frame at the
+  selected display's native orientation and resolution, encode it as lossless
+  PNG, and send it through the existing one-file Save/Share flow. It requires
+  both Screen viewing and Transfer files permission, but not Browse files. The
+  host accepts at most 33,177,600 pixels and 64 MiB of encoded PNG, holds no PC
+  temporary file or history, and keeps the live mirror running on success or
+  failure. The device keeps only the existing per-tab OPFS partial until Save,
+  Share, Discard, cancellation, navigation, disconnect, reload, or failure.
 - Windows Desktop Duplication supplies GPU display frames and cursor metadata.
   D3D11 converts frames to NV12 and a capability-selected hardware Media
   Foundation transform encodes baseline H.264 using the selected display's

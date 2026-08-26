@@ -972,6 +972,22 @@ function isScreenViewCapability(value: unknown): boolean {
     isOptional(value, "receiverQualityFeedback", (candidate) => candidate === true) &&
     isOptional(
       value,
+      "screenshot",
+      (candidate) =>
+        isRecord(candidate) &&
+        hasOnlyFields(candidate, [
+          "transferPermissionGranted",
+          "format",
+          "maxPixels",
+          "maxBytes",
+        ]) &&
+        typeof candidate.transferPermissionGranted === "boolean" &&
+        candidate.format === "image/png" &&
+        candidate.maxPixels === 33_177_600 &&
+        candidate.maxBytes === 64 * 1024 * 1024,
+    ) &&
+    isOptional(
+      value,
       "directPointer",
       (candidate) => isRecord(candidate) && typeof candidate.permissionGranted === "boolean",
     )

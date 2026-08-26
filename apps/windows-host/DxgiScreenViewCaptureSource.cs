@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -107,6 +108,59 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
         }
     }
 
+    public ScreenViewScreenshot CaptureScreenshot(string sourceId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Bitmap? snapshot = null;
+        try
+        {
+            lock (_gate)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                OutputLocation? output = EnumerateOutputs().FirstOrDefault(item =>
+                    string.Equals(item.Id, sourceId, StringComparison.Ordinal));
+                if (output is null)
+                    throw new ScreenViewCaptureException("display-unavailable", "The selected display is no longer available.");
+                if (checked((long)output.Width * output.Height) > ScreenViewScreenshotLimits.MaximumPixels)
+                    throw new ScreenViewCaptureException("screenshot-too-large", "This display is too large for a bounded native-resolution screenshot.");
+                snapshot = CaptureDesktopBitmap(output);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+#pragma warning disable CA2000 // Ownership is transferred through ScreenViewScreenshot on the successful return path.
+            var encoded = new BoundedScreenshotStream(ScreenViewScreenshotLimits.MaximumEncodedBytes, cancellationToken);
+#pragma warning restore CA2000
+            try
+            {
+                snapshot.Save(encoded, ImageFormat.Png);
+                if (encoded.LimitExceeded)
+                    throw new ScreenViewCaptureException("screenshot-too-large", "The PNG screenshot exceeds the 64 MiB transfer limit.");
+                encoded.Position = 0;
+                return new ScreenViewScreenshot(encoded, encoded.Length, snapshot.Width, snapshot.Height);
+            }
+            catch (Exception ex) when (ex is ExternalException or IOException or NotSupportedException)
+            {
+                encoded.Dispose();
+                if (encoded.LimitExceeded)
+                    throw new ScreenViewCaptureException("screenshot-too-large", "The PNG screenshot exceeds the 64 MiB transfer limit.", ex);
+                throw new ScreenViewCaptureException("screenshot-encode-failed", "Windows could not encode the PC screenshot.", ex);
+            }
+            catch
+            {
+                encoded.Dispose();
+                throw;
+            }
+        }
+        catch (Exception ex) when (ex is Win32Exception or ArgumentException)
+        {
+            throw new ScreenViewCaptureException("screenshot-failed", "Windows could not capture the selected display.", ex);
+        }
+        finally
+        {
+            snapshot?.Dispose();
+        }
+    }
+
     public void EndCapture()
     {
         lock (_gate) EndCaptureCore();
@@ -160,6 +214,28 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
             output?.Dispose();
             adapter?.Dispose();
             factory?.Dispose();
+        }
+    }
+
+    private static Bitmap CaptureDesktopBitmap(OutputLocation output)
+    {
+        var bitmap = new Bitmap(output.Width, output.Height, PixelFormat.Format32bppArgb);
+        try
+        {
+            using Graphics graphics = Graphics.FromImage(bitmap);
+            graphics.CopyFromScreen(
+                output.Left,
+                output.Top,
+                0,
+                0,
+                bitmap.Size,
+                CopyPixelOperation.SourceCopy);
+            return bitmap;
+        }
+        catch
+        {
+            bitmap.Dispose();
+            throw;
         }
     }
 
@@ -1093,5 +1169,38 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
             Visible == other.Visible && X == other.X && Y == other.Y && HotSpotX == other.HotSpotX && HotSpotY == other.HotSpotY &&
             Width == other.Width && Height == other.Height && ((PngBytes is null && other.PngBytes is null) ||
                 (PngBytes is not null && other.PngBytes is not null && PngBytes.AsSpan().SequenceEqual(other.PngBytes)));
+    }
+
+    internal sealed class BoundedScreenshotStream(long maximumLength, CancellationToken cancellationToken) : MemoryStream
+    {
+        public bool LimitExceeded { get; private set; }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            EnsureCapacityFor(count);
+            base.Write(buffer, offset, count);
+        }
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            EnsureCapacityFor(buffer.Length);
+            base.Write(buffer);
+        }
+
+        public override void WriteByte(byte value)
+        {
+            EnsureCapacityFor(1);
+            base.WriteByte(value);
+        }
+
+        private void EnsureCapacityFor(int count)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (count < 0 || Position > maximumLength - count)
+            {
+                LimitExceeded = true;
+                throw new IOException("The screenshot exceeded its encoded-size limit.");
+            }
+        }
     }
 }

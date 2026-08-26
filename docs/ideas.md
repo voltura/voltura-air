@@ -16,7 +16,6 @@ capabilities from the broader mobile-app list are not implemented:
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Running-process management | Consider a bounded process list with explicit, safe actions only after defining identity, elevation, confirmation, stale results, and cancellation behavior.                                            |
 | Terminal or shell access   | Keep this research-gated until authentication, command policy, output limits, working-directory restrictions, lifetime, privacy, and audit behavior are defined.                                        |
-| PC screenshots             | Consider an explicit action to capture a selected PC display or current view and deliver it to the mobile app, with permission, size, transient-storage, and cleanup limits.                            |
 | Clipboard synchronization  | One-shot clipboard reads and writes are supported, but continuous or background synchronization is not. Any future sharing must remain explicit, foreground, and privacy-bounded.                       |
 | Reusable custom macros     | Custom Screens provide individual configured actions, not a general multi-step macro runner. Consider bounded workflows only with explicit confirmation, cancellation, and no arbitrary code execution. |
 

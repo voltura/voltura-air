@@ -156,52 +156,6 @@ public sealed class PhoneWebcamFeatureTests
             await waiting.WaitAsync(TimeSpan.FromSeconds(2)));
     }
 
-    [Theory]
-    [InlineData("{\"installed\":true,\"cleanupRequired\":true,\"updateRequired\":false}", true, true, false)]
-    [InlineData("{\"installed\":true,\"cleanupRequired\":true,\"updateRequired\":true}", true, true, true)]
-    [InlineData("{\"installed\":false,\"cleanupRequired\":false,\"updateRequired\":false}", false, false, false)]
-    [InlineData("{\"installed\":false,\"cleanupRequired\":true,\"updateRequired\":false}", false, true, false)]
-    public void SetupStatusAcceptsOnlyTheBoundedStateBooleans(
-        string json,
-        bool expectedInstalled,
-        bool expectedCleanupRequired,
-        bool expectedUpdateRequired)
-    {
-        Assert.True(PhoneWebcamSetup.TryReadStatus(
-            json,
-            out bool installed,
-            out bool cleanupRequired,
-            out bool updateRequired));
-        Assert.Equal(expectedInstalled, installed);
-        Assert.Equal(expectedCleanupRequired, cleanupRequired);
-        Assert.Equal(expectedUpdateRequired, updateRequired);
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("not json")]
-    [InlineData("{\"installed\":\"true\",\"cleanupRequired\":true,\"updateRequired\":false}")]
-    [InlineData("{\"installed\":true}")]
-    [InlineData("{\"installed\":true,\"cleanupRequired\":false,\"updateRequired\":false}")]
-    [InlineData("{\"installed\":false,\"cleanupRequired\":false,\"updateRequired\":true}")]
-    [InlineData("{\"other\":true}")]
-    public void SetupStatusRejectsMalformedOrWrongShapeOutput(string output)
-    {
-        Assert.False(PhoneWebcamSetup.TryReadStatus(output, out _, out _, out _));
-    }
-
-    [Fact]
-    public async Task MissingOptionalSetupHelperKeepsTheProductionFeatureAvailableForMaintenanceGuidance()
-    {
-        var setup = new PhoneWebcamSetup(Path.Combine(Path.GetTempPath(), $"missing-webcam-{Guid.NewGuid():N}.exe"));
-
-        PhoneWebcamFeatureStatus status = await setup.GetStatusAsync(CancellationToken.None);
-        await using PhoneWebcamFeature feature = await PhoneWebcamFeature.CreateAsync(setup);
-
-        Assert.Equal(PhoneWebcamFeatureState.NotInstalled, status.State);
-        Assert.Equal(status, feature.Status);
-    }
-
     [Fact]
     public void LatestFrameQueueDisposesFramesPublishedAfterShutdown()
     {

@@ -84,11 +84,23 @@ if ($LASTEXITCODE -ne 0) { throw "Phone webcam media source build failed with ex
 $mediaSourcePath = Join-Path $mediaSourceOutput "VirtualCameraMediaSource.dll"
 $setupIntermediate = Join-Path $intermediateRoot "SetupHelper"
 New-Item -ItemType Directory -Force -Path $setupIntermediate | Out-Null
+$componentRevision = & (Join-Path $PSScriptRoot "get-phone-webcam-component-revision.ps1") `
+    -NativeRoot $nativeRoot `
+    -BuildScriptPath $PSCommandPath
+if ($LASTEXITCODE -ne 0 -or $componentRevision -notmatch '^[0-9a-f]{64}$') {
+    throw "The Phone webcam component revision could not be computed."
+}
+$revisionFile = Join-Path $setupIntermediate "ComponentRevision.generated.txt"
+[System.IO.File]::WriteAllText(
+    $revisionFile,
+    $componentRevision,
+    [System.Text.UTF8Encoding]::new($false))
 $resourceFile = Join-Path $setupIntermediate "EmbeddedMediaSource.generated.rc"
 $resourceLiteral = $mediaSourcePath.Replace("\", "/")
+$revisionLiteral = $revisionFile.Replace("\", "/")
 [System.IO.File]::WriteAllText(
     $resourceFile,
-    "#define IDR_MEDIA_SOURCE 101`r`nIDR_MEDIA_SOURCE RCDATA `"$resourceLiteral`"`r`n",
+    "#define IDR_MEDIA_SOURCE 101`r`n#define IDR_COMPONENT_REVISION 102`r`nIDR_MEDIA_SOURCE RCDATA `"$resourceLiteral`"`r`nIDR_COMPONENT_REVISION RCDATA `"$revisionLiteral`"`r`n",
     [System.Text.UTF8Encoding]::new($false))
 & $msbuildPath $setupProject @common "/p:OutDir=$setupOutput\" "/p:IntDir=$setupIntermediate\" "/p:PhoneWebcamResourceFile=$resourceFile"
 if ($LASTEXITCODE -ne 0) { throw "Phone webcam setup helper build failed with exit code $LASTEXITCODE." }
@@ -112,6 +124,10 @@ if ($subsystem -ne 2) {
 $status = Invoke-WindowlessSetupHelper -FilePath $setupHelper -Arguments @("status")
 if ($status.ExitCode -notin 0, 1 -or $status.Output -notmatch '^\{"installed":') {
     throw "The windowless Phone webcam setup helper did not preserve its status output contract."
+}
+$revision = Invoke-WindowlessSetupHelper -FilePath $setupHelper -Arguments @("revision")
+if ($revision.ExitCode -ne 0 -or $revision.Output.Trim() -ne $componentRevision) {
+    throw "The Phone webcam setup helper did not preserve its deterministic component revision."
 }
 $replacementBackup = Join-Path $setupIntermediate "VirtualCameraMediaSource.security-test-backup.dll"
 try {

@@ -223,3 +223,8 @@ Installer maintenance uses the newly packaged helper for this cleanup, so an
 upgrade does not depend on the behavior of the previously installed helper. The
 uninstaller likewise runs a temporary packaged copy, allowing the protected helper
 and its directory to be removed immediately.
+The packaged helper also compares the installed component's deterministic native
+source revision and embedded media-source payload before maintenance. An unchanged,
+healthy Phone Webcam component is retained without UAC; a changed revision,
+incomplete state, or failed integrity check uses the existing remove/install
+transaction and rollback behavior.

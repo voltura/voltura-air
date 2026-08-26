@@ -1,16 +1,15 @@
 using System.Diagnostics;
-using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace VolturaAir.Host.Features.PhoneWebcam;
 
 internal sealed class PhoneWebcamSetup : IPhoneWebcamSetup
 {
-    private const long MaximumHelperBytes = 32 * 1024 * 1024;
     private static readonly TimeSpan HelperTimeout = TimeSpan.FromSeconds(10);
     private const string ProtectedDirectoryName = "Voltura Air Webcam";
     private const string SetupFileName = "VolturaAir.WebcamSetup.exe";
     private readonly string _setupPath;
+    private readonly string _packagedSetupPath;
     private readonly bool _validateProtectedPath;
 
     internal PhoneWebcamSetup(string? setupPath = null)
@@ -20,6 +19,7 @@ internal sealed class PhoneWebcamSetup : IPhoneWebcamSetup
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
             ProtectedDirectoryName,
             SetupFileName);
+        _packagedSetupPath = Path.Combine(AppContext.BaseDirectory, "PhoneWebcam", SetupFileName);
     }
 
     public async Task<PhoneWebcamFeatureStatus> GetStatusAsync(CancellationToken cancellationToken)
@@ -38,19 +38,28 @@ internal sealed class PhoneWebcamSetup : IPhoneWebcamSetup
                 "Voltura Air could not verify the Phone Webcam installation. Run installer maintenance to repair it.");
         }
 
-        if (_validateProtectedPath && !MatchesPackagedHelper())
+        ProcessResult packagedRevisionResult = await RunAsync(
+            _packagedSetupPath,
+            "revision",
+            cancellationToken).ConfigureAwait(false);
+        if (!TryReadRevision(packagedRevisionResult.Output, out string packagedRevision))
         {
             return new PhoneWebcamFeatureStatus(
-                PhoneWebcamFeatureState.UpdateRequired,
-                "Phone Webcam does not match this Voltura Air version. Run installer maintenance to repair it.");
+                PhoneWebcamFeatureState.Unavailable,
+                "Voltura Air could not verify its packaged Phone Webcam component. Reinstall Voltura Air.");
         }
 
-        ProcessResult result = await RunAsync("status", cancellationToken).ConfigureAwait(false);
-        if (TryReadStatus(result.Output, out bool installed, out bool cleanupRequired, out bool updateRequired))
+        ProcessResult result = await RunAsync(_setupPath, "status", cancellationToken).ConfigureAwait(false);
+        if (TryReadStatus(
+                result.Output,
+                out bool installed,
+                out bool cleanupRequired,
+                out bool updateRequired,
+                out string? installedRevision))
         {
             if (installed)
             {
-                if (updateRequired)
+                if (updateRequired || !IsCurrentRevision(installedRevision, packagedRevision))
                 {
                     return new PhoneWebcamFeatureStatus(
                         PhoneWebcamFeatureState.UpdateRequired,
@@ -93,30 +102,6 @@ internal sealed class PhoneWebcamSetup : IPhoneWebcamSetup
     private static bool IsReparsePoint(string path) =>
         (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
 
-    private bool MatchesPackagedHelper()
-    {
-        try
-        {
-            string packaged = Path.Combine(AppContext.BaseDirectory, "PhoneWebcam", SetupFileName);
-            if (!File.Exists(packaged) || IsReparsePoint(packaged)) return false;
-            return CryptographicOperations.FixedTimeEquals(
-                HashBoundedFile(packaged),
-                HashBoundedFile(_setupPath));
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Security.SecurityException)
-        {
-            return false;
-        }
-    }
-
-    private static byte[] HashBoundedFile(string path)
-    {
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        if (stream.Length is <= 0 or > MaximumHelperBytes)
-            throw new IOException("The setup helper size is invalid.");
-        return SHA256.HashData(stream);
-    }
-
     public Task<PhoneWebcamFeatureStatus> InstallAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -133,7 +118,10 @@ internal sealed class PhoneWebcamSetup : IPhoneWebcamSetup
             "Run Voltura Air installer maintenance to remove Phone Webcam."));
     }
 
-    private async Task<ProcessResult> RunAsync(string argument, CancellationToken cancellationToken)
+    private static async Task<ProcessResult> RunAsync(
+        string filePath,
+        string argument,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -142,7 +130,7 @@ internal sealed class PhoneWebcamSetup : IPhoneWebcamSetup
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = _setupPath,
+                    FileName = filePath,
                     Arguments = argument,
                     UseShellExecute = false,
                     CreateNoWindow = true,
@@ -185,11 +173,13 @@ internal sealed class PhoneWebcamSetup : IPhoneWebcamSetup
         string output,
         out bool installed,
         out bool cleanupRequired,
-        out bool updateRequired)
+        out bool updateRequired,
+        out string? revision)
     {
         installed = false;
         cleanupRequired = false;
         updateRequired = false;
+        revision = null;
         try
         {
             using JsonDocument document = JsonDocument.Parse(output);
@@ -200,13 +190,38 @@ internal sealed class PhoneWebcamSetup : IPhoneWebcamSetup
                 return false;
             }
 
-            return (!installed || cleanupRequired) && (installed || !updateRequired);
+            if (document.RootElement.TryGetProperty("revision", out JsonElement revisionElement))
+            {
+                if (revisionElement.ValueKind == JsonValueKind.String)
+                {
+                    string? value = revisionElement.GetString();
+                    if (value is null || !TryReadRevision(value, out revision)) return false;
+                }
+                else if (revisionElement.ValueKind != JsonValueKind.Null)
+                {
+                    return false;
+                }
+            }
+
+            return (!installed || cleanupRequired) && (installed || !updateRequired) &&
+                (!installed || !string.IsNullOrEmpty(revision) || updateRequired);
         }
         catch (JsonException)
         {
             return false;
         }
     }
+
+    internal static bool TryReadRevision(string output, out string revision)
+    {
+        revision = output.Trim();
+        return revision.Length == 64 && revision.All(character =>
+            character is >= '0' and <= '9' or >= 'a' and <= 'f');
+    }
+
+    internal static bool IsCurrentRevision(string? installedRevision, string packagedRevision) =>
+        !string.IsNullOrEmpty(installedRevision) &&
+        string.Equals(installedRevision, packagedRevision, StringComparison.Ordinal);
 
     private static bool TryReadBoolean(JsonElement root, string name, out bool value)
     {

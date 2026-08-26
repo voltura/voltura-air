@@ -468,6 +468,18 @@ Section /o "Phone Webcam" SEC_PHONE_WEBCAM
   ${If} $WebcamCleanupRequired != 1
     Goto phone_webcam_install_packaged
   ${EndIf}
+  nsExec::ExecToStack '"$PLUGINSDIR\VolturaAir.WebcamSetup.exe" maintenance-required'
+  Pop $0
+  Pop $1
+  ${If} $0 == 1
+    DetailPrint "The installed Phone Webcam component is already current."
+    Goto phone_webcam_maintenance_done
+  ${ElseIf} $0 != 0
+    Call RollbackPromotedInstall
+    Pop $2
+    MessageBox MB_ICONSTOP "Voltura Air could not verify whether the installed Phone Webcam component requires maintenance."
+    Abort "Phone Webcam maintenance state is unavailable."
+  ${EndIf}
   IfFileExists "${WEBCAM_PROTECTED_SETUP}" phone_webcam_preserve_existing phone_webcam_check_existing
 phone_webcam_preserve_existing:
   ClearErrors
@@ -524,6 +536,7 @@ phone_webcam_install_packaged:
     MessageBox MB_ICONSTOP "Phone Webcam installation did not complete. The previous app and any prior valid component were restored; incomplete webcam state was safely removed. Approve the administrator request and run setup again."
     Abort "Phone Webcam component installation failed."
   ${EndIf}
+phone_webcam_maintenance_done:
 SectionEnd
 
 Section -ApplyPhoneWebcamRemoval

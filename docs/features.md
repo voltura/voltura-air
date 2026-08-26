@@ -237,8 +237,11 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   **Installed apps → Voltura Air → Modify** reopens that same retained installer,
   preselects Phone Webcam from its protected installation state, and applies checking
   or unchecking through the existing install/repair/removal transaction. The optional
-  installer component owns those changes through an explicit UAC boundary; the
-  per-user host never elevates its LocalAppData executable.
+  installer component owns those changes through an explicit UAC boundary. App
+  upgrades compare a source-derived Phone Webcam component revision and leave an
+  installed, verified current component untouched; UAC is requested only when the
+  component revision changed or its protected installation needs repair or removal.
+  The per-user host never elevates its LocalAppData executable.
 - **Use phone as webcam** follows the paired device's profile or explicit Custom
   value. Remote controls blocks it; My device allows it.
   Removing a pairing, revoking permission, stopping from the tray, host shutdown,

@@ -113,7 +113,7 @@
 
   <Target Name="BuildPhoneWebcamDevelopmentPayload"
           AfterTargets="Build"
-          Inputs="$(MSBuildThisFileDirectory)..\..\scripts\build-phone-webcam-native.ps1;@(PhoneWebcamNativeBuildInput)"
+          Inputs="$(MSBuildThisFileDirectory)..\..\scripts\build-phone-webcam-native.ps1;$(MSBuildThisFileDirectory)..\..\scripts\get-phone-webcam-component-revision.ps1;@(PhoneWebcamNativeBuildInput)"
           Outputs="$(OutDir)PhoneWebcam\VolturaAir.WebcamSetup.exe"
           Condition="'$(DesignTimeBuild)' != 'true' AND
                      '$(Configuration)' != 'Release' AND

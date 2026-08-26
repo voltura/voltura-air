@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 const read = async (path) => readFile(new URL(`../../${path}`, import.meta.url), "utf8");
 
@@ -138,6 +143,11 @@ test("production setup is idempotent on removal and retains transactional fault 
   assert.match(setup, /cleanupRequired/u);
   assert.match(setup, /FileMatchesPackagedSource/u);
   assert.match(setup, /updateRequired/u);
+  assert.match(setup, /ComponentRevisionResource = 102/u);
+  assert.match(setup, /LOAD_LIBRARY_AS_DATAFILE_EXCLUSIVE \| LOAD_LIBRARY_AS_IMAGE_RESOURCE/u);
+  assert.match(setup, /command == L"revision"/u);
+  assert.match(setup, /command == L"maintenance-required"/u);
+  assert.match(setup, /FileMatchesExecutableResource/u);
   assert.match(setup, /InstallSystemFilesElevated\(arguments\[2\]\)/u);
   assert.doesNotMatch(setup, /BuiltSourceDll/u);
   assert.match(setup, /FindResourceW[\s\S]+RT_RCDATA/u);
@@ -168,7 +178,47 @@ test("production setup is idempotent on removal and retains transactional fault 
   assert.match(nativeBuild, /CreateNoWindow = \$true/u);
   assert.match(nativeBuild, /RedirectStandardOutput = \$true/u);
   assert.match(nativeBuild, /Invoke-WindowlessSetupHelper[\s\S]*verify-packaged-source/u);
+  assert.match(nativeBuild, /get-phone-webcam-component-revision\.ps1/u);
+  assert.match(nativeBuild, /IDR_COMPONENT_REVISION 102/u);
+  assert.match(nativeBuild, /Arguments @\("revision"\)/u);
   assert.match(setup, /info\.nShow = SW_HIDE/u);
+});
+
+test("Phone webcam component revision is stable and changes with tracked inputs", () => {
+  const root = mkdtempSync(join(tmpdir(), "voltura-webcam-revision-"));
+  const nativeRoot = join(root, "native");
+  const buildScript = join(root, "build-phone-webcam-native.ps1");
+  const revisionScript = new URL(
+    "../../scripts/get-phone-webcam-component-revision.ps1",
+    import.meta.url,
+  );
+  try {
+    mkdirSync(join(nativeRoot, "SetupHelper"), { recursive: true });
+    writeFileSync(join(nativeRoot, "SetupHelper", "main.cpp"), "first\n", "utf8");
+    writeFileSync(buildScript, "build-v1\n", "utf8");
+    const calculate = () =>
+      execFileSync(
+        "pwsh",
+        [
+          "-NoProfile",
+          "-File",
+          fileURLToPath(revisionScript),
+          "-NativeRoot",
+          nativeRoot,
+          "-BuildScriptPath",
+          buildScript,
+        ],
+        { encoding: "utf8" },
+      ).trim();
+
+    const first = calculate();
+    assert.match(first, /^[0-9a-f]{64}$/u);
+    assert.equal(calculate(), first);
+    writeFileSync(join(nativeRoot, "SetupHelper", "main.cpp"), "second\n", "utf8");
+    assert.notEqual(calculate(), first);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("Windows packages require the complete Phone webcam payload", () => {
@@ -183,7 +233,7 @@ test("development host builds include the embedded Phone webcam setup helper", (
   assert.match(hostProject, /'\$\(Configuration\)' != 'Release'/u);
   assert.match(
     hostProject,
-    /Inputs="[^"]*build-phone-webcam-native\.ps1;@\(PhoneWebcamNativeBuildInput\)"/u,
+    /Inputs="[^"]*build-phone-webcam-native\.ps1;[^"]*get-phone-webcam-component-revision\.ps1;@\(PhoneWebcamNativeBuildInput\)"/u,
   );
   assert.match(hostProject, /Outputs="\$\(OutDir\)PhoneWebcam\\VolturaAir\.WebcamSetup\.exe"/u);
   assert.match(hostProject, /build-phone-webcam-native\.ps1/u);
@@ -229,6 +279,7 @@ test("installer-owned Phone Webcam maintenance restores the prior component and 
       install.indexOf('"$PLUGINSDIR\\VolturaAir.WebcamSetup.exe" cleanup-required'),
   );
   assert.match(install, /"\$PLUGINSDIR\\VolturaAir\.WebcamSetup\.exe" cleanup-required/u);
+  assert.match(install, /"\$PLUGINSDIR\\VolturaAir\.WebcamSetup\.exe" maintenance-required/u);
   assert.match(install, /"\$PLUGINSDIR\\VolturaAir\.WebcamSetup\.exe" remove/u);
   assert.doesNotMatch(install, /"\$\{WEBCAM_PROTECTED_SETUP\}" (?:cleanup-required|remove)/u);
   assert.match(
@@ -236,6 +287,15 @@ test("installer-owned Phone Webcam maintenance restores the prior component and 
     /CopyFiles \/SILENT "\$\{WEBCAM_PROTECTED_SETUP\}" "\$WebcamRollbackHelper"/u,
   );
   assert.match(install, /Call RestorePhoneWebcamAfterFailure/u);
+  assert.ok(
+    install.indexOf("maintenance-required") <
+      install.indexOf('CopyFiles /SILENT "${WEBCAM_PROTECTED_SETUP}"'),
+  );
+  assert.ok(install.indexOf("maintenance-required") < install.indexOf("\" remove'"));
+  assert.match(
+    install,
+    /\$0 == 1[\s\S]*Goto phone_webcam_maintenance_done[\s\S]*phone_webcam_maintenance_done:/u,
+  );
   assert.match(restore, /\$WebcamRollbackAvailable == 1[\s\S]*"\$WebcamRollbackHelper" install/u);
   assert.match(install, /Call RollbackPromotedInstall/u);
   assert.ok(

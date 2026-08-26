@@ -12,6 +12,7 @@
 #include <wrl/client.h>
 
 #include <filesystem>
+#include <algorithm>
 #include <array>
 #include <fstream>
 #include <iomanip>
@@ -87,6 +88,7 @@ namespace
     constexpr wchar_t SourceDllName[] = L"VirtualCameraMediaSource.dll";
     constexpr wchar_t SetupHelperName[] = L"VolturaAir.WebcamSetup.exe";
     constexpr int MediaSourceResource = 101;
+    constexpr int ComponentRevisionResource = 102;
     constexpr UINT32 FrameWidth = 1920;
     constexpr UINT32 FrameHeight = 1080;
     constexpr DWORD ExpectedFrameBytes = FrameWidth * FrameHeight * 3 / 2;
@@ -369,10 +371,9 @@ namespace
         return S_OK;
     }
 
-    HRESULT LoadPackagedSource(std::vector<BYTE>& bytes)
+    HRESULT LoadResourceBytes(HMODULE module, const int resourceId, std::vector<BYTE>& bytes)
     {
-        HMODULE module = GetModuleHandleW(nullptr);
-        HRSRC resource = FindResourceW(module, MAKEINTRESOURCEW(MediaSourceResource), RT_RCDATA);
+        HRSRC resource = FindResourceW(module, MAKEINTRESOURCEW(resourceId), RT_RCDATA);
         if (resource == nullptr) return HRESULT_FROM_WIN32(GetLastError());
         const DWORD size = SizeofResource(module, resource);
         if (size == 0) return HRESULT_FROM_WIN32(ERROR_RESOURCE_DATA_NOT_FOUND);
@@ -381,6 +382,99 @@ namespace
         const BYTE* data = static_cast<const BYTE*>(LockResource(loaded));
         if (data == nullptr) return HRESULT_FROM_WIN32(ERROR_RESOURCE_DATA_NOT_FOUND);
         bytes.assign(data, data + size);
+        return S_OK;
+    }
+
+    HRESULT LoadExecutableResource(
+        const std::filesystem::path& executable,
+        const int resourceId,
+        std::vector<BYTE>& bytes)
+    {
+        HMODULE module = LoadLibraryExW(
+            executable.c_str(),
+            nullptr,
+            LOAD_LIBRARY_AS_DATAFILE_EXCLUSIVE | LOAD_LIBRARY_AS_IMAGE_RESOURCE);
+        if (module == nullptr) return HRESULT_FROM_WIN32(GetLastError());
+        const HRESULT result = LoadResourceBytes(module, resourceId, bytes);
+        FreeLibrary(module);
+        return result;
+    }
+
+    HRESULT LoadPackagedSource(std::vector<BYTE>& bytes)
+    {
+        return LoadResourceBytes(GetModuleHandleW(nullptr), MediaSourceResource, bytes);
+    }
+
+    bool IsComponentRevision(const std::string& value)
+    {
+        if (value.size() != 64) return false;
+        return std::all_of(value.begin(), value.end(), [](const unsigned char character)
+        {
+            return (character >= '0' && character <= '9') || (character >= 'a' && character <= 'f');
+        });
+    }
+
+    bool IsRepairableResourceFailure(const HRESULT result)
+    {
+        const DWORD error = HRESULT_CODE(result);
+        return error == ERROR_RESOURCE_DATA_NOT_FOUND ||
+            error == ERROR_RESOURCE_NAME_NOT_FOUND ||
+            error == ERROR_RESOURCE_TYPE_NOT_FOUND ||
+            error == ERROR_BAD_EXE_FORMAT ||
+            error == ERROR_INVALID_DATA;
+    }
+
+    HRESULT ReadComponentRevision(
+        const std::filesystem::path& executable,
+        std::string& revision)
+    {
+        std::vector<BYTE> bytes;
+        HRESULT result = LoadExecutableResource(executable, ComponentRevisionResource, bytes);
+        if (FAILED(result)) return result;
+        revision.assign(bytes.begin(), bytes.end());
+        return IsComponentRevision(revision) ? S_OK : HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
+    }
+
+    HRESULT ReadPackagedComponentRevision(std::string& revision)
+    {
+        std::vector<BYTE> bytes;
+        HRESULT result = LoadResourceBytes(GetModuleHandleW(nullptr), ComponentRevisionResource, bytes);
+        if (FAILED(result)) return result;
+        revision.assign(bytes.begin(), bytes.end());
+        return IsComponentRevision(revision) ? S_OK : HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
+    }
+
+    HRESULT FileMatchesExecutableResource(
+        const std::filesystem::path& file,
+        const std::filesystem::path& executable,
+        const int resourceId,
+        bool& equal)
+    {
+        equal = false;
+        std::vector<BYTE> packaged;
+        HRESULT result = LoadExecutableResource(executable, resourceId, packaged);
+        if (FAILED(result)) return result;
+        std::error_code error;
+        const auto fileSize = std::filesystem::file_size(file, error);
+        if (error) return HRESULT_FROM_WIN32(error.value());
+        if (fileSize != packaged.size()) return S_OK;
+
+        std::ifstream stream(file, std::ios::binary);
+        if (!stream) return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
+        std::array<char, 64 * 1024> buffer{};
+        size_t offset = 0;
+        while (stream)
+        {
+            stream.read(buffer.data(), buffer.size());
+            const std::streamsize read = stream.gcount();
+            if (read > 0 && memcmp(
+                    buffer.data(), packaged.data() + offset, static_cast<size_t>(read)) != 0)
+            {
+                return S_OK;
+            }
+            offset += static_cast<size_t>(read);
+        }
+        equal = stream.eof() && offset == packaged.size();
         return S_OK;
     }
 
@@ -615,13 +709,22 @@ namespace
         return SUCCEEDED(result) && !matches ? HRESULT_FROM_WIN32(ERROR_FILE_CORRUPT) : result;
     }
 
-    HRESULT ReadInstallationState(bool& installed, bool& cleanupRequired, bool& updateRequired, std::wstring& name)
+    HRESULT ReadInstallationState(
+        bool& installed,
+        bool& cleanupRequired,
+        bool& updateRequired,
+        std::wstring& name,
+        std::string& installedRevision)
     {
         installed = false;
         cleanupRequired = false;
         updateRequired = false;
+        installedRevision.clear();
+        std::string packagedRevision;
+        HRESULT result = ReadPackagedComponentRevision(packagedRevision);
+        if (FAILED(result)) return result;
         ComPtr<IMFActivate> camera;
-        HRESULT result = FindCamera(camera, name);
+        result = FindCamera(camera, name);
         if (result == HRESULT_FROM_WIN32(ERROR_NOT_FOUND))
         {
             result = S_OK;
@@ -662,14 +765,44 @@ namespace
             else
             {
                 bool equal = false;
-                result = FileMatchesPackagedSource(installedDll, equal);
-                if (FAILED(result)) return result;
-                updateRequired = !equal;
-                if (!updateRequired)
+                result = FileMatchesExecutableResource(
+                    installedDll,
+                    installedHelper,
+                    MediaSourceResource,
+                    equal);
+                if (FAILED(result))
                 {
-                    result = FilesEqual(CurrentExecutable(), installedHelper, equal);
-                    if (FAILED(result)) return result;
+                    if (!IsRepairableResourceFailure(result)) return result;
+                    updateRequired = true;
+                }
+                else
+                {
                     updateRequired = !equal;
+                }
+
+                result = ReadComponentRevision(installedHelper, installedRevision);
+                if (FAILED(result))
+                {
+                    if (!IsRepairableResourceFailure(result)) return result;
+                    installedRevision.clear();
+                    updateRequired = true;
+                }
+                else
+                {
+                    updateRequired = updateRequired || installedRevision != packagedRevision;
+                }
+
+                std::wstring ownerSid;
+                result = CurrentUserSid(ownerSid);
+                if (FAILED(result)) return result;
+                result = VerifyComSource(installedDll, ownerSid);
+                if (FAILED(result))
+                {
+                    if (HRESULT_CODE(result) != ERROR_INVALID_DATA &&
+                        HRESULT_CODE(result) != ERROR_FILE_NOT_FOUND &&
+                        HRESULT_CODE(result) != ERROR_PATH_NOT_FOUND)
+                        return result;
+                    updateRequired = true;
                 }
             }
         }
@@ -1148,11 +1281,19 @@ int wmain(const int argumentCount, wchar_t* arguments[])
 {
     if (argumentCount < 2)
     {
-        g_error << L"Usage: VolturaAirWebcamSetup <install|remove|status|cleanup-required|probe>" << std::endl;
+        g_error << L"Usage: VolturaAirWebcamSetup <install|remove|status|cleanup-required|maintenance-required|revision|probe>" << std::endl;
         return ERROR_INVALID_PARAMETER;
     }
 
     const std::wstring command = arguments[1];
+    if (command == L"revision")
+    {
+        std::string revision;
+        const HRESULT result = ReadPackagedComponentRevision(revision);
+        if (FAILED(result)) return Finish(result);
+        g_output << std::wstring(revision.begin(), revision.end()) << std::endl;
+        return 0;
+    }
     if (command == L"install")
     {
         std::wstring ownerSid;
@@ -1259,11 +1400,22 @@ int wmain(const int argumentCount, wchar_t* arguments[])
         bool cleanupRequired = false;
         bool updateRequired = false;
         std::wstring name;
-        const HRESULT result = ReadInstallationState(installed, cleanupRequired, updateRequired, name);
+        std::string revision;
+        const HRESULT result = ReadInstallationState(
+            installed,
+            cleanupRequired,
+            updateRequired,
+            name,
+            revision);
         if (FAILED(result)) return Finish(result);
         g_output << L"{\"installed\":" << (installed ? L"true" : L"false")
                    << L",\"cleanupRequired\":" << (cleanupRequired ? L"true" : L"false")
-                   << L",\"updateRequired\":" << (updateRequired ? L"true" : L"false");
+                   << L",\"updateRequired\":" << (updateRequired ? L"true" : L"false")
+                   << L",\"revision\":";
+        if (revision.empty())
+            g_output << L"null";
+        else
+            g_output << L"\"" << std::wstring(revision.begin(), revision.end()) << L"\"";
         if (installed) g_output << L",\"name\":\"" << name << L"\"";
         g_output << L"}" << std::endl;
         return installed ? 0 : 1;
@@ -1274,10 +1426,35 @@ int wmain(const int argumentCount, wchar_t* arguments[])
         bool cleanupRequired = false;
         bool updateRequired = false;
         std::wstring name;
-        const HRESULT result = ReadInstallationState(installed, cleanupRequired, updateRequired, name);
+        std::string revision;
+        const HRESULT result = ReadInstallationState(
+            installed,
+            cleanupRequired,
+            updateRequired,
+            name,
+            revision);
         if (FAILED(result)) return Finish(result);
         g_output << L"{\"cleanupRequired\":" << (cleanupRequired ? L"true" : L"false") << L"}" << std::endl;
         return cleanupRequired ? 0 : 1;
+    }
+    if (command == L"maintenance-required")
+    {
+        bool installed = false;
+        bool cleanupRequired = false;
+        bool updateRequired = false;
+        std::wstring name;
+        std::string revision;
+        const HRESULT result = ReadInstallationState(
+            installed,
+            cleanupRequired,
+            updateRequired,
+            name,
+            revision);
+        if (FAILED(result)) return Finish(result);
+        const bool maintenanceRequired = cleanupRequired && (!installed || updateRequired);
+        g_output << L"{\"maintenanceRequired\":"
+                 << (maintenanceRequired ? L"true" : L"false") << L"}" << std::endl;
+        return maintenanceRequired ? 0 : 1;
     }
     if (command == L"probe")
     {

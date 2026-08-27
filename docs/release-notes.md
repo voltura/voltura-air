@@ -6,6 +6,13 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.1.3
+
+- Added an interactive **Terminal** for running Windows PowerShell from a
+  permitted paired device over Direct or Cloud relay connections. It includes
+  mobile keyboard shortcuts, selectable and copyable output, two-axis scrolling,
+  and reconnection after brief network interruptions.
+
 ## v1.1.2
 
 - Fixed the Voltura Air window frame and tray menu sometimes becoming unusually
@@ -17,10 +24,6 @@ create one. Keep the shared notices in
   simpler fallback; the logo returns with the following automatic refresh.
 - Added a camera button to **View PC screen** so you can take a screenshot of
   your PC display and save or share it from your phone, tablet, or other device.
-- Added an interactive **Terminal** for running Windows PowerShell from a
-  permitted paired device over Direct or Cloud relay connections. It includes
-  mobile keyboard shortcuts, selectable and copyable output, two-axis scrolling,
-  and reconnection after brief network interruptions.
 - Updated the third-party components used by Voltura Air and refreshed its
   internal quality checks.
 - Improved cleanup reliability when Files, View PC screen, or Phone Webcam

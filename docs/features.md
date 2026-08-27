@@ -107,7 +107,7 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   and malformed Awake state is Off. Superseded individual registry fields are
   not read.
 - Profile-managed permissions cover sleep, volume, Screen viewing, Phone webcam,
-  Presentation, file browsing/opening, file changes, file transfer, application launch, web
+  Presentation, file browsing/opening, file changes, file transfer, Terminal, application launch, web
   addresses, PC clipboard reads, View diagnostics, Lock, Blackout, display off, screen saver,
   sign out, restart, shutdown, Keep awake, and pointer/keyboard input. Control of
   the Voltura Air Windows application is a separate setting that remains disabled
@@ -726,6 +726,15 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   visible with permission guidance. Revocation closes opaque navigation sessions
   and cancels that device's active mutation and transfer work. **My device** allows transfer; **Remote controls** blocks it. A complete pre-transfer Custom matrix migrates with transfer blocked; malformed Custom data remains fail-closed.
 
+### Terminal
+
+- **Terminal** is a lazy-loaded power-user tool and optional fourth mode. It opens one hidden Windows PowerShell session on the PC through Windows ConPTY; it does not mirror or attach to a visible console. PowerShell starts with `-NoLogo`, loads the normal user profile, and begins in the signed-in user's profile directory.
+- The shell runs with Voltura Air's normal unelevated Windows token. It is not sandboxed or command-restricted. Commands can read or change anything that account can access and may open GUI applications on the PC. UAC prompts remain on the physical PC.
+- One Terminal session is active host-wide. Only its paired-device owner can type, resize, stop, or resume it. A PC tray indicator names that device and exposes Stop; the start notification and lifecycle records never include commands, output, working directories, or environment values.
+- Input and output use a dedicated reliable ordered encrypted WebRTC DataChannel. Records are at most 16 KiB, queued input is capped at 256 KiB, retained unacknowledged output and WebRTC buffered output are each capped at 1 MiB, and one paste gesture is capped at 64 KiB. Backpressure reaches the ConPTY pipes without delaying ordinary commands. One-finger vertical swipes scroll xterm's in-memory scrollback without sending terminal input.
+- Navigating within the PWA keeps Terminal active. A transient WebRTC `disconnected` state is allowed to recover without replacing the control or Terminal peer; terminal `failed` or `closed` states enter the reconnect lifecycle. An unexpected connection loss retains the process for 15 minutes and only the same authenticated device may resume from its acknowledged output offset. Reload does not persist terminal contents; starting after reload replaces the detached session. Relay transport renews independently without restarting PowerShell.
+- Stop, permission or pairing revocation, device removal, reconnect expiry, natural shell exit, host shutdown, and lifecycle failures close a kill-on-close Windows Job Object so PowerShell and its complete child-process tree terminate. **My device** allows Terminal, **Remote controls** blocks it, and Custom exposes Allow/Block; older complete Custom matrices migrate with Terminal blocked.
+
 ### Dictation and text transfer
 
 - Dictation uses browser speech recognition when available. Each new final
@@ -764,8 +773,8 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 ### Navigation and split layout
 
 Trackpad, Keyboard, and Remote are fixed primary modes. The configurable fourth
-mode is Presentation, Files, Dictation, Send text, or Get text and defaults to
-Presentation. An unavailable Files choice falls back to Presentation, then
+mode is Presentation, Files, Terminal, Dictation, Send text, or Get text and defaults to
+Presentation. An unavailable Files or Terminal choice falls back to Presentation, then
 Dictation; an unavailable Presentation choice falls back to Dictation.
 All tools remain directly available from Menu.
 

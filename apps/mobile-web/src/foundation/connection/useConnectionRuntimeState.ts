@@ -4,6 +4,7 @@ import type {
   AwakeCapability,
   CustomScreensCapability,
   FileManagerCapability,
+  TerminalCapability,
   HostStatusMetadata,
   PhoneWebcamCapability,
   PowerCapabilities,
@@ -20,6 +21,7 @@ import {
   getScreenViewCapability,
   getPhoneWebcamCapability,
   getFileManagerCapability,
+  getTerminalCapability,
   hasGestureDebugCapability,
   getClipboardReadPermission,
   getDiagnosticsPermission,
@@ -69,35 +71,44 @@ export function useConnectionRuntimeState(
   const [fileManagerCapability, setFileManagerCapability] = useState<
     FileManagerCapability | undefined
   >(undefined);
+  const [terminalCapability, setTerminalCapability] = useState<TerminalCapability | undefined>(
+    undefined,
+  );
   const [hostStatus, setHostStatus] = useState<HostStatusMetadata | null>(null);
   const supportsVolumeControlRef = useRef(false);
   const supportsInputAckRef = useRef(false);
   const supportsInputContextV1Ref = useRef(false);
 
-  const clearRuntimeState = useCallback(() => {
-    pendingInputAcksRef.current.clear();
-    pendingMovementAckRef.current = null;
-    setAudioState(null);
-    setAwakeCapability(null);
-    setSupportsGestureDebug(false);
-    setSupportsSleep(false);
-    setSupportsVolumeControl(false);
-    setSupportsRemoteLaunch(false);
-    setSupportsTextTransfer(false);
-    setClipboardReadPermission(undefined);
-    setDiagnosticsPermission(undefined);
-    setUrlOpenCapability(undefined);
-    setPowerCapabilities(null);
-    setPresentationCapability(undefined);
-    setCustomScreensCapability(undefined);
-    setScreenViewCapability(undefined);
-    setPhoneWebcamCapability(undefined);
-    setFileManagerCapability(undefined);
-    setHostStatus(null);
-    supportsVolumeControlRef.current = false;
-    supportsInputAckRef.current = false;
-    supportsInputContextV1Ref.current = false;
-  }, [pendingInputAcksRef, pendingMovementAckRef]);
+  const clearRuntimeState = useCallback(
+    (preserveTerminal = false) => {
+      pendingInputAcksRef.current.clear();
+      pendingMovementAckRef.current = null;
+      setAudioState(null);
+      setAwakeCapability(null);
+      setSupportsGestureDebug(false);
+      setSupportsSleep(false);
+      setSupportsVolumeControl(false);
+      setSupportsRemoteLaunch(false);
+      setSupportsTextTransfer(false);
+      setClipboardReadPermission(undefined);
+      setDiagnosticsPermission(undefined);
+      setUrlOpenCapability(undefined);
+      setPowerCapabilities(null);
+      setPresentationCapability(undefined);
+      setCustomScreensCapability(undefined);
+      setScreenViewCapability(undefined);
+      setPhoneWebcamCapability(undefined);
+      setFileManagerCapability(undefined);
+      if (!preserveTerminal) {
+        setTerminalCapability(undefined);
+      }
+      setHostStatus(null);
+      supportsVolumeControlRef.current = false;
+      supportsInputAckRef.current = false;
+      supportsInputContextV1Ref.current = false;
+    },
+    [pendingInputAcksRef, pendingMovementAckRef],
+  );
 
   const updateCapabilities = useCallback(
     (capabilities: ServerCapabilities | undefined, connected = true) => {
@@ -118,6 +129,9 @@ export function useConnectionRuntimeState(
       setScreenViewCapability(connected ? getScreenViewCapability(capabilities) : undefined);
       setPhoneWebcamCapability(connected ? getPhoneWebcamCapability(capabilities) : undefined);
       setFileManagerCapability(connected ? getFileManagerCapability(capabilities) : undefined);
+      if (connected) {
+        setTerminalCapability(getTerminalCapability(capabilities));
+      }
       setAwakeCapability(connected ? getAwakeCapability(capabilities) : null);
       supportsVolumeControlRef.current = nextSupportsVolumeControl;
       supportsInputAckRef.current = nextSupportsInputAck;
@@ -153,6 +167,7 @@ export function useConnectionRuntimeState(
     phoneWebcamCapability,
     screenViewCapability,
     fileManagerCapability,
+    terminalCapability,
     setAudioState,
     setHostStatus,
     supportsGestureDebug,

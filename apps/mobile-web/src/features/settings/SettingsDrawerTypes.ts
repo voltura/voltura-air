@@ -62,6 +62,7 @@ export interface SettingsDrawerProps {
   pairingScanMessage: string;
   presentationAvailable: boolean;
   filesAvailable?: boolean;
+  terminalAvailable?: boolean;
   refreshInstalledApp: () => Promise<void>;
   refreshMessage: string;
   renameDevice: (name: string) => void;

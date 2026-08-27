@@ -13,10 +13,12 @@ const fileTransferCredentialTtlSeconds = 60 * 60;
 export async function createTurnResponse(
   env: TurnEnvironment,
   routeId: string,
-  purpose?: "file-transfer",
+  purpose?: "file-transfer" | "terminal",
 ): Promise<Response> {
   const credentialTtlSeconds =
-    purpose === "file-transfer" ? fileTransferCredentialTtlSeconds : mediaCredentialTtlSeconds;
+    purpose === "file-transfer" || purpose === "terminal"
+      ? fileTransferCredentialTtlSeconds
+      : mediaCredentialTtlSeconds;
   const limits = resolveUsageLimits(env);
   if (!limits) return Response.json({ code: "quota-configuration-invalid" }, { status: 503 });
   const { warningBytes, cutoffBytes } = limits;

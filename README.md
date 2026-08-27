@@ -70,6 +70,12 @@ See the [complete implemented feature list](docs/features.md).
 </p>
 
 <p align="center">
+  <img src="apps/public-site/assets/voltura-air-screen-view.png" alt="Fictional Windows 11 productivity desktop mirrored by Voltura Air View PC screen on a landscape iPhone" width="900">
+  <br>
+  <sub>View PC screen on iPhone</sub>
+</p>
+
+<p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="apps/public-site/assets/voltura-air-host-custom-screens-dark.png">
     <img src="apps/public-site/assets/voltura-air-host-custom-screens.png" alt="Voltura Air Custom screens editor" width="900">

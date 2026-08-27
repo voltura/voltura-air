@@ -7,6 +7,12 @@ namespace VolturaAir.Host.Tests;
 public sealed class WebHostConnectionTests : WebHostServiceTestBase
 {
     [Fact]
+    public void AuthenticatedIdleTimeoutAllowsDelayedMobileHealthTimers()
+    {
+        Assert.Equal(TimeSpan.FromMinutes(5), WebHostService.AuthenticatedInactivityTimeout);
+    }
+
+    [Fact]
     public async Task PairDisconnectAcknowledgesDurableRemovalBeforeClosing()
     {
         await using var fixture = await WebHostFixture.StartAsync();

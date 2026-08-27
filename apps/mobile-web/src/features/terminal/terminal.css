@@ -1,0 +1,90 @@
+.terminal-workspace {
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg) 72%, black);
+}
+
+.terminal-workspace-hidden {
+  display: none;
+}
+
+.terminal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.8rem;
+  background: color-mix(in srgb, var(--surface) 82%, black);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.terminal-toolbar button,
+.terminal-keys button {
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  color: var(--text);
+  background: var(--surface-raised);
+  min-height: 2.5rem;
+  padding: 0.45rem 0.75rem;
+}
+
+.terminal-screen {
+  min-height: 14rem;
+  min-width: 0;
+  overflow: auto hidden;
+  overscroll-behavior: contain;
+  padding: 0.4rem;
+  touch-action: none;
+}
+
+.terminal-screen .xterm {
+  height: 100%;
+}
+
+.terminal-keys {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  background: color-mix(in srgb, var(--surface) 82%, black);
+  border-top: 1px solid var(--border);
+}
+
+.terminal-key-row {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.terminal-key-row-modifiers {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.terminal-key-row-actions {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.terminal-key-row button {
+  min-width: 0;
+}
+
+.terminal-key-row button[aria-pressed="true"] {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.terminal-unavailable {
+  padding: 0.8rem;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 80%, var(--presentation-break));
+}
+
+@media (width <= 600px) {
+  .terminal-keys button {
+    padding-inline: 0.25rem;
+  }
+}

@@ -868,6 +868,10 @@ figcaption {
   grid-column: span 6;
 }
 
+.screen-card.showcase {
+  grid-column: 1 / -1;
+}
+
 .screen-card.phone {
   grid-column: span 2;
 }

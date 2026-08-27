@@ -6,6 +6,19 @@ namespace VolturaAir.Host.Tests;
 public sealed class ClientMessageValidatorTests
 {
     [Theory]
+    [InlineData("terminal.start", """{ "type": "terminal.start", "operationId": "terminal-1", "columns": 80, "rows": 24, "clientSignature": "proof" }""", true)]
+    [InlineData("terminal.start", """{ "type": "terminal.start", "operationId": "terminal-1", "columns": 9, "rows": 24, "clientSignature": "proof" }""", false)]
+    [InlineData("terminal.attach", """{ "type": "terminal.attach", "operationId": "terminal-2", "terminalId": "0123456789abcdef0123456789abcdef", "acknowledgedOffset": 42, "columns": 120, "rows": 40, "clientSignature": "proof" }""", true)]
+    [InlineData("terminal.attach", """{ "type": "terminal.attach", "operationId": "terminal-2", "terminalId": "0123456789abcdef0123456789abcdef", "acknowledgedOffset": -1, "columns": 120, "rows": 40, "clientSignature": "proof" }""", false)]
+    [InlineData("terminal.answer", """{ "type": "terminal.answer", "operationId": "terminal-3", "offerOperationId": "terminal-2", "terminalId": "0123456789abcdef0123456789abcdef", "answerSdp": "v=0\r\n", "clientSignature": "proof" }""", true)]
+    [InlineData("terminal.stop", """{ "type": "terminal.stop", "operationId": "terminal-4", "terminalId": "0123456789abcdef0123456789abcdef", "command": "whoami" }""", false)]
+    public void ValidatesExactTerminalMessages(string type, string json, bool expected)
+    {
+        using var document = JsonDocument.Parse(json);
+        Assert.Equal(expected, ClientMessageValidator.IsValidAuthenticatedMessage(document.RootElement, type));
+    }
+
+    [Theory]
     [InlineData("file.session.open", """{ "type": "file.session.open", "operationId": "files-1" }""", true)]
     [InlineData("file.page.get", """{ "type": "file.page.get", "operationId": "files-2", "sessionId": "session", "panel": "left", "revision": "revision", "continuation": "opaque" }""", true)]
     [InlineData("file.page.get", """{ "type": "file.page.get", "operationId": "files-2", "sessionId": "session", "panel": "left", "revision": "revision", "continuation": "opaque", "path": "C:\\" }""", false)]

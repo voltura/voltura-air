@@ -46,4 +46,24 @@ public sealed class RelayRoutingIdentityTests
             DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
         Assert.Throws<ArgumentOutOfRangeException>(() => identity.SignTurnRequest("timestamp", "nonce", "screen"));
     }
+
+    [Fact]
+    public void TerminalTurnPurposeUsesTheBoundV2Transcript()
+    {
+        using var identity = RelayRoutingIdentity.CreateEphemeral();
+        var nonce = "n".PadRight(43, 'n');
+        var signature = ScreenViewHostIdentity.DecodeBase64Url(identity.SignTurnRequest("1800000000000", nonce, "terminal"));
+        var publicKey = ScreenViewHostIdentity.DecodeBase64Url(identity.PublicKey);
+        using var verifier = ECDsa.Create(new ECParameters
+        {
+            Curve = ECCurve.NamedCurves.nistP256,
+            Q = new ECPoint { X = publicKey[1..33], Y = publicKey[33..65] }
+        });
+
+        Assert.True(verifier.VerifyData(
+            Encoding.UTF8.GetBytes($"voltura-air-relay-turn-v2\n{identity.RouteId}\n1800000000000\n{nonce}\nterminal"),
+            signature,
+            HashAlgorithmName.SHA256,
+            DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
+    }
 }

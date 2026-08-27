@@ -20,7 +20,8 @@ internal sealed class HostStatusPayloadFactory(
     PowerPointPresentationCatalog presentationCatalog,
     Func<bool>? enhancedCapabilitiesEnabled = null,
     Func<PhoneWebcamFeatureStatus>? getPhoneWebcamStatus = null,
-    Func<bool>? isPhoneMicrophoneAvailable = null)
+    Func<bool>? isPhoneMicrophoneAvailable = null,
+    Func<string, TerminalCapabilityState>? getTerminalStatus = null)
 {
     private static readonly string DeveloperSessionId = Guid.NewGuid().ToString("N");
     private const int LegacyScreenViewWidthMarker = 1920;
@@ -90,6 +91,8 @@ internal sealed class HostStatusPayloadFactory(
     public bool CanOpenUrls(string clientId) => GetEffectivePermissions(clientId).AllowUrlOpen;
     public bool CanReadClipboard(string clientId) => GetEffectivePermissions(clientId).AllowClipboardRead;
     public bool CanViewDiagnostics(string clientId) => GetEffectivePermissions(clientId).AllowDiagnostics;
+    public bool CanUseTerminal(string clientId) =>
+        pairingManager.HasCurrentHostIdentity(clientId) && GetEffectivePermissions(clientId).AllowTerminal;
     public bool CanBrowseFiles(string clientId) => GetEffectivePermissions(clientId).AllowFileBrowsing;
     public bool CanChangeFiles(string clientId) => GetEffectivePermissions(clientId).AllowFileBrowsing && GetEffectivePermissions(clientId).AllowFileChanges;
     public bool CanTransferFiles(string clientId) =>
@@ -135,6 +138,7 @@ internal sealed class HostStatusPayloadFactory(
         textTransfer = permissions.AllowRemoteInput,
         clipboardRead = permissions.AllowClipboardRead,
         diagnostics = new { canView = permissions.AllowDiagnostics },
+        terminal = CreateTerminalCapability(clientId, permissions),
         gestureDebug = AppDeveloperSettings.EnableGestureDebug(),
         inputAck = true,
         inputContextV1 = true,
@@ -184,6 +188,23 @@ internal sealed class HostStatusPayloadFactory(
             maxPageSize = FileManagerProtocol.PageSize
         }
     };
+
+    private object CreateTerminalCapability(string clientId, HostPermissionSet permissions)
+    {
+        TerminalCapabilityState state = getTerminalStatus?.Invoke(clientId) ?? new(false, false, null, null);
+        return new
+        {
+            enabled = true,
+            permissionGranted = permissions.AllowTerminal,
+            canUse = permissions.AllowTerminal && pairingManager.HasCurrentHostIdentity(clientId),
+            requiresRepair = !pairingManager.HasCurrentHostIdentity(clientId),
+            active = state.Active,
+            ownedByClient = state.OwnedByClient,
+            terminalId = state.TerminalId,
+            shell = "windows-powershell",
+            reconnectGraceSeconds = (int)TerminalProtocol.ReconnectLifetime.TotalSeconds
+        };
+    }
 
     private static string? ToLaserColor(PresentationLaserColor? color) => color switch
     {

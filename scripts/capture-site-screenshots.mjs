@@ -36,7 +36,10 @@ const outputs = {
   split: path.join(assetsDir, "voltura-air-split.png"),
   filesLight: path.join(assetsDir, "voltura-air-files.png"),
   filesDark: path.join(assetsDir, "voltura-air-files-dark.png"),
+  screenView: path.join(assetsDir, "voltura-air-screen-view.png"),
 };
+
+const screenViewOnly = process.argv.slice(2).includes("--screen-view-only");
 
 main().catch((error) => {
   console.error(error);
@@ -44,7 +47,14 @@ main().catch((error) => {
 });
 
 async function main() {
-  if (process.platform !== "win32") {
+  const unknownArguments = process.argv
+    .slice(2)
+    .filter((argument) => argument !== "--screen-view-only");
+  if (unknownArguments.length > 0) {
+    throw new Error(`Unknown screenshot capture argument: ${unknownArguments.join(", ")}`);
+  }
+
+  if (!screenViewOnly && process.platform !== "win32") {
     throw new Error("Site screenshot capture must run on Windows because it renders the WPF host.");
   }
 
@@ -56,6 +66,18 @@ async function main() {
   try {
     const requireFromTemp = createRequire(path.join(tempDir, "package.json"));
     const { chromium } = requireFromTemp("playwright");
+
+    if (screenViewOnly) {
+      let mobilePreview;
+      try {
+        mobilePreview = await launchFilePreview();
+        await captureScreenViewShowcase(chromium, mobilePreview.url);
+      } finally {
+        if (mobilePreview) await stopPreviewProcess(mobilePreview.process);
+      }
+      console.log(`Screen View screenshot written to ${outputs.screenView}`);
+      return;
+    }
 
     await stopRunningHost();
     await run("npm", ["run", "build", "--workspace", "apps/mobile-web"]);
@@ -70,6 +92,7 @@ async function main() {
       try {
         filePreview = await launchFilePreview();
         await captureMobileScreens(chromium, lightHost.pairingUrl, filePreview.url);
+        await captureScreenViewShowcase(chromium, filePreview.url);
         await sharp(outputs.iphoneKodiDark)
           .resize({ width: 350 })
           .png()
@@ -85,8 +108,76 @@ async function main() {
 
     console.log(`Site screenshots written to ${assetsDir}`);
   } finally {
-    await stopRunningHost();
+    if (!screenViewOnly) await stopRunningHost();
   }
+}
+
+async function captureScreenViewShowcase(chromium, previewUrl) {
+  const browser = await launchBrowser(chromium);
+  try {
+    const desktop = await sharp(Buffer.from(fictionalWindowsDesktopSvg())).png().toBuffer();
+    const desktopDataUrl = `data:image/png;base64,${desktop.toString("base64")}`;
+    const phone = await captureScreenViewPhone(browser, previewUrl, desktopDataUrl);
+    const [framedDesktop, framedPhone] = await Promise.all([
+      roundScreenshot(desktop, 1000, 562, 18),
+      roundScreenshot(phone, 1392, 616, 108),
+    ]);
+    await sharp(Buffer.from(screenViewShowcaseSvg()))
+      .composite([
+        { input: framedDesktop, left: 300, top: 94 },
+        { input: framedPhone, left: 104, top: 718 },
+      ])
+      .png({ compressionLevel: 9 })
+      .toFile(outputs.screenView);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function roundScreenshot(input, width, height, radius) {
+  const mask = Buffer.from(
+    `<svg width="${width}" height="${height}"><rect width="100%" height="100%" rx="${radius}" fill="white"/></svg>`,
+  );
+  return sharp(input)
+    .resize(width, height, { fit: "fill" })
+    .composite([{ input: mask, blend: "dest-in" }])
+    .png()
+    .toBuffer();
+}
+
+async function captureScreenViewPhone(browser, previewUrl, desktopDataUrl) {
+  const context = await browser.newContext({
+    viewport: { width: 844, height: 390 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+  });
+  await context.addInitScript(() => {
+    localStorage.setItem("voltura-air.themeMode", "dark");
+  });
+  try {
+    const page = await context.newPage();
+    await page.goto(`${previewUrl}/?screenPreview=1`, { waitUntil: "networkidle" });
+    await page.locator(".screen-view-workspace").waitFor({ timeout: 5000 });
+    await page.addStyleTag({
+      content: `
+        .screen-view-browser-preview .screen-view-video {
+          background: #111827 url("${desktopDataUrl}") center / contain no-repeat !important;
+        }
+      `,
+    });
+    return await page.screenshot({ type: "png" });
+  } finally {
+    await context.close();
+  }
+}
+
+function fictionalWindowsDesktopSvg() {
+  return String.raw`<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="810" viewBox="0 0 1440 810"><defs><linearGradient id="wall" x2="1" y2="1"><stop stop-color="#14376b"/><stop offset=".4" stop-color="#2c73c7"/><stop offset=".72" stop-color="#9edbe8"/><stop offset="1" stop-color="#ead6e8"/></linearGradient><linearGradient id="tile" x2="1" y2="1"><stop stop-color="#edf7ff"/><stop offset="1" stop-color="#67a7e9"/></linearGradient><filter id="shadow"><feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#10284a" flood-opacity=".35"/></filter></defs><rect width="1440" height="810" fill="url(#wall)"/><ellipse cx="1030" cy="180" rx="500" ry="220" fill="#d8f4ff" opacity=".45"/><ellipse cx="510" cy="760" rx="650" ry="310" fill="#7956d8" opacity=".42"/><g font-family="Segoe UI,Arial" text-anchor="middle" fill="white" font-size="13"><g transform="translate(36 30)"><rect width="48" height="48" rx="10" fill="url(#tile)"/><text x="24" y="32" fill="#245a9c" font-size="24">▣</text><text x="24" y="70">This PC</text></g><g transform="translate(36 124)"><rect width="48" height="48" rx="10" fill="url(#tile)"/><text x="24" y="32" fill="#245a9c" font-size="24">⌑</text><text x="24" y="70">Documents</text></g><g transform="translate(36 218)"><rect width="48" height="48" rx="10" fill="url(#tile)"/><text x="24" y="32" fill="#245a9c" font-size="24">♲</text><text x="24" y="70">Recycle Bin</text></g></g><g filter="url(#shadow)"><rect x="270" y="90" width="900" height="560" rx="12" fill="#f8fafd"/><path d="M282 90h876a12 12 0 0 1 12 12v38H270v-38a12 12 0 0 1 12-12" fill="white"/><rect x="288" y="104" width="22" height="22" rx="5" fill="#4e9ee3"/><g font-family="Segoe UI,Arial" fill="#172033"><text x="324" y="121" font-size="14" font-weight="600">Workspace — Notes</text><text x="1010" y="121">―</text><text x="1060" y="121">□</text><text x="1110" y="121" font-size="18">×</text><text x="342" y="235" font-size="38" font-weight="700">Today’s workspace</text><text x="342" y="270" fill="#647086" font-size="16">A clean, fictional desktop prepared for the Voltura Air preview.</text></g><g font-family="Segoe UI,Arial"><g transform="translate(342 310)"><rect width="350" height="128" rx="12" fill="white" stroke="#dfe5ee"/><text x="22" y="36" font-weight="700">Review project plan</text><text x="22" y="70" fill="#69758a" font-size="14">Check milestones and collect open questions.</text></g><g transform="translate(710 310)"><rect width="350" height="128" rx="12" fill="white" stroke="#dfe5ee"/><text x="22" y="36" font-weight="700">Organize documents</text><text x="22" y="70" fill="#69758a" font-size="14">Keep working files grouped and easy to find.</text></g><g transform="translate(342 456)"><rect width="350" height="128" rx="12" fill="white" stroke="#dfe5ee"/><text x="22" y="36" font-weight="700">Prepare presentation</text><text x="22" y="70" fill="#69758a" font-size="14">Refine the outline and confirm the sequence.</text></g><g transform="translate(710 456)"><rect width="350" height="128" rx="12" fill="white" stroke="#dfe5ee"/><text x="22" y="36" font-weight="700">Finish the day</text><text x="22" y="70" fill="#69758a" font-size="14">Capture progress and note the next action.</text></g></g></g><rect y="754" width="1440" height="56" fill="#ebf4fc" opacity=".9"/><g transform="translate(625 766)"><g fill="#256ec5"><rect width="8" height="8"/><rect x="10" width="8" height="8"/><rect y="10" width="8" height="8"/><rect x="10" y="10" width="8" height="8"/></g><rect x="35" y="-2" width="190" height="34" rx="17" fill="white" opacity=".8"/><text x="58" y="20" font-family="Segoe UI,Arial" fill="#667388" font-size="13">⌕  Search</text><rect x="242" width="22" height="22" rx="5" fill="#f2c451"/><rect x="280" width="22" height="22" rx="5" fill="#4e9ee3"/><rect x="318" width="22" height="22" rx="5" fill="#2c79d2"/></g><text x="1408" y="777" text-anchor="end" font-family="Segoe UI,Arial" fill="#27354a" font-size="12">10:24</text><text x="1408" y="793" text-anchor="end" font-family="Segoe UI,Arial" fill="#27354a" font-size="12">27/08/2026</text></svg>`;
+}
+
+function screenViewShowcaseSvg() {
+  return String.raw`<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1360"><defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#162a47"/><stop offset=".35" stop-color="#0b111b"/><stop offset="1" stop-color="#111725"/></linearGradient><filter id="shadow"><feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="#000" flood-opacity=".55"/></filter></defs><rect width="1600" height="1360" fill="url(#bg)"/><g font-family="Segoe UI,Arial" fill="#9eb5d8" font-size="20" font-weight="700" letter-spacing="3"><text x="300" y="76">WINDOWS 11 PC</text><text x="70" y="680">VIEW PC SCREEN ON IPHONE</text></g><rect x="298" y="92" width="1004" height="566" rx="20" fill="#05070a" stroke="#ffffff33" stroke-width="2" filter="url(#shadow)"/><rect x="70" y="690" width="1460" height="672" rx="142" fill="#05070a" stroke="#4f5969" stroke-width="4" filter="url(#shadow)"/><rect x="101" y="715" width="1398" height="622" rx="112" fill="#090d13" stroke="#161d28" stroke-width="4"/><rect x="62" y="862" width="8" height="112" rx="4" fill="#222a36"/><rect x="1530" y="862" width="8" height="112" rx="4" fill="#222a36"/><rect x="118" y="971" width="30" height="110" rx="20" fill="#000" stroke="#171a20" stroke-width="2"/><circle cx="133" cy="993" r="5" fill="#223a58"/><rect x="1486" y="967" width="5" height="118" rx="3" fill="#ffffffb8"/></svg>`;
 }
 
 async function renderHostScreenshot(theme, outputPath, customScreens = false) {

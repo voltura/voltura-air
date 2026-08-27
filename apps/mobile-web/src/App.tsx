@@ -34,6 +34,7 @@ const ScreenViewWorkspace = lazy(() => import("./features/screen-view"));
 const FileManagerWorkspace = lazy(() => import("./features/file-manager"));
 const PhoneWebcamWorkspace = lazy(() => import("./features/phone-webcam"));
 const DiagnosticsWorkspace = lazy(() => import("./features/diagnostics"));
+const TerminalWorkspace = lazy(() => import("./features/terminal"));
 const PairingQrScannerDialog = lazy(loadPairingQrScannerDialog);
 
 export function App() {
@@ -58,6 +59,7 @@ export function App() {
     screenViewCapability,
     phoneWebcamCapability,
     fileManagerCapability,
+    terminalCapability,
     diagnosticsPermission,
     diagnosticsSnapshot,
     diagnosticsFailure,
@@ -201,6 +203,8 @@ export function App() {
   } = pcSettings;
   const presentationAvailable = presentationCapability !== undefined;
   const filesAvailable = fileManagerCapability !== undefined;
+  const terminalAvailable = terminalCapability !== undefined;
+  const [terminalEverOpened, setTerminalEverOpened] = useState(false);
   const canMirrorFileView =
     screenViewCapability?.canView === true && screenViewCapability.requiresRepair === false;
   const mirrorFileViewUnavailableMessage = !screenViewCapability
@@ -303,6 +307,7 @@ export function App() {
     },
     presentationAvailable: presentationAvailable || presentationSessionActive,
     filesAvailable,
+    terminalAvailable,
     supportsGestureDebug,
     trackpadSettings,
     suppressSplitMode: gyroSelected,
@@ -344,6 +349,9 @@ export function App() {
       if (nextTab === "presentation") {
         requestPresentationActivation();
       }
+      if (nextTab === "terminal") {
+        setTerminalEverOpened(true);
+      }
       selectModeTab(nextTab, source);
     };
     if (nextTab === tab) {
@@ -362,6 +370,9 @@ export function App() {
       setIsDiagnosticsOpen(false);
       if (mode === "presentation") {
         requestPresentationActivation();
+      }
+      if (mode === "terminal") {
+        setTerminalEverOpened(true);
       }
       openModeFromMenu(mode);
     };
@@ -519,6 +530,13 @@ export function App() {
 
   const activeCustomScreenSummary =
     customScreensCapability?.screens.find((screen) => screen.id === activeCustomScreenId) ?? null;
+  const isTerminalWorkspaceVisible =
+    tab === "terminal" &&
+    !isDiagnosticsOpen &&
+    !isThirdPartyNoticesOpen &&
+    !isPhoneWebcamOpen &&
+    !isScreenViewOpen &&
+    activeCustomScreenId === null;
   const activeCustomScreenRevision = activeCustomScreenSummary?.revision;
   const customScreensCatalogRevision = customScreensCapability?.catalogRevision;
   const staleCustomScreenOperationId =
@@ -823,6 +841,7 @@ export function App() {
           pairingScanMessage={pairingScanMessage}
           presentationAvailable={presentationAvailable}
           filesAvailable={filesAvailable}
+          terminalAvailable={terminalAvailable}
           refreshInstalledApp={refreshInstalledApp}
           refreshMessage={refreshMessage}
           renameDevice={renameDevice}
@@ -851,7 +870,7 @@ export function App() {
           showModeButtons={showModeButtons}
           toolOptions={[
             ...modeTabs,
-            ...getAvailableToolModeIds(presentationAvailable, filesAvailable)
+            ...getAvailableToolModeIds(presentationAvailable, filesAvailable, terminalAvailable)
               .filter((id) => !modeTabs.some((mode) => mode.id === id))
               .map((id) => toolModeDefinitions[id]),
           ].map(({ id, label, ariaLabel, Icon }) => ({
@@ -1013,7 +1032,7 @@ export function App() {
               />
             </Suspense>
           </WorkspaceErrorBoundary>
-        ) : (
+        ) : tab !== "terminal" ? (
           <ModeWorkspace
             appSettings={appSettings}
             connection={connection}
@@ -1068,6 +1087,24 @@ export function App() {
             tab={tab}
             trackpadSettings={effectiveTrackpadSettings}
           />
+        ) : null}
+        {terminalEverOpened && terminalCapability && activePc && (
+          <WorkspaceErrorBoundary
+            featureName="Terminal"
+            onBack={() => selectModeTabWithPresentationGuard("trackpad", "selector")}
+          >
+            <Suspense fallback={<div className="workspace-loading">Opening Terminal…</div>}>
+              <TerminalWorkspace
+                active={isTerminalWorkspaceVisible}
+                activePc={activePc}
+                capability={terminalCapability}
+                clientId={clientId}
+                connectionEpoch={connectionEpoch}
+                send={send}
+                state={state}
+              />
+            </Suspense>
+          </WorkspaceErrorBoundary>
         )}
 
         <AnchoredHint

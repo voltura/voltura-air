@@ -12,6 +12,7 @@ const expectedScreenshots = [
   "voltura-air-iphone-dark.png",
   "voltura-air-iphone-kodi-dark.png",
   "voltura-air-iphone.png",
+  "voltura-air-screen-view.png",
   "voltura-air-split.png",
 ].sort();
 
@@ -20,7 +21,7 @@ const expectedSiteAssets = [
   "voltura-air-iphone-kodi-dark-forum.png",
 ].sort();
 
-const screenshotPattern = /voltura-air-(?:files|host|iphone|split)[a-z-]*\.png/gu;
+const screenshotPattern = /voltura-air-(?:files|host|iphone|screen-view|split)[a-z-]*\.png/gu;
 
 function extractScreenshots(contents) {
   return [...new Set(contents.match(screenshotPattern) ?? [])].sort();
@@ -58,7 +59,10 @@ test("public screenshot inventory stays curated and aligned", async () => {
     captureScript,
     /"--site-screenshot-mode"[\s\S]*"--site-screenshot-output"[\s\S]*"--isolated-test-mode"/u,
   );
-  assert.match(hostProgram, /SetHighDpiMode\(Forms\.HighDpiMode\.PerMonitorV2\)[\s\S]*BeginIsolatedScope\(\)/u);
+  assert.match(
+    hostProgram,
+    /SetHighDpiMode\(Forms\.HighDpiMode\.PerMonitorV2\)[\s\S]*BeginIsolatedScope\(\)/u,
+  );
   assert.match(
     hostProgram,
     /offscreenSiteScreenshot[\s\S]*if \(!offscreenSiteScreenshot\)[\s\S]*startupWindow\.Show\(\)/u,
@@ -84,6 +88,13 @@ test("public screenshot inventory stays curated and aligned", async () => {
     /getByText\("Switch modes from here\.", \{ exact: true \}\)[\s\S]*state: "visible"[\s\S]*state: "hidden"[\s\S]*page\.screenshot\(\{ path: outputs\.iphoneKodiDark \}\)/u,
   );
   assert.match(captureScript, /filesPreview=1[\s\S]*file-manager-workspace/u);
+  assert.match(captureScript, /--screen-view-only/u);
+  assert.match(captureScript, /screenPreview=1[\s\S]*screen-view-workspace/u);
+  assert.match(captureScript, /voltura-air-screen-view\.png/u);
+  assert.match(
+    captureScript,
+    /finally \{\s*if \(!screenViewOnly\) await stopRunningHost\(\);\s*\}/u,
+  );
   assert.match(
     captureScript,
     /const lightHost = await launchHost[\s\S]*try \{[\s\S]*filePreview = await launchFilePreview[\s\S]*finally \{[\s\S]*stopPreviewProcess[\s\S]*finally \{[\s\S]*stopProcess\(lightHost\.process\)/u,
@@ -93,7 +104,7 @@ test("public screenshot inventory stays curated and aligned", async () => {
     /\[\s*\["light", outputs\.filesLight\],\s*\["dark", outputs\.filesDark\],?\s*\]/u,
   );
   assert.match(captureScript, /viewport: \{ width: 1180, height: 820 \}[\s\S]*hasTouch: true/u);
-  assert.equal(marketingPage.match(/<figure class="screen-card/gu)?.length, 6);
+  assert.equal(marketingPage.match(/<figure class="screen-card/gu)?.length, 7);
   assert.equal(marketingPage.match(/<picture>/gu)?.length, 4);
   assert.equal(readme.match(/<picture>/gu)?.length, 4);
 });

@@ -182,7 +182,10 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
             IPhoneWebcamWebRtcPeerFactory? phoneWebcamPeerFactory = null,
             IScreenViewWebRtcPeerFactory? screenViewPeerFactory = null,
             IUsageTelemetryRecorder? usageTelemetry = null,
-            IComputerDiagnosticsProbe? computerDiagnosticsProbe = null)
+            IComputerDiagnosticsProbe? computerDiagnosticsProbe = null,
+            ITerminalProcessFactory? terminalProcessFactory = null,
+            ITerminalWebRtcPeerFactory? terminalPeerFactory = null,
+            TimeProvider? terminalTimeProvider = null)
         {
             var store = new TempPairingStore();
             var inputInjector = new FakeInputInjector();
@@ -212,7 +215,10 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
                 phoneWebcamPeerFactory: phoneWebcamPeerFactory,
                 screenViewPeerFactory: screenViewPeerFactory,
                 usageTelemetry: usageTelemetry,
-                computerDiagnosticsProbe: computerDiagnosticsProbe);
+                computerDiagnosticsProbe: computerDiagnosticsProbe,
+                terminalProcessFactory: terminalProcessFactory,
+                terminalPeerFactory: terminalPeerFactory,
+                terminalTimeProvider: terminalTimeProvider);
             await webHost.StartAsync();
             return new WebHostFixture(store, inputInjector, manager, webHost);
         }

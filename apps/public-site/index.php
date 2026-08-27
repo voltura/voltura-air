@@ -120,6 +120,10 @@
           <p>View one selected Windows display live on a phone or tablet. Use touch gestures for cursor movement, local zoom and pan, and scrolling, with a separate Click control for precise clicks. Capture the watched display as a native PNG and save or share it from the device.</p>
         </article>
         <article>
+          <h2>Use Windows PowerShell remotely</h2>
+          <p>Open an interactive Windows PowerShell terminal from a paired phone, tablet, or browser. Run commands over Direct LAN or the encrypted Cloud relay, with touch shortcuts, selectable output, copy, two-axis scrolling, and authenticated reconnect.</p>
+        </article>
+        <article>
           <h2>Use your phone as a webcam</h2>
           <p>Use any paired-phone camera as a Windows webcam over Enhanced Direct or Cloud relay. Optional audio is off by default and supports mute and testing. It requires separately installed <a href="https://vb-audio.com/Cable/">VB-CABLE</a>, third-party donationware from VB-Audio that is not included with Voltura Air and is used under its own licence.</p>
         </article>
@@ -276,6 +280,12 @@
                 <td>Real-time PC screen sharing and remote viewing</td>
               </tr>
               <tr>
+                <th scope="row">Remote terminal</th>
+                <td class="comparison-voltura"><strong class="comparison-status">Interactive Windows PowerShell over Direct LAN or Cloud relay</strong>; per-device permission, touch shortcuts, selectable output, copy, scrolling, and authenticated reconnect, with the signed-in Windows user's access</td>
+                <td><strong class="comparison-status">Not documented</strong> as a current feature</td>
+                <td><strong class="comparison-status">Not documented</strong> as a current feature</td>
+              </tr>
+              <tr>
                 <th scope="row">Phone as webcam</th>
                 <td class="comparison-voltura"><strong class="comparison-status">Included Windows webcam with optional audio (off by default)</strong>; choose a phone camera, enable or mute the microphone from your phone, and use Test audio in the Windows app's Phone webcam screen to confirm it reaches VB-CABLE</td>
                 <td><strong class="comparison-status">Not documented</strong> as a current feature</td>
@@ -309,8 +319,8 @@
           </table>
         </div>
         <p class="comparison-note">
-          Competitor information was checked on 14 August 2026; Voltura Air
-          capabilities were updated on 14 August 2026. Features, availability,
+          Competitor information was checked on 27 August 2026; Voltura Air
+          capabilities were updated on 27 August 2026. Features, availability,
           and pricing models may change.
         </p>
         <details class="comparison-sources">
@@ -338,6 +348,10 @@
               <img src="./assets/voltura-air-host.png" alt="Voltura Air Windows host Connect screen">
             </picture>
             <figcaption>Windows host</figcaption>
+          </figure>
+          <figure class="screen-card showcase">
+            <img src="./assets/voltura-air-screen-view.png" alt="Fictional Windows 11 productivity desktop mirrored by Voltura Air View PC screen on a landscape iPhone">
+            <figcaption>View PC screen on iPhone</figcaption>
           </figure>
           <figure class="screen-card wide">
             <picture>

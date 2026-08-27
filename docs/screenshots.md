@@ -7,13 +7,16 @@ Public screenshots live in `apps/public-site/assets`; installer artwork in
 
 ```powershell
 npm run screenshots:site
+node scripts/capture-site-screenshots.mjs --screen-view-only
 npm run icons:generate
 npm run branding:generate
 ```
 
 `screenshots:site` captures public images. `icons:generate` derives icons and
 installer artwork from `assets/branding/voltura-air-master.png`.
-`branding:generate` runs both.
+`branding:generate` runs both. The direct `--screen-view-only` command captures
+only the browser-based Screen View showcase and does not stop the Windows host
+or regenerate the other public screenshots.
 
 ## Isolation and privacy
 
@@ -43,6 +46,7 @@ apps/public-site/assets/voltura-air-iphone.png
 apps/public-site/assets/voltura-air-iphone-dark.png
 apps/public-site/assets/voltura-air-iphone-kodi-dark.png
 apps/public-site/assets/voltura-air-iphone-kodi-dark-forum.png
+apps/public-site/assets/voltura-air-screen-view.png
 apps/public-site/assets/voltura-air-split.png
 apps/public-site/assets/voltura-air-files.png
 apps/public-site/assets/voltura-air-files-dark.png
@@ -50,10 +54,12 @@ apps/public-site/assets/voltura-air-files-dark.png
 
 The set covers host pairing, the fixed-size responsive Custom screens editor,
 phone trackpad, couch remote, tablet split mode, and a two-panel Files on PC
-view rendered from deterministic example folders and files. The 350-pixel-wide
-`-forum` image is derived from the Kodi screenshot for forum posts. README and
-the website reuse the full-size images. Add an image only for a distinct core
-use case.
+view rendered from deterministic example folders and files. Screen View uses a
+fictional Windows 11-style desktop and the real browser preview inside a
+synthetic landscape iPhone frame; it never captures a developer's desktop,
+taskbar, files, or account. The 350-pixel-wide `-forum` image is derived from
+the Kodi screenshot for forum posts. README and the website reuse the full-size
+images. Add an image only for a distinct core use case.
 
 Mobile public captures use the real isolated pairing flow at 393×852 phone
 portrait and 1180×820 tablet landscape. Capture light and dark themes from the

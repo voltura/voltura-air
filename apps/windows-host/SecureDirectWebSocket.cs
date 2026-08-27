@@ -290,8 +290,10 @@ internal sealed class SecureDirectWebSocket : WebSocket
     private static void OnState(int peer, LibDataChannelNative.PeerState state, nint pointer)
     {
         var owner = From(pointer);
-        if (owner is not null && state is LibDataChannelNative.PeerState.Disconnected or LibDataChannelNative.PeerState.Failed or LibDataChannelNative.PeerState.Closed) owner.Abort();
+        if (owner is not null && ShouldAbortForPeerState(state)) owner.Abort();
     }
+    internal static bool ShouldAbortForPeerState(LibDataChannelNative.PeerState state) =>
+        state is LibDataChannelNative.PeerState.Failed or LibDataChannelNative.PeerState.Closed;
     private static void OnGathering(int peer, LibDataChannelNative.GatheringState state, nint pointer)
     {
         if (state == LibDataChannelNative.GatheringState.Complete) From(pointer)?.CompleteOffer();

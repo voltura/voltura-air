@@ -96,7 +96,7 @@ internal sealed class RelayHostConnection : IAsyncDisposable
         CancellationToken cancellationToken,
         string? purpose = null)
     {
-        if (purpose is not null and not "file-transfer") throw new ArgumentOutOfRangeException(nameof(purpose));
+        if (purpose is not null and not ("file-transfer" or "terminal")) throw new ArgumentOutOfRangeException(nameof(purpose));
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
         var nonce = ScreenViewHostIdentity.Base64Url(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
         var requestBody = new Dictionary<string, string>
@@ -197,7 +197,7 @@ internal sealed class RelayHostConnection : IAsyncDisposable
     }
 
     internal static bool IsOfficialFileTransferQuotaRejection(bool isOfficial, HttpStatusCode statusCode, string? purpose) =>
-        isOfficial && statusCode == HttpStatusCode.TooManyRequests && purpose == "file-transfer";
+        isOfficial && statusCode == HttpStatusCode.TooManyRequests && purpose is "file-transfer" or "terminal";
 
     private async Task TryUpdateUsageSnapshotAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {

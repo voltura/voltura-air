@@ -119,6 +119,10 @@ internal static class ClientMessageValidator
             ["file.transfer.start"] = Fields("type", "operationId", "direction", "source", "sessionId", "panel", "revision", "entryId", "fileName", "declaredSize", "screenOperationId", "displayId", "clientSignature"),
             ["file.transfer.answer"] = Fields("type", "operationId", "transferId", "answerSdp", "clientSignature"),
             ["file.transfer.cancel"] = Fields("type", "operationId", "transferId", "requestId"),
+            ["terminal.start"] = Fields("type", "operationId", "columns", "rows", "clientSignature"),
+            ["terminal.attach"] = Fields("type", "operationId", "terminalId", "acknowledgedOffset", "columns", "rows", "clientSignature"),
+            ["terminal.answer"] = Fields("type", "operationId", "offerOperationId", "terminalId", "answerSdp", "clientSignature"),
+            ["terminal.stop"] = Fields("type", "operationId", "terminalId"),
             ["audio.mute.toggle"] = Fields("type", "inputContext"),
             ["audio.volume.set"] = Fields("type", "volume", "inputContext"),
             ["pointer.move"] = Fields("type", "seq", "dx", "dy", "inputContext"),
@@ -395,6 +399,14 @@ internal static class ClientMessageValidator
                 TryGetRequiredString(root, "answerSdp", ScreenViewProtocol.MaxSdpLength, allowEmpty: false, out _) &&
                 TryGetRequiredString(root, "clientSignature", MaxCredentialLength, allowEmpty: false, out _),
             "file.transfer.cancel" => IsValidFileOperationId(root) && IsValidFileTransferCancel(root),
+            "terminal.start" => IsValidTerminalStart(root),
+            "terminal.attach" => IsValidTerminalAttach(root),
+            "terminal.answer" => IsValidFileOperationId(root) &&
+                TryGetRequiredString(root, "offerOperationId", MaxCredentialLength, allowEmpty: false, out var terminalOfferOperationId) && IsValidOperationId(terminalOfferOperationId) &&
+                IsValidTerminalId(root) &&
+                TryGetRequiredString(root, "answerSdp", ScreenViewProtocol.MaxSdpLength, allowEmpty: false, out _) &&
+                TryGetRequiredString(root, "clientSignature", MaxCredentialLength, allowEmpty: false, out _),
+            "terminal.stop" => IsValidFileOperationId(root) && IsValidTerminalId(root),
             "audio.mute.toggle" => TryGetOptionalInputContext(root, out var muteContext) &&
                 IsInputContextAllowed(type, muteContext),
             "audio.volume.set" => TryGetNumber(root, "volume", 0, 100, out _) &&
@@ -647,6 +659,21 @@ internal static class ClientMessageValidator
             (transferId is null) == (requestId is null)) return false;
         return transferId is not null ? IsValidOperationId(transferId) : IsValidOperationId(requestId!);
     }
+
+    private static bool IsValidTerminalStart(JsonElement root) =>
+        IsValidFileOperationId(root) &&
+        TryGetNumber(root, "columns", TerminalProtocol.MinimumColumns, TerminalProtocol.MaximumColumns, out _) &&
+        TryGetNumber(root, "rows", TerminalProtocol.MinimumRows, TerminalProtocol.MaximumRows, out _) &&
+        TryGetRequiredString(root, "clientSignature", MaxCredentialLength, allowEmpty: false, out _);
+
+    private static bool IsValidTerminalAttach(JsonElement root) =>
+        IsValidTerminalStart(root) && IsValidTerminalId(root) &&
+        root.TryGetProperty("acknowledgedOffset", out var offset) && offset.ValueKind == JsonValueKind.Number &&
+        offset.TryGetInt64(out var parsedOffset) && parsedOffset >= 0;
+
+    private static bool IsValidTerminalId(JsonElement root) =>
+        TryGetRequiredString(root, "terminalId", 32, allowEmpty: false, out var terminalId) &&
+        terminalId.Length == 32 && terminalId.All(char.IsAsciiHexDigit);
 
     private static bool IsValidOperationId(string operationId)
     {

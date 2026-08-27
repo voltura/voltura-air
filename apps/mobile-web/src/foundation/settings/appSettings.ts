@@ -3,7 +3,8 @@ export type FourthMode =
   | "dictation"
   | "text-transfer"
   | "clipboard-read"
-  | "files";
+  | "files"
+  | "terminal";
 
 export interface AppSettings {
   autoRefresh: boolean;
@@ -21,8 +22,12 @@ export function getEffectiveFourthMode(
   fourthMode: FourthMode,
   presentationAvailable: boolean,
   filesAvailable = false,
+  terminalAvailable = false,
 ): FourthMode {
   if (fourthMode === "files" && !filesAvailable) {
+    return presentationAvailable ? "presentation" : "dictation";
+  }
+  if (fourthMode === "terminal" && !terminalAvailable) {
     return presentationAvailable ? "presentation" : "dictation";
   }
   return fourthMode === "presentation" && !presentationAvailable ? "dictation" : fourthMode;
@@ -47,7 +52,8 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       candidate.fourthMode === "dictation" ||
       candidate.fourthMode === "text-transfer" ||
       candidate.fourthMode === "clipboard-read" ||
-      candidate.fourthMode === "files"
+      candidate.fourthMode === "files" ||
+      candidate.fourthMode === "terminal"
         ? candidate.fourthMode
         : defaultAppSettings.fourthMode,
   };

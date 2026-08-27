@@ -30,4 +30,11 @@ describe("capability-aware app modes", () => {
     expect(getAvailableToolModeIds(true, false)).not.toContain("files");
     expect(getAvailableToolModeIds(true, true)).toContain("files");
   });
+
+  it("offers Terminal only when the host advertises it and falls back safely", () => {
+    expect(getAvailableToolModeIds(true, true, false)).not.toContain("terminal");
+    expect(getAvailableToolModeIds(true, true, true)).toContain("terminal");
+    expect(getEffectiveFourthMode("terminal", true, true, false)).toBe("presentation");
+    expect(getModeTabs("terminal", false, true, true).at(-1)?.id).toBe("terminal");
+  });
 });

@@ -100,6 +100,7 @@ import {
   type ControllerSocket,
 } from "./controllerSocket";
 import { connectSecureDirect } from "./secureDirect";
+import { publishTerminalResult } from "./terminalResultBus";
 
 const directConnectionTimeoutMs = 3000;
 const relayConnectionTimeoutMs = 10000;
@@ -113,7 +114,7 @@ export function getConnectionTimeoutMs(transportMode: PcProfile["transportMode"]
 }
 
 interface ConnectionSocketLifecycleOptions {
-  clearRuntimeStateFromSocket: () => void;
+  clearRuntimeStateFromSocket: (preserveTerminal?: boolean) => void;
   clientId: string;
   completeAppLaunch: (result: AppLaunchResultMessage) => boolean;
   completeAwakeChange: (result: AwakeResultMessage) => boolean;
@@ -350,7 +351,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       }
 
       hasShownUnavailable = true;
-      clearRuntimeStateFromSocket();
+      clearRuntimeStateFromSocket(true);
       window.clearTimeout(connectionTimer);
       connectionTimer = undefined;
       clearHealthCheck();
@@ -754,6 +755,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         }
 
         let pendingFileTransferMessages = Promise.resolve();
+        let pendingTerminalMessages = Promise.resolve();
         function handleSocketMessage(messageData: unknown) {
           const response = parseServerMessage(messageData);
           if (response) {
@@ -775,6 +777,26 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
                   ws,
                   "The file transfer protocol could not be loaded. Retrying...",
                   "VAIR-FILE-TRANSFER-PROTOCOL",
+                ),
+              );
+            return;
+          }
+          if (typeof messageData === "string" && messageData.includes('"terminal.')) {
+            pendingTerminalMessages = pendingTerminalMessages
+              .then(async () => {
+                const { parseTerminalServerMessage } = await import("./terminalServerProtocol");
+                const terminalResponse = parseTerminalServerMessage(messageData);
+                if (terminalResponse && !disposed && ws === socketRef.current) {
+                  touchHealthy();
+                  publishTerminalResult(terminalResponse);
+                  scheduleHealthCheck(ws);
+                }
+              })
+              .catch(() =>
+                markUnavailable(
+                  ws,
+                  "The Terminal protocol could not be loaded. Retrying...",
+                  "VAIR-TERMINAL-PROTOCOL",
                 ),
               );
             return;

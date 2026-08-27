@@ -13,6 +13,7 @@ interface AppNavigationOptions {
   onEnterRemote: () => void;
   presentationAvailable: boolean;
   filesAvailable?: boolean;
+  terminalAvailable?: boolean;
   showModeButtons?: boolean;
   supportsGestureDebug: boolean;
   trackpadSettings: NavigationTrackpadSettings;
@@ -53,6 +54,7 @@ export function useAppNavigation({
   onEnterRemote,
   presentationAvailable,
   filesAvailable = false,
+  terminalAvailable = false,
   showModeButtons = true,
   supportsGestureDebug,
   trackpadSettings,
@@ -65,8 +67,8 @@ export function useAppNavigation({
   const [modeSelectorAnchor, setModeSelectorAnchor] = useState<ModeSelectorAnchor | null>(null);
   const [isRemoteUtilityPanelOpen, setIsRemoteUtilityPanelOpen] = useState(false);
   const modeTabs = useMemo(
-    () => getModeTabs(fourthMode, presentationAvailable, filesAvailable),
-    [filesAvailable, fourthMode, presentationAvailable],
+    () => getModeTabs(fourthMode, presentationAvailable, filesAvailable, terminalAvailable),
+    [filesAvailable, fourthMode, presentationAvailable, terminalAvailable],
   );
 
   useEffect(() => {
@@ -92,7 +94,11 @@ export function useAppNavigation({
           ? presentationAvailable
             ? "presentation"
             : "dictation"
-          : requestedTab;
+          : requestedTab === "terminal" && !terminalAvailable
+            ? presentationAvailable
+              ? "presentation"
+              : "dictation"
+            : requestedTab;
   const effectiveModeSelectorAnchor = tab === "debug" ? null : modeSelectorAnchor;
   const effectiveModeSelectorOpen = effectiveModeSelectorAnchor !== null;
   const effectiveModeTabsCollapsed = tab === "debug" ? false : areModeTabsCollapsed;
@@ -172,6 +178,7 @@ export function useAppNavigation({
     tab === "text-transfer" && "text-transfer-active",
     tab === "clipboard-read" && "clipboard-read-active",
     tab === "files" && "files-active",
+    tab === "terminal" && "terminal-active",
     effectiveRemoteUtilityPanelOpen && "remote-utility-open",
     shouldShowSplitMode && "split-mode-active",
     !showModeButtons && "mode-buttons-hidden",

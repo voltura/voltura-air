@@ -7,6 +7,7 @@ import {
   Presentation as PresentationIcon,
   Send,
   Tv,
+  SquareTerminal,
 } from "lucide-react";
 import { getEffectiveFourthMode } from "../foundation/settings/appSettings";
 import type { MainAppTab, ToolAppTab } from "../features/modes";
@@ -49,6 +50,12 @@ export const toolModeDefinitions: Record<ToolAppTab, ModeDefinition> = {
     Icon: ClipboardPaste,
   },
   files: { id: "files", label: "Files", ariaLabel: "Files on PC", Icon: Files },
+  terminal: {
+    id: "terminal",
+    label: "Terminal",
+    ariaLabel: "Terminal on PC",
+    Icon: SquareTerminal,
+  },
 };
 
 const toolModeOrder = [
@@ -57,20 +64,23 @@ const toolModeOrder = [
   "text-transfer",
   "clipboard-read",
   "files",
+  "terminal",
 ] satisfies ToolAppTab[];
 const stableToolModeOrder = [
   "dictation",
   "text-transfer",
   "clipboard-read",
   "files",
+  "terminal",
 ] satisfies ToolAppTab[];
 
 export function getAvailableToolModeIds(
   presentationAvailable: boolean,
   filesAvailable = false,
+  terminalAvailable = false,
 ): ToolAppTab[] {
   return (presentationAvailable ? toolModeOrder : stableToolModeOrder).filter(
-    (id) => id !== "files" || filesAvailable,
+    (id) => (id !== "files" || filesAvailable) && (id !== "terminal" || terminalAvailable),
   );
 }
 
@@ -78,11 +88,13 @@ export function getModeTabs(
   fourthMode: ToolAppTab,
   presentationAvailable: boolean,
   filesAvailable = false,
+  terminalAvailable = false,
 ): ModeDefinition[] {
   const effectiveFourthMode = getEffectiveFourthMode(
     fourthMode,
     presentationAvailable,
     filesAvailable,
+    terminalAvailable,
   );
   return [...primaryModeDefinitions, toolModeDefinitions[effectiveFourthMode]];
 }

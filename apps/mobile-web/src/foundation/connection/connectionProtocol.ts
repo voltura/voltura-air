@@ -623,6 +623,11 @@ function isServerCapabilities(value: unknown): boolean {
       "fileManager",
       (candidate) => candidate === null || isFileManagerCapability(candidate),
     ) &&
+    isOptional(
+      value,
+      "terminal",
+      (candidate) => candidate === null || isTerminalCapability(candidate),
+    ) &&
     isOptional(value, "urlOpen", (candidate) => isBooleanCapability(candidate, "canOpen")) &&
     isOptional(value, "sleep", isBoolean) &&
     isOptional(value, "textTransfer", isBoolean) &&
@@ -1633,6 +1638,36 @@ export const getPhoneWebcamCapability = (capabilities: ServerCapabilities | unde
   capabilities?.phoneWebcam ?? undefined;
 export const getFileManagerCapability = (capabilities: ServerCapabilities | undefined) =>
   capabilities?.fileManager ?? undefined;
+
+export const getTerminalCapability = (capabilities: ServerCapabilities | undefined) =>
+  capabilities?.terminal ?? undefined;
+
+function isTerminalCapability(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    hasOnlyFields(value, [
+      "enabled",
+      "permissionGranted",
+      "canUse",
+      "requiresRepair",
+      "active",
+      "ownedByClient",
+      "terminalId",
+      "shell",
+      "reconnectGraceSeconds",
+    ]) &&
+    ["enabled", "permissionGranted", "canUse", "requiresRepair", "active", "ownedByClient"].every(
+      (name) => typeof value[name] === "boolean",
+    ) &&
+    (value.terminalId === null ||
+      value.terminalId === undefined ||
+      (typeof value.terminalId === "string" && /^[a-f0-9]{32}$/u.test(value.terminalId))) &&
+    value.shell === "windows-powershell" &&
+    Number.isInteger(value.reconnectGraceSeconds) &&
+    (value.reconnectGraceSeconds as number) >= 0 &&
+    (value.reconnectGraceSeconds as number) <= 3600
+  );
+}
 export const hasTextTransferCapability = (capabilities: ServerCapabilities | undefined) =>
   capabilities?.textTransfer === true;
 export const getClipboardReadPermission = (

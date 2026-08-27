@@ -42,6 +42,13 @@ internal static class ProtocolFrameAssert
         ["file.transfer.cancel.result"] = ["operationId", "succeeded", "message"],
         ["file.transfer.status"] = ["transferId", "direction", "state", "bytesCompleted", "bytesTotal"],
         ["file.transfer.result"] = ["transferId", "direction", "succeeded", "message", "fileName", "declaredSize"],
+        ["terminal.start.result"] = ["operationId", "succeeded", "message"],
+        ["terminal.attach.result"] = ["operationId", "succeeded", "message"],
+        ["terminal.answer.result"] = ["operationId", "succeeded", "message"],
+        ["terminal.stop.result"] = ["operationId", "succeeded", "message"],
+        ["terminal.offer"] = ["operationId", "terminalId", "columns", "rows", "acknowledgedOffset", "offerSdp", "hostSignature"],
+        ["terminal.status"] = ["terminalId", "state", "acknowledgedOffset"],
+        ["terminal.ended"] = ["terminalId", "reason"],
         ["audio.state"] = ["volume", "muted"]
     };
 

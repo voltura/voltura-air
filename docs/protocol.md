@@ -27,7 +27,8 @@ forwards exactly one `{ "type": "secure.offer", "sdp": "..." }` and one
 controller state. SDP is limited to 32 KiB, encoded signaling to 64 KiB,
 authentication control to 4 KiB, output buffering to 256 KiB, and negotiation
 to ten seconds. Signaling loss after answer application does not close a healthy
-DataChannel. The selected local address must be the configured private IPv4
+DataChannel. A transient ICE `disconnected` state is allowed to recover; only
+terminal `failed` or `closed` peer states close Secure Direct control. The selected local address must be the configured private IPv4
 adapter address, and the selected remote address must be private IPv4. No STUN
 or TURN server is configured. Public, loopback, wrong-interface, malformed, or
 unverifiable selected addresses remain rejected. Relay mode never uses this
@@ -53,7 +54,7 @@ its separate WebRTC transport and can fail while commands remain connected.
 - Allowed origins: missing, same-origin, configured development, loopback, and
   private LAN. Unrelated public origins are rejected before upgrade.
 - Maximum 64 sessions; `pair.hello` deadline 10 seconds; authenticated receive
-  idle timeout 2 minutes.
+  idle timeout 5 minutes.
 - `/ws` accepts maximum 64 KiB text messages across fragments. Oversize closes
   with 1009; binary is rejected. Screen media never enters this serialized
   command queue; it uses a negotiated WebRTC media track and data channel.
@@ -418,6 +419,10 @@ Authenticated metadata is not authentication state:
   device permissions.
 - `diagnostics.canView`: effective **View diagnostics** permission. The capability
   remains present when blocked so the mobile destination can explain recovery.
+- `terminal`: `enabled`, effective `permissionGranted`, authenticated `canUse`,
+  `requiresRepair`, host-wide `active`, device-specific `ownedByClient`, an
+  owner-only `terminalId`, `shell: "windows-powershell"`, and
+  `reconnectGraceSeconds: 900`. A denied capability remains present for recovery UI.
 - `textTransferTarget`: exactly `{ mode, displayName, available }`; mode is
   `focused`, `clipboard`, or `configured`. It excludes paths, process/window
   IDs, matching rules, and clipboard content.
@@ -1302,6 +1307,16 @@ Files downloads require browse and transfer permissions plus one current file re
 The host journals an upload partial before creating it, excludes every journal-owned partial or backup from all client directory revisions, ACKs only flushed bytes, and revalidates the captured destination directory before commit. A later panel refresh or navigation cannot redirect or cancel that upload. The original remains preserved until Replace commits or rolls back. Explicit cancel, 60 seconds without committed progress, control/data-channel loss, disconnect, unpair, owner exit, permission loss, and host shutdown cancel and clean up. Direct transfer duration is not capped and bypasses Relay admission. Relay requests sign the exact purpose `file-transfer`, receive a 60-minute credential, and stop at expiry; media credentials remain 15 minutes. For a screenshot using the official Voltura Cloud Relay, the host rejects before peer creation when aggregate usage is already at the provider cutoff or when `usage + (3 x PNG bytes) + 1 MiB` reaches it, and immediately disposes the PNG. Missing or unavailable official usage fails closed. Custom Relay has no Voltura cutoff. Aggregate Cloudflare analytics may lag and concurrent sessions are not reserved, so this is conservative admission rather than an exact one-byte reservation. Other file transfer bytes count toward the existing TURN warning and cutoff, but screen quality throttling is not applied to file bytes.
 
 Every file control message remains within the existing 64 KiB frame limit. Paths, filenames, clipboard lists, conflict names, temporary names, tokens, keys, proofs, and file contents are excluded from application logs.
+
+### Interactive Terminal
+
+Terminal setup and lifecycle use the authenticated JSON control connection. `terminal.start` has exact fields `type`, `operationId`, `columns`, `rows`, and `clientSignature`. `terminal.attach` additionally binds exact `terminalId` and non-negative safe `acknowledgedOffset`. `terminal.answer` has `operationId`, `offerOperationId`, `terminalId`, bounded `answerSdp`, and `clientSignature`; `terminal.stop` has only `operationId` and `terminalId`. Columns are 10–500 and rows 5–300. Results are `terminal.start.result`, `terminal.attach.result`, `terminal.answer.result`, and `terminal.stop.result`; the host emits `terminal.offer`, capability/status updates, and `terminal.ended`.
+
+Start and attach signatures use `VolturaAir terminal:start:v1` and `VolturaAir terminal:attach:v1` transcripts followed by the client ID, pinned host public key, operation/session values, dimensions, and acknowledged offset in the documented message order. Offers bind those fields plus the SHA-256/base64url SDP hash under `VolturaAir terminal:offer:v1`; answers bind client ID, pinned host key, start/attach operation ID, answer operation ID, terminal ID, offer hash, and answer hash under `VolturaAir terminal:answer:v1`. Operation replay, invalid shape/SDP/signature, and cross-device ownership fail closed.
+
+The host creates one reliable ordered `voltura-terminal` DataChannel. A transient ICE `disconnected` state is allowed to recover on that peer; `failed`, `closed`, DataChannel close, or record failure detaches it. Binary byte zero contains version `1` in the high nibble and kind in the low nibble: `1` input, `2` output, `3` cumulative output acknowledgement, `4` resize. Input/output records carry an unsigned 64-bit big-endian offset followed by 1–16,384 bytes (input offset is zero). Acknowledgement is exactly nine bytes. Resize is exactly five bytes: header plus unsigned 16-bit big-endian columns and rows. Invalid UTF-8 is terminal data, not JSON; xterm consumes the bytes without command-path decoding.
+
+Queued input is at most 256 KiB. Output offsets are monotonic; the host retains exactly the unacknowledged suffix up to 1 MiB and stops reading the ConPTY pipe at the bound. The peer also stops accepting sends at 1 MiB WebRTC buffered amount. Reconnect requires the same authenticated device, terminal ID, fresh signed attach, and the host's exact last acknowledged boundary within 15 minutes. Relay uses signed purpose `terminal`, 60-minute credentials, and a fresh attach/offer before expiry without restarting PowerShell. No command, output, current directory, or environment value enters logs, telemetry, JSON status, or persistence.
 
 ## Presentation
 

@@ -81,6 +81,7 @@ export function AppSettingsSection({
   isInstalled,
   presentationAvailable,
   filesAvailable,
+  terminalAvailable,
   refreshInstalledApp,
   refreshMessage,
   updateAppSetting,
@@ -88,6 +89,7 @@ export function AppSettingsSection({
   SettingsDrawerProps,
   | "appSettings"
   | "filesAvailable"
+  | "terminalAvailable"
   | "installApp"
   | "installPrompt"
   | "isInstalled"
@@ -106,6 +108,7 @@ export function AppSettingsSection({
             appSettings.fourthMode,
             presentationAvailable,
             filesAvailable,
+            terminalAvailable,
           )}
           onChange={(event) => {
             updateAppSetting(
@@ -113,7 +116,8 @@ export function AppSettingsSection({
               event.target.value === "presentation" ||
                 event.target.value === "text-transfer" ||
                 event.target.value === "clipboard-read" ||
-                event.target.value === "files"
+                event.target.value === "files" ||
+                event.target.value === "terminal"
                 ? event.target.value
                 : "dictation",
             );
@@ -124,6 +128,7 @@ export function AppSettingsSection({
           <option value="text-transfer">Send text to PC</option>
           <option value="clipboard-read">Get text from PC</option>
           {filesAvailable && <option value="files">Files</option>}
+          {terminalAvailable && <option value="terminal">Terminal</option>}
         </select>
       </label>
       {!isInstalled && (

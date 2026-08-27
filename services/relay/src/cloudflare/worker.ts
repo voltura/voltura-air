@@ -215,7 +215,8 @@ export class RelayRoomObject extends DurableObject<Environment> {
       typeof value.signature !== "string" ||
       !(
         (Object.keys(value).length === 3 && value.purpose === undefined) ||
-        (Object.keys(value).length === 4 && value.purpose === "file-transfer")
+        (Object.keys(value).length === 4 &&
+          (value.purpose === "file-transfer" || value.purpose === "terminal"))
       ) ||
       !isTurnRequestTimestampFresh(value.timestamp) ||
       !/^[A-Za-z0-9_-]{43}$/u.test(value.nonce) ||
@@ -223,7 +224,8 @@ export class RelayRoomObject extends DurableObject<Environment> {
       !attachment.publicKey
     )
       return new Response("Unauthorized", { status: 401 });
-    const purpose = value.purpose === "file-transfer" ? value.purpose : undefined;
+    const purpose =
+      value.purpose === "file-transfer" || value.purpose === "terminal" ? value.purpose : undefined;
     const transcript = new TextEncoder().encode(
       purpose
         ? `voltura-air-relay-turn-v2\n${routeId}\n${value.timestamp}\n${value.nonce}\n${purpose}`

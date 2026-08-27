@@ -35,6 +35,7 @@ public sealed class WebHostService : IAsyncDisposable
     private readonly FileManagerService _fileManager;
     private readonly FileManagerCommandHandler _fileManagerCommands;
     private readonly FileTransferCoordinator _fileTransfers;
+    private readonly TerminalCoordinator _terminal;
     private readonly PresentationLaserPointerController _presentationLaserPointer;
     private readonly IPowerPointAutomationService _powerPoint;
     private readonly PowerPointPresentationSessionService _presentationSession;
@@ -74,6 +75,14 @@ public sealed class WebHostService : IAsyncDisposable
 
     internal Task StopPhoneWebcamFromHostAsync(string clientId) =>
         _phoneWebcamCommands.StopFromHostAsync(clientId);
+
+    internal event EventHandler<TerminalActivityChangedEventArgs>? TerminalActivityChanged
+    {
+        add => _terminal.ActivityChanged += value;
+        remove => _terminal.ActivityChanged -= value;
+    }
+
+    internal Task StopTerminalFromHostAsync() => _terminal.StopFromHostAsync();
 
     public WebHostService(
         PairingManager pairingManager,
@@ -147,7 +156,10 @@ public sealed class WebHostService : IAsyncDisposable
         IScreenViewWebRtcPeerFactory? screenViewPeerFactory,
         IUsageTelemetryRecorder? usageTelemetry = null,
         IFileTransferWebRtcPeerFactory? fileTransferPeerFactory = null,
-        IComputerDiagnosticsProbe? computerDiagnosticsProbe = null)
+        IComputerDiagnosticsProbe? computerDiagnosticsProbe = null,
+        ITerminalProcessFactory? terminalProcessFactory = null,
+        ITerminalWebRtcPeerFactory? terminalPeerFactory = null,
+        TimeProvider? terminalTimeProvider = null)
     {
         _configureWebHost = configureWebHost;
 
@@ -237,6 +249,7 @@ public sealed class WebHostService : IAsyncDisposable
             _powerController as IPresentationBlankOverlay ??
             NoOpPresentationBlankOverlay.Instance;
 
+        TerminalCoordinator? terminalCoordinator = null;
         var statusFactory = new HostStatusPayloadFactory(
             pairingManager,
             _powerController,
@@ -257,7 +270,8 @@ public sealed class WebHostService : IAsyncDisposable
             () => phoneWebcamFeature?.Status ?? new PhoneWebcamFeatureStatus(
                 PhoneWebcamFeatureState.Unavailable,
                 "Phone webcam is unavailable."),
-            () => phoneWebcamFeature?.AudioTargetStatus.IsReady == true);
+            () => phoneWebcamFeature?.AudioTargetStatus.IsReady == true,
+            clientId => terminalCoordinator?.GetCapability(clientId) ?? new(false, false, null, null));
         ComputerDiagnostics = computerDiagnosticsProbe is null
             ? new ComputerDiagnosticsProvider()
             : new ComputerDiagnosticsProvider(computerDiagnosticsProbe);
@@ -375,6 +389,15 @@ public sealed class WebHostService : IAsyncDisposable
             TransportMode == ConnectionTransportMode.Relay,
             GetFileTransferRelayTurnConfigurationAsync,
             fileTransferPeerFactory ?? (isolatedTestMode ? new IsolatedFileTransferWebRtcPeerFactory() : null));
+        _terminal = terminalCoordinator = new TerminalCoordinator(
+            pairingManager,
+            statusFactory,
+            _transport,
+            TransportMode == ConnectionTransportMode.Relay,
+            GetTerminalRelayTurnConfigurationAsync,
+            terminalProcessFactory ?? (isolatedTestMode ? new IsolatedTerminalProcessFactory() : new ConPtyTerminalProcessFactory()),
+            terminalPeerFactory ?? (isolatedTestMode ? new IsolatedTerminalWebRtcPeerFactory() : new TerminalWebRtcPeerFactory()),
+            terminalTimeProvider);
         var resolvedPhoneWebcam = phoneWebcamFeature ?? PhoneWebcamFeature.CreateUnavailable();
         var phoneWebcamCoordinator = new PhoneWebcamCoordinator(
             pairingManager,
@@ -414,6 +437,7 @@ public sealed class WebHostService : IAsyncDisposable
             diagnosticsCommands,
             _fileManagerCommands,
             _fileTransfers,
+            _terminal,
             inputCommands,
             customScreenCommands,
             _screenViewCommands,
@@ -433,6 +457,7 @@ public sealed class WebHostService : IAsyncDisposable
             _powerPoint,
             presentationBlankOverlay,
             resolvedPhoneWebcam as PhoneWebcamFeature);
+        _terminal.ActivityChanged += (_, _) => _statusBroadcaster.Queue();
         if (TransportMode == ConnectionTransportMode.Relay)
         {
 #pragma warning disable CA2000 // RelayHostConnection owns and disposes the routing identity.
@@ -622,6 +647,7 @@ public sealed class WebHostService : IAsyncDisposable
 
     public async Task StopAsync()
     {
+        await _terminal.StopFromHostAsync();
         await _screenViewCommands.DisposeAsync();
         await _screenView.DisposeAsync();
         await _phoneWebcamCommands.DisposeAsync();
@@ -657,6 +683,7 @@ public sealed class WebHostService : IAsyncDisposable
         }
 
         await _statusBroadcaster.DisposeAsync();
+        await _terminal.DisposeAsync();
         await _fileTransfers.DisposeAsync();
         await _fileManagerCommands.DisposeAsync();
         await _fileManager.DisposeAsync();
@@ -829,6 +856,13 @@ public sealed class WebHostService : IAsyncDisposable
         var relay = _relay;
         if (relay is null) return Task.FromResult<RelayTurnConfiguration?>(null);
         return relay.GetTurnConfigurationAsync(RelayScreenQuality.Standard, cancellationToken, "file-transfer");
+    }
+
+    private Task<RelayTurnConfiguration?> GetTerminalRelayTurnConfigurationAsync(CancellationToken cancellationToken)
+    {
+        var relay = _relay;
+        if (relay is null) return Task.FromResult<RelayTurnConfiguration?>(null);
+        return relay.GetTurnConfigurationAsync(RelayScreenQuality.Standard, cancellationToken, "terminal");
     }
 
     internal static IPowerPointAutomationService ResolvePowerPointAutomation(

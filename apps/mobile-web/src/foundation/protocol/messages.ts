@@ -85,7 +85,94 @@ export interface ServerCapabilities {
   screenView?: ScreenViewCapability | null;
   phoneWebcam?: PhoneWebcamCapability | null;
   fileManager?: FileManagerCapability | null;
+  terminal?: TerminalCapability | null;
 }
+
+export interface TerminalCapability {
+  enabled: boolean;
+  permissionGranted: boolean;
+  canUse: boolean;
+  requiresRepair: boolean;
+  active: boolean;
+  ownedByClient: boolean;
+  terminalId?: string | null;
+  shell: "windows-powershell";
+  reconnectGraceSeconds: number;
+}
+
+export interface TerminalStartMessage {
+  type: "terminal.start";
+  operationId: string;
+  columns: number;
+  rows: number;
+  clientSignature: string;
+}
+export interface TerminalAttachMessage {
+  type: "terminal.attach";
+  operationId: string;
+  terminalId: string;
+  acknowledgedOffset: number;
+  columns: number;
+  rows: number;
+  clientSignature: string;
+}
+export interface TerminalAnswerMessage {
+  type: "terminal.answer";
+  operationId: string;
+  offerOperationId: string;
+  terminalId: string;
+  answerSdp: string;
+  clientSignature: string;
+}
+export interface TerminalStopMessage {
+  type: "terminal.stop";
+  operationId: string;
+  terminalId: string;
+}
+export interface TerminalResultMessage {
+  type: "terminal.start.result" | "terminal.attach.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string | null;
+  message: string;
+  terminalId?: string | null;
+}
+export interface TerminalActionResultMessage {
+  type: "terminal.answer.result" | "terminal.stop.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string | null;
+  message: string;
+}
+export interface TerminalOfferMessage {
+  type: "terminal.offer";
+  operationId: string;
+  terminalId: string;
+  columns: number;
+  rows: number;
+  acknowledgedOffset: number;
+  offerSdp: string;
+  hostSignature: string;
+  iceServers?: RTCIceServer[] | null;
+  turnExpiresAt?: string | null;
+}
+export interface TerminalEndedMessage {
+  type: "terminal.ended";
+  terminalId: string;
+  reason: string;
+}
+export interface TerminalStatusMessage {
+  type: "terminal.status";
+  terminalId: string;
+  state: "connecting" | "active" | "detached";
+  acknowledgedOffset: number;
+}
+export type TerminalServerMessage =
+  | TerminalResultMessage
+  | TerminalActionResultMessage
+  | TerminalOfferMessage
+  | TerminalStatusMessage
+  | TerminalEndedMessage;
 
 export interface DiagnosticsCapability {
   canView: boolean;
@@ -1427,7 +1514,11 @@ export type ClientMessage =
   | FileConflictResolveMessage
   | FileTransferStartMessage
   | FileTransferAnswerMessage
-  | FileTransferCancelMessage;
+  | FileTransferCancelMessage
+  | TerminalStartMessage
+  | TerminalAttachMessage
+  | TerminalAnswerMessage
+  | TerminalStopMessage;
 
 export type ServerMessage =
   | PairAcceptedMessage

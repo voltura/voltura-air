@@ -34,8 +34,10 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private Forms.ToolStripMenuItem? _screenViewingItem;
     private Forms.ToolStripMenuItem? _blockScreenViewingItem;
     private Forms.ToolStripMenuItem? _phoneWebcamItem;
+    private Forms.ToolStripMenuItem? _terminalItem;
     private string? _screenViewingDeviceName;
     private string? _phoneWebcamClientId;
+    private string? _terminalDeviceName;
     private bool _disposed;
 
     public WpfTrayApplicationContext(
@@ -99,6 +101,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _pairingManager.ConnectionChanged += OnConnectionChanged;
         _webHost.ScreenViewActivityChanged += OnScreenViewActivityChanged;
         _webHost.PhoneWebcamActivityChanged += OnPhoneWebcamActivityChanged;
+        _webHost.TerminalActivityChanged += OnTerminalActivityChanged;
         TrayIconVisibilityPromoter.PromoteWhenReady(_components, _trayIcon);
 
         ApplyMenuTheme();
@@ -135,6 +138,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _pairingManager.ConnectionChanged -= OnConnectionChanged;
         _webHost.ScreenViewActivityChanged -= OnScreenViewActivityChanged;
         _webHost.PhoneWebcamActivityChanged -= OnPhoneWebcamActivityChanged;
+        _webHost.TerminalActivityChanged -= OnTerminalActivityChanged;
         _mainWindow.HiddenToTray -= OnMainWindowHiddenToTray;
         _connectionChangedAction.Dispose();
         _notificationPresenter.Available -= _connectionFeedbackController.OnNotificationSlotAvailable;
@@ -150,6 +154,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _blockScreenViewingItem?.Dispose();
         _screenViewingItem?.Dispose();
         _phoneWebcamItem?.Dispose();
+        _terminalItem?.Dispose();
         _updateItem?.Dispose();
         _trayMenu.Dispose();
 
@@ -175,6 +180,10 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _phoneWebcamItem.Click += async (_, _) => await RunProtectedAsync(StopPhoneWebcamFromTrayAsync);
         _trayMenu.Items.Add(_phoneWebcamItem);
         _trayMenu.Items.Add(new Forms.ToolStripSeparator { Visible = false, Tag = "phone-webcam-separator" });
+        _terminalItem = new Forms.ToolStripMenuItem("Stop Terminal") { Visible = false };
+        _terminalItem.Click += async (_, _) => await RunProtectedAsync(_webHost.StopTerminalFromHostAsync);
+        _trayMenu.Items.Add(_terminalItem);
+        _trayMenu.Items.Add(new Forms.ToolStripSeparator { Visible = false, Tag = "terminal-separator" });
         var showItem = _trayMenu.Items.Add(
             "Show Voltura Air",
             null,
@@ -300,6 +309,29 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         }
     }
 
+    private void OnTerminalActivityChanged(object? sender, TerminalActivityChangedEventArgs e)
+    {
+        _ = _dispatcher.BeginInvoke(() =>
+        {
+            if (_disposed || _terminalItem is null) return;
+            _terminalItem.Text = e.Active ? $"Stop Terminal - {e.DeviceName}" : "Stop Terminal";
+            _terminalItem.Visible = e.Active;
+            _terminalDeviceName = e.Active ? e.DeviceName : null;
+            _trayIcon.Text = BuildTrayTooltip(_connectionFeedbackController.DisplayedState);
+            Forms.ToolStripItem? separator = _trayMenu.Items.Cast<Forms.ToolStripItem>()
+                .FirstOrDefault(item => item.Tag as string == "terminal-separator");
+            separator?.Visible = e.Active;
+            if (e.Active && e.Reason == "started")
+            {
+                ShowNotification(
+                    "Terminal active",
+                    $"{e.DeviceName} started Windows PowerShell. Use the tray menu to stop it immediately.",
+                    Forms.ToolTipIcon.Info);
+            }
+            if (!e.Active) _trayMenu.Close(Forms.ToolStripDropDownCloseReason.ItemClicked);
+        });
+    }
+
     private void ApplyScreenViewActivity(ScreenViewActivityChangedEventArgs activity)
     {
         if (_disposed || _screenViewingItem is null)
@@ -417,6 +449,10 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         if (_screenViewingDeviceName is not null)
         {
             return TruncateTrayTooltip($"Voltura Air - screen viewed by {_screenViewingDeviceName}");
+        }
+        if (_terminalDeviceName is not null)
+        {
+            return TruncateTrayTooltip($"Voltura Air - Terminal active for {_terminalDeviceName}");
         }
 
         var status = state switch

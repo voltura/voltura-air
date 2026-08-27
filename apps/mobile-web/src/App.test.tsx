@@ -12,6 +12,14 @@ vi.mock("./foundation/pwa/usePwaLifecycle", () => ({
   usePwaLifecycle: vi.fn(),
 }));
 
+vi.mock("./features/terminal", () => ({
+  default: ({ active }: { active: boolean }) => (
+    <div data-testid="terminal-workspace" hidden={!active}>
+      Terminal workspace
+    </div>
+  ),
+}));
+
 function createStorage(): Storage {
   const items = new Map<string, string>();
   return {
@@ -57,6 +65,7 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     screenViewCapability: undefined,
     phoneWebcamCapability: undefined,
     fileManagerCapability: undefined,
+    terminalCapability: undefined,
     requestAudioState: vi.fn(),
     clientId: "client-a",
     deviceName: "Phone",
@@ -869,6 +878,47 @@ describe("App header and mode navigation", () => {
 
   it("leaves Screen when opening Trackpad from the Settings drawer", async () => {
     await expectSettingsToolToLeaveScreen("Trackpad");
+  });
+
+  it("lets a tool temporarily replace Terminal without leaving the Terminal mode", async () => {
+    mockConnection({
+      terminalCapability: {
+        enabled: true,
+        permissionGranted: true,
+        canUse: true,
+        requiresRepair: false,
+        active: false,
+        ownedByClient: false,
+        terminalId: null,
+        shell: "windows-powershell",
+        reconnectGraceSeconds: 900,
+      },
+      screenViewCapability: {
+        enabled: true,
+        permissionGranted: true,
+        canView: true,
+        requiresRepair: false,
+        encrypted: true,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        maxFramesPerSecond: 30,
+      },
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    let menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+    fireEvent.click(within(menu).getByRole("button", { name: "Terminal on PC" }));
+    expect((await screen.findByTestId("terminal-workspace")).hasAttribute("hidden")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+    fireEvent.click(within(menu).getByRole("button", { name: "View PC screen" }));
+    expect(await screen.findByText("Live mirror")).toBeTruthy();
+    expect(screen.getByTestId("terminal-workspace").hasAttribute("hidden")).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByTestId("terminal-workspace").hasAttribute("hidden")).toBe(false);
   });
 
   it("requests Gyro from Tools and replaces Screen with the Trackpad in Gyro mode", async () => {

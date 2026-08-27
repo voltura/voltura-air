@@ -73,6 +73,8 @@ public sealed class RelayHostConnectionTests
     [Theory]
     [InlineData(true, "file-transfer", true)]
     [InlineData(false, "file-transfer", false)]
+    [InlineData(true, "terminal", true)]
+    [InlineData(false, "terminal", false)]
     [InlineData(true, null, false)]
     public void OnlyOfficialFileTransferQuotaResponsesUseVolturaQuotaFailure(bool isOfficial, string? purpose, bool expected)
     {

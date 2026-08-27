@@ -152,7 +152,8 @@ internal static class DeviceAccessProfilePersistence
         if (values.AllowFileTransfer is null)
         {
             var completeBeforeFileTransfer = DeviceAccessProfiles.Permissions
-                .Where(permission => permission.Kind is not (DevicePermissionKind.FileTransfer or DevicePermissionKind.Diagnostics))
+                .Where(permission => permission.Kind is not (
+                    DevicePermissionKind.FileTransfer or DevicePermissionKind.Diagnostics or DevicePermissionKind.Terminal))
                 .All(permission => permission.ReadOverride(values) is not null);
             if (completeBeforeFileTransfer)
             {
@@ -163,11 +164,22 @@ internal static class DeviceAccessProfilePersistence
         if (values.AllowDiagnostics is null)
         {
             var completeBeforeDiagnostics = DeviceAccessProfiles.Permissions
-                .Where(permission => permission.Kind != DevicePermissionKind.Diagnostics)
+                .Where(permission => permission.Kind is not (DevicePermissionKind.Diagnostics or DevicePermissionKind.Terminal))
                 .All(permission => permission.ReadOverride(values) is not null);
             if (completeBeforeDiagnostics)
             {
                 values = values with { AllowDiagnostics = false };
+            }
+        }
+
+        if (values.AllowTerminal is null)
+        {
+            var completeBeforeTerminal = DeviceAccessProfiles.Permissions
+                .Where(permission => permission.Kind != DevicePermissionKind.Terminal)
+                .All(permission => permission.ReadOverride(values) is not null);
+            if (completeBeforeTerminal)
+            {
+                values = values with { AllowTerminal = false };
             }
         }
 

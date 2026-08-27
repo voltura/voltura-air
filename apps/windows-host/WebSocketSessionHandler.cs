@@ -26,6 +26,7 @@ internal sealed class WebSocketSessionHandler(
     DiagnosticsCommandHandler diagnosticsCommands,
     FileManagerCommandHandler fileManagerCommands,
     FileTransferCoordinator fileTransfers,
+    TerminalCoordinator terminal,
     InputCommandHandler inputCommands,
     CustomScreenCommandHandler customScreenCommands,
     ScreenViewCommandHandler screenViewCommands,
@@ -35,7 +36,7 @@ internal sealed class WebSocketSessionHandler(
     Action<ControllerSocketClosedEventArgs> reportSocketClosed)
 {
     public static readonly TimeSpan PairingHandshakeTimeout = TimeSpan.FromSeconds(10);
-    public static readonly TimeSpan AuthenticatedInactivityTimeout = TimeSpan.FromMinutes(2);
+    public static readonly TimeSpan AuthenticatedInactivityTimeout = TimeSpan.FromMinutes(5);
     private readonly PairingAttemptRateLimiter _pairingAttemptRateLimiter = new();
 
     internal event EventHandler? StatusRefreshRequested;
@@ -289,6 +290,7 @@ internal sealed class WebSocketSessionHandler(
                     await phoneWebcamCommands.ClientDisconnectedAsync(authenticatedClientId, socket);
                     fileManagerCommands.ClientDisconnected(authenticatedClientId, socket);
                     fileTransfers.ClientDisconnected(authenticatedClientId, socket);
+                    terminal.ClientDisconnected(authenticatedClientId, socket);
                     transport.Unregister(authenticatedClientId, socket);
                     presentationCommands.DisableLaserForClient(authenticatedClientId);
                 }
@@ -809,6 +811,23 @@ internal sealed class WebSocketSessionHandler(
                     ProtocolMessageFields.GetString(root, "operationId"),
                     ProtocolMessageFields.GetOptionalString(root, "transferId"),
                     ProtocolMessageFields.GetOptionalString(root, "requestId"),
+                    cancellationToken);
+                return true;
+            case "terminal.start":
+                terminal.QueueStart(socket, clientId, root, cancellationToken);
+                return true;
+            case "terminal.attach":
+                terminal.QueueAttach(socket, clientId, root, cancellationToken);
+                return true;
+            case "terminal.answer":
+                terminal.QueueAnswer(socket, clientId, root, cancellationToken);
+                return true;
+            case "terminal.stop":
+                terminal.QueueStop(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    ProtocolMessageFields.GetString(root, "terminalId"),
                     cancellationToken);
                 return true;
         }

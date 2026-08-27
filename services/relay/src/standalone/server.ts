@@ -357,7 +357,8 @@ async function issueTurn(
     typeof payload.signature !== "string" ||
     !(
       (Object.keys(payload).length === 3 && payload.purpose === undefined) ||
-      (Object.keys(payload).length === 4 && payload.purpose === "file-transfer")
+      (Object.keys(payload).length === 4 &&
+        (payload.purpose === "file-transfer" || payload.purpose === "terminal"))
     ) ||
     !isTurnRequestTimestampFresh(payload.timestamp) ||
     !/^[A-Za-z0-9_-]{43}$/u.test(payload.nonce) ||
@@ -369,7 +370,10 @@ async function issueTurn(
   for (const [nonce, createdAt] of usedTurnNonces)
     if (createdAt < now - turnRequestNonceRetentionMs) usedTurnNonces.delete(nonce);
   if (usedTurnNonces.has(replayKey)) return json(response, 401, { code: "unauthorized" });
-  const purpose = payload.purpose === "file-transfer" ? payload.purpose : undefined;
+  const purpose =
+    payload.purpose === "file-transfer" || payload.purpose === "terminal"
+      ? payload.purpose
+      : undefined;
   const transcript = new TextEncoder().encode(
     purpose
       ? `voltura-air-relay-turn-v2\n${routeId}\n${payload.timestamp}\n${payload.nonce}\n${purpose}`
@@ -378,7 +382,9 @@ async function issueTurn(
   if (!(await verifySignature(host.publicKey, transcript, payload.signature, routeId)))
     return json(response, 401, { code: "unauthorized" });
   usedTurnNonces.set(replayKey, now);
-  const expiresAt = new Date(now + (purpose === "file-transfer" ? 60 : 15) * 60_000);
+  const expiresAt = new Date(
+    now + (purpose === "file-transfer" || purpose === "terminal" ? 60 : 15) * 60_000,
+  );
   const username = `${Math.floor(expiresAt.getTime() / 1000)}:${routeId}`;
   // Coturn's shared-secret TURN REST credentials require this exact HMAC-SHA1 derivation.
   // This is protocol interoperability, not a general-purpose hash or signature choice.

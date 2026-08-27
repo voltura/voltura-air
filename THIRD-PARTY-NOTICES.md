@@ -71,6 +71,7 @@ license text and copyright notices.
 | jsQR | 1.4.0 | Pairing QR decoding | [Apache 2.0; cozmo/jsQR](https://github.com/cozmo/jsQR) |
 | Lucide React | 1.34.0 | User-interface icons | [ISC and derived Feather icons under MIT; lucide-icons/lucide](https://github.com/lucide-icons/lucide) |
 | React, React DOM, and Scheduler | 19.2.8 / 0.27.0 | Mobile user interface runtime | [MIT; facebook/react](https://github.com/facebook/react) |
+| xterm.js and FitAddon | 6.0.0 / 0.11.0 | Mobile Terminal rendering and responsive sizing | [MIT; xtermjs/xterm.js](https://github.com/xtermjs/xterm.js) |
 
 ## Relay service
 

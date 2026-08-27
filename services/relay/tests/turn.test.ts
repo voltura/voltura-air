@@ -55,6 +55,16 @@ describe("Cloudflare TURN quota policy", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
+  it("issues 60-minute credentials for terminal transport", async () => {
+    const fetch = mockFetch(100_000_000_000);
+    vi.stubGlobal("fetch", fetch);
+
+    const response = await createTurnResponse(environment, "r".repeat(22), "terminal");
+
+    expect(response.status).toBe(200);
+    expect(JSON.parse(String(fetch.mock.calls[1]?.[1]?.body))).toMatchObject({ ttl: 60 * 60 });
+  });
+
   it("forces Data Saver at the warning threshold", async () => {
     vi.stubGlobal("fetch", mockFetch(750_000_000_000));
     const response = await createTurnResponse(environment, "r".repeat(22));

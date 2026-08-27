@@ -7,6 +7,17 @@ namespace VolturaAir.Host.Tests;
 public sealed class SecureDirectProtocolTests
 {
     [Theory]
+    [InlineData((int)LibDataChannelNative.PeerState.Disconnected, false)]
+    [InlineData((int)LibDataChannelNative.PeerState.Failed, true)]
+    [InlineData((int)LibDataChannelNative.PeerState.Closed, true)]
+    public void ControlPeerToleratesTransientDisconnection(int state, bool expected)
+    {
+        Assert.Equal(
+            expected,
+            SecureDirectWebSocket.ShouldAbortForPeerState((LibDataChannelNative.PeerState)state));
+    }
+
+    [Theory]
     [InlineData(false, true, "192.168.68.51", true)]
     [InlineData(false, true, "127.0.0.1", false)]
     [InlineData(false, true, "8.8.8.8", false)]

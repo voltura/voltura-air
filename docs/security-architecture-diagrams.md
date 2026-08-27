@@ -28,6 +28,9 @@ flowchart LR
   Session --> FileHandler["FileManagerCommandHandler\nbrowse/change permission + opaque references"]
   Session --> Transfer["FileTransferCoordinator\ntransfer permission + signed WebRTC setup"]
   Client <-->|"DTLS one-file records\n+ cumulative ACKs"| Transfer
+  Session --> Terminal["TerminalCoordinator\nTerminal permission + signed ownership"]
+  Client <-->|"DTLS terminal records\n+ output ACKs"| Terminal
+  Terminal --> ConPTY["ConPTY + kill-on-close Job\nWindows PowerShell as signed-in user"]
   Transfer --> FileService
   FileHandler --> FileService["FileManagerService\nrevision validation + one mutation queue"]
   FileService --> FileSystem["Windows Shell, file system,\nRecycle Bin, mapped drives"]
@@ -126,6 +129,11 @@ flowchart TD
   FilePerm -- "true" --> FileRevision{"Opaque session + current\ndirectory revision valid"}
   FileRevision -- "false" --> FileStale["stale-panel\nno partial action"]
   FileRevision -- "true" --> FileAction["Windows Shell/file-system action\nunder signed-in user authority"]
+
+  Dispatch --> TerminalRequest["terminal.start / attach / answer / stop"]
+  TerminalRequest --> TerminalPerm{"AllowTerminal + pinned identity\n+ same-device ownership"}
+  TerminalPerm -- "false" --> TerminalDenied["Bounded denied/busy result\nno shell access"]
+  TerminalPerm -- "true" --> TerminalChannel["Signed WebRTC negotiation\nDTLS DataChannel + ConPTY Job"]
 
   Dispatch --> Privileged["launch / URL / clipboard / power / awake / presentation / audio"]
   Privileged --> SpecificPerm{"Specific resolved device permission"}

@@ -12,6 +12,90 @@ import {
 import { ModalDialog } from "../../ui/overlays/ModalDialog";
 import { SavedPcReconnectChoice, type SavedPcReconnectOption } from "./SavedPcReconnectChoice";
 
+const secureDirectProgressDurationMs = 20_000;
+
+interface ConnectionProgressPanelProps {
+  connectionProgress: "reconnecting" | "connected";
+  transportMode?: "relay" | "secure-direct" | undefined;
+}
+
+function ConnectionProgressPanel({
+  connectionProgress,
+  transportMode,
+}: ConnectionProgressPanelProps) {
+  const [reconnectElapsedMs, setReconnectElapsedMs] = useState(0);
+  const isSecureDirectReconnect =
+    connectionProgress === "reconnecting" && transportMode === "secure-direct";
+
+  useEffect(() => {
+    if (!isSecureDirectReconnect) {
+      return;
+    }
+
+    const startedAt = Date.now();
+    const updateProgress = () => {
+      setReconnectElapsedMs(Math.min(secureDirectProgressDurationMs, Date.now() - startedAt));
+    };
+    const interval = window.setInterval(updateProgress, 500);
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [isSecureDirectReconnect]);
+
+  const reconnectSecondsRemaining = Math.max(
+    0,
+    Math.ceil((secureDirectProgressDurationMs - reconnectElapsedMs) / 1000),
+  );
+  return (
+    <div className="pairing-connection-progress" role="status">
+      <div className="pairing-connection-progress-heading">
+        {connectionProgress === "connected" ? (
+          <CheckCircle2 aria-hidden="true" />
+        ) : (
+          <LoaderCircle className="pairing-progress-icon" aria-hidden="true" />
+        )}
+        <span>
+          {connectionProgress === "connected"
+            ? "Connected"
+            : isSecureDirectReconnect
+              ? "Checking private LAN"
+              : "Restoring connection"}
+        </span>
+      </div>
+      {connectionProgress === "reconnecting" && (
+        <>
+          <div
+            className="pairing-connection-progress-track"
+            role="progressbar"
+            aria-label="Connection check in progress"
+          >
+            <span
+              className={isSecureDirectReconnect ? "is-determinate" : "is-indeterminate"}
+              style={
+                isSecureDirectReconnect
+                  ? { animationDuration: `${secureDirectProgressDurationMs}ms` }
+                  : undefined
+              }
+            />
+          </div>
+          <p className="pairing-connection-progress-detail" aria-hidden="true">
+            {isSecureDirectReconnect
+              ? reconnectSecondsRemaining > 0
+                ? `About ${reconnectSecondsRemaining} ${reconnectSecondsRemaining === 1 ? "second" : "seconds"} remaining`
+                : "Finishing check…"
+              : "Connection attempt in progress…"}
+          </p>
+          <span className="visually-hidden">
+            {isSecureDirectReconnect
+              ? "Connection attempt in progress. Secure Direct checks can take up to 20 seconds."
+              : "Connection attempt in progress."}
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
 interface PairingStatusProps {
   activePcUnavailable?: boolean;
   blocksAppInteraction?: boolean;
@@ -86,8 +170,12 @@ export function PairingStatus({
       return;
     }
 
-    primaryActionRef.current?.focus();
-  }, [isBlocking]);
+    if (connectionProgress !== undefined) {
+      sectionRef.current?.focus();
+    } else {
+      primaryActionRef.current?.focus();
+    }
+  }, [connectionProgress, isBlocking]);
 
   useEffect(() => {
     if (!copyToast) {
@@ -156,7 +244,7 @@ export function PairingStatus({
     ];
     if (focusable.length === 0) {
       event.preventDefault();
-      primaryActionRef.current?.focus();
+      sectionRef.current?.focus();
       return;
     }
 
@@ -182,14 +270,10 @@ export function PairingStatus({
     connectionProgress === "connected"
       ? "Connection restored. Returning to your previous screen."
       : "Checking whether Voltura Air is available.";
-  const primaryActionDisabled = connectionProgress !== undefined || primaryActionPending;
+  const primaryActionDisabled = primaryActionPending;
   const primaryActionLabel = primaryActionPending
     ? "Reading QR code…"
-    : connectionProgress === "reconnecting"
-      ? "Reconnecting…"
-      : connectionProgress === "connected"
-        ? "Connected"
-        : (primaryLabel ?? feedback.primaryLabel);
+    : (primaryLabel ?? feedback.primaryLabel);
   const hasSavedPcChoice =
     !connectionProgress && savedPcOptions !== undefined && savedPcOptions.length > 0;
   const displayTitle = heading ?? (hasSavedPcChoice ? "Connect to a PC" : feedback.title);
@@ -211,6 +295,7 @@ export function PairingStatus({
         aria-describedby={descriptionId}
         aria-busy={connectionProgress === "reconnecting" || undefined}
         aria-live="polite"
+        tabIndex={isBlocking ? -1 : undefined}
         onKeyDown={keepModalFocusInside}
       >
         <div className="pairing-summary">
@@ -266,36 +351,39 @@ export function PairingStatus({
 
         <div className="pairing-recovery">
           <div className="pairing-actions">
-            <button
-              ref={primaryActionRef}
-              className="pairing-action-primary"
-              type="button"
-              aria-busy={primaryActionPending || undefined}
-              aria-disabled={primaryActionDisabled || undefined}
-              disabled={primaryActionDisabled}
-              onClick={() => {
-                if (!primaryActionDisabled) {
-                  onPrimaryAction();
-                }
-              }}
-            >
-              {primaryActionPending || connectionProgress === "reconnecting" ? (
-                <>
-                  <LoaderCircle className="pairing-progress-icon" aria-hidden="true" />
-                  <span>{primaryActionLabel}</span>
-                </>
-              ) : connectionProgress === "connected" ? (
-                <>
-                  <CheckCircle2 aria-hidden="true" />
-                  <span>{primaryActionLabel}</span>
-                </>
-              ) : (
-                <>
-                  <RefreshCw aria-hidden="true" />
-                  <span>{primaryActionLabel}</span>
-                </>
-              )}
-            </button>
+            {connectionProgress ? (
+              <ConnectionProgressPanel
+                key={`${connectionProgress}-${transportMode ?? "unknown"}`}
+                connectionProgress={connectionProgress}
+                transportMode={transportMode}
+              />
+            ) : (
+              <button
+                ref={primaryActionRef}
+                className="pairing-action-primary"
+                type="button"
+                aria-busy={primaryActionPending || undefined}
+                aria-disabled={primaryActionDisabled || undefined}
+                disabled={primaryActionDisabled}
+                onClick={() => {
+                  if (!primaryActionDisabled) {
+                    onPrimaryAction();
+                  }
+                }}
+              >
+                {primaryActionPending ? (
+                  <>
+                    <LoaderCircle className="pairing-progress-icon" aria-hidden="true" />
+                    <span>{primaryActionLabel}</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw aria-hidden="true" />
+                    <span>{primaryActionLabel}</span>
+                  </>
+                )}
+              </button>
+            )}
             {!connectionProgress &&
               (onSecondaryAction !== undefined || feedback.showRecoveryActions) && (
                 <div className="pairing-secondary-actions">

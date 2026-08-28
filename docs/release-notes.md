@@ -6,6 +6,18 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.1.4
+
+- Added **AI Assistant** for permitted personal devices when Codex is installed
+  on the PC. Ask how Voltura Air works, get troubleshooting help,
+  or ask read-only questions about information available to your Windows account.
+  Questions can be typed or dictated. Answers stream back through Direct or
+  Cloud relay connections, with clear progress updates while the Assistant is
+  still investigating.
+- Fixed the Voltura Air window sometimes opening partly outside the visible
+  desktop. Opening it from the taskbar or tray now moves it fully on-screen
+  without changing its size.
+
 ## v1.1.3
 
 - Added an interactive **Terminal** for running Windows PowerShell from a

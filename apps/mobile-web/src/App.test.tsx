@@ -20,6 +20,17 @@ vi.mock("./features/terminal", () => ({
   ),
 }));
 
+vi.mock("./features/ai-assistant", () => ({
+  AiAssistantWorkspace: ({ onBack }: { onBack: () => void }) => (
+    <div data-testid="ai-assistant-workspace">
+      AI Assistant workspace
+      <button type="button" onClick={onBack}>
+        Back from Assistant
+      </button>
+    </div>
+  ),
+}));
+
 function createStorage(): Storage {
   const items = new Map<string, string>();
   return {
@@ -66,6 +77,7 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     phoneWebcamCapability: undefined,
     fileManagerCapability: undefined,
     terminalCapability: undefined,
+    aiAssistantCapability: undefined,
     requestAudioState: vi.fn(),
     clientId: "client-a",
     deviceName: "Phone",
@@ -921,6 +933,58 @@ describe("App header and mode navigation", () => {
     expect(screen.getByTestId("terminal-workspace").hasAttribute("hidden")).toBe(false);
   });
 
+  it("shows AI Assistant only when the host grants it and leaves it for any mode", async () => {
+    const send = vi.fn();
+    mockConnection({
+      send,
+      aiAssistantCapability: {
+        enabled: true,
+        available: true,
+        permissionGranted: true,
+        canUse: true,
+        requiresRepair: false,
+        active: false,
+        ownedByClient: false,
+        working: false,
+      },
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    expect(send).toHaveBeenCalledWith({ type: "status.get" });
+    let menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+    fireEvent.click(within(menu).getByRole("button", { name: "AI Assistant" }));
+    expect(await screen.findByTestId("ai-assistant-workspace")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+    fireEvent.click(within(menu).getByRole("button", { name: "Keyboard" }));
+    expect(screen.queryByTestId("ai-assistant-workspace")).toBeNull();
+    expect(document.querySelector(".keyboard-mode")).not.toBeNull();
+  });
+
+  it("hides AI Assistant when the host does not grant the capability", () => {
+    const send = vi.fn();
+    mockConnection({
+      send,
+      aiAssistantCapability: {
+        enabled: true,
+        available: true,
+        permissionGranted: false,
+        canUse: false,
+        requiresRepair: false,
+        active: false,
+        ownedByClient: false,
+        working: false,
+      },
+    });
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    const menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+    expect(within(menu).queryByRole("button", { name: "AI Assistant" })).toBeNull();
+    expect(send).toHaveBeenCalledWith({ type: "status.get" });
+  });
+
   it("requests Gyro from Tools and replaces Screen with the Trackpad in Gyro mode", async () => {
     const motionPermission = vi.fn(() => Promise.resolve("granted" as const));
     const orientationPermission = vi.fn(() => Promise.resolve("granted" as const));
@@ -1180,6 +1244,7 @@ describe("App header and mode navigation", () => {
     expect(remoteSettingsSummary).not.toBeNull();
     fireEvent.click(remoteSettingsSummary!);
     fireEvent.click(screen.getByRole("button", { name: "YouTube" }));
+    send.mockClear();
 
     const dialog = screen.getByRole("dialog", { name: "Open YouTube?" });
     expect(send).not.toHaveBeenCalled();
@@ -1386,10 +1451,10 @@ describe("App header and mode navigation", () => {
 
     expect(selectPc).toHaveBeenCalledWith("pc-a");
     expect(screen.getByRole("dialog").getAttribute("aria-modal")).toBe("true");
-    const reconnectingAction = screen.getByRole("button", { name: "Reconnecting…" });
-    expect(reconnectingAction).toBe(document.activeElement);
-    expect(reconnectingAction.getAttribute("aria-disabled")).toBe("true");
-    fireEvent.click(reconnectingAction);
+    expect(screen.getByText("Restoring connection")).toBeTruthy();
+    expect(screen.getByRole("progressbar", { name: "Connection check in progress" })).toBeTruthy();
+    expect(screen.getByRole("dialog")).toBe(document.activeElement);
+    expect(screen.queryByRole("button", { name: "Reconnecting…" })).toBeNull();
     expect(selectPc).toHaveBeenCalledOnce();
     expect(screen.getByRole("button", { name: "Expand trackpad" })).toBeTruthy();
 
@@ -1407,9 +1472,10 @@ describe("App header and mode navigation", () => {
         }),
       ).toBeTruthy();
     });
-    const connectedAction = screen.getByRole("button", { name: "Connected" });
-    expect(connectedAction).toBe(document.activeElement);
-    expect(connectedAction.getAttribute("aria-disabled")).toBe("true");
+    const connectedDialog = screen.getByRole("dialog");
+    expect(within(connectedDialog).getByText("Connected")).toBeTruthy();
+    expect(connectedDialog).toBe(document.activeElement);
+    expect(screen.queryByRole("progressbar")).toBeNull();
     await waitFor(
       () => {
         expect(screen.queryByRole("dialog")).toBeNull();
@@ -1734,6 +1800,7 @@ describe("Text transfer feedback", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
+    send.mockClear();
     const editor = screen.getByLabelText<HTMLTextAreaElement>("Text to send");
 
     expect(document.querySelector(".app-shell")?.classList).toContain("text-transfer-active");

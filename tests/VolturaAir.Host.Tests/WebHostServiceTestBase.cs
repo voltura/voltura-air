@@ -5,6 +5,7 @@ using VolturaAir.Host;
 using VolturaAir.Host.Features.PhoneWebcam;
 using VolturaAir.Host.Features.Diagnostics;
 using VolturaAir.Host.Features.UsageTelemetry;
+using VolturaAir.Host.Features.AiAssistant;
 
 namespace VolturaAir.Host.Tests;
 
@@ -185,7 +186,8 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
             IComputerDiagnosticsProbe? computerDiagnosticsProbe = null,
             ITerminalProcessFactory? terminalProcessFactory = null,
             ITerminalWebRtcPeerFactory? terminalPeerFactory = null,
-            TimeProvider? terminalTimeProvider = null)
+            TimeProvider? terminalTimeProvider = null,
+            IAiAssistantClientFactory? aiAssistantClientFactory = null)
         {
             var store = new TempPairingStore();
             var inputInjector = new FakeInputInjector();
@@ -218,7 +220,8 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
                 computerDiagnosticsProbe: computerDiagnosticsProbe,
                 terminalProcessFactory: terminalProcessFactory,
                 terminalPeerFactory: terminalPeerFactory,
-                terminalTimeProvider: terminalTimeProvider);
+                terminalTimeProvider: terminalTimeProvider,
+                aiAssistantClientFactory: aiAssistantClientFactory);
             await webHost.StartAsync();
             return new WebHostFixture(store, inputInjector, manager, webHost);
         }

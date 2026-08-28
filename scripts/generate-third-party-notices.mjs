@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import process from "node:process";
@@ -9,45 +9,7 @@ const outputPath = path.join(repoRoot, "apps", "mobile-web", "public", "third-pa
 const checkOnly = process.argv.includes("--check");
 const nativeBinarySha256 = "88cba93015800e9c33dd0824d68629a5ef8c1d5f50d4fdd836a2c8df69d94e1b";
 
-const components = [
-  {
-    name: "@noble/curves",
-    version: "2.3.0",
-    license: "MIT",
-    source: "https://github.com/paulmillr/noble-curves",
-  },
-  {
-    name: "@noble/hashes",
-    version: "2.3.0",
-    license: "MIT",
-    source: "https://github.com/paulmillr/noble-hashes",
-  },
-  {
-    name: "jsqr",
-    version: "1.4.0",
-    license: "Apache-2.0",
-    source: "https://github.com/cozmo/jsQR",
-  },
-  {
-    name: "lucide-react",
-    version: "1.34.0",
-    license: "ISC and MIT",
-    source: "https://github.com/lucide-icons/lucide",
-  },
-  { name: "react", version: "19.2.8", license: "MIT", source: "https://github.com/facebook/react" },
-  {
-    name: "react-dom",
-    version: "19.2.8",
-    license: "MIT",
-    source: "https://github.com/facebook/react",
-  },
-  {
-    name: "scheduler",
-    version: "0.27.0",
-    license: "MIT",
-    source: "https://github.com/facebook/react",
-  },
-];
+const components = await collectMobileProductionComponents();
 
 const sections = [
   "VOLTURA AIR MOBILE WEB THIRD-PARTY SOFTWARE NOTICES",
@@ -61,17 +23,6 @@ const sections = [
 ];
 
 for (const component of components) {
-  const packageDirectory = path.join(repoRoot, "node_modules", ...component.name.split("/"));
-  const packageJson = JSON.parse(
-    await readFile(path.join(packageDirectory, "package.json"), "utf8"),
-  );
-  if (packageJson.version !== component.version) {
-    throw new Error(
-      `${component.name} notice expects ${component.version}, but package-lock installed ${packageJson.version}.`,
-    );
-  }
-
-  const licenseText = (await readFile(path.join(packageDirectory, "LICENSE"), "utf8")).trim();
   sections.push(
     "-".repeat(72),
     `${component.name} ${component.version}`,
@@ -79,9 +30,106 @@ for (const component of components) {
     `Source: ${component.source}`,
     "-".repeat(72),
     "",
-    licenseText,
+    component.licenseText,
     "",
   );
+}
+
+async function collectMobileProductionComponents() {
+  const workspaceDirectory = path.join(repoRoot, "apps", "mobile-web");
+  const workspacePackage = JSON.parse(
+    await readFile(path.join(workspaceDirectory, "package.json"), "utf8"),
+  );
+  const pending = Object.keys(workspacePackage.dependencies ?? {}).map((name) => ({
+    name,
+    fromDirectory: workspaceDirectory,
+  }));
+  const visited = new Set();
+  const discovered = [];
+
+  while (pending.length > 0) {
+    const request = pending.pop();
+    const packageDirectory = await resolvePackageDirectory(request.name, request.fromDirectory);
+    if (packageDirectory === null || visited.has(packageDirectory)) continue;
+    visited.add(packageDirectory);
+    const packageJson = JSON.parse(
+      await readFile(path.join(packageDirectory, "package.json"), "utf8"),
+    );
+    const licenseFiles = (await readdir(packageDirectory, { withFileTypes: true }))
+      .filter((entry) => entry.isFile() && /^(?:licen[cs]e|copying)(?:[.-].*)?$/iu.test(entry.name))
+      .map((entry) => entry.name)
+      .sort((left, right) => left.localeCompare(right));
+    if (licenseFiles.length === 0) {
+      throw new Error(`${packageJson.name} ${packageJson.version} has no installed license text.`);
+    }
+    const licenseText = (
+      await Promise.all(
+        licenseFiles.map(async (fileName) =>
+          (await readFile(path.join(packageDirectory, fileName), "utf8")).trim(),
+        ),
+      )
+    )
+      .filter((text, index, all) => text && all.indexOf(text) === index)
+      .join("\n\n");
+    discovered.push({
+      name: packageJson.name,
+      version: packageJson.version,
+      license: packageJson.license ?? "See included license text",
+      source: packageSource(packageJson),
+      licenseText,
+    });
+    const runtimeDependencies = {
+      ...(packageJson.dependencies ?? {}),
+      ...(packageJson.optionalDependencies ?? {}),
+      ...Object.fromEntries(
+        Object.entries(packageJson.peerDependencies ?? {}).filter(
+          ([name]) => packageJson.peerDependenciesMeta?.[name]?.optional !== true,
+        ),
+      ),
+    };
+    for (const name of Object.keys(runtimeDependencies)) {
+      pending.push({ name, fromDirectory: packageDirectory });
+    }
+  }
+
+  return discovered.sort(
+    (left, right) => left.name.localeCompare(right.name) || left.version.localeCompare(right.version),
+  );
+}
+
+async function resolvePackageDirectory(name, fromDirectory) {
+  let current = fromDirectory;
+  while (true) {
+    const candidate = path.join(current, "node_modules", ...name.split("/"));
+    try {
+      await readFile(path.join(candidate, "package.json"), "utf8");
+      return candidate;
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+}
+
+function packageSource(packageJson) {
+  const repository =
+    typeof packageJson.repository === "string"
+      ? packageJson.repository
+      : packageJson.repository?.url;
+  if (typeof repository === "string") {
+    const normalized = repository
+      .replace(/^git\+/u, "")
+      .replace(/^git:\/\//u, "https://")
+      .replace(/\.git$/u, "");
+    return /^[\w.-]+\/[\w.-]+$/u.test(normalized)
+      ? `https://github.com/${normalized}`
+      : normalized;
+  }
+  return typeof packageJson.homepage === "string"
+    ? packageJson.homepage
+    : `https://www.npmjs.com/package/${packageJson.name}`;
 }
 
 const generated = `${sections.join("\n").trimEnd()}\n`;

@@ -77,6 +77,16 @@ internal static partial class WindowWorkAreaPlacement
         }
     }
 
+    public static void EnsureVisibleOnCurrentMonitor(Window window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        var windowHandle = new WindowInteropHelper(window).Handle;
+        if (windowHandle != 0)
+        {
+            EnsureVisible(window, windowHandle);
+        }
+    }
+
     internal static WpfPoint CalculateVisibleTopLeft(Rect windowBounds, Rect workArea)
     {
         var left = windowBounds.Width <= workArea.Width

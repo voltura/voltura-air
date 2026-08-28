@@ -1,7 +1,7 @@
 .app-toast {
   position: fixed;
   z-index: 1000;
-  top: max(var(--space-md), env(safe-area-inset-top, 0px));
+  top: calc(env(safe-area-inset-top, 0px) + var(--space-md));
   left: max(var(--space-md), env(safe-area-inset-left, 0px));
   width: min(420px, calc(100vw - var(--space-xl)));
   box-sizing: border-box;

@@ -49,6 +49,15 @@ internal static class ProtocolFrameAssert
         ["terminal.offer"] = ["operationId", "terminalId", "columns", "rows", "acknowledgedOffset", "offerSdp", "hostSignature"],
         ["terminal.status"] = ["terminalId", "state", "acknowledgedOffset"],
         ["terminal.ended"] = ["terminalId", "reason"],
+        ["ai.assistant.open.result"] = ["operationId", "succeeded", "message"],
+        ["ai.assistant.ask.result"] = ["operationId", "succeeded", "message"],
+        ["ai.assistant.reset.result"] = ["operationId", "succeeded", "message"],
+        ["ai.assistant.close.result"] = ["operationId", "succeeded", "message"],
+        ["ai.assistant.snapshot.start"] = [],
+        ["ai.assistant.snapshot.complete"] = ["messageCount"],
+        ["ai.assistant.message"] = ["sequence", "messageId", "chunkIndex", "finalChunk", "sender", "text"],
+        ["ai.assistant.state"] = ["state"],
+        ["ai.assistant.closed"] = ["reason"],
         ["audio.state"] = ["volume", "muted"]
     };
 
@@ -98,5 +107,6 @@ internal static class ProtocolFrameAssert
     }
 
     private static bool IsMeaningfulEmptyString(string type, string path) =>
-        type == "clipboard.get.result" && path == "text";
+        type == "clipboard.get.result" && path == "text" ||
+        type == "ai.assistant.message" && path == "text";
 }

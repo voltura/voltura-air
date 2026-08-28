@@ -1,0 +1,292 @@
+.ai-assistant-workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--surface);
+}
+
+.ai-assistant-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.ai-assistant-header h2,
+.ai-assistant-header p {
+  margin: 0;
+}
+
+.ai-assistant-header h2 {
+  font-size: 1.05rem;
+}
+
+.ai-assistant-header p,
+.ai-assistant-status {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.ai-assistant-conversation {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+  scroll-behavior: smooth;
+}
+
+.ai-assistant-welcome {
+  max-width: 34rem;
+  margin: 8vh auto 1rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.ai-assistant-welcome > svg {
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--accent);
+}
+
+.ai-assistant-welcome h3 {
+  margin: 0.65rem 0 0.35rem;
+  color: var(--text);
+}
+
+.ai-assistant-welcome p {
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+.ai-assistant-welcome .ai-assistant-disclosure {
+  max-width: 31rem;
+  margin-top: 0.8rem;
+  font-size: 0.86rem;
+}
+
+.ai-assistant-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.ai-assistant-suggestions button {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.ai-assistant-message {
+  width: fit-content;
+  max-width: min(88%, 44rem);
+  margin: 0 0 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 0.75rem 0.9rem;
+  background: var(--surface-raised);
+}
+
+.ai-assistant-message.user {
+  margin-left: auto;
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface-raised));
+}
+
+.ai-assistant-message strong {
+  display: block;
+  margin-bottom: 0.28rem;
+  color: var(--accent);
+  font-size: 0.76rem;
+}
+
+.ai-assistant-message p,
+.ai-assistant-message ul,
+.ai-assistant-message ol,
+.ai-assistant-message pre {
+  margin: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.48;
+}
+
+.ai-assistant-message p {
+  white-space: pre-wrap;
+}
+
+.ai-assistant-message p + p,
+.ai-assistant-message p + ul,
+.ai-assistant-message p + ol,
+.ai-assistant-message ul + p,
+.ai-assistant-message ol + p {
+  margin-top: 0.65rem;
+}
+
+.ai-assistant-message ul,
+.ai-assistant-message ol {
+  padding-left: 1.2rem;
+}
+
+.ai-assistant-message pre,
+.ai-assistant-message code {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+.ai-assistant-message pre {
+  overflow-x: auto;
+  margin-top: 0.65rem;
+  border-radius: 0.5rem;
+  padding: 0.65rem;
+  background: var(--surface);
+}
+
+.ai-assistant-working {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0.2rem 0 1rem;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}
+
+.ai-assistant-working-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  animation: ai-assistant-pulse 1.25s ease-out infinite;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.ai-assistant-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 3.25rem;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem 0.35rem;
+  border-top: 1px solid var(--border);
+}
+
+.ai-assistant-composer.has-speech {
+  grid-template-columns: minmax(0, 1fr) 3.25rem 3.25rem;
+}
+
+.ai-assistant-composer textarea {
+  grid-area: auto;
+  box-sizing: border-box;
+  min-height: 4.5rem;
+  max-height: 7.5rem;
+  overflow-y: auto;
+  resize: none;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  padding: 0.72rem 0.8rem;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.35;
+}
+
+.ai-assistant-composer button {
+  width: 3.25rem;
+  min-width: 3.25rem;
+  height: 3.25rem;
+  min-height: 3.25rem;
+  padding: 0;
+}
+
+.ai-assistant-dictation-button[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-raised));
+}
+
+.ai-assistant-status {
+  min-height: 1.2rem;
+  margin: 0;
+  padding: 0 1rem 0.55rem;
+}
+
+.ai-assistant-status.error {
+  color: var(--danger);
+}
+
+@keyframes ai-assistant-pulse {
+  70%,
+  100% {
+    box-shadow: 0 0 0 0.55rem transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-assistant-working-dot {
+    animation: none;
+  }
+
+  .ai-assistant-conversation {
+    scroll-behavior: auto;
+  }
+}
+
+@media (orientation: landscape) and (height <= 36rem) {
+  .ai-assistant-conversation {
+    padding: 0.75rem;
+  }
+
+  .ai-assistant-welcome {
+    margin-top: 0.5rem;
+  }
+
+  .ai-assistant-welcome > svg {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .ai-assistant-welcome h3 {
+    margin-top: 0.35rem;
+  }
+
+  .ai-assistant-welcome .ai-assistant-disclosure {
+    margin-top: 0.5rem;
+    font-size: 0.78rem;
+  }
+
+  .ai-assistant-suggestions {
+    margin-top: 0.5rem;
+  }
+
+  .ai-assistant-composer {
+    grid-template-columns: minmax(0, 1fr) 2.75rem;
+    padding: 0.5rem 0.75rem 0.25rem;
+  }
+
+  .ai-assistant-composer.has-speech {
+    grid-template-columns: minmax(0, 1fr) 2.75rem 2.75rem;
+  }
+
+  .ai-assistant-composer textarea,
+  .ai-assistant-composer button {
+    min-height: 2.75rem;
+  }
+
+  .ai-assistant-composer textarea {
+    min-height: 3.6rem;
+    max-height: 4.75rem;
+    padding: 0.55rem 0.7rem;
+  }
+
+  .ai-assistant-composer button {
+    width: 2.75rem;
+    min-width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .ai-assistant-status {
+    padding: 0 0.75rem 0.35rem;
+  }
+}

@@ -182,6 +182,92 @@
   width: min(100%, 360px);
 }
 
+.pairing-connection-progress {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  min-height: 92px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 48%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-raised) 92%, var(--accent));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+}
+
+.pairing-connection-progress-heading {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.pairing-connection-progress-heading > svg {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+}
+
+.connection-connected .pairing-connection-progress-heading > svg {
+  color: var(--success);
+}
+
+.pairing-connection-progress-track {
+  position: relative;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.pairing-connection-progress-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--success));
+}
+
+.pairing-connection-progress-track > span.is-determinate {
+  width: 100%;
+  transform: scaleX(0.04);
+  transform-origin: left center;
+  animation-name: pairing-progress-fill;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+.pairing-connection-progress-track > span.is-indeterminate {
+  width: 42%;
+  animation: pairing-progress-slide 1.4s ease-in-out infinite;
+}
+
+@keyframes pairing-progress-slide {
+  from {
+    transform: translateX(-110%);
+  }
+
+  to {
+    transform: translateX(250%);
+  }
+}
+
+@keyframes pairing-progress-fill {
+  from {
+    transform: scaleX(0.04);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.pairing-required .pairing-connection-progress-detail {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .pairing-secondary-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -423,6 +509,10 @@
     justify-self: center;
   }
 
+  .pairing-required.connection-blocking .pairing-connection-progress {
+    min-height: 0;
+  }
+
   .pairing-required.connection-blocking .pairing-summary p,
   .pairing-required.connection-blocking .pairing-device-name,
   .pairing-required.connection-blocking .pairing-saved-pc-choice,
@@ -432,8 +522,23 @@
   }
 }
 
+@media (orientation: landscape) and (height <= 430px) {
+  .pairing-connection-progress {
+    gap: 8px;
+    min-height: 0;
+    padding: 12px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .pairing-progress-icon {
+  .pairing-progress-icon,
+  .pairing-connection-progress-track > span.is-determinate,
+  .pairing-connection-progress-track > span.is-indeterminate {
     animation: none;
+  }
+
+  .pairing-connection-progress-track > span.is-determinate {
+    transform: scaleX(1);
+    opacity: 0.55;
   }
 }

@@ -174,6 +174,27 @@ Files follows the same lazy feature boundary: the initial shell carries only cap
 
 `TerminalCoordinator` owns the single host-wide terminal lifecycle, paired-device ownership, signed setup/re-attachment, exact acknowledged output buffer, reconnect deadline, and permission/revocation response. `ConPtyTerminalProcessFactory` creates Windows PowerShell suspended, attaches it to ConPTY and a kill-on-close Job Object, then resumes it; failure before ownership transfer terminates the suspended process. `TerminalWebRtcPeer` owns the dedicated `voltura-terminal` DataChannel and direct or relay-only ICE. Bounded queues and pipe backpressure isolate terminal traffic from `WebSocketSessionHandler`. The mobile `features/terminal` chunk owns xterm.js, the peer, rendered-offset acknowledgement, mobile keys, resize, and in-memory-only terminal state; App keeps that chunk mounted after first entry so ordinary in-app navigation does not stop the session.
 
+`AiAssistantCoordinator` owns the coalesced background availability-probe lane,
+the cancellable pending-open state and serialized terminal publication on live permission changes, one-device
+Assistant session, authenticated operation replay window, app-server lifetime,
+turn state, and ordered bounded output. `CodexAppServerClient` owns persistent
+Assistant-thread discovery, creation and replacement, exact-name repair after
+an interrupted operation, bounded newest-turn paging, and the app-server protocol
+shapes. It launches Codex only through hidden stdio;
+no app-server listener is exposed. A discovery app-server instance inventories
+configured MCP names without starting a model turn, then a fresh instance starts
+with each one disabled and verifies the effective isolation configuration before
+reading or creating the Assistant thread. The thread runs in Codex's read-only
+sandbox with tool network access disabled; shell and command execution are also
+disabled. Stdio records, held app-server notifications, and device-bound output
+are bounded; overflow or an uncertain turn-start result fails the private session
+closed before another question is accepted. Its only client-executed tools search or read the shipped
+`AiAssistantKnowledge` documents and find likely user-document names and metadata
+under the local Windows profile. Mobile loads
+`features/ai-assistant` only on entry, sends signed control messages through the
+existing command connection, reassembles ordered answer chunks, and retains no
+durable transcript of its own.
+
 The capture owner uses Desktop Duplication GPU frames and cursor metadata. A
 D3D11 conversion stage supplies NV12 GPU surfaces to a capability-selected
 hardware Media Foundation H.264 transform. A bundled libdatachannel peer sends

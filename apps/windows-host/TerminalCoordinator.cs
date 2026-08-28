@@ -614,7 +614,7 @@ internal sealed class TerminalCoordinator : IAsyncDisposable
         if (notify && socket?.State == WebSocketState.Open)
         {
             try { await _transport.SendAsync(socket, new { type = "terminal.ended", terminalId = session.Id, reason }, CancellationToken.None).ConfigureAwait(false); }
-            catch (Exception exception) when (exception is WebSocketException or ObjectDisposedException) { }
+            catch (Exception exception) when (exception is WebSocketException or IOException or ObjectDisposedException) { }
         }
     }
 

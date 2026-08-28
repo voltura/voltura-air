@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { copyTextToClipboard } from "../../foundation/diagnostics/mobileDiagnostics";
 import type * as PairingFeedbackModule from "../../foundation/pairing/pairingFeedback";
@@ -127,54 +127,124 @@ describe("PairingStatus", () => {
     ).toBeTruthy();
   });
 
-  it("keeps the primary action focused and bounded through reconnect progress", () => {
+  it("replaces the disabled reconnect action with visible bounded progress", async () => {
+    vi.useFakeTimers();
     const onPrimaryAction = vi.fn();
-    const view = render(
-      <PairingStatus
-        activePcUnavailable
-        message="PC is not available"
-        onPrimaryAction={onPrimaryAction}
-        pcName="Living Room PC"
-      />,
-    );
+    try {
+      const view = render(
+        <PairingStatus
+          activePcUnavailable
+          message="PC is not available"
+          onPrimaryAction={onPrimaryAction}
+          pcName="Living Room PC"
+          transportMode="secure-direct"
+        />,
+      );
 
-    const initialAction = screen.getByRole("button", { name: "Try reconnect" });
-    fireEvent.click(initialAction);
-    expect(onPrimaryAction).toHaveBeenCalledOnce();
+      fireEvent.click(screen.getByRole("button", { name: "Try reconnect" }));
+      expect(onPrimaryAction).toHaveBeenCalledOnce();
 
-    view.rerender(
-      <PairingStatus
-        activePcUnavailable
-        connectionProgress="reconnecting"
-        message="Connecting"
-        onPrimaryAction={onPrimaryAction}
-        pcName="Living Room PC"
-      />,
-    );
+      view.rerender(
+        <PairingStatus
+          activePcUnavailable
+          connectionProgress="reconnecting"
+          message="Connecting"
+          onPrimaryAction={onPrimaryAction}
+          pcName="Living Room PC"
+          transportMode="secure-direct"
+        />,
+      );
 
-    const reconnectingAction = screen.getByRole("button", { name: "Reconnecting…" });
-    expect(reconnectingAction).toBe(initialAction);
-    expect(reconnectingAction).toBe(document.activeElement);
-    expect(reconnectingAction.getAttribute("aria-disabled")).toBe("true");
-    fireEvent.click(reconnectingAction);
-    expect(onPrimaryAction).toHaveBeenCalledOnce();
+      expect(screen.queryByRole("button", { name: "Reconnecting…" })).toBeNull();
+      expect(screen.getByText("Checking private LAN")).toBeTruthy();
+      expect(screen.getByText("About 20 seconds remaining")).toBeTruthy();
+      const progress = screen.getByRole("progressbar", {
+        name: "Connection check in progress",
+      });
+      expect(progress).toBeTruthy();
+      expect(progress.firstElementChild?.classList.contains("is-determinate")).toBe(true);
+      expect((progress.firstElementChild as HTMLElement).style.animationDuration).toBe("20000ms");
+      expect(screen.getByRole("dialog")).toBe(document.activeElement);
 
-    view.rerender(
-      <PairingStatus
-        activePcUnavailable
-        connectionProgress="connected"
-        message="Connected"
-        onPrimaryAction={onPrimaryAction}
-        pcName="Living Room PC"
-      />,
-    );
+      await act(() => vi.advanceTimersByTimeAsync(19_000));
+      expect(screen.getByText("About 1 second remaining")).toBeTruthy();
 
-    const connectedAction = screen.getByRole("button", { name: "Connected" });
-    expect(connectedAction).toBe(initialAction);
-    expect(connectedAction).toBe(document.activeElement);
-    expect(connectedAction.getAttribute("aria-disabled")).toBe("true");
-    fireEvent.click(connectedAction);
-    expect(onPrimaryAction).toHaveBeenCalledOnce();
+      await act(() => vi.advanceTimersByTimeAsync(1000));
+      expect(screen.getByText("Finishing check…")).toBeTruthy();
+
+      view.rerender(
+        <PairingStatus
+          activePcUnavailable
+          connectionProgress="connected"
+          message="Connected"
+          onPrimaryAction={onPrimaryAction}
+          pcName="Living Room PC"
+          transportMode="secure-direct"
+        />,
+      );
+
+      expect(screen.getByText("Connected")).toBeTruthy();
+      expect(screen.queryByRole("progressbar")).toBeNull();
+      expect(screen.getByRole("dialog")).toBe(document.activeElement);
+
+      view.rerender(
+        <PairingStatus
+          activePcUnavailable
+          connectionProgress="reconnecting"
+          message="Connecting again"
+          onPrimaryAction={onPrimaryAction}
+          pcName="Living Room PC"
+          transportMode="secure-direct"
+        />,
+      );
+      expect(screen.getByText("About 20 seconds remaining")).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps one reconnect countdown running through portrait and landscape changes", async () => {
+    vi.useFakeTimers();
+    const originalWidth = window.innerWidth;
+    const originalHeight = window.innerHeight;
+    try {
+      render(
+        <PairingStatus
+          activePcUnavailable
+          connectionProgress="reconnecting"
+          message="Connecting"
+          onPrimaryAction={vi.fn()}
+          pcName="Living Room PC"
+          transportMode="secure-direct"
+        />,
+      );
+      const progress = screen.getByRole("progressbar", { name: "Connection check in progress" });
+
+      await act(() => vi.advanceTimersByTimeAsync(5000));
+      expect(screen.getByText("About 15 seconds remaining")).toBeTruthy();
+
+      Object.defineProperties(window, {
+        innerWidth: { configurable: true, value: 844 },
+        innerHeight: { configurable: true, value: 390 },
+      });
+      act(() => {
+        window.dispatchEvent(new Event("resize"));
+      });
+
+      expect(screen.getByRole("progressbar", { name: "Connection check in progress" })).toBe(
+        progress,
+      );
+      expect(screen.getByText("About 15 seconds remaining")).toBeTruthy();
+
+      await act(() => vi.advanceTimersByTimeAsync(5000));
+      expect(screen.getByText("About 10 seconds remaining")).toBeTruthy();
+    } finally {
+      Object.defineProperties(window, {
+        innerWidth: { configurable: true, value: originalWidth },
+        innerHeight: { configurable: true, value: originalHeight },
+      });
+      vi.useRealTimers();
+    }
   });
 
   it("makes QR decoding visibly pending and non-interactive", () => {

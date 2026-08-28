@@ -123,6 +123,10 @@ internal static class ClientMessageValidator
             ["terminal.attach"] = Fields("type", "operationId", "terminalId", "acknowledgedOffset", "columns", "rows", "clientSignature"),
             ["terminal.answer"] = Fields("type", "operationId", "offerOperationId", "terminalId", "answerSdp", "clientSignature"),
             ["terminal.stop"] = Fields("type", "operationId", "terminalId"),
+            ["ai.assistant.open"] = Fields("type", "operationId", "clientSignature"),
+            ["ai.assistant.ask"] = Fields("type", "operationId", "question", "clientSignature"),
+            ["ai.assistant.reset"] = Fields("type", "operationId", "clientSignature"),
+            ["ai.assistant.close"] = Fields("type", "operationId"),
             ["audio.mute.toggle"] = Fields("type", "inputContext"),
             ["audio.volume.set"] = Fields("type", "volume", "inputContext"),
             ["pointer.move"] = Fields("type", "seq", "dx", "dy", "inputContext"),
@@ -407,6 +411,13 @@ internal static class ClientMessageValidator
                 TryGetRequiredString(root, "answerSdp", ScreenViewProtocol.MaxSdpLength, allowEmpty: false, out _) &&
                 TryGetRequiredString(root, "clientSignature", MaxCredentialLength, allowEmpty: false, out _),
             "terminal.stop" => IsValidFileOperationId(root) && IsValidTerminalId(root),
+            "ai.assistant.open" or "ai.assistant.reset" => IsValidFileOperationId(root) &&
+                TryGetRequiredString(root, "clientSignature", MaxCredentialLength, allowEmpty: false, out _),
+            "ai.assistant.ask" => IsValidFileOperationId(root) &&
+                TryGetRequiredString(root, "question", Features.AiAssistant.AiAssistantProtocol.MaximumQuestionCharacters, allowEmpty: false, out var assistantQuestion) &&
+                !string.IsNullOrWhiteSpace(assistantQuestion) &&
+                TryGetRequiredString(root, "clientSignature", MaxCredentialLength, allowEmpty: false, out _),
+            "ai.assistant.close" => IsValidFileOperationId(root),
             "audio.mute.toggle" => TryGetOptionalInputContext(root, out var muteContext) &&
                 IsInputContextAllowed(type, muteContext),
             "audio.volume.set" => TryGetNumber(root, "volume", 0, 100, out _) &&

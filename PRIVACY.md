@@ -48,6 +48,25 @@ directory, and Windows key store:
   restart cleanup. The journal is cleared after cleanup and interrupted work is
   not resumed automatically.
 
+When AI Assistant is available and a My device user opens it, Voltura Air starts
+the locally installed Codex app-server with the user's existing Codex account.
+Questions and answers travel over the same authenticated Direct or end-to-end
+encrypted Relay command connection as other controls. Voltura Air does not log,
+add to telemetry, or separately persist prompts, answers, file contents, paths,
+environment values, or Codex credentials. Codex stores the dedicated Assistant
+conversation on the PC and processes its model requests under the user's Codex
+account and applicable OpenAI terms and privacy choices.
+
+AI Assistant is read-only and its host-owned tools run with the same Windows-user
+access as Codex running locally. The current tools read bundled Voltura Air
+documentation and can search likely document filenames under the local user
+profile, returning paths, sizes, and modification times without reading those
+documents' contents. Names and paths can still be private. Its environment
+disables shell and command execution, web search, tool network access, configured
+MCP integrations, apps, plugins, browser and computer control, hooks, and
+multi-agent work. Use it only from a trusted personal device and avoid requesting
+secrets.
+
 Persistent pairing records, permissions, private reconnect keys, and saved
 content remain on the user's devices. Before Relay end-to-end encryption is
 established, the routing service forwards the pairing hello, challenge, and

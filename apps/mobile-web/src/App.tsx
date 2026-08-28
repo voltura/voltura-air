@@ -35,6 +35,9 @@ const FileManagerWorkspace = lazy(() => import("./features/file-manager"));
 const PhoneWebcamWorkspace = lazy(() => import("./features/phone-webcam"));
 const DiagnosticsWorkspace = lazy(() => import("./features/diagnostics"));
 const TerminalWorkspace = lazy(() => import("./features/terminal"));
+const AiAssistantWorkspace = lazy(() =>
+  import("./features/ai-assistant").then((module) => ({ default: module.AiAssistantWorkspace })),
+);
 const PairingQrScannerDialog = lazy(loadPairingQrScannerDialog);
 
 export function App() {
@@ -60,6 +63,7 @@ export function App() {
     phoneWebcamCapability,
     fileManagerCapability,
     terminalCapability,
+    aiAssistantCapability,
     diagnosticsPermission,
     diagnosticsSnapshot,
     diagnosticsFailure,
@@ -151,6 +155,7 @@ export function App() {
   );
   const [isThirdPartyNoticesOpen, setIsThirdPartyNoticesOpen] = useState(false);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
+  const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
   const connectionErrorKey = lastConnectionError
     ? `${lastConnectionError.code}\n${lastConnectionError.message}`
     : null;
@@ -245,6 +250,7 @@ export function App() {
     setActiveCustomScreenId(null);
     setIsThirdPartyNoticesOpen(false);
     setIsDiagnosticsOpen(false);
+    setIsAiAssistantOpen(false);
     setIsScreenViewOpen(true);
     setIsPhoneWebcamOpen(false);
   }, []);
@@ -311,7 +317,8 @@ export function App() {
     supportsGestureDebug,
     trackpadSettings,
     suppressSplitMode: gyroSelected,
-    showModeButtons: showModeButtons && !isThirdPartyNoticesOpen && !isDiagnosticsOpen,
+    showModeButtons:
+      showModeButtons && !isThirdPartyNoticesOpen && !isDiagnosticsOpen && !isAiAssistantOpen,
   });
   useEffect(() => {
     if (
@@ -346,6 +353,7 @@ export function App() {
       setIsPhoneWebcamOpen(false);
       setIsThirdPartyNoticesOpen(false);
       setIsDiagnosticsOpen(false);
+      setIsAiAssistantOpen(false);
       if (nextTab === "presentation") {
         requestPresentationActivation();
       }
@@ -368,6 +376,7 @@ export function App() {
       setIsPhoneWebcamOpen(false);
       setIsThirdPartyNoticesOpen(false);
       setIsDiagnosticsOpen(false);
+      setIsAiAssistantOpen(false);
       if (mode === "presentation") {
         requestPresentationActivation();
       }
@@ -390,6 +399,7 @@ export function App() {
       setIsPhoneWebcamOpen(false);
       setIsThirdPartyNoticesOpen(false);
       setIsDiagnosticsOpen(false);
+      setIsAiAssistantOpen(false);
       openGestureDebug();
     });
   };
@@ -402,6 +412,7 @@ export function App() {
       setIsPhoneWebcamOpen(false);
       setIsThirdPartyNoticesOpen(false);
       setIsDiagnosticsOpen(false);
+      setIsAiAssistantOpen(false);
       setGyroActivationRequest(request);
       openModeFromMenu("trackpad");
     });
@@ -533,6 +544,7 @@ export function App() {
   const isTerminalWorkspaceVisible =
     tab === "terminal" &&
     !isDiagnosticsOpen &&
+    !isAiAssistantOpen &&
     !isThirdPartyNoticesOpen &&
     !isPhoneWebcamOpen &&
     !isScreenViewOpen &&
@@ -663,7 +675,7 @@ export function App() {
   return (
     <div className={`app-frame${controlDepth ? " control-depth" : ""}`}>
       <main
-        className={`${shellClassName}${controlDepth ? " control-depth" : ""}${isScreenViewOpen ? " screen-view-active" : ""}${isDiagnosticsOpen ? " diagnostics-active" : ""}${tab === "files" ? " files-active" : ""}`}
+        className={`${shellClassName}${controlDepth ? " control-depth" : ""}${isScreenViewOpen ? " screen-view-active" : ""}${isDiagnosticsOpen ? " diagnostics-active" : ""}${isAiAssistantOpen ? " ai-assistant-active" : ""}${tab === "files" ? " files-active" : ""}`}
       >
         <AppHeader
           activeMode={activeModeTab}
@@ -679,6 +691,7 @@ export function App() {
           onCloseModeSelector={closeModeSelector}
           onOpenSettings={() => {
             dismissModeSwitchHint();
+            send({ type: "status.get" });
             openSettings();
           }}
           {...(filesAvailable
@@ -757,6 +770,7 @@ export function App() {
 
         <SettingsDrawer
           activePc={activePc}
+          aiAssistantCapability={aiAssistantCapability}
           appSettings={appSettings}
           customPointerEnabled={hostStatus?.customPointerEnabled}
           customScreens={customScreensCapability?.screens ?? []}
@@ -782,6 +796,18 @@ export function App() {
           onOpenGestureDebug={
             supportsGestureDebug ? openGestureDebugWithPresentationGuard : undefined
           }
+          onOpenAiAssistant={() => {
+            requestPresentationExit(() => {
+              closeTransientSurfaces();
+              setActiveCustomScreenId(null);
+              setIsScreenViewOpen(false);
+              setIsPhoneWebcamOpen(false);
+              setIsThirdPartyNoticesOpen(false);
+              setIsDiagnosticsOpen(false);
+              setIsAiAssistantOpen(true);
+              setIsSettingsOpen(false);
+            });
+          }}
           onOpenCustomScreen={(screenId) => {
             requestPresentationExit(() => {
               setActiveCustomScreenId(screenId);
@@ -789,6 +815,7 @@ export function App() {
               setIsPhoneWebcamOpen(false);
               setIsThirdPartyNoticesOpen(false);
               setIsDiagnosticsOpen(false);
+              setIsAiAssistantOpen(false);
               setIsSettingsOpen(false);
             });
           }}
@@ -797,6 +824,7 @@ export function App() {
               setActiveCustomScreenId(null);
               setIsThirdPartyNoticesOpen(false);
               setIsDiagnosticsOpen(false);
+              setIsAiAssistantOpen(false);
               setIsScreenViewOpen(true);
               setIsPhoneWebcamOpen(false);
               setIsSettingsOpen(false);
@@ -808,6 +836,7 @@ export function App() {
               setActiveCustomScreenId(null);
               setIsThirdPartyNoticesOpen(false);
               setIsDiagnosticsOpen(false);
+              setIsAiAssistantOpen(false);
               setIsScreenViewOpen(false);
               setIsPhoneWebcamOpen(true);
               setIsSettingsOpen(false);
@@ -823,6 +852,7 @@ export function App() {
             setIsScreenViewOpen(false);
             setIsPhoneWebcamOpen(false);
             setIsDiagnosticsOpen(false);
+            setIsAiAssistantOpen(false);
             setIsThirdPartyNoticesOpen(true);
           }}
           onOpenDiagnostics={() => {
@@ -831,6 +861,7 @@ export function App() {
             setIsScreenViewOpen(false);
             setIsPhoneWebcamOpen(false);
             setIsThirdPartyNoticesOpen(false);
+            setIsAiAssistantOpen(false);
             setIsDiagnosticsOpen(true);
           }}
           onOpenGyroMouse={openGyroMouse}
@@ -900,6 +931,7 @@ export function App() {
         {activeCustomScreenId === null &&
           !isScreenViewOpen &&
           !isPhoneWebcamOpen &&
+          !isAiAssistantOpen &&
           tab !== "files" &&
           isModeButtonsVisible && (
             <ModeNavigation
@@ -910,7 +942,28 @@ export function App() {
             />
           )}
 
-        {isDiagnosticsOpen ? (
+        {isAiAssistantOpen && activePc && aiAssistantCapability ? (
+          <WorkspaceErrorBoundary
+            featureName="AI Assistant"
+            onBack={() => {
+              setIsAiAssistantOpen(false);
+            }}
+          >
+            <Suspense fallback={<div className="workspace-loading">Opening AI Assistant…</div>}>
+              <AiAssistantWorkspace
+                key={`${connectionEpoch}-${activePc.id}`}
+                activePc={activePc}
+                capability={aiAssistantCapability}
+                clientId={clientId}
+                onBack={() => {
+                  setIsAiAssistantOpen(false);
+                }}
+                send={send}
+                state={state}
+              />
+            </Suspense>
+          </WorkspaceErrorBoundary>
+        ) : isDiagnosticsOpen ? (
           <Suspense fallback={<div className="workspace-loading">Opening Diagnostics…</div>}>
             <DiagnosticsWorkspace
               state={state}
@@ -1207,6 +1260,7 @@ export function App() {
       {activeCustomScreenId === null &&
         !isScreenViewOpen &&
         !isPhoneWebcamOpen &&
+        !isAiAssistantOpen &&
         tab !== "files" &&
         isBottomModeNavigationVisible && (
           <ModeNavigation

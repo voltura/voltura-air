@@ -77,6 +77,27 @@ revisions are revalidated host-side; journaled partial and backup ownership pres
 an original through commit or rollback. This is remote operation with the signed-in
 Windows user's authority, not a sandbox against that user or same-user malware.
 
+AI Assistant is exposed only to an identity-current paired device using exactly
+the My device profile. The host owns a hidden local Codex app-server over stdio;
+no Codex listener or credential is exposed to the device. Open, ask, and reset
+operations are signed against the paired device, pinned host identity, operation
+ID, and (for ask) the question hash. One device owns the session and operation
+IDs are replay-protected.
+
+Before a turn, the host discovers configured MCP integration names without
+sending a prompt, restarts Codex with each one disabled, and verifies the
+effective configuration. It also disables Codex apps, plugins, web search,
+browser/computer use, hooks, multi-agent work, shell and command execution, and
+tool network access. The thread runs with approval policy `never` in the read-only
+sandbox. Its only host-executed tools read the bundled Voltura Air knowledge and
+search likely document filenames below the local user profile while rejecting
+hidden, system, reparse-point, and sensitive working directories. This makes
+process control and mutation unavailable at the execution boundary. It is not a
+data-isolation promise: model requests use the signed-in user's Codex service,
+and returned names or paths may be private. The client therefore presents an
+explicit powerful-read-only disclosure. Prompts, answers, paths, environment
+values, and credentials are excluded from Voltura Air logs and telemetry.
+
 Files **View** composes existing boundaries rather than granting a combined
 permission: the host first authorizes and completes `file.open` under the
 effective Browse/open policy, and Screen then independently requires its

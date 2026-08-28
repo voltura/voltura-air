@@ -628,6 +628,11 @@ function isServerCapabilities(value: unknown): boolean {
       "terminal",
       (candidate) => candidate === null || isTerminalCapability(candidate),
     ) &&
+    isOptional(
+      value,
+      "aiAssistant",
+      (candidate) => candidate === null || isAiAssistantCapability(candidate),
+    ) &&
     isOptional(value, "urlOpen", (candidate) => isBooleanCapability(candidate, "canOpen")) &&
     isOptional(value, "sleep", isBoolean) &&
     isOptional(value, "textTransfer", isBoolean) &&
@@ -1641,6 +1646,37 @@ export const getFileManagerCapability = (capabilities: ServerCapabilities | unde
 
 export const getTerminalCapability = (capabilities: ServerCapabilities | undefined) =>
   capabilities?.terminal ?? undefined;
+
+export const getAiAssistantCapability = (capabilities: ServerCapabilities | undefined) =>
+  capabilities?.aiAssistant ?? undefined;
+
+function isAiAssistantCapability(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    hasOnlyFields(value, [
+      "enabled",
+      "available",
+      "permissionGranted",
+      "canUse",
+      "requiresRepair",
+      "active",
+      "ownedByClient",
+      "working",
+      "failureCode",
+    ]) &&
+    [
+      "enabled",
+      "available",
+      "permissionGranted",
+      "canUse",
+      "requiresRepair",
+      "active",
+      "ownedByClient",
+      "working",
+    ].every((field) => typeof value[field] === "boolean") &&
+    isOptional(value, "failureCode", (candidate) => isBoundedString(candidate, 80, false))
+  );
+}
 
 function isTerminalCapability(value: unknown): boolean {
   return (

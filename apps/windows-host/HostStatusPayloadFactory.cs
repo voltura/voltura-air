@@ -1,4 +1,5 @@
 using VolturaAir.Host.Features.PhoneWebcam;
+using VolturaAir.Host.Features.AiAssistant;
 
 namespace VolturaAir.Host;
 
@@ -21,7 +22,8 @@ internal sealed class HostStatusPayloadFactory(
     Func<bool>? enhancedCapabilitiesEnabled = null,
     Func<PhoneWebcamFeatureStatus>? getPhoneWebcamStatus = null,
     Func<bool>? isPhoneMicrophoneAvailable = null,
-    Func<string, TerminalCapabilityState>? getTerminalStatus = null)
+    Func<string, TerminalCapabilityState>? getTerminalStatus = null,
+    Func<string, AiAssistantCapabilityState>? getAiAssistantStatus = null)
 {
     private static readonly string DeveloperSessionId = Guid.NewGuid().ToString("N");
     private const int LegacyScreenViewWidthMarker = 1920;
@@ -93,6 +95,9 @@ internal sealed class HostStatusPayloadFactory(
     public bool CanViewDiagnostics(string clientId) => GetEffectivePermissions(clientId).AllowDiagnostics;
     public bool CanUseTerminal(string clientId) =>
         pairingManager.HasCurrentHostIdentity(clientId) && GetEffectivePermissions(clientId).AllowTerminal;
+    public bool CanUseAiAssistant(string clientId) =>
+        pairingManager.HasCurrentHostIdentity(clientId) &&
+        pairingManager.GetDeviceAccessProfile(clientId) == DeviceAccessProfile.MyDevice;
     public bool CanBrowseFiles(string clientId) => GetEffectivePermissions(clientId).AllowFileBrowsing;
     public bool CanChangeFiles(string clientId) => GetEffectivePermissions(clientId).AllowFileBrowsing && GetEffectivePermissions(clientId).AllowFileChanges;
     public bool CanTransferFiles(string clientId) =>
@@ -139,6 +144,7 @@ internal sealed class HostStatusPayloadFactory(
         clipboardRead = permissions.AllowClipboardRead,
         diagnostics = new { canView = permissions.AllowDiagnostics },
         terminal = CreateTerminalCapability(clientId, permissions),
+        aiAssistant = CreateAiAssistantCapability(clientId),
         gestureDebug = AppDeveloperSettings.EnableGestureDebug(),
         inputAck = true,
         inputContextV1 = true,
@@ -203,6 +209,25 @@ internal sealed class HostStatusPayloadFactory(
             terminalId = state.TerminalId,
             shell = "windows-powershell",
             reconnectGraceSeconds = (int)TerminalProtocol.ReconnectLifetime.TotalSeconds
+        };
+    }
+
+    private object CreateAiAssistantCapability(string clientId)
+    {
+        AiAssistantCapabilityState state = getAiAssistantStatus?.Invoke(clientId) ?? new(false, false, false, false, false, null);
+        bool hasIdentity = pairingManager.HasCurrentHostIdentity(clientId);
+        bool myDevice = pairingManager.GetDeviceAccessProfile(clientId) == DeviceAccessProfile.MyDevice;
+        return new
+        {
+            enabled = state.Enabled,
+            available = state.Available,
+            permissionGranted = myDevice,
+            canUse = state.Available && myDevice && hasIdentity,
+            requiresRepair = !hasIdentity,
+            active = state.Active,
+            ownedByClient = state.OwnedByClient,
+            working = state.Working,
+            failureCode = state.FailureCode
         };
     }
 

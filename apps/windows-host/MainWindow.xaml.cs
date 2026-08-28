@@ -234,6 +234,7 @@ public partial class MainWindow : Window
         SelectPage(page);
         Show();
         WindowState = WindowState.Normal;
+        WindowWorkAreaPlacement.EnsureVisibleOnCurrentMonitor(this);
         Activate();
         WindowFocusReset.AfterShow(this, focusTarget);
     }
@@ -332,6 +333,7 @@ public partial class MainWindow : Window
         {
             WindowState = WindowState.Normal;
         }
+        WindowWorkAreaPlacement.EnsureVisibleOnCurrentMonitor(this);
         Activate();
         WindowFocusReset.AfterShow(this);
     }

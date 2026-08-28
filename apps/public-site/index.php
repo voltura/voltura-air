@@ -124,6 +124,10 @@
           <p>Open an interactive Windows PowerShell terminal from a paired phone, tablet, or browser. Run commands over Direct LAN or the encrypted Cloud relay, with touch shortcuts, selectable output, copy, two-axis scrolling, and authenticated reconnect.</p>
         </article>
         <article>
+          <h2>Ask the AI Assistant</h2>
+          <p>Type or dictate a question to get Voltura Air help, troubleshoot a feature, or investigate information available to your Windows account from a personal paired device. It appears when Codex is installed and signed in on the PC and works over Direct LAN or Cloud relay.</p>
+        </article>
+        <article>
           <h2>Use your phone as a webcam</h2>
           <p>Use any paired-phone camera as a Windows webcam over Enhanced Direct or Cloud relay. Optional audio is off by default and supports mute and testing. It requires separately installed <a href="https://vb-audio.com/Cable/">VB-CABLE</a>, third-party donationware from VB-Audio that is not included with Voltura Air and is used under its own licence.</p>
         </article>
@@ -159,6 +163,30 @@
           <h2>Tablet split mode</h2>
           <p>Use a landscape tablet as a roomy keyboard and trackpad.</p>
         </article>
+      </section>
+
+      <section class="assistant-showcase" aria-labelledby="assistant-showcase-title">
+        <div class="assistant-showcase-copy">
+          <p class="eyebrow">Help from your PC</p>
+          <h2 id="assistant-showcase-title">Ask in plain language</h2>
+          <p>Open AI Assistant from Tools and ask how Voltura Air works or what to check next. Short live updates show that the Assistant is still investigating before its complete answer arrives.</p>
+          <p class="assistant-showcase-note">Available to trusted My device pairings when Codex is installed and signed in. The Assistant is read-only but can inspect information with the same Windows-user access as local Codex.</p>
+        </div>
+        <div class="assistant-chat" aria-label="Example AI Assistant conversation">
+          <div class="assistant-chat-message user">
+            <strong>You</strong>
+            <p>How do I test Phone webcam before first use?</p>
+          </div>
+          <div class="assistant-chat-message assistant">
+            <strong>Assistant</strong>
+            <p>I’ll check the maintained Phone Webcam setup and troubleshooting guidance.</p>
+          </div>
+          <div class="assistant-chat-working"><span aria-hidden="true"></span>Looking it up…</div>
+          <div class="assistant-chat-message assistant">
+            <strong>Assistant</strong>
+            <p>Open Phone webcam on the PC, confirm the component is installed, then connect the phone camera. If you enable microphone audio, use Test audio with headphones to confirm it reaches VB-CABLE without feedback.</p>
+          </div>
+        </div>
       </section>
 
       <section id="compare" class="comparison-section">
@@ -286,6 +314,12 @@
                 <td><strong class="comparison-status">Not documented</strong> as a current feature</td>
               </tr>
               <tr>
+                <th scope="row">PC-aware AI help</th>
+                <td class="comparison-voltura"><strong class="comparison-status">Read-only Voltura Air and PC assistance through local Codex</strong>; available to trusted My device pairings over Direct LAN or Cloud relay</td>
+                <td><strong class="comparison-status">Not documented</strong> as a current feature</td>
+                <td><strong class="comparison-status">Not documented</strong> as a current feature</td>
+              </tr>
+              <tr>
                 <th scope="row">Phone as webcam</th>
                 <td class="comparison-voltura"><strong class="comparison-status">Included Windows webcam with optional audio (off by default)</strong>; choose a phone camera, enable or mute the microphone from your phone, and use Test audio in the Windows app's Phone webcam screen to confirm it reaches VB-CABLE</td>
                 <td><strong class="comparison-status">Not documented</strong> as a current feature</td>
@@ -320,7 +354,7 @@
         </div>
         <p class="comparison-note">
           Competitor information was checked on 27 August 2026; Voltura Air
-          capabilities were updated on 27 August 2026. Features, availability,
+          capabilities were updated on 28 August 2026. Features, availability,
           and pricing models may change.
         </p>
         <details class="comparison-sources">

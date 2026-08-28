@@ -38,6 +38,12 @@ networks that block inbound PC connections.
   a file and continue into the PC screen mirror. Its compact Transfer menu can
   save one selected PC file to the device or upload one chosen device file into
   the active PC folder.
+- Ask the **AI Assistant** how Voltura Air works, troubleshoot a feature, or
+  investigate information available to your Windows account from a personal
+  paired device. It appears automatically when Codex is installed on the PC,
+  accepts typed or dictated questions, runs read-only, and works over Direct or
+  Cloud relay connections. Codex reports any sign-in or configuration problem
+  when the Assistant is opened or used.
 - Control presentations, use a laser pointer, track time, and review saved
   reports on the PC.
 - Dictate, reuse snippets, and send text to a PC app, document, email draft, or
@@ -174,6 +180,11 @@ each device can be changed or customized from Devices. Access profiles do not
 change pairing links, QR data, tokens, authentication, or protocol messages. The
 disabled-by-default permission to control the Voltura Air window or tray and the
 protected-file filter remain separate from profiles.
+**AI Assistant** is available only to the **My device** profile and requires
+Codex to be installed on the PC. Codex reports any sign-in or configuration
+problem when the Assistant is opened or used. It is read-only but can inspect
+information with the same Windows-user access as local Codex, so use it only
+from a personal trusted device.
 The optional **View PC screen** tool requires Screen viewing permission on the
 PC before a paired phone, tablet, or browser can use it. Direct physical mouse
 and keyboard control from another computer also requires Pointer and keyboard

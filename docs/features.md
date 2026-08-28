@@ -735,6 +735,49 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 - Navigating within the PWA keeps Terminal active. A transient WebRTC `disconnected` state is allowed to recover without replacing the control or Terminal peer; terminal `failed` or `closed` states enter the reconnect lifecycle. An unexpected connection loss retains the process for 15 minutes and only the same authenticated device may resume from its acknowledged output offset. Reload does not persist terminal contents; starting after reload replaces the detached session. Relay transport renews independently without restarting PowerShell.
 - Stop, permission or pairing revocation, device removal, reconnect expiry, natural shell exit, host shutdown, and lifecycle failures close a kill-on-close Windows Job Object so PowerShell and its complete child-process tree terminate. **My device** allows Terminal, **Remote controls** blocks it, and Custom exposes Allow/Block; older complete Custom matrices migrate with Terminal blocked.
 
+### AI Assistant
+
+- **AI Assistant** is a lazy-loaded Menu tool for a paired device using exactly
+  the **My device** profile. It appears automatically when the installed Codex
+  command-line component and bundled Voltura Air knowledge are available; it
+  has no Developer tools toggle or separate permission. Remote controls,
+  Custom, unpaired, and stale-host-identity devices cannot open it. The existing
+  status refresh when the mobile Menu opens re-evaluates the local installation,
+  so installing Codex on an already-connected PC makes the tool appear without
+  reconnecting the device or enabling background polling.
+- The Windows host starts a hidden `codex app-server --stdio` child using the
+  signed-in user's existing Codex installation, configuration, account, and
+  authentication. The phone never connects to an app-server port. Voltura Air
+  discovers configured MCP integrations without sending a model turn, restarts
+  Codex with each integration disabled, and verifies the effective disabled
+  configuration before accepting a question. Codex apps, plugins, browser and
+  computer use, hooks, multi-agent work, web search, shell and command
+  execution, and network access for tools are disabled.
+- The Assistant owns one persistent local Codex thread named **Voltura Air
+  Assistant** and loads a bundled skill plus maintained Voltura Air
+  documentation. Its only runtime tools search and read that bundled knowledge
+  and search likely document filenames under the signed-in user's local profile;
+  the file search returns paths, sizes, and modification times, not file contents.
+  It cannot change files or settings, control applications or processes, execute
+  Voltura Air actions, or use the network as a tool. This is a powerful read-only
+  boundary rather than data isolation: names and paths may still be sensitive,
+  and the conversation is stored by Codex on the PC.
+- One paired device owns the live Assistant session. Questions and answers use
+  the existing authenticated command connection with signed open, ask, and
+  reset operations. Text stays within bounded messages, long answers are split
+  into ordered chunks, and prompts, responses, paths, environment values, and
+  Codex credentials never enter Voltura Air logs or telemetry.
+- The mobile view presents a short capability introduction, example questions,
+  a compact typed-or-dictated question composer, Markdown answers, and rotating
+  progress phrases only while Codex reports the turn as working. On devices with
+  browser speech recognition, the microphone appends recognized speech to the
+  editable question before the user sends it. Markdown image and remote-media
+  syntax is shown as inert text and is never fetched automatically by the paired
+  browser; ordinary links require an explicit user click. Leaving the tool stops
+  its private app-server process but does not delete the persistent conversation.
+  **New conversation** renames the previous thread locally and creates a fresh
+  named Assistant thread.
+
 ### Dictation and text transfer
 
 - Dictation uses browser speech recognition when available. Each new final

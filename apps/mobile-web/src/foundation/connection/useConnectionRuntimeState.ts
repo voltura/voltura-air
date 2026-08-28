@@ -5,6 +5,7 @@ import type {
   CustomScreensCapability,
   FileManagerCapability,
   TerminalCapability,
+  AiAssistantCapability,
   HostStatusMetadata,
   PhoneWebcamCapability,
   PowerCapabilities,
@@ -22,6 +23,7 @@ import {
   getPhoneWebcamCapability,
   getFileManagerCapability,
   getTerminalCapability,
+  getAiAssistantCapability,
   hasGestureDebugCapability,
   getClipboardReadPermission,
   getDiagnosticsPermission,
@@ -74,6 +76,9 @@ export function useConnectionRuntimeState(
   const [terminalCapability, setTerminalCapability] = useState<TerminalCapability | undefined>(
     undefined,
   );
+  const [aiAssistantCapability, setAiAssistantCapability] = useState<
+    AiAssistantCapability | undefined
+  >(undefined);
   const [hostStatus, setHostStatus] = useState<HostStatusMetadata | null>(null);
   const supportsVolumeControlRef = useRef(false);
   const supportsInputAckRef = useRef(false);
@@ -102,6 +107,7 @@ export function useConnectionRuntimeState(
       if (!preserveTerminal) {
         setTerminalCapability(undefined);
       }
+      setAiAssistantCapability(undefined);
       setHostStatus(null);
       supportsVolumeControlRef.current = false;
       supportsInputAckRef.current = false;
@@ -132,6 +138,7 @@ export function useConnectionRuntimeState(
       if (connected) {
         setTerminalCapability(getTerminalCapability(capabilities));
       }
+      setAiAssistantCapability(connected ? getAiAssistantCapability(capabilities) : undefined);
       setAwakeCapability(connected ? getAwakeCapability(capabilities) : null);
       supportsVolumeControlRef.current = nextSupportsVolumeControl;
       supportsInputAckRef.current = nextSupportsInputAck;
@@ -168,6 +175,7 @@ export function useConnectionRuntimeState(
     screenViewCapability,
     fileManagerCapability,
     terminalCapability,
+    aiAssistantCapability,
     setAudioState,
     setHostStatus,
     supportsGestureDebug,

@@ -1318,6 +1318,52 @@ The host creates one reliable ordered `voltura-terminal` DataChannel. A transien
 
 Queued input is at most 256 KiB. Output offsets are monotonic; the host retains exactly the unacknowledged suffix up to 1 MiB and stops reading the ConPTY pipe at the bound. The peer also stops accepting sends at 1 MiB WebRTC buffered amount. Reconnect requires the same authenticated device, terminal ID, fresh signed attach, and the host's exact last acknowledged boundary within 15 minutes. Relay uses signed purpose `terminal`, 60-minute credentials, and a fresh attach/offer before expiry without restarting PowerShell. No command, output, current directory, or environment value enters logs, telemetry, JSON status, or persistence.
 
+### AI Assistant
+
+Authenticated status may advertise `aiAssistant` with exact Boolean fields
+`enabled`, `available`, `permissionGranted`, `canUse`, `requiresRepair`,
+`active`, `ownedByClient`, and `working`, plus optional bounded `failureCode`.
+`permissionGranted` is the My device profile grant. `canUse` additionally
+requires a current host identity plus available bundled knowledge and an
+installed Codex command-line component. Older hosts omit the capability and
+mobile hides the tool.
+
+Opening the mobile Menu uses the existing `status.get` request. Capability
+evaluation checks the local Codex installation and bundled knowledge only; it
+does not start Codex, inspect its account, or add background polling.
+
+`ai.assistant.open` has exact fields `type`, `operationId`, and
+`clientSignature`. `ai.assistant.ask` adds a non-empty `question` of at most
+16,384 UTF-16 code units. `ai.assistant.reset` has the open shape;
+`ai.assistant.close` has only `type` and `operationId`. Open and reset signatures
+bind `VolturaAir ai-assistant:open:v1` or
+`VolturaAir ai-assistant:reset:v1`, client ID, pinned host public key, and
+operation ID. Ask binds `VolturaAir ai-assistant:ask:v1`, those same identity
+values, and the SHA-256/base64url hash of the trimmed question. Operation IDs
+are replay-protected and another paired device receives a busy result.
+
+Results use the corresponding `.result` type with exact `operationId`, Boolean
+`succeeded`, nullable bounded `code`, and bounded `message`. Snapshots are
+bracketed by `ai.assistant.snapshot.start` and
+`ai.assistant.snapshot.complete`. Each `ai.assistant.message` contains a
+positive monotonic `sequence`, host-derived 64-character hexadecimal
+`messageId` (Codex item identifiers never cross the wire), zero-based
+`chunkIndex`, Boolean `finalChunk`, `sender` (`user` or `assistant`), and up to
+4,096 UTF-16 code units of text. Complete messages are at most 32,768 code
+units; snapshots and the live mobile transcript retain at most the newest 32
+user/assistant items from a bounded page of the newest 16 turns. Resume and metadata reads
+exclude full thread hydration; the host never requests the complete persistent
+history before applying that page bound. Surrogate pairs are
+never split between chunks. `ai.assistant.state` is `ready`, `working`, or
+`failed`; only authoritative Codex turn state drives `working`. App-server stdio
+records are capped at 8 MiB, pre-confirmation notifications and outbound actions
+use bounded 64-entry queues, and overflow fails the Assistant session closed.
+Because a timed-out `turn/start` may already have been accepted by Codex, an
+uncertain result also closes the app-server session before another question can
+be accepted. Disconnect, revocation, process exit, close, and host shutdown
+dispose the child process and emit no prompt or answer content to logs or
+telemetry.
+
 ## Presentation
 
 Authenticated status advertises `presentation`. The resolved device-profile

@@ -115,6 +115,58 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
     }
 
     [Fact]
+    public void MainWindowMovesFullyOnScreenWithoutResizingWhenShownFromTray()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var inputInjector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null)
+            {
+                Width = 640,
+                Height = 480
+            };
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                var width = window.Width;
+                var height = window.Height;
+                window.Left = SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth + 200;
+                window.Top = SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight + 200;
+                window.Hide();
+
+                window.ShowPage(HostPage.Connect);
+                window.UpdateLayout();
+
+                Assert.Equal(width, window.Width);
+                Assert.Equal(height, window.Height);
+                Assert.InRange(
+                    window.Left,
+                    SystemParameters.VirtualScreenLeft,
+                    SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - width);
+                Assert.InRange(
+                    window.Top,
+                    SystemParameters.VirtualScreenTop,
+                    SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - height);
+            }
+            finally
+            {
+                window.Close();
+                DisposeWebHost(webHost);
+            }
+        });
+    }
+
+    [Fact]
     public void MainWindowNavigatesToPrimaryPages()
     {
         if (ShouldSkipNativeUiLayoutTests())

@@ -101,6 +101,7 @@ import {
 } from "./controllerSocket";
 import { connectSecureDirect } from "./secureDirect";
 import { publishTerminalResult } from "./terminalResultBus";
+import { publishAiAssistantResult } from "./aiAssistantResultBus";
 
 const directConnectionTimeoutMs = 3000;
 const relayConnectionTimeoutMs = 10000;
@@ -111,6 +112,22 @@ const displayOffHealthCheckDelayMs = 1000;
 
 export function getConnectionTimeoutMs(transportMode: PcProfile["transportMode"]): number {
   return transportMode === "relay" ? relayConnectionTimeoutMs : directConnectionTimeoutMs;
+}
+
+export function getLazyProtocolMessageType(messageData: unknown): string | null {
+  if (typeof messageData !== "string") {
+    return null;
+  }
+  try {
+    const parsed: unknown = JSON.parse(messageData);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+    const type = (parsed as Record<string, unknown>).type;
+    return typeof type === "string" ? type : null;
+  } catch {
+    return null;
+  }
 }
 
 interface ConnectionSocketLifecycleOptions {
@@ -756,13 +773,15 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
 
         let pendingFileTransferMessages = Promise.resolve();
         let pendingTerminalMessages = Promise.resolve();
+        let pendingAiAssistantMessages = Promise.resolve();
         function handleSocketMessage(messageData: unknown) {
           const response = parseServerMessage(messageData);
           if (response) {
             handleValidatedSocketMessage(response);
             return;
           }
-          if (typeof messageData === "string" && messageData.includes('"file.transfer.')) {
+          const lazyMessageType = getLazyProtocolMessageType(messageData);
+          if (lazyMessageType?.startsWith("file.transfer.")) {
             pendingFileTransferMessages = pendingFileTransferMessages
               .then(async () => {
                 const { parseFileTransferServerMessage } =
@@ -781,7 +800,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
               );
             return;
           }
-          if (typeof messageData === "string" && messageData.includes('"terminal.')) {
+          if (lazyMessageType?.startsWith("terminal.")) {
             pendingTerminalMessages = pendingTerminalMessages
               .then(async () => {
                 const { parseTerminalServerMessage } = await import("./terminalServerProtocol");
@@ -797,6 +816,27 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
                   ws,
                   "The Terminal protocol could not be loaded. Retrying...",
                   "VAIR-TERMINAL-PROTOCOL",
+                ),
+              );
+            return;
+          }
+          if (lazyMessageType?.startsWith("ai.assistant.")) {
+            pendingAiAssistantMessages = pendingAiAssistantMessages
+              .then(async () => {
+                const { parseAiAssistantServerMessage } =
+                  await import("./aiAssistantServerProtocol");
+                const assistantResponse = parseAiAssistantServerMessage(messageData);
+                if (assistantResponse && !disposed && ws === socketRef.current) {
+                  touchHealthy();
+                  publishAiAssistantResult(assistantResponse);
+                  scheduleHealthCheck(ws);
+                }
+              })
+              .catch(() =>
+                markUnavailable(
+                  ws,
+                  "The AI Assistant protocol could not be loaded. Retrying...",
+                  "VAIR-AI-ASSISTANT-PROTOCOL",
                 ),
               );
             return;

@@ -31,6 +31,9 @@ flowchart LR
   Session --> Terminal["TerminalCoordinator\nTerminal permission + signed ownership"]
   Client <-->|"DTLS terminal records\n+ output ACKs"| Terminal
   Terminal --> ConPTY["ConPTY + kill-on-close Job\nWindows PowerShell as signed-in user"]
+  Session --> Assistant["AiAssistantCoordinator\nMy device + pinned identity\none-device ownership"]
+  Assistant --> AppServer["hidden Codex app-server stdio\nshell, network, apps and MCP disabled"]
+  AppServer --> ReadTools["host-owned read tools\nbundled docs + user-document metadata"]
   Transfer --> FileService
   FileHandler --> FileService["FileManagerService\nrevision validation + one mutation queue"]
   FileService --> FileSystem["Windows Shell, file system,\nRecycle Bin, mapped drives"]
@@ -135,11 +138,20 @@ flowchart TD
   TerminalPerm -- "false" --> TerminalDenied["Bounded denied/busy result\nno shell access"]
   TerminalPerm -- "true" --> TerminalChannel["Signed WebRTC negotiation\nDTLS DataChannel + ConPTY Job"]
 
+  Dispatch --> AssistantRequest["ai.assistant.open / ask / reset / close"]
+  AssistantRequest --> AssistantGate{"Exactly My device + pinned identity\n+ signed operation + ownership"}
+  AssistantGate -- "false" --> AssistantDenied["Bounded denied/busy result\nno Codex process started"]
+  AssistantGate -- "true" --> AssistantTools["Hidden stdio app-server\nthree host-owned read-only tools"]
+
   Dispatch --> Privileged["launch / URL / clipboard / power / awake / presentation / audio"]
   Privileged --> SpecificPerm{"Specific resolved device permission"}
   SpecificPerm -- "false" --> RecoverableDeny["Recoverable denied result"]
   SpecificPerm -- "true" --> WindowsAction["Focused Windows API or allowlisted process action"]
 ```
+
+Assistant Markdown blocks raw HTML and renders image syntax as inert text, so a
+model-authored response cannot trigger an automatic remote-media request from
+the paired device. Ordinary links require an explicit user click.
 
 ## Release and artifact-production flow
 

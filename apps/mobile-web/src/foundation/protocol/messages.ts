@@ -86,7 +86,80 @@ export interface ServerCapabilities {
   phoneWebcam?: PhoneWebcamCapability | null;
   fileManager?: FileManagerCapability | null;
   terminal?: TerminalCapability | null;
+  aiAssistant?: AiAssistantCapability | null;
 }
+
+export interface AiAssistantCapability {
+  enabled: boolean;
+  available: boolean;
+  permissionGranted: boolean;
+  canUse: boolean;
+  requiresRepair: boolean;
+  active: boolean;
+  ownedByClient: boolean;
+  working: boolean;
+  failureCode?: string | null;
+}
+
+export interface AiAssistantOpenMessage {
+  type: "ai.assistant.open";
+  operationId: string;
+  clientSignature: string;
+}
+export interface AiAssistantAskMessage {
+  type: "ai.assistant.ask";
+  operationId: string;
+  question: string;
+  clientSignature: string;
+}
+export interface AiAssistantResetMessage {
+  type: "ai.assistant.reset";
+  operationId: string;
+  clientSignature: string;
+}
+export interface AiAssistantCloseMessage {
+  type: "ai.assistant.close";
+  operationId: string;
+}
+export interface AiAssistantResultMessage {
+  type:
+    | "ai.assistant.open.result"
+    | "ai.assistant.ask.result"
+    | "ai.assistant.reset.result"
+    | "ai.assistant.close.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string | null;
+  message: string;
+}
+export interface AiAssistantMessageEvent {
+  type: "ai.assistant.message";
+  sequence: number;
+  messageId: string;
+  chunkIndex: number;
+  finalChunk: boolean;
+  sender: "user" | "assistant";
+  text: string;
+}
+export interface AiAssistantStateEvent {
+  type: "ai.assistant.state";
+  state: "ready" | "working" | "failed";
+  message?: string | null;
+}
+export interface AiAssistantSnapshotEvent {
+  type: "ai.assistant.snapshot.start" | "ai.assistant.snapshot.complete";
+  messageCount?: number;
+}
+export interface AiAssistantClosedEvent {
+  type: "ai.assistant.closed";
+  reason: string;
+}
+export type AiAssistantServerMessage =
+  | AiAssistantResultMessage
+  | AiAssistantMessageEvent
+  | AiAssistantStateEvent
+  | AiAssistantSnapshotEvent
+  | AiAssistantClosedEvent;
 
 export interface TerminalCapability {
   enabled: boolean;
@@ -1518,7 +1591,11 @@ export type ClientMessage =
   | TerminalStartMessage
   | TerminalAttachMessage
   | TerminalAnswerMessage
-  | TerminalStopMessage;
+  | TerminalStopMessage
+  | AiAssistantOpenMessage
+  | AiAssistantAskMessage
+  | AiAssistantResetMessage
+  | AiAssistantCloseMessage;
 
 export type ServerMessage =
   | PairAcceptedMessage

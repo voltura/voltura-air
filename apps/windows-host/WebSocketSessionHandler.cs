@@ -4,6 +4,7 @@ using System.Text.Json;
 using VolturaAir.Host.Features.PhoneWebcam;
 using VolturaAir.Host.Features.Diagnostics;
 using VolturaAir.Host.Features.UsageTelemetry;
+using VolturaAir.Host.Features.AiAssistant;
 
 namespace VolturaAir.Host;
 
@@ -27,6 +28,7 @@ internal sealed class WebSocketSessionHandler(
     FileManagerCommandHandler fileManagerCommands,
     FileTransferCoordinator fileTransfers,
     TerminalCoordinator terminal,
+    AiAssistantCoordinator aiAssistant,
     InputCommandHandler inputCommands,
     CustomScreenCommandHandler customScreenCommands,
     ScreenViewCommandHandler screenViewCommands,
@@ -59,16 +61,17 @@ internal sealed class WebSocketSessionHandler(
         using var usageSession = new UsageTelemetrySession(usageTelemetry);
         var buffer = new byte[WebSocketTransport.MaxMessageBytes];
         using var receiveTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        receiveTimeout.CancelAfter(PairingHandshakeTimeout);
 
         try
         {
             while (socket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
             {
-                if (authenticated)
-                {
-                    receiveTimeout.CancelAfter(AuthenticatedInactivityTimeout);
-                }
+                receiveTimeout.CancelAfter(
+                    authenticated
+                        ? socket is SecureDirectWebSocket
+                            ? Timeout.InfiniteTimeSpan
+                            : AuthenticatedInactivityTimeout
+                        : PairingHandshakeTimeout);
                 JsonDocument? receivedDocument;
                 try
                 {
@@ -88,6 +91,7 @@ internal sealed class WebSocketSessionHandler(
                     break;
                 }
 
+                receiveTimeout.CancelAfter(Timeout.InfiniteTimeSpan);
                 if (receivedDocument is null)
                 {
                     break;
@@ -286,6 +290,7 @@ internal sealed class WebSocketSessionHandler(
             {
                 if (!string.IsNullOrEmpty(authenticatedClientId))
                 {
+                    aiAssistant.ClientDisconnected(authenticatedClientId, socket);
                     await screenViewCommands.ClientDisconnectedAsync(authenticatedClientId);
                     await phoneWebcamCommands.ClientDisconnectedAsync(authenticatedClientId, socket);
                     fileManagerCommands.ClientDisconnected(authenticatedClientId, socket);
@@ -828,6 +833,38 @@ internal sealed class WebSocketSessionHandler(
                     clientId,
                     ProtocolMessageFields.GetString(root, "operationId"),
                     ProtocolMessageFields.GetString(root, "terminalId"),
+                    cancellationToken);
+                return true;
+            case "ai.assistant.open":
+                aiAssistant.QueueOpen(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    ProtocolMessageFields.GetString(root, "clientSignature"),
+                    cancellationToken);
+                return true;
+            case "ai.assistant.ask":
+                aiAssistant.QueueAsk(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    ProtocolMessageFields.GetString(root, "question"),
+                    ProtocolMessageFields.GetString(root, "clientSignature"),
+                    cancellationToken);
+                return true;
+            case "ai.assistant.reset":
+                aiAssistant.QueueReset(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    ProtocolMessageFields.GetString(root, "clientSignature"),
+                    cancellationToken);
+                return true;
+            case "ai.assistant.close":
+                aiAssistant.QueueClose(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
                     cancellationToken);
                 return true;
         }

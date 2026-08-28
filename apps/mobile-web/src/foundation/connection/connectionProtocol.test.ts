@@ -202,6 +202,44 @@ describe("connection protocol policy", () => {
     ).toBeNull();
   });
 
+  it("accepts only the exact AI Assistant capability shape", () => {
+    const capability = {
+      enabled: true,
+      available: true,
+      permissionGranted: true,
+      canUse: true,
+      requiresRepair: false,
+      active: false,
+      ownedByClient: false,
+      working: false,
+      failureCode: "codex-closed",
+    };
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          type: "status",
+          connected: true,
+          capabilities: { aiAssistant: capability },
+        }),
+      ),
+    ).not.toBeNull();
+    for (const invalid of [
+      { ...capability, canUse: "yes" },
+      { ...capability, failureCode: "x".repeat(81) },
+      { ...capability, extra: true },
+    ]) {
+      expect(
+        parseServerMessage(
+          JSON.stringify({
+            type: "status",
+            connected: true,
+            capabilities: { aiAssistant: invalid },
+          }),
+        ),
+      ).toBeNull();
+    }
+  });
+
   it("normalizes untrusted audio state without accepting coerced values", () => {
     expect(normalizeAudioState({ muted: true, volume: 101.6 })).toEqual({
       type: "audio.state",

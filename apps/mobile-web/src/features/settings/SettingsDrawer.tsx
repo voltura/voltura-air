@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
-import { Activity, Camera, MonitorUp, Orbit, X } from "lucide-react";
+import { Activity, Bot, Camera, MonitorUp, Orbit, X } from "lucide-react";
 import {
   CustomPointerSettingsSection,
   KeyboardSettingsSection,
@@ -136,6 +136,17 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
           <section className="drawer-group" aria-labelledby="drawer-tools-title">
             <h3 id="drawer-tools-title">Tools</h3>
             <div className="drawer-tool-list">
+              {props.aiAssistantCapability?.canUse && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeThen(props.onOpenAiAssistant);
+                  }}
+                >
+                  <Bot aria-hidden="true" />
+                  <span>AI Assistant</span>
+                </button>
+              )}
               {props.screenViewCapability && (
                 <button
                   type="button"

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
 using VolturaAir.Host.Features.PhoneWebcam;
+using VolturaAir.Host.Features.AiAssistant;
 using VolturaAir.Host.Features.Diagnostics;
 using VolturaAir.Host.Features.UsageTelemetry;
 
@@ -36,6 +37,7 @@ public sealed class WebHostService : IAsyncDisposable
     private readonly FileManagerCommandHandler _fileManagerCommands;
     private readonly FileTransferCoordinator _fileTransfers;
     private readonly TerminalCoordinator _terminal;
+    private readonly AiAssistantCoordinator _aiAssistant;
     private readonly PresentationLaserPointerController _presentationLaserPointer;
     private readonly IPowerPointAutomationService _powerPoint;
     private readonly PowerPointPresentationSessionService _presentationSession;
@@ -159,7 +161,8 @@ public sealed class WebHostService : IAsyncDisposable
         IComputerDiagnosticsProbe? computerDiagnosticsProbe = null,
         ITerminalProcessFactory? terminalProcessFactory = null,
         ITerminalWebRtcPeerFactory? terminalPeerFactory = null,
-        TimeProvider? terminalTimeProvider = null)
+        TimeProvider? terminalTimeProvider = null,
+        IAiAssistantClientFactory? aiAssistantClientFactory = null)
     {
         _configureWebHost = configureWebHost;
 
@@ -250,6 +253,7 @@ public sealed class WebHostService : IAsyncDisposable
             NoOpPresentationBlankOverlay.Instance;
 
         TerminalCoordinator? terminalCoordinator = null;
+        AiAssistantCoordinator? aiAssistantCoordinator = null;
         var statusFactory = new HostStatusPayloadFactory(
             pairingManager,
             _powerController,
@@ -271,7 +275,8 @@ public sealed class WebHostService : IAsyncDisposable
                 PhoneWebcamFeatureState.Unavailable,
                 "Phone webcam is unavailable."),
             () => phoneWebcamFeature?.AudioTargetStatus.IsReady == true,
-            clientId => terminalCoordinator?.GetCapability(clientId) ?? new(false, false, null, null));
+            clientId => terminalCoordinator?.GetCapability(clientId) ?? new(false, false, null, null),
+            clientId => aiAssistantCoordinator?.GetCapability(clientId) ?? new(false, false, false, false, false, null));
         ComputerDiagnostics = computerDiagnosticsProbe is null
             ? new ComputerDiagnosticsProvider()
             : new ComputerDiagnosticsProvider(computerDiagnosticsProbe);
@@ -398,6 +403,11 @@ public sealed class WebHostService : IAsyncDisposable
             terminalProcessFactory ?? (isolatedTestMode ? new IsolatedTerminalProcessFactory() : new ConPtyTerminalProcessFactory()),
             terminalPeerFactory ?? (isolatedTestMode ? new IsolatedTerminalWebRtcPeerFactory() : new TerminalWebRtcPeerFactory()),
             terminalTimeProvider);
+        _aiAssistant = aiAssistantCoordinator = new AiAssistantCoordinator(
+            pairingManager,
+            statusFactory,
+            _transport,
+            aiAssistantClientFactory ?? (isolatedTestMode ? UnavailableAiAssistantClientFactory.Instance : null));
         var resolvedPhoneWebcam = phoneWebcamFeature ?? PhoneWebcamFeature.CreateUnavailable();
         var phoneWebcamCoordinator = new PhoneWebcamCoordinator(
             pairingManager,
@@ -438,6 +448,7 @@ public sealed class WebHostService : IAsyncDisposable
             _fileManagerCommands,
             _fileTransfers,
             _terminal,
+            _aiAssistant,
             inputCommands,
             customScreenCommands,
             _screenViewCommands,
@@ -458,6 +469,7 @@ public sealed class WebHostService : IAsyncDisposable
             presentationBlankOverlay,
             resolvedPhoneWebcam as PhoneWebcamFeature);
         _terminal.ActivityChanged += (_, _) => _statusBroadcaster.Queue();
+        _aiAssistant.StateChanged += (_, _) => _statusBroadcaster.Queue();
         if (TransportMode == ConnectionTransportMode.Relay)
         {
 #pragma warning disable CA2000 // RelayHostConnection owns and disposes the routing identity.
@@ -648,6 +660,7 @@ public sealed class WebHostService : IAsyncDisposable
     public async Task StopAsync()
     {
         await _terminal.StopFromHostAsync();
+        await _aiAssistant.DisposeAsync();
         await _screenViewCommands.DisposeAsync();
         await _screenView.DisposeAsync();
         await _phoneWebcamCommands.DisposeAsync();
@@ -684,6 +697,7 @@ public sealed class WebHostService : IAsyncDisposable
 
         await _statusBroadcaster.DisposeAsync();
         await _terminal.DisposeAsync();
+        await _aiAssistant.DisposeAsync();
         await _fileTransfers.DisposeAsync();
         await _fileManagerCommands.DisposeAsync();
         await _fileManager.DisposeAsync();

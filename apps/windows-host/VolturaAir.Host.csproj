@@ -77,6 +77,21 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
+    <Content Include="Features\AiAssistant\AssistantSkill\SKILL.md">
+      <Link>AiAssistantKnowledge\AssistantSkill\SKILL.md</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\..\README.md;..\..\PRIVACY.md;..\..\SECURITY.md">
+      <Link>AiAssistantKnowledge\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\..\docs\README.md;..\..\docs\features.md;..\..\docs\network-and-host-selection.md;..\..\docs\pairing-feedback.md;..\..\docs\troubleshooting.md;..\..\docs\architecture.md;..\..\docs\protocol.md">
+      <Link>AiAssistantKnowledge\docs\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
     <Content Include="..\mobile-web\dist\**\*">
       <Link>wwwroot\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

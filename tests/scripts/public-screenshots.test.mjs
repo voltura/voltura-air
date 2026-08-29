@@ -36,6 +36,7 @@ test("public screenshot inventory stays curated and aligned", async () => {
     runbook,
     readme,
     marketingPage,
+    uiTokens,
     assetFiles,
   ] = await Promise.all([
     readFile(new URL("../../scripts/capture-site-screenshots.mjs", import.meta.url), "utf8"),
@@ -45,6 +46,7 @@ test("public screenshot inventory stays curated and aligned", async () => {
     readFile(new URL("../../docs/screenshots.md", import.meta.url), "utf8"),
     readFile(new URL("../../README.md", import.meta.url), "utf8"),
     readFile(new URL("../../apps/public-site/index.php", import.meta.url), "utf8"),
+    readFile(new URL("../../assets/ui-tokens.json", import.meta.url), "utf8"),
     readdir(new URL("../../apps/public-site/assets/", import.meta.url)),
   ]);
 
@@ -91,6 +93,28 @@ test("public screenshot inventory stays curated and aligned", async () => {
   assert.match(captureScript, /--screen-view-only/u);
   assert.match(captureScript, /screenPreview=1[\s\S]*screen-view-workspace/u);
   assert.match(captureScript, /voltura-air-screen-view\.png/u);
+  assert.match(captureScript, /roundScreenshot\(desktop, 1280, 720, 18\)/u);
+  assert.match(captureScript, /\{ input: framedDesktop, left: 160, top: 110 \}/u);
+  assert.match(
+    captureScript,
+    /font-family="Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif" fill="\$\{accent\}" font-size="48" font-weight="800" letter-spacing="5\.76"><text x="70" y="76">WINDOWS 11 PC<\/text><text x="70" y="914">VIEW PC SCREEN ON PHONE<\/text><\/g><rect x="70" y="940"/u,
+  );
+  assert.match(
+    captureScript,
+    /uiTokensPath = path\.join\(repoRoot, "assets", "ui-tokens\.json"\)[\s\S]*hostDarkPalette = JSON\.parse\(await fs\.readFile\(uiTokensPath, "utf8"\)\)\.color\.dark/u,
+  );
+  for (const token of [
+    "accent",
+    "accentStrong",
+    "bg",
+    "border",
+    "muted",
+    "surface",
+    "surfaceRaised",
+    "text",
+  ]) {
+    assert.equal(typeof JSON.parse(uiTokens).color.dark[token], "string");
+  }
   assert.match(
     captureScript,
     /finally \{\s*if \(!screenViewOnly\) await stopRunningHost\(\);\s*\}/u,

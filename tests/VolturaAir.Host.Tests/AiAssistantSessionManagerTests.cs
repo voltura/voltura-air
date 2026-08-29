@@ -84,17 +84,56 @@ public sealed class AiAssistantSessionManagerTests
         await opened.Lease.DisposeAsync();
     }
 
+    [Fact]
+    public async Task DoesNotPageHistoryForANewEmptyThread()
+    {
+        var factory = new ManagerClientFactory { HasExistingThread = false };
+        await using var manager = new AiAssistantSessionManager(factory);
+
+        AiAssistantSessionOpenResult opened = await manager.TryOpenAsync(
+            new object(),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(opened.Succeeded);
+        Assert.Empty(opened.Snapshot!.Entries);
+        Assert.Equal(1, factory.Clients[0].StartCount);
+        Assert.Equal(0, factory.Clients[0].ReadCount);
+        await opened.Lease!.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ResetReturnsTheKnownEmptyReplacementWithoutPagingHistory()
+    {
+        var factory = new ManagerClientFactory();
+        await using var manager = new AiAssistantSessionManager(factory);
+        AiAssistantSessionOpenResult opened = await manager.TryOpenAsync(
+            new object(),
+            TestContext.Current.CancellationToken);
+
+        CodexThreadDetail reset = await opened.Lease!.ResetAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("replacement", reset.Summary.Id);
+        Assert.Empty(reset.Entries);
+        Assert.Equal(1, factory.Clients[0].ReadCount);
+        await opened.Lease.DisposeAsync();
+    }
+
     private sealed class ManagerClientFactory : IAiAssistantClientFactory
     {
         internal List<ManagerClient> Clients { get; } = [];
         internal AiAssistantAvailability ReportedAvailability { get; set; } = AiAssistantAvailability.Ready;
         internal bool CloseWhenConnectionHandlerIsAdded { get; init; }
+        internal bool HasExistingThread { get; init; } = true;
         public bool IsAvailable => ReportedAvailability == AiAssistantAvailability.Ready;
         public AiAssistantAvailability Availability => ReportedAvailability;
 
         public Task<IAiAssistantClient> ConnectAsync(CancellationToken cancellationToken)
         {
-            var client = new ManagerClient { CloseWhenConnectionHandlerIsAdded = CloseWhenConnectionHandlerIsAdded };
+            var client = new ManagerClient
+            {
+                CloseWhenConnectionHandlerIsAdded = CloseWhenConnectionHandlerIsAdded,
+                HasExistingThread = HasExistingThread
+            };
             Clients.Add(client);
             return Task.FromResult<IAiAssistantClient>(client);
         }
@@ -106,6 +145,9 @@ public sealed class AiAssistantSessionManagerTests
         private Action? _connectionClosed;
         internal bool Disposed { get; private set; }
         internal bool CloseWhenConnectionHandlerIsAdded { get; init; }
+        internal bool HasExistingThread { get; init; }
+        internal int ReadCount { get; private set; }
+        internal int StartCount { get; private set; }
         public event Action<string, string, string, string>? AgentMessageCompleted;
         public event Action<string, string, string>? TurnCompleted;
         public event Action? ConnectionClosed
@@ -119,20 +161,28 @@ public sealed class AiAssistantSessionManagerTests
         }
 
         public Task<CodexThreadSummary?> FindAssistantAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<CodexThreadSummary?>(new("thread", AiAssistantProfile.ThreadName, AiAssistantProfile.KnowledgeRoot));
+            Task.FromResult<CodexThreadSummary?>(HasExistingThread
+                ? new("thread", AiAssistantProfile.ThreadName, AiAssistantProfile.KnowledgeRoot)
+                : null);
 
-        public Task<CodexThreadSummary> StartAssistantAsync(CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("The test thread already exists.");
+        public Task<CodexThreadSummary> StartAssistantAsync(CancellationToken cancellationToken)
+        {
+            StartCount++;
+            return Task.FromResult(new CodexThreadSummary("started", AiAssistantProfile.ThreadName, AiAssistantProfile.KnowledgeRoot));
+        }
 
         public Task<CodexThreadSummary> ReplaceAssistantAsync(string previousThreadId, CancellationToken cancellationToken) =>
             Task.FromResult(new CodexThreadSummary("replacement", AiAssistantProfile.ThreadName, AiAssistantProfile.KnowledgeRoot));
 
         public Task ResumeAssistantAsync(string threadId, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task<CodexThreadDetail> ReadThreadAsync(string threadId, CancellationToken cancellationToken) =>
-            Task.FromResult(new CodexThreadDetail(
+        public Task<CodexThreadDetail> ReadThreadAsync(string threadId, CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return Task.FromResult(new CodexThreadDetail(
                 new(threadId, AiAssistantProfile.ThreadName, AiAssistantProfile.KnowledgeRoot),
                 []));
+        }
 
         public Task<CodexTurnHandle> StartTurnAsync(string threadId, string question, CancellationToken cancellationToken)
         {

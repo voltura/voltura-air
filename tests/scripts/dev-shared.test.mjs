@@ -56,6 +56,56 @@ test("refuses to continue when the existing host does not exit", () => {
   );
 });
 
+test("accepts a host that exits before taskkill completes", () => {
+  let inventories = 0;
+  let waited = false;
+
+  stopExistingHost({
+    platform: "win32",
+    run: () => ({ status: 128, stdout: "" }),
+    listHostProcesses: () =>
+      inventories++ === 0
+        ? [
+            {
+              pid: 123,
+              executablePath: new URL(
+                "../../apps/windows-host/bin/Debug/net10.0-windows/VolturaAir.Host.exe",
+                import.meta.url,
+              ).pathname.slice(1),
+            },
+          ]
+        : [],
+    waitForProcessExit: () => {
+      waited = true;
+      return true;
+    },
+  });
+
+  assert.equal(inventories, 2);
+  assert.equal(waited, true);
+});
+
+test("reports a taskkill failure while the verified host is still running", () => {
+  const process = {
+    pid: 123,
+    executablePath: new URL(
+      "../../apps/windows-host/bin/Debug/net10.0-windows/VolturaAir.Host.exe",
+      import.meta.url,
+    ).pathname.slice(1),
+  };
+
+  assert.throws(
+    () =>
+      stopExistingHost({
+        platform: "win32",
+        run: () => ({ status: 1, stdout: "" }),
+        listHostProcesses: () => [process],
+        waitForProcessExit: () => assert.fail("A failed stop must not continue to waiting"),
+      }),
+    /Could not stop the verified Voltura Air host process 123/u,
+  );
+});
+
 test("refuses to stop a same-named executable outside verified Voltura Air locations", () => {
   assert.throws(
     () =>

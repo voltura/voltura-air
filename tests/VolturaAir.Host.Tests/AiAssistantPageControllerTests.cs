@@ -82,7 +82,7 @@ public sealed partial class HostUiLayoutTests
             var client = new PageAssistantClient
             {
                 FailTurnStart = !reset,
-                FailReplacementRead = reset
+                FailReplacement = reset
             };
             var manager = new AiAssistantSessionManager(new PageAssistantClientFactory(client));
             try
@@ -133,10 +133,9 @@ public sealed partial class HostUiLayoutTests
 
     private sealed class PageAssistantClient : IAiAssistantClient
     {
-        private bool _replacementCreated;
         internal bool BlockInitialRead { get; init; }
         internal bool FailTurnStart { get; init; }
-        internal bool FailReplacementRead { get; init; }
+        internal bool FailReplacement { get; init; }
         internal bool Disposed { get; private set; }
         internal ManualResetEventSlim ReadStarted { get; } = new();
         internal ManualResetEventSlim ReadCancelled { get; } = new();
@@ -152,7 +151,8 @@ public sealed partial class HostUiLayoutTests
 
         public Task<CodexThreadSummary> ReplaceAssistantAsync(string previousThreadId, CancellationToken cancellationToken)
         {
-            _replacementCreated = true;
+            if (FailReplacement)
+                throw new CodexCompatibilityException("The replacement conversation could not be created.");
             return Task.FromResult(new CodexThreadSummary("replacement", AiAssistantProfile.ThreadName, AiAssistantProfile.KnowledgeRoot));
         }
 
@@ -160,7 +160,7 @@ public sealed partial class HostUiLayoutTests
 
         public async Task<CodexThreadDetail> ReadThreadAsync(string threadId, CancellationToken cancellationToken)
         {
-            if (BlockInitialRead && !_replacementCreated)
+            if (BlockInitialRead)
             {
                 ReadStarted.Set();
                 try { await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false); }
@@ -170,8 +170,6 @@ public sealed partial class HostUiLayoutTests
                     throw;
                 }
             }
-            if (FailReplacementRead && _replacementCreated)
-                throw new CodexCompatibilityException("The replacement transcript could not be read.");
             return new CodexThreadDetail(
                 new(threadId, AiAssistantProfile.ThreadName, AiAssistantProfile.KnowledgeRoot),
                 []);

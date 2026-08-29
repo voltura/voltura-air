@@ -217,12 +217,20 @@ internal sealed class CodexAppServerClient : IAiAssistantClient
     {
         JsonElement result = await InvokeAsync("thread/read", new { threadId, includeTurns = false }, cancellationToken).ConfigureAwait(false);
         JsonElement thread = RequireObject(result, "thread");
-        JsonElement turnResult = await InvokeAsync("thread/turns/list", new
+        JsonElement turnResult;
+        try
         {
-            threadId,
-            limit = AiAssistantProtocol.MaximumTranscriptTurns,
-            sortDirection = "desc"
-        }, cancellationToken).ConfigureAwait(false);
+            turnResult = await InvokeAsync("thread/turns/list", new
+            {
+                threadId,
+                limit = AiAssistantProtocol.MaximumTranscriptTurns,
+                sortDirection = "desc"
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (CodexCompatibilityException exception) when (IsEmptyThreadHistory(exception))
+        {
+            return new(ParseSummary(thread), []);
+        }
         if (!turnResult.TryGetProperty("data", out JsonElement turns) || turns.ValueKind != JsonValueKind.Array)
             throw ShapeError("thread/turns/list");
         var entries = new List<CodexTranscriptEntry>();
@@ -243,6 +251,11 @@ internal sealed class CodexAppServerClient : IAiAssistantClient
         }
         return new(ParseSummary(thread), [.. entries.TakeLast(AiAssistantProtocol.MaximumTranscriptMessages)]);
     }
+
+    private static bool IsEmptyThreadHistory(CodexCompatibilityException exception) =>
+        exception.Message.StartsWith("Codex method 'thread/turns/list' failed:", StringComparison.Ordinal) &&
+        exception.Message.Contains("invalid paginated history lineage", StringComparison.OrdinalIgnoreCase) &&
+        exception.Message.Contains("missing source rollout", StringComparison.OrdinalIgnoreCase);
 
     public async Task<CodexTurnHandle> StartTurnAsync(string threadId, string question, CancellationToken cancellationToken)
     {

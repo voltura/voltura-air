@@ -58,6 +58,9 @@ public sealed class WebHostAiAssistantTests : WebHostServiceTestBase
         }, "ai.assistant.reset.result");
         Assert.True(reset.GetProperty("succeeded").GetBoolean());
         Assert.Equal(1, factory.Client.StartCount);
+        Assert.Equal(1, factory.Client.ReadCount);
+        _ = await ReceiveUntilTypeAsync(socket, "ai.assistant.snapshot.complete");
+        _ = await ReceiveUntilTypeAsync(socket, "ai.assistant.state");
 
         JsonElement closed = await SendUntilTypeAsync(socket, new
         {
@@ -855,6 +858,7 @@ public sealed class WebHostAiAssistantTests : WebHostServiceTestBase
         private string? _turnId;
         internal string? LastQuestion { get; private set; }
         internal int StartCount { get; private set; }
+        internal int ReadCount { get; private set; }
         internal bool Disposed { get; private set; }
         internal bool FailTurnStart { get; set; }
         internal bool CloseOnStartTurn { get; set; }
@@ -894,6 +898,7 @@ public sealed class WebHostAiAssistantTests : WebHostServiceTestBase
         public Task ResumeAssistantAsync(string threadId, CancellationToken cancellationToken) => Task.CompletedTask;
         public async Task<CodexThreadDetail> ReadThreadAsync(string threadId, CancellationToken cancellationToken)
         {
+            ReadCount++;
             if (FailRead) throw new CodexCompatibilityException(ReadFailureMessage);
             if (BlockReadUntilCancelled)
             {

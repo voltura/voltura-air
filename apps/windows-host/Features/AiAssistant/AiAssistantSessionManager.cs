@@ -79,15 +79,17 @@ internal sealed class AiAssistantSessionManager : IAsyncDisposable
         {
             client = await _clientFactory.ConnectAsync(token).ConfigureAwait(false);
             CodexThreadSummary? thread = await client.FindAssistantAsync(token).ConfigureAwait(false);
+            CodexThreadDetail snapshot;
             if (thread is null)
             {
                 thread = await client.StartAssistantAsync(token).ConfigureAwait(false);
+                snapshot = new CodexThreadDetail(thread, []);
             }
             else
             {
                 await client.ResumeAssistantAsync(thread.Id, token).ConfigureAwait(false);
+                snapshot = await client.ReadThreadAsync(thread.Id, token).ConfigureAwait(false);
             }
-            CodexThreadDetail snapshot = await client.ReadThreadAsync(thread.Id, token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
 #pragma warning disable CA2000 // Ownership transfers to the manager before the lease is published.
             var lease = new AiAssistantSessionLease(this, owner, client, thread.Id);
@@ -283,7 +285,7 @@ internal sealed class AiAssistantSessionLease : IAsyncDisposable
         CodexThreadSummary replacement = await client.ReplaceAssistantAsync(_threadId, linked.Token).ConfigureAwait(false);
         _threadId = replacement.Id;
         _turnId = null;
-        return await client.ReadThreadAsync(_threadId, linked.Token).ConfigureAwait(false);
+        return new CodexThreadDetail(replacement, []);
     }
 
     private void OnAgentMessageCompleted(string threadId, string turnId, string itemId, string text)

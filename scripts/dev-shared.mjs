@@ -69,7 +69,12 @@ export function stopExistingHost(options = {}) {
       result.error ||
       (result.status !== undefined && result.status !== null && result.status !== 0)
     ) {
-      throw new Error(`Could not stop the verified Voltura Air host process ${process.pid}.`);
+      const processStillExists = listHostProcesses().some(
+        (currentProcess) => currentProcess.pid === process.pid,
+      );
+      if (processStillExists) {
+        throw new Error(`Could not stop the verified Voltura Air host process ${process.pid}.`);
+      }
     }
   }
   if (!waitForProcessExit(windowsHostImage, { run })) {

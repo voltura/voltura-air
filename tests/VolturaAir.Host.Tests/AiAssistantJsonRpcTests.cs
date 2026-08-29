@@ -225,6 +225,44 @@ public sealed class AiAssistantJsonRpcTests
     }
 
     [Fact]
+    public async Task TreatsAThreadWithoutASourceRolloutAsEmpty()
+    {
+        await using var transport = new FakeTransport();
+        var connection = new JsonRpcConnection(transport);
+        await using var client = new CodexAppServerClient(connection, []);
+        string root = Path.GetFullPath(AiAssistantProfile.KnowledgeRoot);
+
+        Task<CodexThreadDetail> read = client.ReadThreadAsync("empty-thread", TestContext.Current.CancellationToken);
+        using (JsonDocument metadataRequest = JsonDocument.Parse(await transport.ReadWriteAsync()))
+        {
+            long requestId = metadataRequest.RootElement.GetProperty("id").GetInt64();
+            await transport.ReceiveAsync(JsonSerializer.Serialize(new
+            {
+                id = requestId,
+                result = new { thread = new { id = "empty-thread", name = AiAssistantProfile.ThreadName, cwd = root } }
+            }));
+        }
+        using (JsonDocument turnsRequest = JsonDocument.Parse(await transport.ReadWriteAsync()))
+        {
+            Assert.Equal("thread/turns/list", turnsRequest.RootElement.GetProperty("method").GetString());
+            long requestId = turnsRequest.RootElement.GetProperty("id").GetInt64();
+            await transport.ReceiveAsync(JsonSerializer.Serialize(new
+            {
+                id = requestId,
+                error = new
+                {
+                    code = -32603,
+                    message = "invalid paginated history lineage for empty-thread: missing source rollout"
+                }
+            }));
+        }
+
+        CodexThreadDetail result = await read;
+        Assert.Equal("empty-thread", result.Summary.Id);
+        Assert.Empty(result.Entries);
+    }
+
+    [Fact]
     public async Task ReadsOnlyTheNewestBoundedThreadTurns()
     {
         await using var transport = new FakeTransport();

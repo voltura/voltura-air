@@ -147,7 +147,9 @@ export function FileManagerBrowserPreviewRoot() {
           onCloseModeSelector={() => undefined}
           onOpenSettings={() => undefined}
           onSelectMode={() => undefined}
+          onSelectRemoteMode={() => undefined}
           onToggleModeSelector={() => undefined}
+          remoteMode="standard"
           refreshInstalledApp={() => undefined}
           state="paired"
           tab="files"

@@ -708,10 +708,15 @@ export function App() {
             setIsScreenViewOpen(false);
             selectModeTabWithPresentationGuard(nextTab, "selector");
           }}
+          onSelectRemoteMode={(mode) => {
+            dismissModeSwitchHint();
+            updateRemoteSetting("mode", mode);
+          }}
           onToggleModeSelector={() => {
             dismissModeSwitchHint();
             toggleModeSelector("header");
           }}
+          remoteMode={remoteSettings.mode}
           refreshInstalledApp={refreshInstalledApp}
           state={state}
           tab={tab}
@@ -1125,11 +1130,16 @@ export function App() {
                   {isModeSelectorOpen && modeSelectorAnchor === "trackpad" && (
                     <ModeSelector
                       modeTabs={modeTabs}
+                      remoteMode={remoteSettings.mode}
                       tab={tab}
                       onClose={closeModeSelector}
                       onSelect={(nextTab) => {
                         dismissModeSwitchHint();
                         selectModeTabWithPresentationGuard(nextTab, "selector");
+                      }}
+                      onSelectRemoteMode={(mode) => {
+                        dismissModeSwitchHint();
+                        updateRemoteSetting("mode", mode);
                       }}
                     />
                   )}

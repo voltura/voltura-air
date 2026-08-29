@@ -2,6 +2,7 @@ import type { RefObject } from "react";
 import { Circle, Files, Menu, MousePointer2 } from "lucide-react";
 import type { MainAppTab, ModeDefinition } from "./appModeTabs";
 import type { ConnectionState } from "../foundation/connection/connectionTypes";
+import type { RemoteModeId } from "../foundation/settings/remoteSettings";
 import { useDeveloperRefreshLongPress } from "./useDeveloperRefreshLongPress";
 import { CompactModeSelectorButton, ModeSelector } from "./ModeNavigation";
 
@@ -20,7 +21,9 @@ interface AppHeaderProps {
   onOpenSettings: () => void;
   onOpenFileJobs?: () => void;
   onSelectMode: (tab: MainAppTab) => void;
+  onSelectRemoteMode: (mode: RemoteModeId) => void;
   onToggleModeSelector: () => void;
+  remoteMode: RemoteModeId;
   refreshInstalledApp: () => void | Promise<void>;
   state: ConnectionState;
   tab: MainAppTab | "debug";
@@ -41,7 +44,9 @@ export function AppHeader({
   onOpenSettings,
   onOpenFileJobs,
   onSelectMode,
+  onSelectRemoteMode,
   onToggleModeSelector,
+  remoteMode,
   refreshInstalledApp,
   state,
   tab,
@@ -97,9 +102,11 @@ export function AppHeader({
       {canShowModeNavigation && isModeSelectorOpen && (
         <ModeSelector
           modeTabs={modeTabs}
+          remoteMode={remoteMode}
           tab={tab}
           onClose={onCloseModeSelector}
           onSelect={onSelectMode}
+          onSelectRemoteMode={onSelectRemoteMode}
         />
       )}
     </>

@@ -1123,6 +1123,105 @@ describe("App header and mode navigation", () => {
     expect(primaryKeys.parentElement).toBe(beforeParent);
   });
 
+  it.each(["Trackpad", "Keyboard", "Remote", "Presentation"])(
+    "shows the Remote choices in the quick selector from %s",
+    (activeMode) => {
+      render(<App />);
+
+      if (activeMode !== "Trackpad") {
+        fireEvent.click(screen.getAllByRole("button", { name: activeMode }).at(-1)!);
+      }
+      fireEvent.click(screen.getByRole("button", { name: "Change mode" }));
+
+      const remoteModes = screen.getByRole("group", { name: "Remote mode" });
+      expect(
+        within(remoteModes).getByRole("menuitemradio", { name: "Standard remote" }),
+      ).toBeTruthy();
+      expect(
+        within(remoteModes).getByRole("menuitemradio", { name: "YouTube remote" }),
+      ).toBeTruthy();
+      expect(within(remoteModes).getByRole("menuitemradio", { name: "Kodi remote" })).toBeTruthy();
+    },
+  );
+
+  it("switches and persists the configured Remote mode from the quick selector", () => {
+    localStorage.setItem(
+      "voltura-air.remoteSettings.client-a.pc-a",
+      JSON.stringify({ mode: "youtube" }),
+    );
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Change mode" }));
+    const menu = screen.getByRole("menu", { name: "Change mode" });
+    const remoteModes = within(menu).getByRole("group", { name: "Remote mode" });
+    const youtube = within(remoteModes).getByRole("menuitemradio", { name: "YouTube remote" });
+    const kodi = within(remoteModes).getByRole("menuitemradio", { name: "Kodi remote" });
+
+    expect(
+      within(menu).getByRole("menuitemradio", { name: "Remote" }).getAttribute("aria-checked"),
+    ).toBe("false");
+    expect(youtube.getAttribute("aria-checked")).toBe("true");
+    expect(youtube.classList).toContain("active");
+
+    fireEvent.click(kodi);
+
+    expect(screen.queryByRole("menu", { name: "Change mode" })).toBeNull();
+    expect(document.querySelector(".app-shell")?.classList).toContain("remote-active");
+    expect(
+      JSON.parse(localStorage.getItem("voltura-air.remoteSettings.client-a.pc-a") ?? "{}"),
+    ).toMatchObject({ mode: "kodi" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Change mode" }));
+    const reopenedMenu = screen.getByRole("menu", { name: "Change mode" });
+    expect(
+      within(reopenedMenu)
+        .getByRole("menuitemradio", { name: "Remote" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    expect(
+      within(reopenedMenu)
+        .getByRole("menuitemradio", { name: "Kodi remote" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+  });
+
+  it("opens the configured mode from the main Remote quick-menu choice", () => {
+    localStorage.setItem(
+      "voltura-air.remoteSettings.client-a.pc-a",
+      JSON.stringify({ mode: "kodi" }),
+    );
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Change mode" }));
+    const menu = screen.getByRole("menu", { name: "Change mode" });
+    fireEvent.click(within(menu).getByRole("menuitemradio", { name: "Remote" }));
+
+    expect(document.querySelector(".app-shell")?.classList).toContain("remote-active");
+    expect(screen.getByRole("button", { name: "Power menu" })).toBeTruthy();
+    expect(
+      JSON.parse(localStorage.getItem("voltura-air.remoteSettings.client-a.pc-a") ?? "{}"),
+    ).toMatchObject({ mode: "kodi" });
+  });
+
+  it("keeps Remote app launch confirmation when a quick-selector choice is saved", () => {
+    const send = vi.fn();
+    mockConnection({ send, supportsRemoteLaunch: true });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Change mode" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "YouTube remote" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Open YouTube?" });
+    expect(send).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog", { name: "Open YouTube?" })).toBeNull();
+    expect(send).not.toHaveBeenCalled();
+    expect(
+      JSON.parse(localStorage.getItem("voltura-air.remoteSettings.client-a.pc-a") ?? "{}"),
+    ).toMatchObject({ mode: "youtube" });
+  });
+
   it("keeps the bottom mode row mounted across mode changes, then collapses it from the active tab", () => {
     render(<App />);
 

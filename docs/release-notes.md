@@ -6,6 +6,12 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.1.5
+
+- Improved Remote controls so Standard, YouTube, and Kodi can be selected
+  directly from the quick mode menu, with the configured choice clearly
+  highlighted.
+
 ## v1.1.4
 
 - Added **AI Assistant** for permitted personal devices when Codex is installed

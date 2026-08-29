@@ -463,8 +463,10 @@ button span {
 }
 
 .mode-selector-popover {
+  --mode-selector-top: calc(max(12px, env(safe-area-inset-top)) + 52px);
+
   position: fixed;
-  top: calc(max(12px, env(safe-area-inset-top)) + 52px);
+  top: var(--mode-selector-top);
   left: max(12px, env(safe-area-inset-left));
   z-index: 8;
   width: min(
@@ -478,12 +480,32 @@ button span {
   background: var(--surface);
   box-shadow: 0 18px 42px var(--drawer-shadow);
   padding: 8px;
+  max-height: calc(
+    var(--app-viewport-height) - var(--mode-selector-top) - max(12px, env(safe-area-inset-bottom))
+  );
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .mode-selector-popover button {
   justify-content: flex-start;
   width: 100%;
   min-height: 48px;
+}
+
+.mode-selector-remote-modes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-xs);
+  margin-top: calc(-1 * var(--space-xs));
+  padding-inline-start: var(--space-lg);
+}
+
+.mode-selector-remote-modes button {
+  min-width: 0;
+  min-height: var(--control-min-height);
+  justify-content: center;
+  padding: var(--space-xs);
 }
 
 @container (max-width: 520px) {
@@ -510,10 +532,6 @@ button span {
 @media (width <= 560px) {
   .top-mode-tabs {
     display: none;
-  }
-
-  .app-shell.remote-active.remote-utility-open .compact-mode-button {
-    display: inline-flex;
   }
 
   .top-bar {
@@ -602,10 +620,6 @@ button span {
   .app-shell.remote-active.remote-utility-open .top-mode-tabs {
     display: none;
   }
-
-  .app-shell.remote-active.remote-utility-open .compact-mode-button {
-    display: inline-flex;
-  }
 }
 
 @media (height <= 520px) and (orientation: landscape) {
@@ -624,7 +638,8 @@ button span {
   }
 
   .mode-selector-popover {
-    top: max(58px, calc(env(safe-area-inset-top) + 48px));
+    --mode-selector-top: max(58px, calc(env(safe-area-inset-top) + 48px));
+
     left: max(12px, env(safe-area-inset-left));
   }
 }
@@ -641,6 +656,10 @@ button span {
 
 .app-shell.mode-tabs-collapsed .compact-mode-button,
 .app-shell.mode-buttons-hidden .compact-mode-button {
+  display: inline-flex;
+}
+
+.app-shell.remote-active .compact-mode-button {
   display: inline-flex;
 }
 

@@ -579,6 +579,9 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 - Standard, YouTube, and Kodi mappings cover media, seek, navigation, volume,
   mute, fullscreen, app switching, task view, desktop/window, browser-tab/page,
   and mode-specific actions.
+- The quick mode selector shows Standard, YouTube, and Kodi beneath Remote. The
+  configured mapping is highlighted, can be changed directly, and is used when
+  the main Remote option is selected.
 - The default navigation ring includes repeatable directions and a center
   mini-trackpad; an alternative D-pad with OK is available.
 - **Power & session** provides Keep awake, Lock, Blackout, screen saver, display

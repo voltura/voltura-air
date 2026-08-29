@@ -129,6 +129,7 @@ async function main() {
 
   if (smokeTest) {
     await verifySettingsDrawerLifecycle(page);
+    await verifyRemoteModeSelectorLayout(page);
     await verifyTrackpadButtonLayout(page);
     await verifyKeyboardLayout(page);
     await verifyLandscapeSafeAreaLayouts(page);
@@ -199,6 +200,94 @@ async function launchBrowser(chromium, qrCode, pairingUrl) {
     await clickPairIfPresent(page);
   }
   return page;
+}
+
+async function verifyRemoteModeSelectorLayout(page) {
+  await page.setViewportSize({ width: 393, height: 852 });
+  const remoteButton = page.locator('button[aria-label="Remote"]:visible').last();
+  await remoteButton.click();
+  await page.locator('button[aria-label="Change mode"]:visible').click();
+
+  const viewports = [
+    { name: "compact phone portrait", width: 360, height: 780, standardButtons: true },
+    { name: "phone portrait", width: 393, height: 852, standardButtons: true },
+    { name: "short phone landscape", width: 568, height: 320, standardButtons: false },
+    { name: "phone landscape", width: 852, height: 393, standardButtons: false },
+    { name: "tablet portrait", width: 768, height: 1024, standardButtons: true },
+    { name: "tablet landscape", width: 1024, height: 768, standardButtons: true },
+  ];
+
+  for (const viewport of viewports) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    const result = await page.evaluate(() => {
+      const menu = document.querySelector(".mode-selector-popover");
+      const compactSelector = document.querySelector(".top-bar .compact-mode-button");
+      const remote = menu?.querySelector('button[aria-label="Remote"]');
+      const remoteModes = menu?.querySelector(".mode-selector-remote-modes");
+      const standardNavigations = Array.from(
+        document.querySelectorAll(".top-mode-tabs, .bottom-mode-tabs"),
+      );
+      const modeButtons = remoteModes ? Array.from(remoteModes.querySelectorAll("button")) : [];
+      if (
+        !(menu instanceof HTMLElement) ||
+        !(compactSelector instanceof HTMLButtonElement) ||
+        !(remote instanceof HTMLButtonElement) ||
+        !(remoteModes instanceof HTMLElement) ||
+        modeButtons.length !== 3
+      ) {
+        return { error: "Remote quick-mode choices were not visible." };
+      }
+
+      const menuBounds = menu.getBoundingClientRect();
+      const remoteBounds = remote.getBoundingClientRect();
+      const remoteModesBounds = remoteModes.getBoundingClientRect();
+      const activeButtons = modeButtons.filter((button) => button.classList.contains("active"));
+      const minimumButtonHeight = Math.min(
+        ...modeButtons.map((button) => button.getBoundingClientRect().height),
+      );
+      const isVisible = (element) => {
+        const bounds = element.getBoundingClientRect();
+        return (
+          getComputedStyle(element).display !== "none" && bounds.width > 0 && bounds.height > 0
+        );
+      };
+      return {
+        activeCount: activeButtons.length,
+        compactSelectorVisible: isVisible(compactSelector),
+        containedHorizontally:
+          menuBounds.left >= 0 &&
+          menuBounds.right <= window.innerWidth + 1 &&
+          remoteModesBounds.left >= menuBounds.left &&
+          remoteModesBounds.right <= menuBounds.right + 1 &&
+          menu.scrollWidth <= menu.clientWidth + 1,
+        menuInViewport:
+          menuBounds.top >= 0 &&
+          menuBounds.bottom <= window.innerHeight + 1 &&
+          menu.clientHeight <= menu.scrollHeight,
+        minimumButtonHeight,
+        remoteChoicesTogether:
+          remoteBounds.top >= menuBounds.top && remoteModesBounds.bottom <= menuBounds.bottom + 1,
+        standardNavigationVisible: standardNavigations.some(isVisible),
+      };
+    });
+
+    if (
+      "error" in result ||
+      result.activeCount !== 1 ||
+      !result.compactSelectorVisible ||
+      !result.containedHorizontally ||
+      !result.menuInViewport ||
+      result.minimumButtonHeight < 44 ||
+      !result.remoteChoicesTogether ||
+      result.standardNavigationVisible !== viewport.standardButtons
+    ) {
+      throw new Error(
+        `Remote quick-mode layout failed for ${viewport.name}: ${JSON.stringify(result)}`,
+      );
+    }
+  }
+
+  await page.getByRole("menuitemradio", { name: "Trackpad", exact: true }).click();
 }
 
 async function verifyTrackpadButtonLayout(page) {

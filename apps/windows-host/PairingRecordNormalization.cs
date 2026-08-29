@@ -13,6 +13,7 @@ internal static class PairingRecordNormalization
             DisplayMode = NormalizeMetadata(record.DisplayMode),
             PermissionOverrides = NormalizePermissionOverrides(record.PermissionOverrides),
             PointerSpeedOverride = NormalizePointerSpeedOverride(record.PointerSpeedOverride),
+            AccentColorOverride = AccentColor.NormalizePersisted(record.AccentColorOverride),
             CustomScreenViewport = NormalizeCustomScreenViewport(record.CustomScreenViewport)
         };
         return DeviceAccessProfilePersistence.Normalize(normalized, legacyGlobalPermissions);
@@ -57,6 +58,7 @@ internal static class PairingRecordNormalization
             PointerSpeedOverride = existing.PointerSpeedOverride,
             ShowModeButtonsOverride = existing.ShowModeButtonsOverride,
             ControlDepthOverride = existing.ControlDepthOverride,
+            AccentColorOverride = existing.AccentColorOverride,
             CustomScreenViewport = existing.CustomScreenViewport
         };
     }

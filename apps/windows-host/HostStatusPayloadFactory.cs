@@ -334,6 +334,8 @@ internal sealed class HostStatusPayloadFactory(
             AppPointerSettings.GetCustomPointer().Enabled,
             pairingManager.GetDeviceShowModeButtons(clientId),
             pairingManager.GetDeviceControlDepth(clientId),
+            pairingManager.GetDeviceAccentColor(clientId),
+            pairingManager.GetDeviceAccentColorOverridden(clientId),
             developerMode,
             developerMode ? DeveloperSessionId : null,
             isInputBlockedByElevation());

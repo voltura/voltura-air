@@ -45,6 +45,7 @@ internal static class ClientMessageValidator
             ["pointer.speed.set"] = Fields("type", "pointerSpeed"),
             ["appearance.mode-buttons.set"] = Fields("type", "showModeButtons"),
             ["appearance.control-depth.set"] = Fields("type", "controlDepth"),
+            ["appearance.accent-color.set"] = Fields("type", "accentColor"),
             ["custom.pointer.set"] = Fields("type", "enabled"),
             ["device.viewport.set"] = Fields("type", "width", "height", "orientation"),
             ["custom.screen.get"] = Fields("type", "operationId", "screenId"),
@@ -245,6 +246,10 @@ internal static class ClientMessageValidator
             "pointer.speed.set" => TryGetNumber(root, "pointerSpeed", DevicePointerProfile.MinPointerSpeed, DevicePointerProfile.MaxPointerSpeed, out _),
             "appearance.mode-buttons.set" => root.TryGetProperty("showModeButtons", out var showModeButtons) && showModeButtons.ValueKind is JsonValueKind.True or JsonValueKind.False,
             "appearance.control-depth.set" => root.TryGetProperty("controlDepth", out var controlDepth) && controlDepth.ValueKind is JsonValueKind.True or JsonValueKind.False,
+            "appearance.accent-color.set" =>
+                root.TryGetProperty("accentColor", out var accentColor) &&
+                (accentColor.ValueKind == JsonValueKind.Null ||
+                 accentColor.ValueKind == JsonValueKind.String && AccentColor.IsCanonical(accentColor.GetString())),
             "custom.pointer.set" => root.TryGetProperty("enabled", out var customPointerEnabled) && customPointerEnabled.ValueKind is JsonValueKind.True or JsonValueKind.False,
             "device.viewport.set" =>
                 TryGetNumber(root, "width", CustomScreenLimits.MinViewportWidth, CustomScreenLimits.MaxViewportWidth, out _) &&

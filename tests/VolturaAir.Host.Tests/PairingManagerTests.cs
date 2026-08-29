@@ -307,6 +307,36 @@ public sealed class PairingManagerTests
     }
 
     [Fact]
+    public void DeviceAccentOverrideWinsOverTheGlobalDefaultAndPersists()
+    {
+        using var store = new TempPairingStore();
+        using var key = new PairingTestKey();
+        try
+        {
+            AppAppearanceSettings.SetDeviceAccentColor("#336699");
+            var manager = new PairingManager(store.Store);
+            manager.AcceptPairing("client-a", "Phone", manager.CreatePairingToken(), reconnectPublicKey: key.PublicKey);
+
+            Assert.Equal("#336699", manager.GetDeviceAccentColor("client-a"));
+            Assert.False(manager.GetDeviceAccentColorOverridden("client-a"));
+            Assert.True(manager.SetDeviceAccentColorOverride("client-a", "#5FC8B4"));
+
+            var device = Assert.Single(manager.GetDevices());
+            Assert.Equal("#5FC8B4", device.AccentColor);
+            Assert.Equal("#5FC8B4", device.AccentColorOverride);
+            Assert.Equal("#5FC8B4", Assert.Single(store.Store.Load()).AccentColorOverride);
+
+            Assert.True(manager.SetDeviceAccentColorOverride("client-a", null));
+            Assert.Equal("#336699", manager.GetDeviceAccentColor("client-a"));
+            Assert.Null(Assert.Single(store.Store.Load()).AccentColorOverride);
+        }
+        finally
+        {
+            AppAppearanceSettings.SetDeviceAccentColor(null);
+        }
+    }
+
+    [Fact]
     public void DisconnectDeviceRemovesOnlySelectedDevice()
     {
         using var store = new TempPairingStore();

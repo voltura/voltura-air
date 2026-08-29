@@ -92,6 +92,10 @@ internal sealed class PairedDeviceRegistry
 
     public bool GetDeviceControlDepth(string clientId) => GetEffectiveControlDepth(Find(clientId));
 
+    public string? GetDeviceAccentColor(string clientId) => GetEffectiveAccentColor(Find(clientId));
+
+    public bool GetDeviceAccentColorOverridden(string clientId) => Find(clientId)?.AccentColorOverride is not null;
+
     public CustomScreenViewport? GetCustomScreenViewport(string clientId) => Find(clientId)?.CustomScreenViewport;
 
     public void UpsertAndSave(PairingRecord record)
@@ -282,6 +286,20 @@ internal sealed class PairedDeviceRegistry
         return true;
     }
 
+    public bool SetAccentColorOverride(string clientId, string? accentColor)
+    {
+        if (accentColor is not null && !AccentColor.IsCanonical(accentColor))
+        {
+            return false;
+        }
+
+        return UpdateRecord(
+            clientId,
+            existing => string.Equals(existing.AccentColorOverride, accentColor, StringComparison.Ordinal)
+                ? null
+                : existing with { AccentColorOverride = accentColor });
+    }
+
     public bool SetCustomScreenViewport(string clientId, CustomScreenViewport viewport)
     {
         var index = FindIndex(clientId);
@@ -392,6 +410,8 @@ internal sealed class PairedDeviceRegistry
             GetEffectiveShowModeButtons(record),
             record.ControlDepthOverride,
             GetEffectiveControlDepth(record),
+            record.AccentColorOverride,
+            GetEffectiveAccentColor(record),
             record.CustomScreenViewport);
     })];
 
@@ -475,6 +495,9 @@ internal sealed class PairedDeviceRegistry
 
     private static bool GetEffectiveControlDepth(PairingRecord? record) =>
         record?.ControlDepthOverride ?? AppAppearanceSettings.DeviceControlDepth();
+
+    private static string? GetEffectiveAccentColor(PairingRecord? record) =>
+        record?.AccentColorOverride ?? AppAppearanceSettings.DeviceAccentColor();
 
     private static string SummarizeDevices(IEnumerable<string> deviceNames)
     {

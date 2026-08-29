@@ -50,6 +50,8 @@ describe("connection protocol policy", () => {
         defaultRemoteMode: "unknown" as never,
         developerMode: false,
         controlDepth: false,
+        accentColor: "#5FC8B4",
+        accentColorOverridden: true,
         hostVersion: " 0.2.0 ",
         inputBlockedByElevation: true,
         webClientBuildId: " build-a ",
@@ -59,6 +61,8 @@ describe("connection protocol policy", () => {
     ).toEqual({
       defaultRemoteMode: "standard",
       controlDepth: false,
+      accentColor: "#5FC8B4",
+      accentColorOverridden: true,
       hostVersion: "0.2.0",
       inputBlockedByElevation: true,
       webClientBuildId: "build-a",

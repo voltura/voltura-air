@@ -93,6 +93,37 @@
         if (theme === "light" || theme === "dark") {
           document.documentElement.dataset.theme = theme;
         }
+        try {
+          const cached = JSON.parse(localStorage.getItem("voltura-air.accentPalette.v1") ?? "null");
+          const resolvedTheme =
+            theme === "light" || theme === "dark"
+              ? theme
+              : matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light";
+          const palette = cached?.[resolvedTheme];
+          const color = /^#[0-9A-F]{6}$/;
+          if (
+            color.test(cached?.seed) &&
+            color.test(palette?.accent) &&
+            color.test(palette?.accentStrong) &&
+            color.test(palette?.action) &&
+            color.test(palette?.onAccent) &&
+            color.test(palette?.onAction) &&
+            /^#[0-9A-F]{8}$/.test(palette?.gradient)
+          ) {
+            const style = document.documentElement.style;
+            style.setProperty("--accent", palette.accent);
+            style.setProperty("--accent-strong", palette.accentStrong);
+            style.setProperty("--action", palette.action);
+            style.setProperty("--on-accent", palette.onAccent);
+            style.setProperty("--on-action", palette.onAction);
+            style.setProperty("--accent-contrast", palette.onAccent);
+            style.setProperty("--app-gradient-primary", palette.gradient);
+          }
+        } catch {
+          localStorage.removeItem("voltura-air.accentPalette.v1");
+        }
       })();
     </script>
   </head>

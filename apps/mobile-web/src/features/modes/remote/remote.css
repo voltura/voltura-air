@@ -488,7 +488,7 @@
 
 .remote-ring-zone:active {
   color: var(--on-action);
-  background: color-mix(in srgb, var(--action) 68%, transparent);
+  background: var(--action);
 }
 
 .remote-ring-zone svg {
@@ -609,7 +609,7 @@
 
 .control-depth button.remote-ring-zone:not(:disabled, [aria-disabled="true"]):active {
   border-color: transparent;
-  background: color-mix(in srgb, var(--action) 24%, transparent);
+  background: var(--action);
   box-shadow: none;
   transform: none;
 }

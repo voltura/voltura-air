@@ -553,6 +553,12 @@ internal sealed class WebSocketSessionHandler(
             case "appearance.control-depth.set":
                 pairingManager.SetDeviceControlDepthOverride(clientId, root.GetProperty("controlDepth").GetBoolean());
                 return true;
+            case "appearance.accent-color.set":
+                var accentColor = root.GetProperty("accentColor");
+                pairingManager.SetDeviceAccentColorOverride(
+                    clientId,
+                    accentColor.ValueKind == JsonValueKind.Null ? null : accentColor.GetString());
+                return true;
             case "custom.pointer.set":
                 ApplyCustomPointer(clientId, root.GetProperty("enabled").GetBoolean());
                 return true;

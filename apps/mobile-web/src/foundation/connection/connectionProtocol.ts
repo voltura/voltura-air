@@ -17,6 +17,7 @@ import type {
 // Current server-string limits: operation 64, message 240, code/reason 80,
 // PC 120, adapter 256, IP 64, URL 512, and build/session identifiers 128.
 import { isRemoteModeId, normalizeRemoteMode } from "../settings/remoteSettings";
+import { normalizeAccentColor } from "../protocol/accentColorProtocol";
 
 const movementAckIntervalMs = 200;
 const maxPendingInputAcks = 64;
@@ -113,6 +114,14 @@ export function normalizeHostStatus(
     showModeButtons:
       typeof metadata.showModeButtons === "boolean" ? metadata.showModeButtons : undefined,
     controlDepth: typeof metadata.controlDepth === "boolean" ? metadata.controlDepth : undefined,
+    accentColor:
+      metadata.accentColor === null
+        ? null
+        : (normalizeAccentColor(metadata.accentColor) ?? undefined),
+    accentColorOverridden:
+      typeof metadata.accentColorOverridden === "boolean"
+        ? metadata.accentColorOverridden
+        : undefined,
     customPointerEnabled:
       typeof metadata.customPointerEnabled === "boolean"
         ? metadata.customPointerEnabled

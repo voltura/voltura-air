@@ -56,6 +56,11 @@ export interface AppearanceControlDepthSetMessage {
   controlDepth: boolean;
 }
 
+export interface AppearanceAccentColorSetMessage {
+  type: "appearance.accent-color.set";
+  accentColor: string | null;
+}
+
 export interface CustomPointerSetMessage {
   type: "custom.pointer.set";
   enabled: boolean;
@@ -1089,6 +1094,8 @@ export interface HostStatusMetadata {
   pointerSpeed?: number | undefined;
   showModeButtons?: boolean | undefined;
   controlDepth?: boolean | undefined;
+  accentColor?: string | null | undefined;
+  accentColorOverridden?: boolean | undefined;
   customPointerEnabled?: boolean | undefined;
   inputBlockedByElevation?: boolean | undefined;
   selectedAdapterName?: string | undefined;
@@ -1533,6 +1540,7 @@ export type ClientMessage =
   | PointerSpeedSetMessage
   | AppearanceModeButtonsSetMessage
   | AppearanceControlDepthSetMessage
+  | AppearanceAccentColorSetMessage
   | CustomPointerSetMessage
   | DeviceViewportSetMessage
   | CustomScreenGetMessage

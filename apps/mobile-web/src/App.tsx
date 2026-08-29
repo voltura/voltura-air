@@ -90,12 +90,16 @@ export function App() {
     forgetPc,
     renamePc,
     renameDevice,
+    setHostAccentColor,
     setHostCustomPointer,
     setHostControlDepth,
     setHostShowModeButtons,
     setHostPointerSpeed,
   } = connection;
-  const { setThemeMode, themeMode } = useAppTheme();
+  const { accentColor, setThemeMode, themeMode } = useAppTheme(
+    hostStatus?.accentColor,
+    typeof hostStatus?.accentColorOverridden === "boolean",
+  );
   const [transientFeedback, setTransientFeedback] = useState<AppToastMessage | null>(null);
   const [pendingRemoteLaunch, setPendingRemoteLaunch] = useState<RemoteLaunchAction | null>(null);
   const [suppressedClipboardResultId, setSuppressedClipboardResultId] = useState<string | null>(
@@ -775,6 +779,9 @@ export function App() {
 
         <SettingsDrawer
           activePc={activePc}
+          accentColor={accentColor}
+          accentColorOverridden={hostStatus?.accentColorOverridden}
+          accentColorSupported={typeof hostStatus?.accentColorOverridden === "boolean"}
           aiAssistantCapability={aiAssistantCapability}
           appSettings={appSettings}
           customPointerEnabled={hostStatus?.customPointerEnabled}
@@ -896,6 +903,7 @@ export function App() {
             });
           }}
           setHostCustomPointer={setHostCustomPointer}
+          setHostAccentColor={setHostAccentColor}
           setHostControlDepth={setHostControlDepth}
           setHostShowModeButtons={setHostShowModeButtons}
           setThemeMode={setThemeMode}

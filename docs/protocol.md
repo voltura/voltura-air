@@ -392,6 +392,8 @@ Success:
     "customPointerEnabled": false,
     "showModeButtons": true,
     "controlDepth": true,
+    "accentColor": null,
+    "accentColorOverridden": false,
     "inputBlockedByElevation": false
   }
 }
@@ -428,6 +430,9 @@ Authenticated metadata is not authentication state:
   IDs, matching rules, and clipboard content.
 - `pointerSpeed`: effective device speed. `customPointerEnabled`: host-wide.
   `showModeButtons` and `controlDepth`: effective per-device appearance values.
+  `accentColor` is the effective canonical uppercase `#RRGGBB` seed or `null`
+  for the built-in palette; `accentColorOverridden` reports whether the
+  authenticated device overrides the host's global device default.
   `inputBlockedByElevation`: higher-integrity foreground block.
 - `webClientBuildId`: the client bundle served by a Direct host, independent of
   `hostVersion`. It can refresh only a Direct host-served PWA. Relay opens the
@@ -474,6 +479,8 @@ Authenticated utility messages:
 { "type": "pointer.speed.set", "pointerSpeed": 65 }
 { "type": "appearance.mode-buttons.set", "showModeButtons": false }
 { "type": "appearance.control-depth.set", "controlDepth": false }
+{ "type": "appearance.accent-color.set", "accentColor": "#5FC8B4" }
+{ "type": "appearance.accent-color.set", "accentColor": null }
 { "type": "custom.pointer.set", "enabled": true }
 { "type": "health.ping" }
 { "type": "health.pong" }
@@ -487,7 +494,12 @@ does not confirm the mutation.
 `deviceName` must contain non-whitespace text; mobile substitutes its default
 before sending a blank edit. Pointer speed and appearance changes are sent only
 from user action. Appearance changes set an override for the authenticated
-device; the host Devices page can restore inheritance from the global default.
+device. The host Devices page can restore inheritance for the controls exposed
+there; accent inheritance is restored from the device's Appearance settings.
+An accent-color string must use canonical uppercase `#RRGGBB`; `null` clears
+the authenticated device's override so it inherits the host default. Older
+clients ignore the additive status fields, while a current client treats an
+omitted field as a host without synchronized accent support.
 `health.pong` is liveness only; it contains no metadata/capability/audio state.
 Any valid client message resets the receive timeout.
 

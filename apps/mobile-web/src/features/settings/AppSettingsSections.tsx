@@ -1,9 +1,20 @@
 import { Download, RefreshCw } from "lucide-react";
+import { lazy, Suspense } from "react";
 import { getEffectiveFourthMode } from "../../foundation/settings/appSettings";
 import type { SettingsDrawerProps } from "./SettingsDrawerTypes";
 
+const AccentColorSetting = lazy(() =>
+  import("./AccentColorSetting").then((module) => ({
+    default: module.AccentColorSetting,
+  })),
+);
+
 export function AppearanceSettingsSection({
+  accentColor,
+  accentColorOverridden = false,
+  accentColorSupported = false,
   controlDepth = true,
+  setHostAccentColor,
   setHostControlDepth,
   setHostShowModeButtons,
   setThemeMode,
@@ -12,6 +23,10 @@ export function AppearanceSettingsSection({
 }: Pick<
   SettingsDrawerProps,
   | "controlDepth"
+  | "accentColor"
+  | "accentColorOverridden"
+  | "accentColorSupported"
+  | "setHostAccentColor"
   | "setHostControlDepth"
   | "setHostShowModeButtons"
   | "setThemeMode"
@@ -50,6 +65,15 @@ export function AppearanceSettingsSection({
           Dark
         </button>
       </div>
+      {accentColorSupported && (
+        <Suspense fallback={null}>
+          <AccentColorSetting
+            accentColor={accentColor}
+            accentColorOverridden={accentColorOverridden}
+            setHostAccentColor={setHostAccentColor}
+          />
+        </Suspense>
+      )}
       <label className="toggle-row">
         <span>Show mode buttons</span>
         <input

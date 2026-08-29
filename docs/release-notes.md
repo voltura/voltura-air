@@ -11,6 +11,9 @@ create one. Keep the shared notices in
 - Improved Remote controls so Standard, YouTube, and Kodi can be selected
   directly from the quick mode menu, with the configured choice clearly
   highlighted.
+- Added custom accent colors for buttons and highlights in the web app. Set a
+  default under Appearance in the Windows app, and optionally choose a
+  different color from Appearance settings on each paired device.
 
 ## v1.1.4
 

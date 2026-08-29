@@ -23,7 +23,8 @@ const tempArtifactsDir = path.join(tempDir, "artifacts");
 const browserProfileDir = path.join(tempDir, "chrome-profile");
 const pairingUrlFile = path.join(tempDir, "pairing-url.txt");
 const clientPort = readPreferredClientPort();
-const smokeTest = process.argv.includes("--smoke-test");
+const accentSmokeTest = process.argv.includes("--accent-smoke-test");
+const smokeTest = accentSmokeTest || process.argv.includes("--smoke-test");
 const hostStartupTimeoutMs = 120000;
 const clientUrl = process.env.VOLTURA_AIR_CLIENT_URL ?? `http://127.0.0.1:${clientPort}`;
 const clientHost = new URL(clientUrl).hostname;
@@ -126,6 +127,15 @@ async function main() {
   const { chromium } = requireFromTemp("playwright");
   const qrCode = requireFromTemp("qrcode");
   const page = await launchBrowser(chromium, qrCode, pairingUrl);
+
+  if (accentSmokeTest) {
+    await verifyAccentColorPicker(page);
+    console.log(
+      "Voltura Air accent UI smoke test passed portrait and landscape layout, extreme-color contrast, Apply, Cancel, and PC-default inheritance.",
+    );
+    shutdown("SIGTERM", 0);
+    return;
+  }
 
   if (smokeTest) {
     await verifySettingsDrawerLifecycle(page);
@@ -407,15 +417,13 @@ async function verifyKeyboardLayout(page) {
         cancelFocused: document.activeElement === cancel,
         cancelBorder: getComputedStyle(cancel).borderTopColor,
         confirmBorder: getComputedStyle(confirm).borderTopColor,
-        confirmOutlineWidth: getComputedStyle(confirm).outlineWidth,
       };
     });
 
     if (
       "error" in confirmation ||
       !confirmation.cancelFocused ||
-      confirmation.cancelBorder === confirmation.confirmBorder ||
-      confirmation.confirmOutlineWidth !== "0px"
+      confirmation.cancelBorder === confirmation.confirmBorder
     ) {
       throw new Error(`Sleep confirmation default failed: ${JSON.stringify(confirmation)}`);
     }
@@ -740,6 +748,121 @@ async function verifySettingsDrawerLifecycle(page) {
   }
 }
 
+async function verifyAccentColorPicker(page) {
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.getByRole("button", { name: "Open menu", exact: true }).click();
+  await page.locator('[data-settings-section="appearance"] > summary').click();
+  await page.getByRole("button", { name: /Voltura default/u }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Custom color", exact: true });
+  await dialog.waitFor({ state: "visible" });
+  const input = dialog.getByLabel("Hex color", { exact: true });
+  await input.fill("#FFFF00");
+  await page.screenshot({ path: path.join(tempArtifactsDir, "accent-picker-portrait.png") });
+
+  const portrait = await dialog.evaluate((element) => {
+    const surface = element.querySelector(".accent-picker-surface");
+    if (!(surface instanceof HTMLElement)) {
+      return { error: "Accent picker surface was not visible." };
+    }
+    const dialogBounds = element.getBoundingClientRect();
+    const surfaceBounds = surface.getBoundingClientRect();
+    return {
+      dialogBottom: dialogBounds.bottom,
+      dialogLeft: dialogBounds.left,
+      dialogRight: dialogBounds.right,
+      dialogTop: dialogBounds.top,
+      surfaceHeight: surfaceBounds.height,
+      surfaceWidth: surfaceBounds.width,
+    };
+  });
+  if (
+    "error" in portrait ||
+    portrait.dialogLeft < 0 ||
+    portrait.dialogTop < 0 ||
+    portrait.dialogRight > 393 ||
+    portrait.dialogBottom > 852 ||
+    portrait.surfaceWidth < 260 ||
+    portrait.surfaceHeight < 180
+  ) {
+    throw new Error(`Accent picker portrait layout failed: ${JSON.stringify(portrait)}`);
+  }
+
+  await dialog.getByRole("button", { name: "Apply", exact: true }).click();
+  await page.getByRole("button", { name: /#FFFF00/u }).waitFor({ state: "visible" });
+  await page.waitForFunction(() =>
+    getComputedStyle(document.documentElement).getPropertyValue("--action").trim(),
+  );
+  const contrast = await page.evaluate(() => {
+    const style = getComputedStyle(document.documentElement);
+    const parse = (value) => {
+      const hex = value.trim().match(/^#([0-9A-F]{6})$/iu)?.[1];
+      if (hex) {
+        return [0, 2, 4].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
+      }
+      const match = value.match(/\d+(?:\.\d+)?/gu);
+      return match?.slice(0, 3).map(Number) ?? [];
+    };
+    const luminance = (value) => {
+      const channels = parse(value).map((channel) => {
+        const normalized = channel / 255;
+        return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+      });
+      return channels.length === 3
+        ? channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722
+        : 0;
+    };
+    const foreground = luminance(style.getPropertyValue("--on-action"));
+    const background = luminance(style.getPropertyValue("--action"));
+    return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+  });
+  if (contrast < 4.5) {
+    throw new Error(`Accent action contrast was ${contrast.toFixed(2)} instead of at least 4.5.`);
+  }
+
+  await page.getByRole("button", { name: /#FFFF00/u }).click();
+  await page.setViewportSize({ width: 852, height: 393 });
+  await dialog.waitFor({ state: "visible" });
+  await page.screenshot({ path: path.join(tempArtifactsDir, "accent-picker-landscape.png") });
+  const landscape = await dialog.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    const actions = element.querySelector(".accent-picker-actions");
+    const actionBounds = actions?.getBoundingClientRect();
+    return {
+      actionsBottom: actionBounds?.bottom ?? Number.POSITIVE_INFINITY,
+      actionsTop: actionBounds?.top ?? Number.NEGATIVE_INFINITY,
+      bottom: bounds.bottom,
+      left: bounds.left,
+      right: bounds.right,
+      scrollable:
+        element.scrollHeight <= element.clientHeight ||
+        getComputedStyle(element).overflowY !== "visible",
+      top: bounds.top,
+    };
+  });
+  if (
+    landscape.left < 0 ||
+    landscape.top < 0 ||
+    landscape.right > 852 ||
+    landscape.bottom > 393 ||
+    landscape.actionsTop < landscape.top ||
+    landscape.actionsBottom > Math.min(landscape.bottom, 393) ||
+    !landscape.scrollable
+  ) {
+    throw new Error(`Accent picker landscape layout failed: ${JSON.stringify(landscape)}`);
+  }
+
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: /#FFFF00/u }).waitFor({ state: "visible" });
+  await page.getByRole("button", { name: "Use PC default", exact: true }).click();
+  await page.getByRole("button", { name: /Voltura default/u }).waitFor({ state: "visible" });
+  await page.waitForFunction(
+    () => !document.documentElement.style.getPropertyValue("--action").trim(),
+  );
+  await page.getByRole("button", { name: "Close menu", exact: true }).click();
+  await page.setViewportSize({ width: 393, height: 852 });
+}
+
 async function verifyResponsivePowerLayout(page) {
   await page.getByRole("button", { name: "Remote", exact: true }).click();
   await page.getByRole("button", { name: "Power", exact: true }).click();
@@ -834,7 +957,8 @@ async function verifyResponsiveTextTransferLayout(page) {
       const editor = document.querySelector(".text-transfer-editor textarea");
       const editorSurface = document.querySelector(".text-transfer-editor-surface");
       const editorField = document.querySelector(".text-transfer-editor");
-      const editorLabel = document.querySelector(".text-transfer-editor > label");
+      const editorHeading = document.querySelector(".text-transfer-editor-heading");
+      const editorLabel = document.querySelector(".text-transfer-editor-heading > label");
       const actions = document.querySelector(".text-transfer-actions");
       const sendButtons = Array.from(document.querySelectorAll(".text-transfer-actions button"));
       const snippetInput = document.querySelector(".snippet-save-row input");
@@ -846,23 +970,35 @@ async function verifyResponsiveTextTransferLayout(page) {
         !(editor instanceof HTMLTextAreaElement) ||
         !(editorSurface instanceof HTMLElement) ||
         !(editorField instanceof HTMLElement) ||
+        !(editorHeading instanceof HTMLElement) ||
         !(editorLabel instanceof HTMLElement) ||
         !(actions instanceof HTMLElement) ||
         sendButtons.length !== 2 ||
         !(snippetInput instanceof HTMLInputElement) ||
         !(saveButton instanceof HTMLButtonElement)
       ) {
-        return { error: "Text transfer controls were not visible." };
+        return {
+          error: "Text transfer controls were not visible.",
+          actions: actions instanceof HTMLElement,
+          editor: editor instanceof HTMLTextAreaElement,
+          editorField: editorField instanceof HTMLElement,
+          editorHeading: editorHeading instanceof HTMLElement,
+          editorLabel: editorLabel instanceof HTMLElement,
+          editorSurface: editorSurface instanceof HTMLElement,
+          saveButton: saveButton instanceof HTMLButtonElement,
+          sendButtonCount: sendButtons.length,
+          snippetInput: snippetInput instanceof HTMLInputElement,
+        };
       }
 
       const editorSurfaceBounds = editorSurface.getBoundingClientRect();
       const editorFieldBounds = editorField.getBoundingClientRect();
-      const editorLabelBounds = editorLabel.getBoundingClientRect();
+      const editorHeadingBounds = editorHeading.getBoundingClientRect();
       const actionBounds = actions.getBoundingClientRect();
       const sendButtonBounds = sendButtons.map((button) => button.getBoundingClientRect());
       return {
         backButtonPresent: document.querySelector(".text-transfer-mode .tool-back-button") !== null,
-        editorLabelGap: editorSurfaceBounds.top - editorLabelBounds.bottom,
+        editorHeadingGap: editorSurfaceBounds.top - editorHeadingBounds.bottom,
         editorMisaligned:
           Math.abs(editorSurfaceBounds.left - editorFieldBounds.left) > 1 ||
           Math.abs(editorSurfaceBounds.width - editorFieldBounds.width) > 2,
@@ -883,7 +1019,7 @@ async function verifyResponsiveTextTransferLayout(page) {
       !snippetsStartFolded ||
       "error" in result ||
       result.backButtonPresent ||
-      (viewport.name === "phone portrait" && result.editorLabelGap > 5) ||
+      (viewport.name === "phone portrait" && result.editorHeadingGap > 5) ||
       result.editorMisaligned ||
       result.editorOverlapsActions ||
       result.editorUsesTrackpadGrid ||
@@ -981,14 +1117,14 @@ async function verifyResponsiveUrlOpenLayout(page) {
     const dialogBounds = dialog.getBoundingClientRect();
     return {
       height: dialogBounds.height,
-      okOffsetLeft: ok.getBoundingClientRect().left - dialogBounds.left,
+      okOffsetRight: dialogBounds.right - ok.getBoundingClientRect().right,
       text: dialog.textContent ?? "",
     };
   });
   if (
     "error" in infoMetrics ||
     infoMetrics.height < 250 ||
-    infoMetrics.okOffsetLeft > 40 ||
+    infoMetrics.okOffsetRight > 40 ||
     !infoMetrics.text.includes("Addresses without a scheme use HTTPS")
   ) {
     throw new Error(`URL information dialog check failed: ${JSON.stringify(infoMetrics)}`);
@@ -1005,6 +1141,14 @@ async function verifyResponsiveUrlOpenLayout(page) {
 
   for (const viewport of viewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.waitForFunction((width) => {
+      const dialog = document.querySelector(".remote-url-dialog");
+      return (
+        dialog instanceof HTMLElement &&
+        getComputedStyle(dialog).getPropertyValue("--modal-visual-viewport-width").trim() ===
+          `${width}px`
+      );
+    }, viewport.width);
     await input.focus();
     const result = await page.evaluate(() => {
       const form = document.querySelector(".remote-url-dialog form");

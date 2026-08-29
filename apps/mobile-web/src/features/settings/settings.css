@@ -158,6 +158,115 @@
   transform: none;
 }
 
+.accent-setting {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.accent-setting > span {
+  font-weight: 700;
+}
+
+.accent-setting-actions {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.accent-setting-button {
+  justify-content: flex-start;
+}
+
+.accent-setting-swatch,
+.accent-picker-swatch {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+}
+
+.accent-picker-dialog {
+  width: min(420px, calc(var(--modal-visual-viewport-width) - var(--space-2xl)));
+}
+
+.accent-picker-dialog .modal-dialog-body,
+.accent-picker-input-row,
+.accent-picker-hue-row {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.accent-picker-dialog .modal-dialog-body {
+  overflow: visible;
+}
+
+.accent-picker-input-row {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.accent-picker-swatch {
+  display: block;
+}
+
+.accent-picker-surface {
+  --picker-hue: var(--accent);
+
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1.58;
+  min-height: 148px;
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(to bottom, transparent, black),
+    linear-gradient(to right, white, var(--picker-hue));
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.accent-picker-surface:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.accent-picker-marker {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 3px solid white;
+  border-radius: var(--radius-pill);
+  box-shadow: 0 0 0 1px black;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.accent-picker-hue-row input {
+  width: 100%;
+  min-height: var(--control-min-height);
+  accent-color: var(--accent);
+}
+
+.accent-picker-actions {
+  gap: var(--space-sm);
+}
+
+.accent-picker-apply {
+  color: var(--on-action);
+  background: var(--action);
+}
+
+@media (orientation: landscape) and (width >= 640px) {
+  .accent-picker-dialog .modal-dialog-body {
+    overflow-y: auto;
+  }
+
+  .accent-picker-surface {
+    height: 148px;
+    min-height: 148px;
+    aspect-ratio: auto;
+  }
+}
+
 .settings-section {
   display: grid;
   gap: 10px;

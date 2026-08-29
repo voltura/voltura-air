@@ -8,6 +8,7 @@ public static class AppAppearanceSettings
     private const string ShowModeButtonsValueName = "ShowModeButtons";
     private const string DeviceControlDepthValueName = "DeviceControlDepth";
     private const string HostControlDepthValueName = "HostControlDepth";
+    private const string DeviceAccentColorValueName = "DeviceAccentColor";
 
     public static event EventHandler? Changed;
     public static event EventHandler? HostControlDepthChanged;
@@ -42,6 +43,37 @@ public static class AppAppearanceSettings
         var current = DeviceControlDepth();
         WriteBoolean(DeviceControlDepthValueName, enabled);
         if (current != enabled)
+        {
+            Changed?.Invoke(null, EventArgs.Empty);
+        }
+    }
+
+    public static string? DeviceAccentColor()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
+        return AccentColor.NormalizePersisted(key?.GetValue(DeviceAccentColorValueName) as string);
+    }
+
+    public static void SetDeviceAccentColor(string? accentColor)
+    {
+        if (accentColor is not null && !AccentColor.IsCanonical(accentColor))
+        {
+            throw new ArgumentException("Accent color must use canonical #RRGGBB format.", nameof(accentColor));
+        }
+
+        var current = DeviceAccentColor();
+        using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: true) ??
+            Registry.CurrentUser.CreateSubKey(SettingsKeyPath, writable: true);
+        if (accentColor is null)
+        {
+            key.DeleteValue(DeviceAccentColorValueName, throwOnMissingValue: false);
+        }
+        else
+        {
+            key.SetValue(DeviceAccentColorValueName, accentColor, RegistryValueKind.String);
+        }
+
+        if (!string.Equals(current, accentColor, StringComparison.Ordinal))
         {
             Changed?.Invoke(null, EventArgs.Empty);
         }

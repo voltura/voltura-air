@@ -506,6 +506,12 @@ supported. Its browser profile stores device identity/name, saved PCs, local UI
 preferences, text snippets, and theme. It provides a cache-reset flow and can
 refresh its installed shell once after reconnect.
 
+Appearance includes an optional custom accent seed. The host Preferences page
+owns the global device default, while an authenticated device can save its own
+override or return to the PC default. The PWA caches the effective value for
+startup and derives accessible light- and dark-theme interaction colors without
+changing semantic success, warning, danger, or focus colors.
+
 ### Pairing and connection states
 
 QR open/photo scanning, HTTPS live camera scanning, device-name confirmation,

@@ -298,7 +298,7 @@
 .custom-screen-button.active {
   --control-background: var(--accent);
 
-  color: var(--on-action);
+  color: var(--on-accent);
   border-color: var(--accent);
 }
 

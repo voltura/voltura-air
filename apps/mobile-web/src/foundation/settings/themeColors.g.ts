@@ -1,19 +1,13 @@
 // Generated from assets/ui-tokens.json. Do not edit directly.
-export const uiThemeColors = {
+export const themeSurfaceColors = {
   dark: {
     background: "#101418",
     surface: "#171D21",
-    surfaceRaised: "#20282E"
+    surfaceRaised: "#20282E",
   },
   light: {
     background: "#F6F8FA",
     surface: "#FFFFFF",
-    surfaceRaised: "#EDF2F5"
-  }
-} as const;
-
-export const uiDurations = {
-  fast: 120,
-  standard: 180,
-  slow: 240
+    surfaceRaised: "#EDF2F5",
+  },
 } as const;

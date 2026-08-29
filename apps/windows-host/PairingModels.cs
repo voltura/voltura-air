@@ -22,6 +22,7 @@ public sealed record PairingRecord(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? PointerSpeedOverride = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ShowModeButtonsOverride = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ControlDepthOverride = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? AccentColorOverride = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CustomScreenViewport? CustomScreenViewport = null);
 
 public sealed record PairedDeviceStatus(
@@ -45,6 +46,8 @@ public sealed record PairedDeviceStatus(
     bool ShowModeButtons,
     bool? ControlDepthOverride,
     bool ControlDepth,
+    string? AccentColorOverride,
+    string? AccentColor,
     CustomScreenViewport? CustomScreenViewport)
 {
     public DateTimeOffset LatestActivityAt => new[] { AddedAt, LastConnectedAt, LastDisconnectedAt, LastRenamedAt }

@@ -802,6 +802,18 @@ describe("useVolturaAirConnection", () => {
     expect(socket.send).toHaveBeenCalledWith(
       JSON.stringify({ type: "custom.pointer.set", enabled: true }),
     );
+
+    act(() => {
+      result.current.setHostAccentColor("#5FC8B4");
+    });
+
+    await waitFor(() => {
+      expect(result.current.hostStatus?.accentColor).toBe("#5FC8B4");
+      expect(result.current.hostStatus?.accentColorOverridden).toBe(true);
+    });
+    expect(socket.send).toHaveBeenCalledWith(
+      JSON.stringify({ type: "appearance.accent-color.set", accentColor: "#5FC8B4" }),
+    );
   });
 
   it("ignores state-changing messages from obsolete sockets", async () => {

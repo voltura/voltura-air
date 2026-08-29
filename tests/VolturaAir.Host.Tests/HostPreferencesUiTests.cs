@@ -143,6 +143,8 @@ public sealed partial class HostUiLayoutTests
                     string.Equals(checkbox.Content?.ToString(), "Enable alpha features", StringComparison.Ordinal));
                 Assert.DoesNotContain(FindWpfDescendants<CheckBox>(window), checkbox =>
                     checkbox.Content?.ToString()?.Contains("Screen viewing", StringComparison.OrdinalIgnoreCase) == true);
+                Assert.Contains(FindWpfDescendants<Button>(window), button =>
+                    string.Equals(button.Content as string, "Voltura default", StringComparison.Ordinal));
                 Assert.Equal(
                     ["Automatic (recommended)", "Quality", "Data saver"],
                     FindWpfDescendants<RadioButton>(window)

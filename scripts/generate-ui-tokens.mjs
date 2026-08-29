@@ -16,6 +16,15 @@ const cssPath = path.join(
   "tokens.css",
 );
 const typescriptPath = path.join(repositoryRoot, "apps", "mobile-web", "src", "ui", "tokens.g.ts");
+const foundationThemePath = path.join(
+  repositoryRoot,
+  "apps",
+  "mobile-web",
+  "src",
+  "foundation",
+  "settings",
+  "themeColors.g.ts",
+);
 const xamlPath = path.join(
   repositoryRoot,
   "apps",
@@ -86,14 +95,37 @@ ${renderCssTheme(source.color.light)}
 
 const typescript = `// Generated from assets/ui-tokens.json. Do not edit directly.
 export const uiThemeColors = {
-  dark: { background: "${source.color.dark.bg}" },
-  light: { background: "${source.color.light.bg}" }
+  dark: {
+    background: "${source.color.dark.bg}",
+    surface: "${source.color.dark.surface}",
+    surfaceRaised: "${source.color.dark.surfaceRaised}"
+  },
+  light: {
+    background: "${source.color.light.bg}",
+    surface: "${source.color.light.surface}",
+    surfaceRaised: "${source.color.light.surfaceRaised}"
+  }
 } as const;
 
 export const uiDurations = {
 ${Object.entries(source.duration)
   .map(([name, value]) => `  ${name}: ${value}`)
   .join(",\n")}
+} as const;
+`;
+
+const foundationTheme = `// Generated from assets/ui-tokens.json. Do not edit directly.
+export const themeSurfaceColors = {
+  dark: {
+    background: "${source.color.dark.bg}",
+    surface: "${source.color.dark.surface}",
+    surfaceRaised: "${source.color.dark.surfaceRaised}",
+  },
+  light: {
+    background: "${source.color.light.bg}",
+    surface: "${source.color.light.surface}",
+    surfaceRaised: "${source.color.light.surfaceRaised}",
+  },
 } as const;
 `;
 
@@ -228,6 +260,7 @@ async function updateGeneratedFile(targetPath, contents) {
 const changed = await Promise.all([
   updateGeneratedFile(cssPath, css),
   updateGeneratedFile(typescriptPath, typescript),
+  updateGeneratedFile(foundationThemePath, foundationTheme),
   updateGeneratedFile(xamlPath, xaml),
   updateGeneratedFile(csharpPath, csharp),
 ]);

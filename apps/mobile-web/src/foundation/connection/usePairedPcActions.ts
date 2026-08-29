@@ -10,6 +10,7 @@ import type { RelayEncryptedSend } from "./relaySessionCrypto";
 import type { ControllerSocket } from "./controllerSocket";
 import { revokePcPairing } from "./relayPairingRevocation";
 import { writeLocalStorage } from "../platform/browserStorage";
+import { normalizeAccentColor } from "../protocol/accentColorProtocol";
 
 interface PairedPcActionOptions {
   activePcId: string | null;
@@ -295,6 +296,29 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     [send, setHostStatus, state],
   );
 
+  const setHostAccentColor = useCallback(
+    (accentColor: string | null) => {
+      const normalized = accentColor === null ? null : normalizeAccentColor(accentColor);
+      if (accentColor !== null && !normalized) {
+        return;
+      }
+
+      setHostStatus((current) =>
+        current
+          ? {
+              ...current,
+              ...(normalized === null ? {} : { accentColor: normalized }),
+              accentColorOverridden: normalized !== null,
+            }
+          : current,
+      );
+      if (state === "paired") {
+        send({ type: "appearance.accent-color.set", accentColor: normalized });
+      }
+    },
+    [send, setHostStatus, state],
+  );
+
   const setHostCustomPointer = useCallback(
     (enabled: boolean) => {
       setHostStatus((current) =>
@@ -318,6 +342,7 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     renamePc,
     selectPc,
     setHostCustomPointer,
+    setHostAccentColor,
     setHostControlDepth,
     setHostShowModeButtons,
     setHostPointerSpeed,

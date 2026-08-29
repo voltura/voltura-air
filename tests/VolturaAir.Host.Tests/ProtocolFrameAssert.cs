@@ -82,7 +82,10 @@ internal static class ProtocolFrameAssert
         switch (value.ValueKind)
         {
             case JsonValueKind.Null:
-                Assert.Fail($"Protocol frame '{type}' contains null at '{path}'. Omit absent fields instead.");
+                if (!IsMeaningfulNull(type, path))
+                {
+                    Assert.Fail($"Protocol frame '{type}' contains null at '{path}'. Omit absent fields instead.");
+                }
                 return;
             case JsonValueKind.String:
                 if (value.GetString()?.Length == 0)
@@ -109,4 +112,7 @@ internal static class ProtocolFrameAssert
     private static bool IsMeaningfulEmptyString(string type, string path) =>
         type == "clipboard.get.result" && path == "text" ||
         type == "ai.assistant.message" && path == "text";
+
+    private static bool IsMeaningfulNull(string type, string path) =>
+        (type == "pair.accepted" || type == "status") && path == "host.accentColor";
 }

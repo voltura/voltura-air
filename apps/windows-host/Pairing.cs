@@ -596,6 +596,10 @@ public sealed class PairingManager
 
     public bool GetDeviceControlDepth(string clientId) { lock (_gate) return _devices.GetDeviceControlDepth(clientId); }
 
+    public string? GetDeviceAccentColor(string clientId) { lock (_gate) return _devices.GetDeviceAccentColor(clientId); }
+
+    public bool GetDeviceAccentColorOverridden(string clientId) { lock (_gate) return _devices.GetDeviceAccentColorOverridden(clientId); }
+
     public CustomScreenViewport? GetCustomScreenViewport(string clientId)
     {
         lock (_gate) return _devices.GetCustomScreenViewport(clientId);
@@ -609,6 +613,9 @@ public sealed class PairingManager
 
     public bool SetDeviceControlDepthOverride(string clientId, bool? controlDepth) =>
         UpdateDeviceProfile(() => _devices.SetControlDepthOverride(clientId, controlDepth));
+
+    public bool SetDeviceAccentColorOverride(string clientId, string? accentColor) =>
+        UpdateDeviceProfile(() => _devices.SetAccentColorOverride(clientId, accentColor));
 
     public bool SetCustomScreenViewport(string clientId, CustomScreenViewport viewport) =>
         UpdateDeviceProfile(() => _devices.SetCustomScreenViewport(clientId, viewport));

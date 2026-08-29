@@ -33,6 +33,13 @@ intrinsic artwork, one-pixel optical corrections, data-derived geometry, or
 platform constraints whose reason is clear. Platform-specific semantic tokens
 are allowed when mobile and desktop have different purposes.
 
+The mobile accent may be derived at runtime from one canonical custom seed.
+The derived light- and dark-theme roles keep accent text and action labels at
+least 4.5:1 against their applicable surfaces, choosing black or white action
+text and adjusting only role lightness when needed. The stored seed remains the
+user's selected color. Focus, success, warning, and danger tokens remain
+semantic and are never remapped by accent customization.
+
 The shared primitive set covers:
 
 - buttons, icon buttons, segmented choices, fields, selects, ranges, switches,

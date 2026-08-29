@@ -47,7 +47,7 @@
 
 .custom-screen-ring-zone:active {
   color: var(--on-action);
-  background: color-mix(in srgb, var(--action) 68%, transparent);
+  background: var(--action);
 }
 
 .custom-screen-ring-zone svg {
@@ -174,7 +174,7 @@
 
 .control-depth .custom-screen-ring-zone:not(:disabled):active {
   border-color: transparent;
-  background: color-mix(in srgb, var(--action) 24%, transparent);
+  background: var(--action);
   box-shadow: none;
   transform: none;
 }

@@ -440,6 +440,7 @@ export function RemoteUtilityPanel({
           formClassName="remote-url-dialog-form"
           initialFocusRef={urlInputRef}
           isOpen={isUrlDialogOpen}
+          landscapeSize="wide"
           noValidate
           onClose={closeUrlDialog}
           onSubmit={(event) => {

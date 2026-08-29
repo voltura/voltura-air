@@ -216,7 +216,7 @@
 .presentation-mode button.active[data-pending-visual="deferred"]:disabled {
   --control-background: var(--accent);
 
-  color: var(--on-action);
+  color: var(--on-accent);
   border-color: var(--accent);
 }
 
@@ -543,7 +543,7 @@
 .presentation-actions button.active {
   --control-background: var(--accent);
 
-  color: var(--on-action);
+  color: var(--on-accent);
   border-color: var(--accent);
 }
 

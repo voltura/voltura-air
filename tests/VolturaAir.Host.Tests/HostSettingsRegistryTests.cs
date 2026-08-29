@@ -263,6 +263,18 @@ public sealed class HostSettingsRegistryTests : IsolatedHostSettingsTest
     }
 
     [Fact]
+    public void DeviceAccentColorIsOptionalAndCanBeReset()
+    {
+        Assert.Null(AppAppearanceSettings.DeviceAccentColor());
+
+        AppAppearanceSettings.SetDeviceAccentColor("#5FC8B4");
+        Assert.Equal("#5FC8B4", AppAppearanceSettings.DeviceAccentColor());
+
+        AppAppearanceSettings.SetDeviceAccentColor(null);
+        Assert.Null(AppAppearanceSettings.DeviceAccentColor());
+    }
+
+    [Fact]
     public void CloseToTrayNotificationIsOnlyMarkedOnce()
     {
         Assert.True(AppWindowSettings.TryMarkCloseToTrayNotificationShown());

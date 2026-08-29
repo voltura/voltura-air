@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.WebSockets;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -1054,6 +1055,8 @@ internal sealed record HostStatusMetadata(
     bool CustomPointerEnabled,
     bool ShowModeButtons,
     bool ControlDepth,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? AccentColor,
+    bool AccentColorOverridden,
     bool DeveloperMode,
     string? DeveloperSessionId,
     bool InputBlockedByElevation);

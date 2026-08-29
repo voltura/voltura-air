@@ -14,6 +14,7 @@ const fixtureFiles = [
   "scripts/generate-ui-tokens.mjs",
   "apps/mobile-web/src/styles/generated/tokens.css",
   "apps/mobile-web/src/ui/tokens.g.ts",
+  "apps/mobile-web/src/foundation/settings/themeColors.g.ts",
   "apps/windows-host/Styles/Generated/UiTokens.xaml",
   "apps/windows-host/UiTokens.g.cs",
 ];

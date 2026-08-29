@@ -183,6 +183,46 @@ internal sealed class PreferencesPageController
         deviceControlDepth.Checked += (_, _) => AppAppearanceSettings.SetDeviceControlDepth(true);
         deviceControlDepth.Unchecked += (_, _) => AppAppearanceSettings.SetDeviceControlDepth(false);
         parent.Children.Add(deviceControlDepth);
+
+        var accentLabel = _visuals.CreateLabel("Accent color");
+        parent.Children.Add(accentLabel);
+        var accentRow = HostVisualFactory.CreateHorizontalStack(UiTokens.SpaceSm);
+        var storedAccent = AppAppearanceSettings.DeviceAccentColor();
+        var accentButton = _visuals.CreateButton(string.Empty, (_, _) => { });
+        accentButton.Width = 132;
+        void ShowDefaultAccent()
+        {
+            ColorPickerPopup.SetButtonColor(accentButton, AccentColor.ToRgb(AccentColor.DefaultSeed));
+            accentButton.Content = "Voltura default";
+        }
+        var accentPopup = ColorPickerPopup.Create(
+            _visuals,
+            accentButton,
+            () => ColorPickerPopup.GetButtonColor(accentButton, AccentColor.ToRgb(AccentColor.DefaultSeed)),
+            selected =>
+            {
+                AppAppearanceSettings.SetDeviceAccentColor(AccentColor.FromRgb(selected));
+                ColorPickerPopup.SetButtonColor(accentButton, selected);
+            });
+        accentButton.Click += (_, _) => accentPopup.IsOpen = !accentPopup.IsOpen;
+        if (storedAccent is null)
+        {
+            ShowDefaultAccent();
+        }
+        else
+        {
+            ColorPickerPopup.SetButtonColor(accentButton, AccentColor.ToRgb(storedAccent));
+        }
+        var resetAccent = _visuals.CreateButton("Reset to default", (_, _) =>
+        {
+            AppAppearanceSettings.SetDeviceAccentColor(null);
+            ShowDefaultAccent();
+        });
+        accentRow.Children.Add(accentButton);
+        accentRow.Children.Add(resetAccent);
+        parent.Children.Add(accentRow);
+        parent.Unloaded += (_, _) => accentPopup.IsOpen = false;
+        _preferenceVisuals.RegisterLabel(accentLabel, accentButton);
     }
 
     private void AddTrackpadSettings(StackPanel parent)

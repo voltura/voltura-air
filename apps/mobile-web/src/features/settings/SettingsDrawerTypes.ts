@@ -36,6 +36,9 @@ export interface SettingsDrawerProps {
   diagnostics: string;
   deviceName: string;
   customPointerEnabled?: boolean | undefined;
+  accentColor?: string | null | undefined;
+  accentColorOverridden?: boolean | undefined;
+  accentColorSupported?: boolean | undefined;
   customScreens?: CustomScreenSummary[] | undefined;
   disconnectActivePc: () => void;
   forgetPc: (pcId: string) => void;
@@ -74,6 +77,7 @@ export interface SettingsDrawerProps {
   scanPairingQr: () => void;
   selectPc: (pcId: string) => void;
   setHostCustomPointer?: ((enabled: boolean) => void) | undefined;
+  setHostAccentColor?: ((accentColor: string | null) => void) | undefined;
   setHostControlDepth?: ((controlDepth: boolean) => void) | undefined;
   setHostShowModeButtons?: ((showModeButtons: boolean) => void) | undefined;
   setThemeMode: Dispatch<SetStateAction<ThemeMode>>;

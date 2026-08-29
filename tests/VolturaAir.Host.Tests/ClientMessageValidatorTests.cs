@@ -64,6 +64,20 @@ public sealed class ClientMessageValidatorTests
     }
 
     [Theory]
+    [InlineData("""{ "type": "appearance.accent-color.set", "accentColor": "#5FC8B4" }""", true)]
+    [InlineData("""{ "type": "appearance.accent-color.set", "accentColor": null }""", true)]
+    [InlineData("""{ "type": "appearance.accent-color.set", "accentColor": "#5fc8b4" }""", false)]
+    [InlineData("""{ "type": "appearance.accent-color.set", "accentColor": "5FC8B4" }""", false)]
+    [InlineData("""{ "type": "appearance.accent-color.set", "accentColor": 123 }""", false)]
+    [InlineData("""{ "type": "appearance.accent-color.set", "accentColor": "#5FC8B4", "extra": true }""", false)]
+    public void ValidatesAccentColorAppearanceMessages(string json, bool expected)
+    {
+        using var document = JsonDocument.Parse(json);
+
+        Assert.Equal(expected, ClientMessageValidator.IsValidAuthenticatedMessage(document.RootElement, "appearance.accent-color.set"));
+    }
+
+    [Theory]
     [InlineData("""{ "type": "screen.view.start", "operationId": "screen-1", "displayId": "display-1", "clientSignature": "proof" }""", true)]
     [InlineData("""{ "type": "screen.view.start", "operationId": "screen-1", "displayId": "display-1", "clientSignature": "proof", "streamFormats": "image-v1,fmp4-h264" }""", false)]
     [InlineData("""{ "type": "screen.view.start", "operationId": "screen-1", "displayId": "display-1", "clientEphemeralPublicKey": "key", "clientSignature": "proof" }""", false)]

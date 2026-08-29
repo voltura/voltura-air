@@ -311,8 +311,12 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
             onToggle={toggleSection}
           >
             <AppearanceSettingsSection
+              accentColor={props.accentColor}
+              accentColorOverridden={props.accentColorOverridden}
+              accentColorSupported={props.accentColorSupported}
               controlDepth={props.controlDepth}
               setHostControlDepth={props.setHostControlDepth}
+              setHostAccentColor={props.setHostAccentColor}
               setHostShowModeButtons={props.setHostShowModeButtons}
               setThemeMode={props.setThemeMode}
               showModeButtons={props.showModeButtons}

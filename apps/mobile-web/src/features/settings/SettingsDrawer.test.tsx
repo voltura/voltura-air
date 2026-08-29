@@ -457,6 +457,34 @@ describe("SettingsDrawer", () => {
     expect(setHostControlDepth).toHaveBeenCalledExactlyOnceWith(false);
   });
 
+  it("applies a canonical per-device accent and can restore the PC default", async () => {
+    const setHostAccentColor = vi.fn();
+    render(
+      <SettingsDrawer
+        {...baseProps}
+        accentColor="#5FC8B4"
+        accentColorOverridden
+        accentColorSupported
+        setHostAccentColor={setHostAccentColor}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Appearance"));
+    fireEvent.click(await screen.findByRole("button", { name: /#5FC8B4/u }, { timeout: 5000 }));
+    const input = await screen.findByLabelText("Hex color");
+    const colorSurface = screen.getByRole("slider", { name: "Saturation and brightness" });
+    const initialColorDescription = colorSurface.getAttribute("aria-valuetext");
+    expect(initialColorDescription).toMatch(/^Saturation \d+%, brightness \d+%$/u);
+    fireEvent.keyDown(colorSurface, { key: "ArrowLeft", shiftKey: true });
+    expect(colorSurface.getAttribute("aria-valuetext")).not.toBe(initialColorDescription);
+    fireEvent.change(input, { target: { value: "#FFCC00" } });
+    fireEvent.submit(input.closest("form")!);
+    expect(setHostAccentColor).toHaveBeenCalledWith("#FFCC00");
+
+    fireEvent.click(screen.getByRole("button", { name: "Use PC default" }));
+    expect(setHostAccentColor).toHaveBeenCalledWith(null);
+  });
+
   it("updates haptic feedback when browser vibration is available", () => {
     const updateTrackpadSetting = vi.fn();
     render(<SettingsDrawer {...baseProps} updateTrackpadSetting={updateTrackpadSetting} />);

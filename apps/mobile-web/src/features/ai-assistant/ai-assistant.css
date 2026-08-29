@@ -106,6 +106,10 @@
   font-size: 0.76rem;
 }
 
+.ai-assistant-message.user strong {
+  color: var(--text);
+}
+
 .ai-assistant-message p,
 .ai-assistant-message ul,
 .ai-assistant-message ol,

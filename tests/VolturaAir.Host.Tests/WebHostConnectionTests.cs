@@ -475,6 +475,37 @@ public sealed class WebHostConnectionTests : WebHostServiceTestBase
     }
 
     [Fact]
+    public async Task WebSocketStoresClientAccentColorAsDeviceOverrideAndBroadcastsIt()
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+        using var key = new PairingTestKey();
+        var clientId = $"client-{Guid.NewGuid():N}";
+        using var socket = await ConnectAsync(fixture.WebHost);
+
+        var paired = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.hello",
+            clientId,
+            deviceName = "Phone",
+            pairToken = fixture.Manager.CreatePairingToken(),
+            reconnectPublicKey = key.PublicKey
+        });
+        Assert.Equal(JsonValueKind.Null, paired.GetProperty("host").GetProperty("accentColor").ValueKind);
+        Assert.False(paired.GetProperty("host").GetProperty("accentColorOverridden").GetBoolean());
+
+        await SendAsync(socket, new { type = "appearance.accent-color.set", accentColor = "#5FC8B4" });
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var pushedStatusText = await ReceiveTextAsync(socket, timeout.Token);
+        using var pushedStatus = JsonDocument.Parse(pushedStatusText);
+
+        Assert.Equal("#5FC8B4", fixture.Manager.GetDeviceAccentColor(clientId));
+        Assert.True(fixture.Manager.GetDeviceAccentColorOverridden(clientId));
+        var host = pushedStatus.RootElement.GetProperty("host");
+        Assert.Equal("#5FC8B4", host.GetProperty("accentColor").GetString());
+        Assert.True(host.GetProperty("accentColorOverridden").GetBoolean());
+    }
+
+    [Fact]
     public async Task WebSocketBroadcastsGlobalModeButtonVisibilityChanges()
     {
         await using var fixture = await WebHostFixture.StartAsync();

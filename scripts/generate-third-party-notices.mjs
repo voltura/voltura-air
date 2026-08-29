@@ -93,7 +93,8 @@ async function collectMobileProductionComponents() {
   }
 
   return discovered.sort(
-    (left, right) => left.name.localeCompare(right.name) || left.version.localeCompare(right.version),
+    (left, right) =>
+      left.name.localeCompare(right.name) || left.version.localeCompare(right.version),
   );
 }
 
@@ -123,9 +124,7 @@ function packageSource(packageJson) {
       .replace(/^git\+/u, "")
       .replace(/^git:\/\//u, "https://")
       .replace(/\.git$/u, "");
-    return /^[\w.-]+\/[\w.-]+$/u.test(normalized)
-      ? `https://github.com/${normalized}`
-      : normalized;
+    return /^[\w.-]+\/[\w.-]+$/u.test(normalized) ? `https://github.com/${normalized}` : normalized;
   }
   return typeof packageJson.homepage === "string"
     ? packageJson.homepage

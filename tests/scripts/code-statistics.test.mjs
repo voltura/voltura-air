@@ -172,6 +172,20 @@ test("HTML statistics report uses the comprehensive public source inventory", as
   assert.doesNotMatch(html, /untracked-root/u);
   assert.match(html, /<dt>Assets<\/dt><dd>1/u);
   assert.match(html, /<dt>NPM commands<\/dt><dd>1<span>7 script files<\/span>/u);
+  assert.match(html, /<title>Mobile client: 2 files<\/title>/u);
+  assert.match(html, /<title>Documents: 1 file<\/title>/u);
+  assert.match(html, /<text class="donut-hover-number" x="50" y="49">2<\/text>/u);
+  assert.match(html, /Hover or focus a ring section to see its file count/u);
+  assert.match(
+    html,
+    /<tfoot><tr><th scope="row" colspan="2">Total<\/th><td>1<\/td><\/tr><\/tfoot>/u,
+  );
+  assert.match(html, /<tfoot><tr><th scope="row">Total<\/th><td>7<\/td><\/tr><\/tfoot>/u);
+  assert.match(
+    html,
+    /<tfoot><tr><th scope="row">Total<\/th><td>4<\/td><td>7<\/td><\/tr><\/tfoot>/u,
+  );
+  assert.match(html, /<tfoot><tr><th scope="row">Total<\/th><td>1<\/td><\/tr><\/tfoot>/u);
   const sourceRanking = html.match(
     /<h2>Top 10 largest source code files<\/h2><ol>(.*?)<\/ol>/u,
   )?.[1];

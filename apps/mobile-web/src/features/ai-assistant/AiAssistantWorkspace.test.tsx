@@ -360,7 +360,9 @@ describe("AiAssistantWorkspace", () => {
       target: { value: "Send once" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Send question" }));
-    const askCount = send.mock.calls.filter(([message]) => message.type === "ai.assistant.ask").length;
+    const askCount = send.mock.calls.filter(
+      ([message]) => message.type === "ai.assistant.ask",
+    ).length;
 
     act(() =>
       publishAiAssistantResult({ type: "ai.assistant.state", state: "ready", message: null }),

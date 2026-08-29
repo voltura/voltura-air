@@ -649,14 +649,25 @@ function createDonut(segments, total, unit) {
     "var(--chart-8)",
   ];
   let position = 0;
-  const gradient = segments
-    .map(({ value }, index) => {
-      const end = position + (total === 0 ? 0 : (value / total) * 100);
-      const value_ = `${colors[index % colors.length]} ${position.toFixed(2)}% ${end.toFixed(2)}%`;
-      position = end;
-      return value_;
-    })
+  const slices = segments.map(({ title, value, files }, index) => {
+    const start = position;
+    const length = total === 0 ? 0 : (value / total) * 100;
+    position += length;
+    return { title, value, files, start, length, color: colors[index % colors.length] };
+  });
+  const gradient = slices
+    .map(
+      ({ start, length, color }) => `${color} ${start.toFixed(2)}% ${(start + length).toFixed(2)}%`,
+    )
     .join(", ");
+  const hitRegions = slices
+    .filter(({ length }) => length > 0)
+    .map(({ title, files, start, length }) => {
+      const fileLabel = `${formatNumber(files)} ${files === 1 ? "file" : "files"}`;
+      const label = `${title}: ${fileLabel}`;
+      return `<g class="donut-hit-group"><circle class="donut-hit-region" cx="50" cy="50" r="42" pathLength="100" stroke-dasharray="${length.toFixed(4)} ${(100 - length).toFixed(4)}" stroke-dashoffset="${(-start).toFixed(4)}" transform="rotate(-90 50 50)" tabindex="0" aria-label="${escapeHtml(label)}"><title>${escapeHtml(label)}</title></circle><g class="donut-hover-value" aria-hidden="true"><circle cx="50" cy="50" r="33"></circle><text class="donut-hover-number" x="50" y="49">${formatNumber(files)}</text><text class="donut-hover-unit" x="50" y="61">${files === 1 ? "file" : "files"}</text></g></g>`;
+    })
+    .join("");
   const legend = segments
     .map(
       ({ title, value }, index) =>
@@ -665,17 +676,24 @@ function createDonut(segments, total, unit) {
     .join("");
 
   return `<div class="donut-layout">
-  <div class="donut" style="--chart: conic-gradient(${gradient})"><div><strong>${formatNumber(total)}</strong><span>${escapeHtml(unit)}</span></div></div>
+  <div class="donut" style="--chart: conic-gradient(${gradient})"><svg class="donut-hit-regions" viewBox="0 0 100 100" aria-label="Hover or focus a ring section to see its file count">${hitRegions}</svg><div><strong>${formatNumber(total)}</strong><span>${escapeHtml(unit)}</span></div></div>
   <ul class="legend">${legend}</ul>
 </div>`;
 }
 
 function renderVisualOverview(codeReports, assets) {
-  const codeSegments = codeReports.map(({ title, totals }) => ({ title, value: totals.lines }));
-  const assetSegments = assetCategories.map(({ title, extensions }) => ({
+  const codeSegments = codeReports.map(({ title, totals }) => ({
     title,
-    value: extensions.reduce((total, extension) => total + (assets.counts.get(extension) ?? 0), 0),
+    value: totals.lines,
+    files: totals.files,
   }));
+  const assetSegments = assetCategories.map(({ title, extensions }) => {
+    const files = extensions.reduce(
+      (total, extension) => total + (assets.counts.get(extension) ?? 0),
+      0,
+    );
+    return { title, value: files, files };
+  });
   const largestSource = Math.max(...codeSegments.map(({ value }) => value));
   const bars = codeSegments
     .map(
@@ -722,6 +740,7 @@ function createHtmlReport({
   largestTestCodeFiles,
 }) {
   const totalTestCases = tests.reduce((total, { cases }) => total + cases, 0);
+  const totalTestFiles = tests.reduce((total, { files }) => total + files, 0);
   const scriptRows = scriptExtensions
     .filter((extension) => scripts.counts.get(extension) > 0)
     .map(
@@ -805,8 +824,16 @@ function createHtmlReport({
     .visual-panel { min-width: 0; }
     .visual-panel h2 { margin-bottom: 16px; }
     .donut-layout { display: flex; align-items: center; gap: 24px; }
-    .donut { display: grid; flex: 0 0 148px; width: 148px; aspect-ratio: 1; place-items: center; border-radius: 50%; background: var(--chart); }
-    .donut > div { display: grid; width: 98px; aspect-ratio: 1; place-items: center; align-content: center; border-radius: 50%; background: var(--page); text-align: center; }
+    .donut { position: relative; display: grid; flex: 0 0 148px; width: 148px; aspect-ratio: 1; place-items: center; border-radius: 50%; background: var(--chart); }
+    .donut-hit-regions { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; }
+    .donut-hit-region { fill: none; stroke: transparent; stroke-width: 18; pointer-events: stroke; cursor: help; }
+    .donut-hover-value { opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
+    .donut-hit-group:hover .donut-hover-value, .donut-hit-group:focus-within .donut-hover-value { opacity: 1; }
+    .donut-hover-value circle { fill: var(--page); }
+    .donut-hover-value text { text-anchor: middle; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .donut-hover-number { fill: var(--text); font-size: 14px; font-weight: 700; }
+    .donut-hover-unit { fill: var(--muted); font-size: 7px; }
+    .donut > div { position: relative; z-index: 1; display: grid; width: 98px; aspect-ratio: 1; place-items: center; align-content: center; border-radius: 50%; background: var(--page); text-align: center; }
     .donut strong { font-size: 1.35rem; letter-spacing: 0; }
     .donut span { color: var(--muted); font-size: 0.75rem; }
     .legend, .source-bars ul { display: grid; flex: 1; gap: 8px; padding: 0; margin: 0; list-style: none; }
@@ -831,6 +858,7 @@ function createHtmlReport({
     th:first-child, td:first-child { text-align: left; }
     th { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; }
     tbody tr:last-child td { border-bottom: 0; }
+    tfoot th, tfoot td { border-top: 2px solid var(--line); border-bottom: 0; font-weight: 700; }
     code { color: #b9e8dd; font-family: "Cascadia Code", Consolas, monospace; font-size: 0.9em; overflow-wrap: anywhere; }
     .details-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
     .details-grid h2, .largest h2 { margin-bottom: 14px; }
@@ -851,17 +879,17 @@ function createHtmlReport({
     <header><div><a class="back" href="./">&larr; Voltura Air home</a><h1>Code statistics</h1><p>Voltura Air repository overview</p></div><div class="meta">Source snapshot ${escapeHtml(generatedAt)}<br>Physical lines include blank lines; discovered test cases expand parameterized data</div></header>
     <section class="summary" aria-label="Repository summary">
       <dl class="metric"><dt>Source files</dt><dd>${formatNumber(grandTotal.files)}<span>${formatNumber(grandTotal.lines)} total lines</span></dd></dl>
-      <dl class="metric"><dt>Test cases</dt><dd>${formatNumber(totalTestCases)}<span>${formatNumber(tests.reduce((total, { files }) => total + files, 0))} test files</span></dd></dl>
+      <dl class="metric"><dt>Test cases</dt><dd>${formatNumber(totalTestCases)}<span>${formatNumber(totalTestFiles)} test files</span></dd></dl>
       <dl class="metric"><dt>Assets</dt><dd>${formatNumber(assets.total)}<span>Documents, images, cursors</span></dd></dl>
       <dl class="metric"><dt>NPM commands</dt><dd>${formatNumber(npmCommands.total)}<span>${formatNumber(scripts.total)} script files</span></dd></dl>
     </section>
     ${renderVisualOverview(codeReports, assets)}
     ${codeReports.map(renderSourceReport).join("\n")}
     <section class="details-grid" aria-label="Repository inventory">
-      <div><h2>Assets</h2><table><thead><tr><th>Group</th><th>Type</th><th>Files</th></tr></thead><tbody>${assetRows}</tbody></table></div>
-      <div><h2>Scripts</h2><table><thead><tr><th>Type</th><th>Files</th></tr></thead><tbody>${scriptRows}</tbody></table></div>
-      <div><h2>Tests</h2><table><thead><tr><th>Area</th><th>Files</th><th>Cases</th></tr></thead><tbody>${testRows}</tbody></table></div>
-      <div><h2>NPM commands</h2><table><thead><tr><th>Package</th><th>Commands</th></tr></thead><tbody>${npmRows}</tbody></table></div>
+      <div><h2>Assets</h2><table><thead><tr><th>Group</th><th>Type</th><th>Files</th></tr></thead><tbody>${assetRows}</tbody><tfoot><tr><th scope="row" colspan="2">Total</th><td>${formatNumber(assets.total)}</td></tr></tfoot></table></div>
+      <div><h2>Scripts</h2><table><thead><tr><th>Type</th><th>Files</th></tr></thead><tbody>${scriptRows}</tbody><tfoot><tr><th scope="row">Total</th><td>${formatNumber(scripts.total)}</td></tr></tfoot></table></div>
+      <div><h2>Tests</h2><table><thead><tr><th>Area</th><th>Files</th><th>Cases</th></tr></thead><tbody>${testRows}</tbody><tfoot><tr><th scope="row">Total</th><td>${formatNumber(totalTestFiles)}</td><td>${formatNumber(totalTestCases)}</td></tr></tfoot></table></div>
+      <div><h2>NPM commands</h2><table><thead><tr><th>Package</th><th>Commands</th></tr></thead><tbody>${npmRows}</tbody><tfoot><tr><th scope="row">Total</th><td>${formatNumber(npmCommands.total)}</td></tr></tfoot></table></div>
     </section>
     <section class="details-grid" aria-label="File dates and largest files">
       <div><h2>File dates</h2><div class="date-list"><div><span>Oldest modified</span><strong>${formatDate(fileDetails.oldest.modified)}</strong></div><code>${escapeHtml(relativePath(fileDetails.oldest.file))}</code><div><span>Newest modified</span><strong>${formatDate(fileDetails.newest.modified)}</strong></div><code>${escapeHtml(relativePath(fileDetails.newest.file))}</code></div></div>

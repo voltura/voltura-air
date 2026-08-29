@@ -172,4 +172,17 @@ test("HTML statistics report uses the comprehensive public source inventory", as
   assert.doesNotMatch(html, /untracked-root/u);
   assert.match(html, /<dt>Assets<\/dt><dd>1/u);
   assert.match(html, /<dt>NPM commands<\/dt><dd>1<span>7 script files<\/span>/u);
+  const sourceRanking = html.match(
+    /<h2>Top 10 largest source code files<\/h2><ol>(.*?)<\/ol>/u,
+  )?.[1];
+  const testRanking = html.match(
+    /<h2>Top 10 largest test source code files<\/h2><ol>(.*?)<\/ol>/u,
+  )?.[1];
+  assert.ok(sourceRanking);
+  assert.ok(testRanking);
+  assert.match(sourceRanking, /apps\/mobile-web\/src\/App\.tsx/u);
+  assert.doesNotMatch(sourceRanking, /\.test\.|tests\/VolturaAir\.Host\.Tests|tests\/scripts/u);
+  assert.match(testRanking, /apps\/mobile-web\/src\/App\.test\.tsx/u);
+  assert.match(testRanking, /tests\/VolturaAir\.Host\.Tests\/HostTests\.cs/u);
+  assert.doesNotMatch(testRanking, /apps\/mobile-web\/src\/App\.tsx/u);
 });

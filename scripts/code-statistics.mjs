@@ -64,6 +64,7 @@ const reports = [
   },
   {
     title: "Mobile client tests",
+    sourceType: "test",
     locations: ["apps/mobile-web"],
     directories: ["apps/mobile-web"],
     extensions: new Set([".js", ".jsx", ".mjs", ".ts", ".tsx"]),
@@ -71,6 +72,7 @@ const reports = [
   },
   {
     title: "Windows host tests",
+    sourceType: "test",
     locations: ["tests/VolturaAir.Host.Tests"],
     directories: ["tests/VolturaAir.Host.Tests"],
     extensions: new Set([".cs", ".csproj"]),
@@ -85,6 +87,7 @@ const reports = [
   },
   {
     title: "Relay service tests",
+    sourceType: "test",
     locations: ["services/relay/tests"],
     directories: ["services/relay/tests"],
     extensions: new Set([".ts"]),
@@ -110,6 +113,7 @@ const reports = [
   },
   {
     title: "Repository automation tests",
+    sourceType: "test",
     locations: ["tests/scripts"],
     directories: ["tests/scripts"],
     extensions: new Set([".mjs"]),
@@ -229,6 +233,7 @@ async function createSourceReport(
     extensions,
     includePattern,
     excludePattern,
+    sourceType = "production",
   },
   repositoryFiles,
 ) {
@@ -264,7 +269,7 @@ async function createSourceReport(
     { files: 0, lines: 0 },
   );
 
-  return { title, locations, totals, byExtension, files };
+  return { title, locations, totals, byExtension, files, sourceType };
 }
 
 async function createAssetsReport(repositoryFiles) {
@@ -486,9 +491,10 @@ async function createFileDetailsReport(repositoryFiles) {
   };
 }
 
-async function createCodeFileDetailsReport(codeReports) {
+async function createCodeFileDetailsReport(codeReports, sourceType) {
   const files = await Promise.all(
     codeReports
+      .filter((report) => report.sourceType === sourceType)
       .flatMap(({ files: reportFiles }) => reportFiles)
       .map(async (file) => {
         const metadata = await stat(file);
@@ -594,8 +600,8 @@ function printFileDetailsReport({ oldest, newest, largest }) {
   }
 }
 
-function printLargestCodeFiles(largestCodeFiles) {
-  writeLine("Top 10 largest source code files");
+function printLargestCodeFiles(title, largestCodeFiles) {
+  writeLine(title);
   for (const { file, size } of largestCodeFiles) {
     writeLine(`  ${formatSize(size).padStart(10)}  ${relativePath(file)}`);
   }
@@ -712,7 +718,8 @@ function createHtmlReport({
   scripts,
   npmCommands,
   fileDetails,
-  largestCodeFiles,
+  largestSourceCodeFiles,
+  largestTestCodeFiles,
 }) {
   const totalTestCases = tests.reduce((total, { cases }) => total + cases, 0);
   const scriptRows = scriptExtensions
@@ -749,13 +756,17 @@ function createHtmlReport({
         `<li><div><code>${escapeHtml(relativePath(file))}</code><strong>${formatSize(size)}</strong></div><span style="--size: ${Math.max(2, (size / largestSize) * 100).toFixed(2)}%"></span></li>`,
     )
     .join("");
-  const largestCodeSize = largestCodeFiles[0]?.size ?? 1;
-  const largestCodeRows = largestCodeFiles
-    .map(
-      ({ file, size }) =>
-        `<li><div><code>${escapeHtml(relativePath(file))}</code><strong>${formatSize(size)}</strong></div><span style="--size: ${Math.max(2, (size / largestCodeSize) * 100).toFixed(2)}%"></span></li>`,
-    )
-    .join("");
+  const createLargestCodeRows = (files) => {
+    const largestSize = files[0]?.size ?? 1;
+    return files
+      .map(
+        ({ file, size }) =>
+          `<li><div><code>${escapeHtml(relativePath(file))}</code><strong>${formatSize(size)}</strong></div><span style="--size: ${Math.max(2, (size / largestSize) * 100).toFixed(2)}%"></span></li>`,
+      )
+      .join("");
+  };
+  const largestSourceCodeRows = createLargestCodeRows(largestSourceCodeFiles);
+  const largestTestCodeRows = createLargestCodeRows(largestTestCodeFiles);
   const generatedAt = fileDetails.newest.modified.toLocaleDateString("en-US", {
     dateStyle: "medium",
   });
@@ -856,7 +867,8 @@ function createHtmlReport({
       <div><h2>File dates</h2><div class="date-list"><div><span>Oldest modified</span><strong>${formatDate(fileDetails.oldest.modified)}</strong></div><code>${escapeHtml(relativePath(fileDetails.oldest.file))}</code><div><span>Newest modified</span><strong>${formatDate(fileDetails.newest.modified)}</strong></div><code>${escapeHtml(relativePath(fileDetails.newest.file))}</code></div></div>
       <div><h2>Largest file</h2><div class="date-list"><div><span>Size</span><strong>${formatSize(fileDetails.largest[0].size)}</strong></div><code>${escapeHtml(relativePath(fileDetails.largest[0].file))}</code></div></div>
     </section>
-    <section class="largest"><h2>Top 10 largest source code files</h2><ol>${largestCodeRows}</ol></section>
+    <section class="largest"><h2>Top 10 largest source code files</h2><ol>${largestSourceCodeRows}</ol></section>
+    <section class="largest"><h2>Top 10 largest test source code files</h2><ol>${largestTestCodeRows}</ol></section>
     <section class="largest"><h2>Top 10 largest maintained files</h2><ol>${largestRows}</ol></section>
     <footer>Build output, dependencies, coverage output, and other generated directories are excluded. Source totals include every maintained production, test, website, installer, and repository automation area.</footer>
   </main>
@@ -882,7 +894,8 @@ const codeReports = await Promise.all(
   reports.map((report) => createSourceReport(report, repositoryFiles)),
 );
 const grandTotal = createGrandTotal(codeReports);
-const largestCodeFiles = await createCodeFileDetailsReport(codeReports);
+const largestSourceCodeFiles = await createCodeFileDetailsReport(codeReports, "production");
+const largestTestCodeFiles = await createCodeFileDetailsReport(codeReports, "test");
 const assets = await createAssetsReport(repositoryFiles);
 const tests = await createTestsReport(repositoryFiles);
 const scripts = createScriptsReport(repositoryFiles);
@@ -908,7 +921,9 @@ if (!quietMode) {
   writeLine();
   printNpmCommandsReport(npmCommands);
   writeLine();
-  printLargestCodeFiles(largestCodeFiles);
+  printLargestCodeFiles("Top 10 largest source code files", largestSourceCodeFiles);
+  writeLine();
+  printLargestCodeFiles("Top 10 largest test source code files", largestTestCodeFiles);
   writeLine();
   printFileDetailsReport(fileDetails);
 }
@@ -924,7 +939,8 @@ if (reportMode) {
       scripts,
       npmCommands,
       fileDetails,
-      largestCodeFiles,
+      largestSourceCodeFiles,
+      largestTestCodeFiles,
     }),
     "utf8",
   );

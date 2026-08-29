@@ -174,10 +174,12 @@ Files follows the same lazy feature boundary: the initial shell carries only cap
 
 `TerminalCoordinator` owns the single host-wide terminal lifecycle, paired-device ownership, signed setup/re-attachment, exact acknowledged output buffer, reconnect deadline, and permission/revocation response. `ConPtyTerminalProcessFactory` creates Windows PowerShell suspended, attaches it to ConPTY and a kill-on-close Job Object, then resumes it; failure before ownership transfer terminates the suspended process. `TerminalWebRtcPeer` owns the dedicated `voltura-terminal` DataChannel and direct or relay-only ICE. Bounded queues and pipe backpressure isolate terminal traffic from `WebSocketSessionHandler`. The mobile `features/terminal` chunk owns xterm.js, the peer, rendered-offset acknowledgement, mobile keys, resize, and in-memory-only terminal state; App keeps that chunk mounted after first entry so ordinary in-app navigation does not stop the session.
 
-`AiAssistantCoordinator` owns the coalesced background availability-probe lane,
-the cancellable pending-open state and serialized terminal publication on live permission changes, one-device
-Assistant session, authenticated operation replay window, app-server lifetime,
-turn state, and ordered bounded output. `CodexAppServerClient` owns persistent
+`AiAssistantSessionManager` owns the one host-wide exclusive Assistant lease,
+app-server lifetime, persistent transcript, and turn state shared by the WPF
+screen and one paired device. `AiAssistantPageController` is the local adapter;
+`AiAssistantCoordinator` remains the authenticated mobile adapter and owns its
+cancellable pending-open state, operation replay window, and ordered bounded
+output. `CodexAppServerClient` owns persistent
 Assistant-thread discovery, creation and replacement, exact-name repair after
 an interrupted operation, bounded newest-turn paging, and the app-server protocol
 shapes. It launches Codex only through hidden stdio;

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using VolturaAir.Host.Features.Connect;
+using VolturaAir.Host.Features.AiAssistant;
 using VolturaAir.Host.Features.Connection;
 using VolturaAir.Host.Features.CustomScreens;
 using VolturaAir.Host.Features.Devices;
@@ -25,6 +26,7 @@ internal sealed class MainWindowNavigationController(
     CustomScreensPageController customScreensPage,
     PresentationsPageController presentationsPage,
     PhoneWebcamPageController phoneWebcamPage,
+    AiAssistantPageController aiAssistantPage,
     ConnectionPageController connectionPage,
     PreferencesPageController preferencesPage,
     DiagnosticsPageController diagnosticsPage,
@@ -60,6 +62,11 @@ internal sealed class MainWindowNavigationController(
             phoneWebcamPage.StopPreview();
         }
 
+        if (previousPage == HostPage.AiAssistant && page != HostPage.AiAssistant)
+        {
+            aiAssistantPage.Stop();
+        }
+
         ActivePage = page;
         refreshStatus();
         RefreshTheme();
@@ -91,6 +98,7 @@ internal sealed class MainWindowNavigationController(
         HostPage.CustomScreens => "Custom screens",
         HostPage.Presentations => "Presentations",
         HostPage.PhoneWebcam => "Phone webcam",
+        HostPage.AiAssistant => "AI Assistant",
         HostPage.Connection => "Connection",
         HostPage.Preferences => "Preferences",
         HostPage.Diagnostics => "Diagnostics",
@@ -126,6 +134,12 @@ internal sealed class MainWindowNavigationController(
                 pageSubtitle.Text = "Use your phone as a camera in Windows apps.";
                 pageContent.Content = phoneWebcamPage.CreateView();
                 break;
+            case HostPage.AiAssistant:
+                pageTitle.Text = "AI Assistant";
+                pageSubtitle.Text = "AI help from your PC.";
+                pageContent.Content = aiAssistantPage.CreateView(
+                    preserveState: previousPage == HostPage.AiAssistant);
+                break;
             case HostPage.Connection:
                 pageTitle.Text = "Connection";
                 pageSubtitle.Text = "Voltura Air selects connection settings automatically. Change them only if a device cannot connect.";
@@ -154,6 +168,7 @@ public enum HostPage
     CustomScreens,
     Presentations,
     PhoneWebcam,
+    AiAssistant,
     Connection,
     Preferences,
     Diagnostics

@@ -218,6 +218,7 @@
         "type": "Project",
         "dependencies": {
           "Concentus": "[2.2.2, )",
+          "Markdig": "[1.3.2, )",
           "Microsoft.Web.WebView2": "[1.0.4129.50, )",
           "NAudio.Wasapi": "[3.0.1, )",
           "QRCoder": "[1.8.0, )",
@@ -232,6 +233,12 @@
         "requested": "[2.2.2, )",
         "resolved": "2.2.2",
         "contentHash": "2B9YmHPKO+k7YpAAnqmiXwiMJnfjfj1C868RszOll2iZWLnGTAiC1q21L/d7CvTan7T+hyqU8dR0Dcy3cpjVfQ=="
+      },
+      "Markdig": {
+        "type": "CentralTransitive",
+        "requested": "[1.3.2, )",
+        "resolved": "1.3.2",
+        "contentHash": "fZgOC/3CswUrndjDTac70aQpYdtxbW5+5bRumR7vzvI2HJbkmgKisB1c9oT+GA6v0jB/JDR9BLa9FiPzQmaK6A=="
       },
       "Microsoft.Web.WebView2": {
         "type": "CentralTransitive",

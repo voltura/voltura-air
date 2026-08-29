@@ -158,6 +158,7 @@ async function verifyMaintainedInventory() {
     "libdatachannel 0.24.5",
     "OpenSSL 3.6.3",
     "Microsoft WebView2 SDK | 1.0.4129.50",
+    "Markdig | 1.3.2",
     "QRCoder | 1.8.0",
     "Vortice.Windows | 3.8.3",
     "Vortice.Mathematics | 2.1.1",
@@ -174,6 +175,7 @@ async function verifyMaintainedInventory() {
 
   const directHostPackages = [
     ["Microsoft.Web.WebView2", "1.0.4129.50"],
+    ["Markdig", "1.3.2"],
     ["QRCoder", "1.8.0"],
     ["Vortice.Direct3D11", "3.8.3"],
     ["Vortice.D3DCompiler", "3.8.3"],
@@ -217,6 +219,7 @@ async function verifyMaintainedInventory() {
     ["apps", "windows-host", "ThirdPartyNotices", "libdatachannel", "SOURCE.txt"],
     ["apps", "windows-host", "ThirdPartyNotices", "managed", "Microsoft.Web.WebView2-LICENSE.txt"],
     ["apps", "windows-host", "ThirdPartyNotices", "managed", "Microsoft.Web.WebView2-NOTICE.txt"],
+    ["apps", "windows-host", "ThirdPartyNotices", "managed", "Markdig-LICENSE.txt"],
     ["apps", "windows-host", "ThirdPartyNotices", "managed", "QRCoder-LICENSE.txt"],
     ["apps", "windows-host", "ThirdPartyNotices", "managed", "Vortice-SharpGen-LICENSE.txt"],
     ["apps", "windows-host", "ThirdPartyNotices", "managed", "Concentus-LICENSE.txt"],

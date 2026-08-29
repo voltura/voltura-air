@@ -69,6 +69,30 @@ public sealed class WebHostAiAssistantTests : WebHostServiceTestBase
     }
 
     [Fact]
+    public async Task HostOwnershipChangesAreBroadcastToPairedDevices()
+    {
+        var factory = new FakeAssistantClientFactory();
+        await using var fixture = await WebHostFixture.StartAsync(aiAssistantClientFactory: factory);
+        using var key = new PairingTestKey();
+        using WebSocket socket = await ConnectAsync(fixture.WebHost);
+        await PairAsync(socket, fixture.Manager, key);
+        _ = await SendUntilTypeAsync(socket, new { type = "status.get" }, "status");
+
+        var hostOwner = new object();
+        AiAssistantSessionOpenResult opened = await fixture.WebHost.AiAssistantSessions.TryOpenAsync(
+            hostOwner,
+            TestContext.Current.CancellationToken);
+        Assert.True(opened.Succeeded);
+
+        JsonElement active = await ReceiveUntilAssistantOwnershipAsync(socket, active: true);
+        Assert.False(active.GetProperty("ownedByClient").GetBoolean());
+        Assert.False(active.GetProperty("working").GetBoolean());
+
+        await opened.Lease!.DisposeAsync();
+        _ = await ReceiveUntilAssistantOwnershipAsync(socket, active: false);
+    }
+
+    [Fact]
     public async Task InvalidProofAndWrongProfileNeverConnectToCodex()
     {
         var factory = new FakeAssistantClientFactory();
@@ -795,6 +819,20 @@ public sealed class WebHostAiAssistantTests : WebHostServiceTestBase
                 return;
         }
         throw new InvalidOperationException($"The host did not advertise AI Assistant availability {expected}.");
+    }
+
+    private static async Task<JsonElement> ReceiveUntilAssistantOwnershipAsync(WebSocket socket, bool active)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        for (int attempt = 0; attempt < 16; attempt++)
+        {
+            using JsonDocument document = JsonDocument.Parse(await ReceiveTextAsync(socket, timeout.Token));
+            JsonElement root = document.RootElement;
+            if (root.GetProperty("type").GetString() != "status") continue;
+            JsonElement assistant = root.GetProperty("capabilities").GetProperty("aiAssistant");
+            if (assistant.GetProperty("active").GetBoolean() == active) return assistant.Clone();
+        }
+        throw new InvalidOperationException($"The host did not advertise AI Assistant ownership {active}.");
     }
 
     private sealed class FakeAssistantClientFactory : IAiAssistantClientFactory

@@ -167,6 +167,7 @@
                     <Button x:Name="CustomScreensNavButton" Content="Custom screens" Style="{StaticResource MenuButtonStyle}" Click="OnCustomScreensNavClicked" />
                     <Button x:Name="PresentationsNavButton" Content="Presentations" Style="{StaticResource MenuButtonStyle}" Click="OnPresentationsNavClicked" />
                     <Button x:Name="PhoneWebcamNavButton" Content="Phone webcam" Style="{StaticResource MenuButtonStyle}" Click="OnPhoneWebcamNavClicked" />
+                    <Button x:Name="AiAssistantNavButton" Content="AI Assistant" Style="{StaticResource MenuButtonStyle}" Click="OnAiAssistantNavClicked" />
                     <Button x:Name="ConnectionNavButton" Content="Connection" Style="{StaticResource MenuButtonStyle}" Click="OnConnectionNavClicked" />
                     <Button x:Name="PreferencesNavButton" Content="Preferences" Style="{StaticResource MenuButtonStyle}" Click="OnPreferencesNavClicked" />
                     <Button x:Name="DiagnosticsNavButton" Content="Diagnostics" Style="{StaticResource MenuButtonStyle}" Click="OnDiagnosticsNavClicked" />

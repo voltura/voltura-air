@@ -220,6 +220,23 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                     FindWpfDescendants<TextBlock>(window),
                     text => text.Text == "Use your phone as a camera in Windows apps.");
 
+                Assert.Contains(
+                    FindWpfDescendants<Button>(window),
+                    button => button.Content?.ToString() == "AI Assistant" && button.IsEnabled);
+                window.ShowPage(HostPage.AiAssistant);
+                WaitForWpf(
+                    () => FindWpfDescendants<TextBlock>(window).Any(text => text.Text == "Codex required"),
+                    "AI Assistant missing-Codex state");
+                Assert.Contains(
+                    FindWpfDescendants<TextBlock>(window),
+                    text => text.Text == "Install Codex and sign in to use AI Assistant.");
+                Assert.Contains(
+                    FindWpfDescendants<Button>(window),
+                    button => button.Content?.ToString() == "Retry");
+                Assert.DoesNotContain(
+                    FindWpfDescendants<Button>(window),
+                    button => button.Content?.ToString()?.Contains("microphone", StringComparison.OrdinalIgnoreCase) == true);
+
                 window.ShowPage(HostPage.Preferences);
                 window.UpdateLayout();
                 var sections = FindWpfDescendants<Expander>(window).ToArray();

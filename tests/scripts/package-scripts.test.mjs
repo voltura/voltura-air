@@ -339,6 +339,7 @@ test("release packaging requires all runtime notices and the native Screen WebRT
   assert.match(packageWindowsScript, /openssl-LICENSE\.txt/u);
   assert.match(packageWindowsScript, /libdatachannel\\SOURCE\.txt/u);
   assert.match(packageWindowsScript, /Microsoft\.Web\.WebView2-NOTICE\.txt/u);
+  assert.match(packageWindowsScript, /Markdig-LICENSE\.txt/u);
   assert.match(packageWindowsScript, /QRCoder-LICENSE\.txt/u);
   assert.match(packageWindowsScript, /Vortice-SharpGen-LICENSE\.txt/u);
   assert.match(packageWindowsScript, /wwwroot\\third-party-notices\.txt/u);

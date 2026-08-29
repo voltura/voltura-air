@@ -37,6 +37,7 @@ function Assert-ScreenWebRtcPayload {
         "ThirdPartyNotices\README.txt",
         "ThirdPartyNotices\managed\Microsoft.Web.WebView2-LICENSE.txt",
         "ThirdPartyNotices\managed\Microsoft.Web.WebView2-NOTICE.txt",
+        "ThirdPartyNotices\managed\Markdig-LICENSE.txt",
         "ThirdPartyNotices\managed\QRCoder-LICENSE.txt",
         "ThirdPartyNotices\managed\Vortice-SharpGen-LICENSE.txt",
         "ThirdPartyNotices\libdatachannel\libdatachannel-LICENSE.txt",

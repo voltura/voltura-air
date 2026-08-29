@@ -18,6 +18,9 @@ internal interface IAiAssistantClient : IAsyncDisposable
 internal interface IAiAssistantClientFactory
 {
     bool IsAvailable { get; }
+    AiAssistantAvailability Availability => IsAvailable
+        ? AiAssistantAvailability.Ready
+        : AiAssistantAvailability.CodexMissing;
     Task<IAiAssistantClient> ConnectAsync(CancellationToken cancellationToken);
 }
 
@@ -26,6 +29,7 @@ internal sealed class CodexAiAssistantClientFactory : IAiAssistantClientFactory
     internal static CodexAiAssistantClientFactory Instance { get; } = new();
     private CodexAiAssistantClientFactory() { }
     public bool IsAvailable => AiAssistantProfile.IsAvailable;
+    public AiAssistantAvailability Availability => AiAssistantProfile.Availability;
     public async Task<IAiAssistantClient> ConnectAsync(CancellationToken cancellationToken) =>
         await CodexAppServerClient.ConnectAsync(cancellationToken).ConfigureAwait(false);
 }

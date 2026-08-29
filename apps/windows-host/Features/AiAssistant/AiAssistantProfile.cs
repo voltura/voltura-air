@@ -22,9 +22,21 @@ internal static class AiAssistantProfile
     internal static string KnowledgeRoot => Path.Combine(AppContext.BaseDirectory, "AiAssistantKnowledge");
     internal static string SkillPath => Path.Combine(KnowledgeRoot, "AssistantSkill", "SKILL.md");
 
-    internal static bool IsAvailable =>
-        CodexAppServerProcess.IsAvailable &&
-        Directory.Exists(KnowledgeRoot) &&
-        File.Exists(Path.Combine(KnowledgeRoot, "docs", "README.md")) &&
-        File.Exists(SkillPath);
+    internal static AiAssistantAvailability Availability =>
+        !CodexAppServerProcess.IsAvailable
+            ? AiAssistantAvailability.CodexMissing
+            : !Directory.Exists(KnowledgeRoot) ||
+              !File.Exists(Path.Combine(KnowledgeRoot, "docs", "README.md")) ||
+              !File.Exists(SkillPath)
+                ? AiAssistantAvailability.KnowledgeMissing
+                : AiAssistantAvailability.Ready;
+
+    internal static bool IsAvailable => Availability == AiAssistantAvailability.Ready;
+}
+
+internal enum AiAssistantAvailability
+{
+    Ready,
+    CodexMissing,
+    KnowledgeMissing
 }

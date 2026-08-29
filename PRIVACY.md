@@ -48,8 +48,9 @@ directory, and Windows key store:
   restart cleanup. The journal is cleared after cleanup and interrupted work is
   not resumed automatically.
 
-When AI Assistant is available and a My device user opens it, Voltura Air starts
-the locally installed Codex app-server with the user's existing Codex account.
+When AI Assistant is opened from the Windows host or by a My device user,
+Voltura Air starts the locally installed Codex app-server with the user's
+existing Codex account.
 Questions and answers travel over the same authenticated Direct or end-to-end
 encrypted Relay command connection as other controls. Voltura Air does not log,
 add to telemetry, or separately persist prompts, answers, file contents, paths,

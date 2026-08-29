@@ -331,6 +331,7 @@ internal static class Program
             "voltura-air-host-dark.png" => Path.Combine(assetsDirectory, "voltura-air-host-dark.png"),
             "voltura-air-host-custom-screens.png" => Path.Combine(assetsDirectory, "voltura-air-host-custom-screens.png"),
             "voltura-air-host-custom-screens-dark.png" => Path.Combine(assetsDirectory, "voltura-air-host-custom-screens-dark.png"),
+            "voltura-air-host-ai-assistant-preview.png" => Path.Combine(Path.GetTempPath(), "voltura-air-host-ai-assistant-preview.png"),
             _ => throw new InvalidOperationException("Site screenshots may only write the curated host image files.")
         };
 
@@ -339,7 +340,7 @@ internal static class Program
             Path.GetFullPath(resolvedOutputPath),
             StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("Site screenshots must be written to apps/public-site/assets.");
+            throw new InvalidOperationException("Site screenshots must be written to their curated output path.");
         }
 
         return resolvedOutputPath;

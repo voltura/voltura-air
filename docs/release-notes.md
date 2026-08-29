@@ -6,6 +6,14 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.1.6
+
+- Added **AI Assistant** for Windows host when Codex is installed
+  on the PC. Ask how Voltura Air works, get troubleshooting help,
+  or ask read-only questions about information available to your Windows account.
+  Answers with clear progress updates while the Assistant is
+  still investigating.
+
 ## v1.1.5
 
 - Improved Remote controls so Standard, YouTube, and Kodi can be selected

@@ -11,7 +11,7 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
     private readonly PairingManager pairingManager;
     private readonly HostStatusPayloadFactory status;
     private readonly WebSocketTransport transport;
-    private readonly IAiAssistantClientFactory _clientFactory;
+    private readonly AiAssistantSessionManager _sessions;
     private readonly Lock _gate = new();
     private const int MaximumQueuedCommands = 32;
     private readonly Channel<QueuedCommand> _commands = Channel.CreateBounded<QueuedCommand>(new BoundedChannelOptions(MaximumQueuedCommands + 1)
@@ -35,12 +35,13 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
         PairingManager pairingManager,
         HostStatusPayloadFactory status,
         WebSocketTransport transport,
-        IAiAssistantClientFactory? clientFactory = null)
+        AiAssistantSessionManager sessions)
     {
         this.pairingManager = pairingManager;
         this.status = status;
         this.transport = transport;
-        _clientFactory = clientFactory ?? CodexAiAssistantClientFactory.Instance;
+        _sessions = sessions;
+        _sessions.StateChanged += OnSessionStateChanged;
         pairingManager.PermissionsChanged += OnPermissionsChanged;
         pairingManager.PairingRevoked += OnPairingRevoked;
         AppPermissionSettings.Changed += OnPermissionsChanged;
@@ -51,16 +52,16 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
 
     internal AiAssistantCapabilityState GetCapability(string clientId)
     {
-        bool available = _clientFactory.IsAvailable;
+        bool available = _sessions.IsAvailable;
         lock (_gate)
         {
             const bool enabled = true;
             return new(
                 enabled,
                 available,
-                _active is not null,
-                _active?.ClientId == clientId,
-                _active?.TurnRunning == true,
+                _sessions.IsActive,
+                _active is not null && _active.ClientId == clientId && _sessions.IsOwnedBy(_active),
+                _sessions.IsWorking,
                 _active?.FailureCode);
         }
     }
@@ -254,7 +255,7 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
                 }
                 else if (_active.ClientId == clientId)
                 {
-                    if (_active.TurnRunning)
+                    if (_active.Lease?.IsWorking == true)
                     {
                         ownerIsWorking = true;
                         session = null!;
@@ -294,21 +295,33 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
 
         try
         {
-            if (session.Client is null)
+            if (session.Lease is null)
             {
-                session.Client = await _clientFactory.ConnectAsync(cancellationToken).ConfigureAwait(false);
-                session.Client.AgentMessageCompleted += (threadId, turnId, itemId, text) => OnAssistantMessage(session, threadId, turnId, itemId, text);
-                session.Client.TurnCompleted += (threadId, turnId, turnStatus) => OnTurnCompleted(session, threadId, turnId, turnStatus);
-                session.Client.ConnectionClosed += () => OnConnectionClosed(session);
-                CodexThreadSummary? thread = await session.Client.FindAssistantAsync(cancellationToken).ConfigureAwait(false);
-                ThrowIfNotLive(session);
-                if (thread is null) thread = await session.Client.StartAssistantAsync(cancellationToken).ConfigureAwait(false);
-                else await session.Client.ResumeAssistantAsync(thread.Id, cancellationToken).ConfigureAwait(false);
-                ThrowIfNotLive(session);
-                session.ThreadId = thread.Id;
+                AiAssistantSessionOpenResult opened = await _sessions.TryOpenAsync(session, cancellationToken).ConfigureAwait(false);
+                if (!opened.Succeeded)
+                {
+                    await SendResultAsync(
+                        socket,
+                        "ai.assistant.open.result",
+                        operationId,
+                        false,
+                        opened.Code,
+                        opened.Message ?? "Codex is unavailable.",
+                        cancellationToken).ConfigureAwait(false);
+                    await EndAsync(session, notify: false).ConfigureAwait(false);
+                    return;
+                }
+                AiAssistantSessionLease lease = opened.Lease!;
+                session.Lease = lease;
+                lease.MessageCompleted += (itemId, text) => OnAssistantMessage(session, itemId, text);
+                lease.TurnStateChanged += (turnState, message) => OnTurnCompleted(session, turnState, message);
+                lease.ConnectionClosed += () => OnConnectionClosed(session);
+                session.InitialSnapshot = opened.Snapshot;
             }
 
-            CodexThreadDetail snapshot = await session.Client.ReadThreadAsync(session.ThreadId!, cancellationToken).ConfigureAwait(false);
+            CodexThreadDetail snapshot = session.InitialSnapshot ??
+                await session.Lease.ReadAsync(cancellationToken).ConfigureAwait(false);
+            session.InitialSnapshot = null;
             ThrowIfNotLive(session);
             await pendingOpen.PublishOpenResultAsync(
                 token => SendResultAsync(socket, "ai.assistant.open.result", operationId, true, null, "AI Assistant ready.", token),
@@ -316,7 +329,7 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
             openedResultSent = true;
             await SendSnapshotAsync(session, snapshot, cancellationToken).ConfigureAwait(false);
             ThrowIfNotLive(session);
-            await SendStateAsync(session, session.TurnRunning ? "working" : "ready", null, cancellationToken).ConfigureAwait(false);
+            await SendStateAsync(session, session.Lease.IsWorking ? "working" : "ready", null, cancellationToken).ConfigureAwait(false);
             StateChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception exception) when (exception is CodexCompatibilityException or IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or NotSupportedException)
@@ -331,7 +344,7 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
     private async Task AskAsync(WebSocket socket, string clientId, string operationId, string question, string signature, CancellationToken cancellationToken)
     {
         AssistantSession? session = GetOwned(clientId, socket);
-        if (session is null || session.Client is null || session.ThreadId is null)
+        if (session?.Lease is null)
         {
             await SendResultAsync(socket, "ai.assistant.ask.result", operationId, false, "not-open", "Open the AI Assistant first.", cancellationToken).ConfigureAwait(false);
             return;
@@ -343,9 +356,9 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
             return;
         }
         string normalized = question.Trim();
-        if (session.TurnRunning || !RememberOperationThreadSafe(clientId, operationId))
+        if (session.Lease.IsWorking || !RememberOperationThreadSafe(clientId, operationId))
         {
-            await SendResultAsync(socket, "ai.assistant.ask.result", operationId, false, session.TurnRunning ? "busy" : "replayed-operation", session.TurnRunning ? "Wait for the current answer to finish." : "This question was already submitted.", cancellationToken).ConfigureAwait(false);
+            await SendResultAsync(socket, "ai.assistant.ask.result", operationId, false, session.Lease.IsWorking ? "busy" : "replayed-operation", session.Lease.IsWorking ? "Wait for the current answer to finish." : "This question was already submitted.", cancellationToken).ConfigureAwait(false);
             return;
         }
         if (!Verify(clientId, signature, AiAssistantProtocol.AskTranscript(clientId, pairingManager.HostIdentity.PublicKey, operationId, normalized)))
@@ -356,10 +369,8 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
 
         try
         {
-            CodexTurnHandle turn = await session.Client.StartTurnAsync(session.ThreadId, normalized, session.Lifetime.Token).ConfigureAwait(false);
+            await session.Lease.StartTurnAsync(normalized, session.Lifetime.Token).ConfigureAwait(false);
             ThrowIfNotLive(session);
-            session.TurnId = turn.TurnId;
-            session.TurnRunning = true;
             try
             {
                 await SendMessageAsync(session, operationId, "user", normalized, session.Lifetime.Token).ConfigureAwait(false);
@@ -372,13 +383,12 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
             {
                 // Codex can complete a very short turn before turn/start returns. Hold those
                 // notifications until the user's message and working state are ordered first.
-                session.Client.ReleaseTurnNotifications(session.ThreadId);
+                session.Lease.ReleaseTurnNotifications();
             }
             StateChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception exception) when (exception is CodexCompatibilityException or IOException or InvalidOperationException)
         {
-            session.TurnRunning = false;
             session.FailureCode = "turn-uncertain";
             await SendResultAsync(
                 socket,
@@ -396,9 +406,9 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
     {
         bool resetResultSent = false;
         AssistantSession? session = GetOwned(clientId, socket);
-        if (session is null || session.Client is null || session.TurnRunning)
+        if (session?.Lease is null || session.Lease.IsWorking)
         {
-            await SendResultAsync(socket, "ai.assistant.reset.result", operationId, false, "busy", session?.TurnRunning == true ? "Wait for the current answer to finish." : "Open the AI Assistant first.", cancellationToken).ConfigureAwait(false);
+            await SendResultAsync(socket, "ai.assistant.reset.result", operationId, false, "busy", session?.Lease?.IsWorking == true ? "Wait for the current answer to finish." : "Open the AI Assistant first.", cancellationToken).ConfigureAwait(false);
             return;
         }
         if (!RememberOperationThreadSafe(clientId, operationId) || !Verify(clientId, signature, AiAssistantProtocol.ResetTranscript(clientId, pairingManager.HostIdentity.PublicKey, operationId)))
@@ -408,13 +418,8 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
         }
         try
         {
-            string previousThreadId = session.ThreadId!;
-            CodexThreadSummary replacement = await session.Client.ReplaceAssistantAsync(previousThreadId, session.Lifetime.Token).ConfigureAwait(false);
-            ThrowIfNotLive(session);
-            session.ThreadId = replacement.Id;
-            session.TurnId = null;
+            CodexThreadDetail snapshot = await session.Lease.ResetAsync(session.Lifetime.Token).ConfigureAwait(false);
             ResetSequence(session);
-            CodexThreadDetail snapshot = await session.Client.ReadThreadAsync(session.ThreadId, session.Lifetime.Token).ConfigureAwait(false);
             ThrowIfNotLive(session);
             await SendResultAsync(socket, "ai.assistant.reset.result", operationId, true, null, "New Assistant conversation ready.", session.Lifetime.Token).ConfigureAwait(false);
             resetResultSent = true;
@@ -467,9 +472,9 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
         await transport.SendAsync(session.Socket, new { type = "ai.assistant.snapshot.complete", messageCount = detail.Entries.Count }, cancellationToken).ConfigureAwait(false);
     }
 
-    private void OnAssistantMessage(AssistantSession session, string threadId, string turnId, string itemId, string text)
+    private void OnAssistantMessage(AssistantSession session, string itemId, string text)
     {
-        if (session.ThreadId != threadId || session.TurnId != turnId || session.Lifetime.IsCancellationRequested) return;
+        if (session.Lifetime.IsCancellationRequested) return;
         if (!session.EnqueueOutbound(async () =>
         {
             try
@@ -488,14 +493,11 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
         }
     }
 
-    private void OnTurnCompleted(AssistantSession session, string threadId, string turnId, string turnStatus)
+    private void OnTurnCompleted(AssistantSession session, string turnState, string? message)
     {
-        if (session.ThreadId != threadId || session.TurnId != turnId) return;
         if (!session.EnqueueOutbound(async () =>
         {
-            session.TurnRunning = false;
-            session.TurnId = null;
-            try { await SendStateAsync(session, turnStatus == "completed" ? "ready" : "failed", turnStatus == "completed" ? null : "The Assistant answer did not complete.", session.Lifetime.Token).ConfigureAwait(false); }
+            try { await SendStateAsync(session, turnState, message, session.Lifetime.Token).ConfigureAwait(false); }
             catch (Exception exception) when (exception is WebSocketException or ObjectDisposedException or OperationCanceledException)
             {
                 session.FailureCode = "transport-closed";
@@ -514,6 +516,9 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
         session.FailureCode = "codex-closed";
         _ = EndAsync(session);
     }
+
+    private void OnSessionStateChanged(object? sender, EventArgs e) =>
+        StateChanged?.Invoke(this, EventArgs.Empty);
 
     internal void ClientDisconnected(string clientId, WebSocket socket)
     {
@@ -616,9 +621,9 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
     }
 
     private bool CanUse(string clientId) =>
-        _clientFactory.IsAvailable && status.CanUseAiAssistant(clientId);
+        _sessions.IsAvailable && status.CanUseAiAssistant(clientId);
 
-    private string AvailabilityMessage(string clientId) => !_clientFactory.IsAvailable
+    private string AvailabilityMessage(string clientId) => !_sessions.IsAvailable
             ? "Install Codex on this PC before using the AI Assistant."
             : !status.CanUseAiAssistant(clientId)
                 ? "AI Assistant is available only to a paired device using the My device profile."
@@ -733,6 +738,7 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        _sessions.StateChanged -= OnSessionStateChanged;
         pairingManager.PermissionsChanged -= OnPermissionsChanged;
         pairingManager.PairingRevoked -= OnPairingRevoked;
         AppPermissionSettings.Changed -= OnPermissionsChanged;
@@ -866,10 +872,8 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
         internal string ClientId { get; }
         internal WebSocket Socket { get; set; }
         internal CancellationTokenSource Lifetime { get; } = new();
-        internal IAiAssistantClient? Client { get; set; }
-        internal string? ThreadId { get; set; }
-        internal string? TurnId { get; set; }
-        internal bool TurnRunning { get; set; }
+        internal AiAssistantSessionLease? Lease { get; set; }
+        internal CodexThreadDetail? InitialSnapshot { get; set; }
         internal bool Ending { get; set; }
         internal TaskCompletionSource Ended { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal long NextMessageSequence { get; set; }
@@ -899,7 +903,7 @@ internal sealed class AiAssistantCoordinator : IAsyncDisposable
             _outbound.Writer.TryComplete();
             await Lifetime.CancelAsync().ConfigureAwait(false);
             try { await _outboundWorker.ConfigureAwait(false); } catch (OperationCanceledException) { }
-            if (Client is not null) await Client.DisposeAsync().ConfigureAwait(false);
+            if (Lease is not null) await Lease.DisposeAsync().ConfigureAwait(false);
             Lifetime.Dispose();
         }
     }

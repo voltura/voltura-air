@@ -30,7 +30,8 @@ OTHER RUNTIME COMPONENTS
 ------------------------
 
 The managed subdirectory contains the license and notice text for WebView2,
-QRCoder, Vortice, SharpGen, Concentus, and NAudio runtime components. A self-contained release also
+Markdig, QRCoder, Vortice, SharpGen, Concentus, and NAudio runtime components. A
+self-contained release also
 contains dotnet-LICENSE.txt and dotnet-ThirdPartyNotices.txt copied from the
 exact .NET SDK used to produce that release.
 

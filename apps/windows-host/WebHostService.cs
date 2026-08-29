@@ -38,6 +38,7 @@ public sealed class WebHostService : IAsyncDisposable
     private readonly FileManagerCommandHandler _fileManagerCommands;
     private readonly FileTransferCoordinator _fileTransfers;
     private readonly TerminalCoordinator _terminal;
+    private readonly AiAssistantSessionManager _aiAssistantSessions;
     private readonly AiAssistantCoordinator _aiAssistant;
     private readonly PresentationLaserPointerController _presentationLaserPointer;
     private readonly IPowerPointAutomationService _powerPoint;
@@ -53,6 +54,7 @@ public sealed class WebHostService : IAsyncDisposable
     private WebApplication? _app;
 
     internal void RevokeCursorOverrides() => _presentationLaserPointer.Revoke();
+    internal AiAssistantSessionManager AiAssistantSessions => _aiAssistantSessions;
     internal event EventHandler<ScreenViewActivityChangedEventArgs>? ScreenViewActivityChanged
     {
         add => _screenView.ActivityChanged += value;
@@ -404,11 +406,13 @@ public sealed class WebHostService : IAsyncDisposable
             terminalProcessFactory ?? (isolatedTestMode ? new IsolatedTerminalProcessFactory() : new ConPtyTerminalProcessFactory()),
             terminalPeerFactory ?? (isolatedTestMode ? new IsolatedTerminalWebRtcPeerFactory() : new TerminalWebRtcPeerFactory()),
             terminalTimeProvider);
+        _aiAssistantSessions = new AiAssistantSessionManager(
+            aiAssistantClientFactory ?? (isolatedTestMode ? UnavailableAiAssistantClientFactory.Instance : null));
         _aiAssistant = aiAssistantCoordinator = new AiAssistantCoordinator(
             pairingManager,
             statusFactory,
             _transport,
-            aiAssistantClientFactory ?? (isolatedTestMode ? UnavailableAiAssistantClientFactory.Instance : null));
+            _aiAssistantSessions);
         var resolvedPhoneWebcam = phoneWebcamFeature ?? PhoneWebcamFeature.CreateUnavailable();
         var phoneWebcamCoordinator = new PhoneWebcamCoordinator(
             pairingManager,
@@ -662,6 +666,7 @@ public sealed class WebHostService : IAsyncDisposable
     {
         await _terminal.StopFromHostAsync();
         await _aiAssistant.DisposeAsync();
+        await _aiAssistantSessions.DisposeAsync();
         await _screenViewCommands.DisposeAsync();
         await _screenView.DisposeAsync();
         await _phoneWebcamCommands.DisposeAsync();
@@ -699,6 +704,7 @@ public sealed class WebHostService : IAsyncDisposable
         await _statusBroadcaster.DisposeAsync();
         await _terminal.DisposeAsync();
         await _aiAssistant.DisposeAsync();
+        await _aiAssistantSessions.DisposeAsync();
         await _fileTransfers.DisposeAsync();
         await _fileManagerCommands.DisposeAsync();
         await _fileManager.DisposeAsync();

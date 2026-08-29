@@ -36,6 +36,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Web.WebView2" />
     <PackageReference Include="Concentus" />
+    <PackageReference Include="Markdig" />
     <PackageReference Include="NAudio.Wasapi" />
     <PackageReference Include="QRCoder" />
     <PackageReference Include="Vortice.Direct3D11" />

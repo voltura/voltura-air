@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Animation;
 using VolturaAir.Host.Features.Connect;
+using VolturaAir.Host.Features.AiAssistant;
 using VolturaAir.Host.Features.Connection;
 using VolturaAir.Host.Features.CustomScreens;
 using VolturaAir.Host.Features.Devices;
@@ -32,6 +33,7 @@ public partial class MainWindow : Window
     private readonly CustomScreensPageController _customScreensPage;
     private readonly PresentationsPageController _presentationsPage;
     private readonly PhoneWebcamPageController _phoneWebcamPage;
+    private readonly AiAssistantPageController _aiAssistantPage;
     private readonly ConnectionPageController _connectionPage;
     private readonly PreferencesPageController _preferencesPage;
     private readonly DiagnosticsPageController _diagnosticsPage;
@@ -135,6 +137,7 @@ public partial class MainWindow : Window
             this,
             effectivePhoneWebcam,
             () => SelectPage(HostPage.PhoneWebcam));
+        _aiAssistantPage = new AiAssistantPageController(this, webHost.AiAssistantSessions);
         _preferencesPage = new PreferencesPageController(
             this,
             effectivePowerController,
@@ -176,6 +179,7 @@ public partial class MainWindow : Window
                 [HostPage.CustomScreens] = CustomScreensNavButton,
                 [HostPage.Presentations] = PresentationsNavButton,
                 [HostPage.PhoneWebcam] = PhoneWebcamNavButton,
+                [HostPage.AiAssistant] = AiAssistantNavButton,
                 [HostPage.Connection] = ConnectionNavButton,
                 [HostPage.Preferences] = PreferencesNavButton,
                 [HostPage.Diagnostics] = DiagnosticsNavButton
@@ -189,6 +193,7 @@ public partial class MainWindow : Window
             _customScreensPage,
             _presentationsPage,
             _phoneWebcamPage,
+            _aiAssistantPage,
             _connectionPage,
             _preferencesPage,
             _diagnosticsPage,
@@ -383,6 +388,7 @@ public partial class MainWindow : Window
         _awakeStateChangedAction.Dispose();
         _connectionPage.Dispose();
         _phoneWebcamPage.Dispose();
+        _aiAssistantPage.Dispose();
         _toasts.Dispose();
         base.OnClosed(e);
     }
@@ -476,6 +482,13 @@ public partial class MainWindow : Window
         if (!IsVisible && _navigation.ActivePage == HostPage.PhoneWebcam)
         {
             _phoneWebcamPage.StopPreview();
+            _pageNeedsRefresh = true;
+            return;
+        }
+
+        if (!IsVisible && _navigation.ActivePage == HostPage.AiAssistant)
+        {
+            _aiAssistantPage.Stop();
             _pageNeedsRefresh = true;
             return;
         }
@@ -617,6 +630,9 @@ public partial class MainWindow : Window
     private void OnPhoneWebcamNavClicked(object sender, RoutedEventArgs e) =>
         SelectPage(HostPage.PhoneWebcam);
 
+    private void OnAiAssistantNavClicked(object sender, RoutedEventArgs e) =>
+        SelectPage(HostPage.AiAssistant);
+
     private void OnConnectionNavClicked(object sender, RoutedEventArgs e) =>
         SelectPage(HostPage.Connection);
 
@@ -644,6 +660,13 @@ public partial class MainWindow : Window
             SelectPage(HostPage.CustomScreens);
             _customScreensPage.OpenFirstForScreenshot();
             return EditorSiteScreenshotSize;
+        }
+
+        if (args.Contains("--site-screenshot-ai-assistant", StringComparer.OrdinalIgnoreCase))
+        {
+            SelectPage(HostPage.AiAssistant);
+            _aiAssistantPage.ShowDemoForScreenshot();
+            return StandardSiteScreenshotSize;
         }
 
         if (args.Contains("--site-screenshot-relay-connection", StringComparer.OrdinalIgnoreCase))

@@ -746,14 +746,14 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 
 ### AI Assistant
 
-- **AI Assistant** is a lazy-loaded Menu tool for a paired device using exactly
-  the **My device** profile. It appears automatically when the installed Codex
-  command-line component and bundled Voltura Air knowledge are available; it
-  has no Developer tools toggle or separate permission. Remote controls,
-  Custom, unpaired, and stale-host-identity devices cannot open it. The existing
-  status refresh when the mobile Menu opens re-evaluates the local installation,
-  so installing Codex on an already-connected PC makes the tool appear without
-  reconnecting the device or enabling background polling.
+- **AI Assistant** has a permanent screen in the Windows host and is a
+  lazy-loaded Menu tool for a paired device using exactly the **My device**
+  profile. The host navigation remains visible when Codex is missing and shows
+  a concise install, sign-in, or repair state with Retry. The mobile tool appears
+  when the Codex command-line component and bundled Voltura Air knowledge are
+  available; it has no Developer tools toggle or separate permission. Remote
+  controls, Custom, unpaired, and stale-host-identity devices cannot open it.
+  Availability is re-evaluated on demand without background polling.
 - The Windows host starts a hidden `codex app-server --stdio` child using the
   signed-in user's existing Codex installation, configuration, account, and
   authentication. The phone never connects to an app-server port. Voltura Air
@@ -771,18 +771,18 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   Voltura Air actions, or use the network as a tool. This is a powerful read-only
   boundary rather than data isolation: names and paths may still be sensitive,
   and the conversation is stored by Codex on the PC.
-- One paired device owns the live Assistant session. Questions and answers use
-  the existing authenticated command connection with signed open, ask, and
-  reset operations. Text stays within bounded messages, long answers are split
-  into ordered chunks, and prompts, responses, paths, environment values, and
-  Codex credentials never enter Voltura Air logs or telemetry.
-- The mobile view presents a short capability introduction, example questions,
-  a compact typed-or-dictated question composer, Markdown answers, and rotating
-  progress phrases only while Codex reports the turn as working. On devices with
-  browser speech recognition, the microphone appends recognized speech to the
-  editable question before the user sends it. Markdown image and remote-media
-  syntax is shown as inert text and is never fetched automatically by the paired
-  browser; ordinary links require an explicit user click. Leaving the tool stops
+- The Windows host or one paired device exclusively owns the live Assistant
+  session; opening another surface never steals or interrupts it. Device
+  questions and answers use the existing authenticated command connection with
+  signed open, ask, and reset operations. Text stays within bounded messages,
+  long answers are split into ordered chunks, and prompts, responses, paths,
+  environment values, and Codex credentials never enter Voltura Air logs or
+  telemetry.
+- The host and mobile views present a short introduction, example questions, a
+  typed composer, Markdown answers, and rotating progress phrases only while
+  Codex reports the turn as working. The mobile view additionally offers browser
+  speech recognition when available. Markdown image and remote-media syntax is
+  inert and ordinary links require an explicit click. Leaving the screen stops
   its private app-server process but does not delete the persistent conversation.
   **New conversation** renames the previous thread locally and creates a fresh
   named Assistant thread.

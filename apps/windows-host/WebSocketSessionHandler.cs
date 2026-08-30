@@ -761,7 +761,7 @@ internal sealed class WebSocketSessionHandler(
                 await presentationSessions.HandleAsync(socket, clientId, root, cancellationToken);
                 return true;
             case "remote.launch":
-                await externalActionCommands.HandleRemoteLaunchAsync(clientId, ProtocolMessageFields.GetString(root, "action"), cancellationToken);
+                externalActionCommands.HandleRemoteLaunch(clientId, ProtocolMessageFields.GetString(root, "action"), cancellationToken);
                 return true;
             case "app.launch":
                 await externalActionCommands.HandleAppLaunchAsync(socket, clientId, ProtocolMessageFields.GetString(root, "operationId"), ProtocolMessageFields.GetString(root, "actionId"), cancellationToken);

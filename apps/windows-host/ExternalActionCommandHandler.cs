@@ -11,15 +11,50 @@ internal sealed class ExternalActionCommandHandler(
     WebSocketTransport transport,
     IAppLogWriter appLog)
 {
-    public async Task HandleRemoteLaunchAsync(string clientId, string action, CancellationToken cancellationToken)
+    private int _remoteLaunchInFlight;
+
+    public void HandleRemoteLaunch(string clientId, string action, CancellationToken cancellationToken)
     {
-        var outcome = "blocked";
-        if (statusFactory.CanLaunchRemoteApps(clientId))
+        if (!statusFactory.CanLaunchRemoteApps(clientId))
         {
-            outcome = await remoteActionExecutor.TryExecuteAsync(action, cancellationToken) ? "executed" : "failed";
+            commandLog.Outcome(clientId, "remote.launch", action, "blocked");
+            return;
         }
 
-        commandLog.Outcome(clientId, "remote.launch", action, outcome);
+        if (Interlocked.CompareExchange(ref _remoteLaunchInFlight, 1, 0) != 0)
+        {
+            commandLog.Outcome(clientId, "remote.launch", action, "busy");
+            return;
+        }
+
+        _ = ExecuteRemoteLaunchAsync(clientId, action, cancellationToken);
+    }
+
+    private async Task ExecuteRemoteLaunchAsync(
+        string clientId,
+        string action,
+        CancellationToken cancellationToken)
+    {
+        var outcome = "failed";
+        try
+        {
+            outcome = await remoteActionExecutor.TryExecuteAsync(action, cancellationToken).ConfigureAwait(false)
+                ? "executed"
+                : "failed";
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            outcome = "cancelled";
+        }
+        catch (Exception)
+        {
+            outcome = "failed";
+        }
+        finally
+        {
+            commandLog.Outcome(clientId, "remote.launch", action, outcome);
+            Interlocked.Exchange(ref _remoteLaunchInFlight, 0);
+        }
     }
 
     public Task HandleAppLaunchAsync(

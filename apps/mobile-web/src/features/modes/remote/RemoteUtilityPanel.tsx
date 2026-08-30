@@ -1,4 +1,13 @@
-import { useEffect, useEffectEvent, useId, useRef, useState, type PointerEvent } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+  useState,
+  type PointerEvent,
+} from "react";
 import {
   AppWindow,
   ArrowLeft,
@@ -25,6 +34,7 @@ import { RemoteButton, type RepeatablePressProps } from "./RemoteButton";
 
 const switcherLongPressMs = 400;
 const switcherSlideStepPx = 44;
+const KodiRemoteUtilityGrid = lazy(() => import("./KodiRemoteUtilityGrid"));
 
 interface SwitcherPointer {
   id: number;
@@ -37,6 +47,7 @@ interface RemoteUtilityPanelProps {
   appLaunchActions: AppLaunchActionSummary[];
   id: string;
   isConnected: boolean;
+  kodiActions?: KodiUtilityActions | undefined;
   onAppLaunch: (actionId: string) => void;
   onUrlOpen: (url: string) => string | null;
   pendingAppLaunchId: string | null;
@@ -45,6 +56,16 @@ interface RemoteUtilityPanelProps {
   sendSpecial: (key: string, modifiers?: string[]) => void;
   urlOpenCapability?: UrlOpenCapability | undefined;
   urlOpenResult: UrlOpenResultMessage | null;
+}
+
+interface KodiUtilityActions {
+  onAspectRatio: () => void;
+  onFastForward: () => void;
+  onNextChapter: () => void;
+  onPlayerDetails: () => void;
+  onPreviousChapter: () => void;
+  onRewind: () => void;
+  onSubtitleTrack: () => void;
 }
 
 function getAppLaunchLabelClass(label: string): string {
@@ -64,6 +85,7 @@ export function RemoteUtilityPanel({
   appLaunchActions,
   id,
   isConnected,
+  kodiActions,
   onAppLaunch,
   onUrlOpen,
   pendingAppLaunchId,
@@ -249,7 +271,26 @@ export function RemoteUtilityPanel({
 
   return (
     <div id={id} className="remote-section remote-utility-section">
-      <div className="remote-section-title">
+      {kodiActions && (
+        <>
+          <div className="remote-section-title">
+            <span>Kodi</span>
+            <small>Playback tools.</small>
+          </div>
+          <Suspense
+            fallback={
+              <div
+                className="remote-utility-grid remote-kodi-utility-grid"
+                aria-label="Kodi tools"
+                aria-busy="true"
+              />
+            }
+          >
+            <KodiRemoteUtilityGrid actions={kodiActions} />
+          </Suspense>
+        </>
+      )}
+      <div className={`remote-section-title${kodiActions ? " remote-helper-section-title" : ""}`}>
         <span>Windows</span>
         <small>Fast helper keys for couch use.</small>
       </div>
@@ -517,7 +558,7 @@ export function RemoteUtilityPanel({
           )}
         </ModalDialog>
       )}
-      {appLaunchActions.length > 0 && (
+      {!kodiActions && appLaunchActions.length > 0 && (
         <>
           <div className="remote-section-title remote-helper-section-title">
             <span>Applications</span>

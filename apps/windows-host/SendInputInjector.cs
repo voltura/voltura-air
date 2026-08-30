@@ -439,6 +439,7 @@ public sealed class SendInputInjector : IInputInjector, IActivityPulseSender
         ["Space"] = 0x20,
         ["Win"] = 0x5B,
         ["Windows"] = 0x5B,
+        ["ContextMenu"] = 0x5D,
         ["BrowserBack"] = 0xA6,
         ["BrowserForward"] = 0xA7,
         [";"] = 0xBA,

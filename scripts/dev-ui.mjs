@@ -36,6 +36,7 @@ const childEnv = {
   VOLTURA_AIR_USE_VITE_CLIENT: "1",
 };
 const children = [];
+const deviceEmulationClients = new WeakMap();
 let browserContext = null;
 let shuttingDown = false;
 
@@ -140,6 +141,7 @@ async function main() {
   if (smokeTest) {
     await verifySettingsDrawerLifecycle(page);
     await verifyRemoteModeSelectorLayout(page);
+    await verifyKodiRemoteLayout(page);
     await verifyTrackpadButtonLayout(page);
     await verifyKeyboardLayout(page);
     await verifyLandscapeSafeAreaLayouts(page);
@@ -149,7 +151,7 @@ async function main() {
     await verifyResponsiveUrlOpenLayout(page);
     await verifyDisconnectedSavedPcReconnect(page);
     console.log(
-      "Voltura Air UI smoke test connected and passed settings drawer lifecycle, trackpad, keyboard and landscape safe-area layout, responsive Power sheet, text transfer, Presentation, URL opening, and saved-PC reconnect checks.",
+      "Voltura Air UI smoke test connected and passed settings drawer lifecycle, Kodi Remote, trackpad, keyboard and landscape safe-area layout, responsive Power sheet, text transfer, Presentation, URL opening, and saved-PC reconnect checks.",
     );
     shutdown("SIGTERM", 0);
     return;
@@ -297,6 +299,438 @@ async function verifyRemoteModeSelectorLayout(page) {
     }
   }
 
+  await page.getByRole("menuitemradio", { name: "Trackpad", exact: true }).click();
+}
+
+async function verifyKodiRemoteLayout(page) {
+  const viewports = [
+    { name: "phone portrait", width: 393, height: 852 },
+    { name: "compact phone portrait", width: 360, height: 780 },
+    { name: "short phone portrait", width: 375, height: 667 },
+    { name: "short phone landscape", width: 568, height: 320 },
+    { name: "phone landscape", width: 852, height: 393 },
+    { name: "tablet landscape", width: 1024, height: 768 },
+  ];
+  const navigationVariants = [
+    { name: "D-pad", selector: ".remote-dpad", enabled: false },
+    { name: "ring", selector: ".remote-navigation-ring", enabled: true },
+  ];
+  const actionNames = [
+    "Up one level",
+    "Menu or player controls",
+    "Info",
+    "Toggle subtitles",
+    "Audio track",
+    "Toggle fullscreen or windowed",
+  ];
+
+  for (const navigation of navigationVariants) {
+    for (const viewport of viewports) {
+      await setEmulatedViewport(page, viewport);
+      await page.evaluate(
+        ({ navigationRing }) => {
+          const clientId = localStorage.getItem("voltura-air.clientId");
+          const pcId = localStorage.getItem("voltura-air.activePcId");
+          const update = (key) => {
+            let current = {};
+            try {
+              current = JSON.parse(localStorage.getItem(key) ?? "{}");
+            } catch {
+              current = {};
+            }
+            localStorage.setItem(
+              key,
+              JSON.stringify({ ...current, navigationRing, mode: "kodi", startKodi: false }),
+            );
+          };
+          if (clientId) {
+            update(`voltura-air.remoteSettings.${clientId}`);
+          }
+          if (clientId && pcId) {
+            update(`voltura-air.remoteSettings.${clientId}.${pcId}`);
+          }
+        },
+        { navigationRing: navigation.enabled },
+      );
+      await page.reload({ waitUntil: "networkidle" });
+      await setEmulatedViewport(page, viewport);
+      await waitForConnected(page);
+      if (!(await page.locator(".remote-mode").isVisible())) {
+        const remoteButton = page.locator('button[aria-label="Remote"]:visible').last();
+        if (await remoteButton.isVisible()) {
+          await remoteButton.click();
+        } else {
+          await page.locator('button[aria-label="Change mode"]:visible').click();
+          await page.getByRole("menuitemradio", { name: "Remote", exact: true }).click();
+        }
+      }
+      await page.locator(navigation.selector).waitFor({ state: "visible", timeout: 5000 });
+
+      const result = await page.evaluate(
+        ({ actionNames, navigationSelector }) => {
+          const mode = document.querySelector(".remote-mode");
+          const navigation = document.querySelector(".remote-navigation-section");
+          const navigationControl = document.querySelector(navigationSelector);
+          const functions = document.querySelector(".remote-floating-fn");
+          const power = document.querySelector(".remote-power-button");
+          const title = navigation?.querySelector(".remote-section-title");
+          const actions = actionNames.map((name) =>
+            navigation?.querySelector(`button[aria-label="${name}"]`),
+          );
+          if (
+            !(mode instanceof HTMLElement) ||
+            !(navigation instanceof HTMLElement) ||
+            !(navigationControl instanceof HTMLElement) ||
+            !(functions instanceof HTMLButtonElement) ||
+            actions.some((action) => !(action instanceof HTMLButtonElement))
+          ) {
+            return {
+              error: "Kodi Remote controls were not visible.",
+              actionCount: actions.filter((action) => action instanceof HTMLButtonElement).length,
+              functions: functions instanceof HTMLButtonElement,
+              mode: mode instanceof HTMLElement,
+              navigation: navigation instanceof HTMLElement,
+              navigationControl: navigationControl instanceof HTMLElement,
+            };
+          }
+
+          const intersects = (first, second) =>
+            first.left < second.right - 1 &&
+            first.right > second.left + 1 &&
+            first.top < second.bottom - 1 &&
+            first.bottom > second.top + 1;
+          const actionBounds = actions.map((action) => action.getBoundingClientRect());
+          const navigationBounds = navigation.getBoundingClientRect();
+          const navigationControlBounds = navigationControl.getBoundingClientRect();
+          const functionsBounds = functions.getBoundingClientRect();
+          const powerBounds = power instanceof HTMLElement ? power.getBoundingClientRect() : null;
+          const fullscreen = actions[actionNames.indexOf("Toggle fullscreen or windowed")];
+          const fullscreenBounds = fullscreen?.getBoundingClientRect() ?? null;
+          const functionsLabel = functions.querySelector(".remote-corner-action-label");
+          const powerLabel = power?.querySelector("span") ?? null;
+          const navigationObstacleBounds = navigationControl.matches(".remote-dpad")
+            ? Array.from(navigationControl.querySelectorAll("button")).map((button) =>
+                button.getBoundingClientRect(),
+              )
+            : [navigationControlBounds];
+          const cornerObstacleBounds = [functions, power]
+            .filter(
+              (element) =>
+                element instanceof HTMLElement && getComputedStyle(element).display !== "none",
+            )
+            .map((element) => element.getBoundingClientRect())
+            .filter((bounds) => bounds.width > 0 && bounds.height > 0);
+          const obstacleBounds = [
+            ...cornerObstacleBounds,
+            ...(title instanceof HTMLElement && getComputedStyle(title).display !== "none"
+              ? [title.getBoundingClientRect()]
+              : []),
+          ];
+          const pairOverlaps = actionBounds.some((bounds, index) =>
+            actionBounds.slice(index + 1).some((other) => intersects(bounds, other)),
+          );
+          const controlsOverlap = actionBounds.some(
+            (bounds) =>
+              navigationObstacleBounds.some((other) => intersects(bounds, other)) ||
+              obstacleBounds.some((other) => intersects(bounds, other)),
+          );
+          const overlapDetails = actionBounds.flatMap((bounds, index) => {
+            const overlaps = [];
+            if (navigationObstacleBounds.some((other) => intersects(bounds, other))) {
+              overlaps.push(`${actionNames[index]}:navigation`);
+            }
+            obstacleBounds.forEach((other, obstacleIndex) => {
+              if (intersects(bounds, other)) {
+                overlaps.push(`${actionNames[index]}:obstacle-${obstacleIndex}`);
+              }
+            });
+            return overlaps;
+          });
+          const hitTargetsWork = actions.every((action, index) => {
+            const bounds = actionBounds[index];
+            const hit = document.elementFromPoint(
+              bounds.left + bounds.width / 2,
+              bounds.top + bounds.height / 2,
+            );
+            return hit === action || action.contains(hit);
+          });
+          const modeBounds = mode.getBoundingClientRect();
+          const sectionBounds = Array.from(mode.querySelectorAll(":scope > .remote-section"))
+            .filter((section) => getComputedStyle(section).display !== "none")
+            .map((section) => section.getBoundingClientRect());
+          return {
+            actionCount: actions.length,
+            actionsContained: actionBounds.every(
+              (bounds) =>
+                bounds.left >= navigationBounds.left - 1 &&
+                bounds.right <= navigationBounds.right + 1 &&
+                bounds.top >= navigationBounds.top - 1 &&
+                bounds.bottom <= navigationBounds.bottom + 1,
+            ),
+            controlsOverlap,
+            hitTargetsWork,
+            horizontalOverflow:
+              document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+            geometry: {
+              actions: actionBounds.map((bounds, index) => ({
+                name: actionNames[index],
+                left: bounds.left,
+                right: bounds.right,
+                top: bounds.top,
+                bottom: bounds.bottom,
+              })),
+              navigationObstacles: navigationObstacleBounds.map((bounds) => ({
+                left: bounds.left,
+                right: bounds.right,
+                top: bounds.top,
+                bottom: bounds.bottom,
+              })),
+              navigation: {
+                top: navigationBounds.top,
+                bottom: navigationBounds.bottom,
+              },
+              obstacles: obstacleBounds.map((bounds) => ({
+                top: bounds.top,
+                bottom: bounds.bottom,
+              })),
+            },
+            minActionHeight: Math.min(...actionBounds.map((bounds) => bounds.height)),
+            minActionWidth: Math.min(...actionBounds.map((bounds) => bounds.width)),
+            navigationCentered:
+              Math.abs(
+                (navigationControlBounds.left + navigationControlBounds.right) / 2 -
+                  (navigationBounds.left + navigationBounds.right) / 2,
+              ) <= 8 &&
+              Math.abs(
+                (navigationControlBounds.top + navigationControlBounds.bottom) / 2 -
+                  (navigationBounds.top + navigationBounds.bottom) / 2,
+              ) <= 8,
+            navigationOverlapsCornerControls: navigationObstacleBounds.some((bounds) =>
+              cornerObstacleBounds.some((other) => intersects(bounds, other)),
+            ),
+            navigationControlWidth: navigationControlBounds.width,
+            shortLandscapePlacement:
+              window.matchMedia("(aspect-ratio >= 1/1) and (height <= 520px)").matches &&
+              !window.matchMedia("(height <= 375px)").matches
+                ? {
+                    fullscreenBesidePower:
+                      powerBounds !== null &&
+                      fullscreenBounds !== null &&
+                      fullscreenBounds.left >= powerBounds.right + 1 &&
+                      fullscreenBounds.right <= functionsBounds.left - 1,
+                    fullscreenOnBottom:
+                      fullscreenBounds !== null &&
+                      Math.abs(fullscreenBounds.bottom - navigationBounds.bottom) <= 1,
+                    functionsIconOnly:
+                      functionsLabel instanceof HTMLElement &&
+                      getComputedStyle(functionsLabel).display === "none",
+                    powerIconOnly:
+                      powerLabel instanceof HTMLElement &&
+                      getComputedStyle(powerLabel).display === "none",
+                    functionsOnBottomRight:
+                      Math.abs(functionsBounds.right - navigationBounds.right) <= 1 &&
+                      Math.abs(functionsBounds.bottom - navigationBounds.bottom) <= 1,
+                  }
+                : null,
+            modeClipped:
+              mode.scrollHeight > mode.clientHeight + 1 ||
+              mode.scrollWidth > mode.clientWidth + 1 ||
+              sectionBounds.some(
+                (bounds) =>
+                  bounds.left < modeBounds.left - 1 ||
+                  bounds.right > modeBounds.right + 1 ||
+                  bounds.top < modeBounds.top - 1 ||
+                  bounds.bottom > modeBounds.bottom + 1,
+              ),
+            overlapDetails,
+            pairOverlaps,
+          };
+        },
+        { actionNames, navigationSelector: navigation.selector },
+      );
+
+      if (
+        "error" in result ||
+        result.actionCount !== 6 ||
+        !result.actionsContained ||
+        result.controlsOverlap ||
+        !result.hitTargetsWork ||
+        result.horizontalOverflow ||
+        result.minActionHeight < 44 ||
+        result.minActionWidth < 44 ||
+        (result.shortLandscapePlacement !== null &&
+          (!result.shortLandscapePlacement.fullscreenBesidePower ||
+            !result.shortLandscapePlacement.fullscreenOnBottom ||
+            !result.shortLandscapePlacement.functionsIconOnly ||
+            !result.shortLandscapePlacement.powerIconOnly ||
+            !result.shortLandscapePlacement.functionsOnBottomRight)) ||
+        (navigation.enabled &&
+          viewport.width === 568 &&
+          viewport.height === 320 &&
+          result.navigationControlWidth < 140) ||
+        (navigation.enabled &&
+          viewport.width === 852 &&
+          viewport.height === 393 &&
+          result.navigationControlWidth < 170) ||
+        (navigation.enabled &&
+          viewport.width > viewport.height &&
+          viewport.height <= 520 &&
+          !result.navigationCentered) ||
+        result.navigationOverlapsCornerControls ||
+        result.modeClipped ||
+        result.pairOverlaps
+      ) {
+        throw new Error(
+          `Kodi Remote ${navigation.name} layout failed for ${viewport.name}: ${JSON.stringify(result)}`,
+        );
+      }
+
+      if (navigation.enabled && viewport.width === 393 && viewport.height === 852) {
+        await page.screenshot({ path: path.join(tempArtifactsDir, "kodi-remote-393x852.png") });
+      }
+      if (navigation.enabled && viewport.width === 852 && viewport.height === 393) {
+        await page.screenshot({ path: path.join(tempArtifactsDir, "kodi-remote-852x393.png") });
+      }
+
+      await page.getByRole("button", { name: "Fn", exact: true }).click();
+      await page.getByRole("button", { name: "Aspect ratio", exact: true }).waitFor({
+        state: "visible",
+        timeout: 5000,
+      });
+      const utilityResult = await page.locator(".remote-utility-section").evaluate(
+        (utility, { navigationSelector }) => {
+          utility.scrollTop = 0;
+          const kodiGrid = utility.querySelector(".remote-kodi-utility-grid");
+          const titles = Array.from(utility.querySelectorAll(".remote-section-title > span"));
+          const buttons = kodiGrid ? Array.from(kodiGrid.querySelectorAll("button")) : [];
+          const navigation = document.querySelector(".remote-navigation-section");
+          const navigationControl = document.querySelector(navigationSelector);
+          if (!(kodiGrid instanceof HTMLElement) || buttons.length !== 7) {
+            return {
+              error: "Kodi Functions controls were not visible.",
+              buttonCount: buttons.length,
+            };
+          }
+          const utilityBounds = utility.getBoundingClientRect();
+          const gridBounds = kodiGrid.getBoundingClientRect();
+          const buttonBounds = buttons.map((button) => button.getBoundingClientRect());
+          const labelElements = buttons.map((button) => button.querySelector("span"));
+          const navigationVisible =
+            navigation instanceof HTMLElement && getComputedStyle(navigation).display !== "none";
+          let navigationContained = null;
+          let navigationCentered = null;
+          let navigationControlWidth = null;
+          let navigationOverlapsCornerControls = null;
+          if (
+            navigationVisible &&
+            navigation instanceof HTMLElement &&
+            navigationControl instanceof HTMLElement
+          ) {
+            const navigationBounds = navigation.getBoundingClientRect();
+            const controlBounds = navigationControl.getBoundingClientRect();
+            const controlObstacleBounds = navigationControl.matches(".remote-dpad")
+              ? Array.from(navigationControl.querySelectorAll("button")).map((button) =>
+                  button.getBoundingClientRect(),
+                )
+              : [controlBounds];
+            const cornerControls = [
+              navigation.querySelector(".remote-power-button"),
+              navigation.querySelector(".remote-floating-fn"),
+            ].filter((element) => element instanceof HTMLElement);
+            const intersects = (first, second) =>
+              first.left < second.right - 1 &&
+              first.right > second.left + 1 &&
+              first.top < second.bottom - 1 &&
+              first.bottom > second.top + 1;
+            navigationContained =
+              controlBounds.left >= navigationBounds.left - 1 &&
+              controlBounds.right <= navigationBounds.right + 1 &&
+              controlBounds.top >= navigationBounds.top - 1 &&
+              controlBounds.bottom <= Math.min(navigationBounds.bottom, window.innerHeight) + 1;
+            navigationCentered =
+              Math.abs(
+                (controlBounds.left + controlBounds.right) / 2 -
+                  (navigationBounds.left + navigationBounds.right) / 2,
+              ) <= 8 &&
+              Math.abs(
+                (controlBounds.top + controlBounds.bottom) / 2 -
+                  (navigationBounds.top + navigationBounds.bottom) / 2,
+              ) <= 8;
+            navigationControlWidth = controlBounds.width;
+            navigationOverlapsCornerControls = controlObstacleBounds.some((bounds) =>
+              cornerControls.some((control) => intersects(bounds, control.getBoundingClientRect())),
+            );
+          }
+          return {
+            applicationSectionPresent: utility.querySelector(".remote-app-launch-grid") !== null,
+            buttonCount: buttons.length,
+            firstSection: titles[0]?.textContent?.trim() ?? "",
+            horizontalOverflow: utility.scrollWidth > utility.clientWidth + 1,
+            labelsFit: labelElements.every(
+              (label) => label instanceof HTMLElement && label.scrollWidth <= label.clientWidth + 1,
+            ),
+            minButtonHeight: Math.min(...buttonBounds.map((bounds) => bounds.height)),
+            navigationContained,
+            navigationCentered,
+            navigationControlWidth,
+            navigationOverlapsCornerControls,
+            visibleLabels: labelElements.map((label) => label?.textContent?.trim() ?? ""),
+            viewport: {
+              height: window.innerHeight,
+              portrait: window.matchMedia("(orientation: portrait)").matches,
+              width: window.innerWidth,
+            },
+            visibleBeforeScroll:
+              utility.scrollTop === 0 &&
+              gridBounds.top >= utilityBounds.top - 1 &&
+              buttonBounds.every((bounds) => bounds.bottom <= utilityBounds.bottom + 1),
+          };
+        },
+        { navigationSelector: navigation.selector },
+      );
+
+      if (
+        "error" in utilityResult ||
+        utilityResult.buttonCount !== 7 ||
+        utilityResult.applicationSectionPresent ||
+        utilityResult.firstSection !== "Kodi" ||
+        utilityResult.horizontalOverflow ||
+        !utilityResult.labelsFit ||
+        utilityResult.minButtonHeight < 44 ||
+        utilityResult.visibleLabels.join("|") !==
+          "Rewind|Forward|Subtitle|Previous|Next|Details|Aspect" ||
+        (viewport.width <= 560 &&
+          viewport.height >= 760 &&
+          utilityResult.navigationContained !== true) ||
+        utilityResult.navigationOverlapsCornerControls === true ||
+        (viewport.width > viewport.height &&
+          viewport.height <= 520 &&
+          utilityResult.navigationCentered !== true) ||
+        (navigation.enabled &&
+          viewport.width === 568 &&
+          viewport.height === 320 &&
+          (utilityResult.navigationControlWidth ?? 0) < 150) ||
+        !utilityResult.visibleBeforeScroll
+      ) {
+        throw new Error(
+          `Kodi Functions ${navigation.name} layout failed for ${viewport.name}: ${JSON.stringify(utilityResult)}`,
+        );
+      }
+
+      if (navigation.enabled && viewport.width === 393 && viewport.height === 852) {
+        await page.screenshot({ path: path.join(tempArtifactsDir, "kodi-functions-393x852.png") });
+      }
+      if (navigation.enabled && viewport.width === 568 && viewport.height === 320) {
+        await page.screenshot({ path: path.join(tempArtifactsDir, "kodi-functions-568x320.png") });
+      }
+      if (navigation.enabled && viewport.width === 852 && viewport.height === 393) {
+        await page.screenshot({ path: path.join(tempArtifactsDir, "kodi-functions-852x393.png") });
+      }
+    }
+  }
+
+  await setEmulatedViewport(page, { width: 393, height: 852 });
+  await page.locator('button[aria-label="Change mode"]:visible').click();
   await page.getByRole("menuitemradio", { name: "Trackpad", exact: true }).click();
 }
 
@@ -1079,7 +1513,7 @@ async function verifyResponsiveTextTransferLayout(page) {
 async function verifyResponsiveUrlOpenLayout(page) {
   await page.setViewportSize({ width: 393, height: 852 });
   await page.getByRole("button", { name: "Remote", exact: true }).click();
-  await page.getByRole("button", { name: "Functions", exact: true }).click();
+  await page.getByRole("button", { name: "Fn", exact: true }).click();
   await page.getByRole("button", { name: "Open URL", exact: true }).click();
   const urlDialog = page.getByRole("dialog", { name: "Open URL on PC", exact: true });
   const input = urlDialog.getByRole("textbox", { name: "Web address", exact: true });
@@ -1150,6 +1584,8 @@ async function verifyResponsiveUrlOpenLayout(page) {
       );
     }, viewport.width);
     await input.focus();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Shift+Tab");
     const result = await page.evaluate(() => {
       const form = document.querySelector(".remote-url-dialog form");
       const field = document.querySelector("#remote-url-draft");
@@ -1165,6 +1601,7 @@ async function verifyResponsiveUrlOpenLayout(page) {
       const bounds = form.getBoundingClientRect();
       const fieldStyle = getComputedStyle(field);
       return {
+        active: document.activeElement === field,
         buttonHeight: button.getBoundingClientRect().height,
         draft: field.value,
         fieldWidth: field.getBoundingClientRect().width,
@@ -1172,6 +1609,7 @@ async function verifyResponsiveUrlOpenLayout(page) {
         fieldBorderColor: fieldStyle.borderColor,
         fieldOutlineColor: fieldStyle.outlineColor,
         fieldOutlineOffset: fieldStyle.outlineOffset,
+        focusVisible: field.matches(":focus-visible"),
         formBackground: getComputedStyle(form).backgroundColor,
         horizontalOverflow:
           document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
@@ -1182,10 +1620,12 @@ async function verifyResponsiveUrlOpenLayout(page) {
     if (
       "error" in result ||
       result.buttonHeight < 44 ||
+      !result.active ||
       result.fieldWidth < 160 ||
       result.fieldBackground === result.formBackground ||
       result.fieldBorderColor !== result.fieldOutlineColor ||
       result.fieldOutlineOffset !== "0px" ||
+      !result.focusVisible ||
       result.horizontalOverflow ||
       result.outsideViewport ||
       result.draft !== "example.com/page?q=responsive-test"
@@ -1359,6 +1799,7 @@ async function seedBrowserProfile(device) {
 async function applyDeviceEmulation(page, device) {
   const vertical = device.screen.vertical;
   const client = await page.context().newCDPSession(page);
+  deviceEmulationClients.set(page, client);
   await client.send("Emulation.setDeviceMetricsOverride", {
     width: vertical.width,
     height: vertical.height,
@@ -1370,6 +1811,28 @@ async function applyDeviceEmulation(page, device) {
   await client.send("Emulation.setTouchEmulationEnabled", {
     enabled: device.capabilities.includes("touch"),
     maxTouchPoints: device.capabilities.includes("touch") ? 1 : 0,
+  });
+}
+
+async function setEmulatedViewport(page, viewport) {
+  const client = deviceEmulationClients.get(page);
+  if (!client) {
+    throw new Error("Device emulation must be initialized before changing the viewport.");
+  }
+
+  await page.setViewportSize({ width: viewport.width, height: viewport.height });
+  const landscape = viewport.width > viewport.height;
+  await client.send("Emulation.setDeviceMetricsOverride", {
+    width: viewport.width,
+    height: viewport.height,
+    deviceScaleFactor: debugDevice.screen["device-pixel-ratio"],
+    mobile: debugDevice.capabilities.includes("mobile"),
+    screenWidth: viewport.width,
+    screenHeight: viewport.height,
+    screenOrientation: {
+      type: landscape ? "landscapePrimary" : "portraitPrimary",
+      angle: landscape ? 90 : 0,
+    },
   });
 }
 

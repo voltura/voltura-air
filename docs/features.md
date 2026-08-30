@@ -592,12 +592,20 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   the main Remote option is selected.
 - The default navigation ring includes repeatable directions and a center
   mini-trackpad; an alternative D-pad with OK is available.
+- Kodi keeps Up one level, Menu/player controls, Info, subtitle toggle, audio track,
+  and window fullscreen beside the navigation control on one screen. The
+  navigation control contracts only when those 44-pixel action rails need the
+  room. Kodi uses its foreground-app default keyboard mapping, including custom
+  keymaps when the user has changed them.
 - **Power & session** provides Keep awake, Lock, Blackout, screen saver, display
   off, sign out, restart, and shutdown according to host capability/permission.
   Disruptive actions require a 1.6-second confirmation hold.
-- An Fn panel opens validated HTTP/HTTPS addresses and host-approved application
-  buttons. Pending/result feedback stays with the action; URL drafts survive
-  failure.
+- The Fn panel puts Kodi rewind, fast-forward, subtitle-track, previous/next
+  item or chapter, player-details, and aspect-ratio controls first when Kodi is
+  selected. It then retains the Windows/browser helpers, validated HTTP/HTTPS
+  addresses. Host-approved application buttons remain available in Standard
+  and YouTube but are omitted in Kodi so its navigation stays on screen.
+  Pending/result feedback stays with the action; URL drafts survive failure.
 - Compact layouts move secondary Windows/browser actions behind Fn. Remote
   settings control mappings, helper visibility, and allowed application
   shortcuts.

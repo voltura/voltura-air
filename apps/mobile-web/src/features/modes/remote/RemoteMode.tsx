@@ -18,7 +18,7 @@ import { RemoteNavigationSection } from "./RemoteNavigationSection";
 import { RemoteUtilityPanel } from "./RemoteUtilityPanel";
 import { RemoteVolumeSection } from "./RemoteVolumeSection";
 import { getRemoteModeCopy } from "./remoteModeCopy";
-import { remoteShortcutMaps, type RemoteShortcut } from "./remoteShortcuts";
+import { kodiRemoteShortcuts, remoteShortcutMaps, type RemoteShortcut } from "./remoteShortcuts";
 import { useRemoteInteractions } from "./useRemoteInteractions";
 
 interface RemoteModeProps {
@@ -134,11 +134,24 @@ export function RemoteMode({
   const sendSubtitles = () =>
     shortcuts.subtitles && sendShortcut(shortcuts.subtitles, "media-controls");
   const sendPowerMenu = () => shortcuts.powerMenu && sendShortcut(shortcuts.powerMenu);
+  const sendKodiUpOneLevel = () => sendShortcut(kodiRemoteShortcuts.upOneLevel);
+  const sendKodiMenu = () => sendShortcut(kodiRemoteShortcuts.menu);
+  const sendKodiAudioTrack = () => sendShortcut(kodiRemoteShortcuts.audioTrack, "media-controls");
+  const sendKodiRewind = () => sendShortcut(kodiRemoteShortcuts.rewind, "media-controls");
+  const sendKodiFastForward = () => sendShortcut(kodiRemoteShortcuts.fastForward, "media-controls");
+  const sendKodiSubtitleTrack = () =>
+    sendShortcut(kodiRemoteShortcuts.subtitleTrack, "media-controls");
+  const sendKodiPreviousChapter = () =>
+    sendShortcut(kodiRemoteShortcuts.previousChapter, "media-controls");
+  const sendKodiNextChapter = () => sendShortcut(kodiRemoteShortcuts.nextChapter, "media-controls");
+  const sendKodiPlayerDetails = () =>
+    sendShortcut(kodiRemoteShortcuts.playerDetails, "media-controls");
+  const sendKodiAspectRatio = () => sendShortcut(kodiRemoteShortcuts.aspectRatio, "media-controls");
   const utilityPanelId = "remote-utility-panel";
 
   return (
     <section
-      className={`remote-mode ${showUtilityPanel ? "remote-utility-open" : ""}`}
+      className={`remote-mode ${isKodiMode ? "remote-mode-kodi" : ""} ${showUtilityPanel ? "remote-utility-open" : ""}`}
       aria-label="Couch remote"
     >
       <RemoteMediaSection
@@ -173,13 +186,16 @@ export function RemoteMode({
         miniTrackpadProps={miniTrackpadProps}
         navigationPanelProps={navigationPanelProps}
         navigationRing={remoteSettings.navigationRing}
+        onAudioTrack={sendKodiAudioTrack}
         onBrowserFullscreen={sendBrowserFullscreen}
         onHideUtilityPanel={() => {
           setShowUtilityPanel(false);
         }}
         onInfo={sendInfo}
+        onMenu={sendKodiMenu}
         onPowerAction={onPowerAction}
         onSubtitles={sendSubtitles}
+        onUpOneLevel={sendKodiUpOneLevel}
         onToggleUtilityPanel={() => {
           setShowUtilityPanel((current) => !current);
         }}
@@ -194,6 +210,19 @@ export function RemoteMode({
         appLaunchActions={appLaunchActions}
         id={utilityPanelId}
         isConnected={isConnected}
+        kodiActions={
+          isKodiMode
+            ? {
+                onAspectRatio: sendKodiAspectRatio,
+                onFastForward: sendKodiFastForward,
+                onNextChapter: sendKodiNextChapter,
+                onPlayerDetails: sendKodiPlayerDetails,
+                onPreviousChapter: sendKodiPreviousChapter,
+                onRewind: sendKodiRewind,
+                onSubtitleTrack: sendKodiSubtitleTrack,
+              }
+            : undefined
+        }
         onAppLaunch={onAppLaunch}
         onUrlOpen={onUrlOpen}
         pendingAppLaunchId={pendingAppLaunchId}

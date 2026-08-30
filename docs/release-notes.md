@@ -6,6 +6,16 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.1.8
+
+- Expanded **Kodi Remote** with one-screen access to Up one level, Menu/OSD,
+  playback information, subtitles, audio tracks, and fullscreen.
+- Added Kodi playback tools for rewind and forward, subtitle tracks,
+  previous/next items or chapters, player details, and aspect ratio.
+- Improved the Kodi Remote layout across portrait and landscape screens, and
+  fixed the first Remote control command sometimes being delayed while Kodi
+  opens.
+
 ## v1.1.7
 
 - Added **Apps** to the mobile Menu for quickly switching between open PC

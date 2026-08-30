@@ -188,6 +188,15 @@
   box-shadow: inset 0 0 0 8px color-mix(in srgb, var(--surface) 82%, transparent);
 }
 
+.remote-navigation-section-kodi .remote-navigation-ring {
+  width: min(42svh, calc(100% - 112px), 216px);
+}
+
+.remote-navigation-section-kodi .remote-dpad {
+  grid-template-columns: repeat(3, minmax(54px, 64px));
+  gap: 6px;
+}
+
 .remote-dpad,
 .remote-navigation-ring {
   grid-row: 2;
@@ -212,13 +221,37 @@
   box-shadow: 0 8px 24px color-mix(in srgb, var(--drawer-shadow) 42%, transparent);
 }
 
-.remote-nav-action {
+.remote-functions-icon {
+  position: relative;
+  width: 22px;
+  height: 19px;
+  display: block;
+  background:
+    linear-gradient(currentcolor 0 0) 0 2px / 100% 2px no-repeat,
+    linear-gradient(currentcolor 0 0) 0 9px / 100% 2px no-repeat,
+    linear-gradient(currentcolor 0 0) 0 16px / 100% 2px no-repeat;
+}
+
+.remote-functions-icon::after {
+  content: "";
   position: absolute;
-  z-index: 3;
+  top: 0;
+  left: 4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentcolor;
+  box-shadow:
+    9px 7px 0 currentcolor,
+    -2px 14px 0 currentcolor;
+}
+
+.remote-nav-action {
+  position: relative;
   width: 44px;
-  height: 40px;
-  min-width: 0;
-  min-height: 0;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   box-shadow: 0 8px 24px color-mix(in srgb, var(--drawer-shadow) 34%, transparent);
 }
@@ -228,19 +261,23 @@
   height: 22px;
 }
 
-.remote-nav-action-subtitles {
+.remote-kodi-action-rail {
+  position: absolute;
+  z-index: 5;
   top: 48px;
-  left: 10px;
+  bottom: calc(64px + var(--mode-bottom-safe-area, 0px));
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
 }
 
-.remote-nav-action-fullscreen {
-  top: 48px;
+.remote-kodi-action-rail-left {
+  left: max(10px, var(--mode-inline-safe-start, 0px));
+}
+
+.remote-kodi-action-rail-right {
   right: max(10px, var(--mode-inline-safe-end, 0px));
-}
-
-.remote-nav-action-info {
-  left: 10px;
-  bottom: calc(10px + var(--mode-bottom-safe-area, 0px));
 }
 
 .remote-utility-section {
@@ -386,13 +423,17 @@
 
 @media (orientation: portrait) and (width <= 560px) and (height >= 760px) {
   .remote-mode.remote-utility-open {
-    grid-template-rows: max-content minmax(184px, 1fr);
+    grid-template-rows: minmax(200px, 1fr) minmax(280px, 36svh);
   }
 
   .remote-mode.remote-utility-open .remote-navigation-section {
     display: grid;
     grid-row: 2;
-    padding-bottom: 7px;
+    padding-bottom: calc(56px + var(--mode-bottom-safe-area, 0px));
+  }
+
+  .remote-mode.remote-utility-open .remote-kodi-action-rail {
+    display: none;
   }
 
   .remote-mode.remote-utility-open .remote-utility-section {
@@ -401,7 +442,7 @@
   }
 
   .remote-mode.remote-utility-open .remote-navigation-ring {
-    width: min(27svh, 56vw, 216px);
+    width: min(24svh, 48vw, 190px);
   }
 
   .remote-mode.remote-utility-open .remote-navigation-section:has(.remote-dpad) {
@@ -437,17 +478,9 @@
     bottom: 8px;
   }
 
-  .remote-nav-action {
-    width: 40px;
-    height: 36px;
-  }
-
-  .remote-nav-action-subtitles {
+  .remote-kodi-action-rail {
     top: 42px;
-  }
-
-  .remote-nav-action-fullscreen {
-    top: 42px;
+    bottom: calc(64px + var(--mode-bottom-safe-area, 0px));
   }
 
   .remote-primary-grid,
@@ -468,6 +501,17 @@
 
   .remote-navigation-ring {
     width: min(36svh, 58vw, 176px);
+  }
+
+  .remote-navigation-section-kodi .remote-navigation-ring {
+    width: min(36svh, calc(100% - 106px), 176px);
+  }
+}
+
+@media (orientation: portrait) and (height <= 720px) {
+  .remote-mode-kodi > .remote-media-section .remote-section-title,
+  .remote-mode-kodi > .remote-volume-section .remote-section-title {
+    display: none;
   }
 }
 
@@ -675,6 +719,10 @@
     width: 18px;
     height: 18px;
   }
+
+  .remote-navigation-section-kodi .remote-dpad {
+    grid-template-columns: repeat(3, minmax(48px, 56px));
+  }
 }
 
 @media (orientation: landscape) {
@@ -692,14 +740,9 @@
     padding-right: max(0px, calc(var(--mode-inline-safe-end, 0px) - 9px));
     padding-left: max(0px, calc(var(--mode-inline-safe-start, 0px) - 9px));
   }
-
-  .remote-nav-action-subtitles,
-  .remote-nav-action-info {
-    left: max(10px, var(--mode-inline-safe-start, 0px));
-  }
 }
 
-@media (orientation: landscape) and (height <= 520px) {
+@media (aspect-ratio >= 1/1) and (height <= 520px) {
   .remote-media-section,
   .remote-utility-section {
     padding-right: 9px;
@@ -709,11 +752,6 @@
   .remote-volume-section {
     padding-right: 9px;
     padding-left: 9px;
-  }
-
-  .remote-nav-action-subtitles,
-  .remote-nav-action-info {
-    left: 10px;
   }
 
   .remote-mode {
@@ -768,6 +806,7 @@
 
   .remote-navigation-section {
     min-height: 150px;
+    gap: 0;
     padding-bottom: calc(6px + var(--mode-bottom-safe-area, 0px));
   }
 
@@ -775,12 +814,162 @@
     width: min(34vw, 46svh, 190px);
   }
 
-  .remote-nav-action-subtitles {
-    top: 8px;
+  .remote-navigation-section-kodi .remote-navigation-ring {
+    place-self: center;
+    width: min(30vw, 50svh, calc(100% - 96px), 176px);
   }
 
-  .remote-nav-action-fullscreen {
-    top: 8px;
+  .remote-mode:not(.remote-utility-open) .remote-navigation-section-kodi .remote-navigation-ring {
+    max-height: calc(100% - 90px);
+  }
+
+  .remote-navigation-section-kodi .remote-dpad {
+    place-self: start center;
+    width: max-content;
+    grid-template-columns: repeat(3, 44px);
+    gap: 2px;
+  }
+
+  .remote-navigation-section-kodi .remote-dpad button {
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .remote-kodi-action-rail {
+    top: 0;
+    bottom: 0;
+  }
+
+  .remote-kodi-action-rail-left {
+    left: 0;
+  }
+
+  .remote-kodi-action-rail-right {
+    right: 0;
+  }
+
+  .remote-mode:not(.remote-utility-open) .remote-kodi-action-rail-right {
+    left: 0;
+    display: block;
+    pointer-events: none;
+  }
+
+  .remote-mode:not(.remote-utility-open) .remote-kodi-action-rail-right .remote-nav-action {
+    position: absolute;
+    right: 0;
+    pointer-events: auto;
+  }
+
+  .remote-mode:not(.remote-utility-open)
+    .remote-kodi-action-rail-right
+    .remote-nav-action-subtitles {
+    top: 0;
+  }
+
+  .remote-mode:not(.remote-utility-open)
+    .remote-kodi-action-rail-right
+    .remote-nav-action:nth-child(2) {
+    top: calc(50% - 22px);
+  }
+
+  .remote-mode:not(.remote-utility-open)
+    .remote-kodi-action-rail-right
+    .remote-nav-action-fullscreen {
+    right: calc(50% - 48px);
+    bottom: 0;
+  }
+
+  .remote-navigation-section-kodi .remote-corner-action {
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    height: 44px;
+    padding: 0;
+  }
+
+  .remote-navigation-section-kodi .remote-power-button span,
+  .remote-navigation-section-kodi .remote-corner-action-label {
+    display: none;
+  }
+
+  .remote-navigation-section-kodi .remote-power-button {
+    left: calc(50% - 48px);
+    bottom: 0;
+  }
+
+  .remote-navigation-section-kodi .remote-floating-fn {
+    right: 0;
+    bottom: 0;
+  }
+
+  .remote-mode.remote-utility-open .remote-kodi-action-rail {
+    display: none;
+  }
+
+  .remote-mode.remote-utility-open .remote-navigation-section-kodi .remote-navigation-ring {
+    place-self: center;
+    width: min(30vw, 50svh, calc(100% - 88px), 176px);
+  }
+
+  .remote-mode.remote-utility-open .remote-navigation-section-kodi .remote-dpad {
+    place-self: center;
+    width: max-content;
+  }
+
+  .remote-mode.remote-utility-open .remote-navigation-section-kodi .remote-power-button {
+    inset: 0 0 auto auto;
+  }
+
+  .remote-mode.remote-utility-open .remote-navigation-section-kodi .remote-floating-fn {
+    right: 0;
+    bottom: 0;
+  }
+}
+
+@media (aspect-ratio >= 1/1) and (height <= 375px) {
+  .remote-navigation-section-kodi .remote-kodi-action-rail {
+    bottom: 48px;
+  }
+
+  .remote-mode:not(.remote-utility-open) .remote-kodi-action-rail-right {
+    right: 0;
+    left: auto;
+    display: flex;
+    pointer-events: auto;
+  }
+
+  .remote-mode:not(.remote-utility-open) .remote-kodi-action-rail-right .remote-nav-action {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    pointer-events: auto;
+  }
+
+  .remote-mode:not(.remote-utility-open)
+    .remote-kodi-action-rail-right
+    .remote-nav-action:nth-child(2),
+  .remote-mode:not(.remote-utility-open)
+    .remote-kodi-action-rail-right
+    .remote-nav-action-fullscreen {
+    top: auto;
+    right: auto;
+    bottom: auto;
+  }
+
+  .remote-navigation-section-kodi .remote-navigation-ring,
+  .remote-mode.remote-utility-open .remote-navigation-section-kodi .remote-navigation-ring {
+    width: min(50svh, calc(100% - 70px), 176px);
+    max-height: none;
+  }
+
+  .remote-navigation-section-kodi .remote-power-button {
+    left: 0;
+  }
+
+  .remote-mode.remote-utility-open .remote-navigation-section-kodi .remote-power-button {
+    right: 0;
+    left: auto;
   }
 }
 

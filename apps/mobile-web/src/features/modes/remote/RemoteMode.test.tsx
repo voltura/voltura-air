@@ -17,6 +17,14 @@ const mediaControlButtons = new Set([
   "Stop playback",
   "Info",
   "Toggle subtitles",
+  "Audio track",
+  "Rewind",
+  "Fast forward",
+  "Subtitle track",
+  "Previous item or chapter",
+  "Next item or chapter",
+  "Player details",
+  "Aspect ratio",
 ]);
 
 describe("RemoteMode", () => {
@@ -147,7 +155,10 @@ describe("RemoteMode", () => {
     ["Toggle video", "Tab", undefined],
     ["Stop playback", "X", undefined],
     ["Info", "I", undefined],
+    ["Up one level", "Backspace", undefined],
+    ["Menu or player controls", "ContextMenu", undefined],
     ["Toggle subtitles", "T", undefined],
+    ["Audio track", "A", ["Control"]],
     ["Toggle fullscreen or windowed", "\\", undefined],
     ["Volume down", "-", undefined],
     ["Mute PC", "F8", undefined],
@@ -176,6 +187,66 @@ describe("RemoteMode", () => {
       expect(sendSpecial).toHaveBeenCalledExactlyOnceWith(key);
     },
   );
+
+  it.each([
+    ["Rewind", "R"],
+    ["Fast forward", "F"],
+    ["Subtitle track", "L"],
+    ["Previous item or chapter", "PageDown"],
+    ["Next item or chapter", "PageUp"],
+    ["Player details", "O"],
+    ["Aspect ratio", "Z"],
+  ] as const)("sends Kodi Functions shortcut for %s", async (buttonName, key) => {
+    const sendSpecial = vi.fn();
+    renderRemote({
+      remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "kodi" },
+      sendSpecial,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    fireEvent.click(await screen.findByRole("button", { name: buttonName }));
+
+    expect(sendSpecial).toHaveBeenCalledExactlyOnceWith(key, undefined, "media-controls");
+  });
+
+  it("uses compact visible labels for Kodi Functions without changing their accessible names", async () => {
+    renderRemote({
+      remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "kodi" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    await screen.findByRole("button", { name: "Fast forward" });
+
+    for (const [accessibleName, visibleLabel] of [
+      ["Fast forward", "Forward"],
+      ["Subtitle track", "Subtitle"],
+      ["Aspect ratio", "Aspect"],
+    ] as const) {
+      expect(screen.getByRole("button", { name: accessibleName }).textContent).toContain(
+        visibleLabel,
+      );
+    }
+  });
+
+  it.each(["standard", "youtube"] as const)("keeps Kodi-only actions out of %s mode", (mode) => {
+    renderRemote({
+      remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode },
+    });
+
+    for (const buttonName of [
+      "Up one level",
+      "Menu or player controls",
+      "Info",
+      "Toggle subtitles",
+      "Audio track",
+      "Toggle fullscreen or windowed",
+    ]) {
+      expect(screen.queryByRole("button", { name: buttonName })).toBeNull();
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    expect(screen.queryByLabelText("Kodi tools")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Player details" })).toBeNull();
+  });
 
   it("hides the separate browser fullscreen button in Kodi mode", () => {
     renderRemote({
@@ -261,7 +332,7 @@ describe("RemoteMode", () => {
     );
   });
 
-  it("toggles the compact Windows helper panel with the Functions button", () => {
+  it("toggles the compact Windows helper panel with the Fn button", () => {
     renderRemote({
       powerCapabilities: {
         lock: true,
@@ -276,7 +347,7 @@ describe("RemoteMode", () => {
     });
 
     const remoteMode = screen.getByLabelText("Couch remote");
-    const functionsButton = screen.getByRole("button", { name: "Functions" });
+    const functionsButton = screen.getByRole("button", { name: "Fn" });
     expect(functionsButton.classList).toContain("remote-corner-action");
     expect(screen.getByRole("button", { name: "Power" }).classList).toContain(
       "remote-corner-action",
@@ -296,7 +367,7 @@ describe("RemoteMode", () => {
     expect(remoteMode.classList.contains("remote-utility-open")).toBe(false);
   });
 
-  it("keeps the D-pad and corner controls available while Functions is open without the navigation ring", () => {
+  it("keeps the D-pad and corner controls available while Fn is open without the navigation ring", () => {
     renderRemote({
       remoteSettings: {
         ...defaultRemoteSettings,
@@ -314,7 +385,7 @@ describe("RemoteMode", () => {
       },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
 
     expect(screen.getByLabelText("Directional pad")).toBeTruthy();
     expect(screen.getByRole("button", { name: "D-pad up" })).toBeTruthy();
@@ -354,7 +425,7 @@ describe("RemoteMode", () => {
       onAppLaunch,
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
     fireEvent.click(screen.getByRole("button", { name: "Start Media Room" }));
 
     expect(screen.getByRole("button", { name: "Start WWW" }).textContent).toContain("WWW");
@@ -363,11 +434,23 @@ describe("RemoteMode", () => {
     expect(screen.queryByText(/\.exe/i)).toBeNull();
   });
 
+  it("omits approved application buttons from Kodi Functions", () => {
+    renderRemote({
+      appLaunchActions: [{ id: "preset.browser", label: "WWW", kind: "browser" }],
+      remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "kodi" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+
+    expect(screen.queryByLabelText("Application launch controls")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start WWW" })).toBeNull();
+  });
+
   it("disables application buttons and shows progress while pending", () => {
     const action = { id: "preset.browser", label: "Browser", kind: "browser" } as const;
     renderRemote({ appLaunchActions: [action], pendingAppLaunchId: action.id });
 
-    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
     const button = screen.getByRole<HTMLButtonElement>("button", { name: "Start Browser" });
 
     expect(button.disabled).toBe(true);
@@ -377,7 +460,7 @@ describe("RemoteMode", () => {
   it("opens URL entry in a dialog, preserves its draft after failure, and offers retry", () => {
     const onUrlOpen = vi.fn(() => "url-operation-a");
     const view = renderRemote({ onUrlOpen });
-    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
     fireEvent.click(screen.getByRole("button", { name: "Open URL" }));
 
     const dialog = screen.getByRole("dialog", { name: "Open URL on PC" });
@@ -414,7 +497,7 @@ describe("RemoteMode", () => {
   it("keeps the URL dialog open to show a successful response until Close is pressed", () => {
     const onUrlOpen = vi.fn(() => "url-operation-a");
     const view = renderRemote({ onUrlOpen });
-    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
     fireEvent.click(screen.getByRole("button", { name: "Open URL" }));
 
     const input = screen.getByLabelText("Web address");
@@ -453,7 +536,7 @@ describe("RemoteMode", () => {
 
   it("closes the URL dialog when the PC connection becomes unavailable", () => {
     const view = renderRemote();
-    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
     fireEvent.click(screen.getByRole("button", { name: "Open URL" }));
     expect(screen.getByRole("dialog", { name: "Open URL on PC" })).toBeTruthy();
 
@@ -465,7 +548,7 @@ describe("RemoteMode", () => {
 
   it("shows the URL permission requirement in the dialog", () => {
     renderRemote({ urlOpenCapability: { canOpen: false } });
-    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
     fireEvent.click(screen.getByRole("button", { name: "Open URL" }));
 
     expect(screen.getByRole("alert").textContent).toContain("Allow URL opening");
@@ -476,7 +559,7 @@ describe("RemoteMode", () => {
   it("validates URL drafts before enabling Open", () => {
     const onUrlOpen = vi.fn(() => "url-operation-a");
     renderRemote({ onUrlOpen });
-    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
     fireEvent.click(screen.getByRole("button", { name: "Open URL" }));
 
     const input = screen.getByLabelText<HTMLInputElement>("Web address");
@@ -501,7 +584,7 @@ describe("RemoteMode", () => {
 
   it("opens URL guidance in the detailed information dialog", () => {
     renderRemote();
-    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
     fireEvent.click(screen.getByRole("button", { name: "Open URL" }));
     fireEvent.click(screen.getByRole("button", { name: "About Opening URLs on PC" }));
 

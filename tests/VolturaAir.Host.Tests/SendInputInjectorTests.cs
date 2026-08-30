@@ -34,6 +34,20 @@ public sealed class SendInputInjectorTests
     }
 
     [Fact]
+    public void SpecialKeyMapsKodiContextMenuToTheWindowsVirtualKey()
+    {
+        var native = new RecordingSendInputNative();
+        using var injector = new SendInputInjector(native);
+
+        injector.SpecialKey("ContextMenu", []);
+
+        var batch = Assert.Single(native.Batches);
+        Assert.Equal(
+            ["5D:down", "5D:up"],
+            batch.Select(DescribeKeyboardInput));
+    }
+
+    [Fact]
     public void ActivityPulseSendsOnlyF15KeyUp()
     {
         var native = new RecordingSendInputNative();

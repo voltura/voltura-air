@@ -72,3 +72,16 @@ export const remoteShortcutMaps: Record<RemoteModeId, RemoteShortcutMap> = {
     powerMenu: { key: "S" },
   },
 };
+
+export const kodiRemoteShortcuts = {
+  upOneLevel: { key: "Backspace" },
+  menu: { key: "ContextMenu" },
+  audioTrack: { key: "A", modifiers: ["Control"] },
+  rewind: { key: "R" },
+  fastForward: { key: "F" },
+  subtitleTrack: { key: "L" },
+  previousChapter: { key: "PageDown" },
+  nextChapter: { key: "PageUp" },
+  playerDetails: { key: "O" },
+  aspectRatio: { key: "Z" },
+} satisfies Record<string, RemoteShortcut>;

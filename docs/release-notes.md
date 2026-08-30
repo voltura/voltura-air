@@ -6,6 +6,11 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.1.9
+
+- Restored a distinct **Audio track** icon in Kodi Remote so the control is
+  clearly distinguishable from the volume buttons.
+
 ## v1.1.8
 
 - Expanded **Kodi Remote** with one-screen access to Up one level, Menu/OSD,

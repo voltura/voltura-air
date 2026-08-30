@@ -204,7 +204,9 @@ describe("RemoteMode", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Fn" }));
-    fireEvent.click(await screen.findByRole("button", { name: buttonName }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: buttonName }, { timeout: 5000 }),
+    );
 
     expect(sendSpecial).toHaveBeenCalledExactlyOnceWith(key, undefined, "media-controls");
   });

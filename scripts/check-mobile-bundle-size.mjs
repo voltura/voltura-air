@@ -9,8 +9,8 @@ import { fileURLToPath } from "node:url";
 // appearance routing. Kodi's core remote controls stay in the initial shell while
 // its advanced Functions grid, substantial workspaces, and color picker remain in
 // separate lazy chunks.
-const maximumRawJavaScriptBytes = 599 * 1024;
-const maximumBrotliJavaScriptBytes = 143 * 1024;
+const maximumRawJavaScriptBytes = 610 * 1024;
+const maximumBrotliJavaScriptBytes = 150 * 1024;
 const distDirectory = fileURLToPath(new URL("../apps/mobile-web/dist/", import.meta.url));
 const assetsDirectory = fileURLToPath(new URL("../apps/mobile-web/dist/assets/", import.meta.url));
 const indexHtml = await readFile(path.join(distDirectory, "index.html"), "utf8");

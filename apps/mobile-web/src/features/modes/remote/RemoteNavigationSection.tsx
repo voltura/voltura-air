@@ -1,5 +1,6 @@
 import type { HTMLAttributes } from "react";
 import {
+  AudioLines,
   ArrowDown,
   ArrowLeft,
   ArrowRight,
@@ -9,7 +10,6 @@ import {
   Info,
   Maximize2,
   Menu,
-  Volume2,
 } from "lucide-react";
 import type {
   PowerCapabilities,
@@ -211,7 +211,7 @@ export function RemoteNavigationSection({
               <Captions aria-hidden="true" />
             </RemoteButton>
             <RemoteButton label="Audio track" className="remote-nav-action" onClick={onAudioTrack}>
-              <Volume2 aria-hidden="true" />
+              <AudioLines aria-hidden="true" />
             </RemoteButton>
             <RemoteButton
               label="Toggle fullscreen or windowed"

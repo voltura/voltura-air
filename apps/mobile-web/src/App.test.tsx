@@ -1495,7 +1495,7 @@ describe("App header and mode navigation", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Remote" }).at(-1)!);
     expect(document.querySelector(".bottom-mode-tabs")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
 
     const appShell = document.querySelector(".app-shell");
     expect(appShell?.classList.contains("remote-utility-open")).toBe(true);

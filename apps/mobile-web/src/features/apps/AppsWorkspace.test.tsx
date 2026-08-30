@@ -71,6 +71,29 @@ describe("Apps workspace", () => {
     });
   });
 
+  it("refreshes the window list once when the app returns from the background", async () => {
+    let visibilityState: DocumentVisibilityState = "visible";
+    vi.spyOn(document, "visibilityState", "get").mockImplementation(() => visibilityState);
+    const send = vi.fn<(message: ClientMessage) => void>();
+    renderWorkspace(send);
+
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    const list = send.mock.calls[0]![0];
+    if (list.type !== "apps.list") {
+      throw new TypeError("Expected Apps list request.");
+    }
+    act(() => publishAppsResult(listResult(list.operationId)));
+
+    visibilityState = "hidden";
+    fireEvent(document, new Event("visibilitychange"));
+    visibilityState = "visible";
+    fireEvent(document, new Event("visibilitychange"));
+
+    await waitFor(() =>
+      expect(send.mock.calls.filter(([message]) => message.type === "apps.list")).toHaveLength(2),
+    );
+  });
+
   it("shows the active badge as soon as Windows accepts activation", async () => {
     const send = vi.fn<(message: ClientMessage) => void>();
     renderWorkspace(send);
@@ -394,6 +417,8 @@ describe("Apps workspace", () => {
     expect(cards[0]?.dataset.appLoopClone).toBe("true");
     expect(cards[3]?.dataset.appCanonical).toBe("true");
     expect(cards[6]?.dataset.appLoopClone).toBe("true");
+    expect(carousel.querySelectorAll(".apps-window-card.is-selected")).toHaveLength(1);
+    expect(carousel.querySelectorAll('[aria-label="Close Browser"]')).toHaveLength(1);
 
     Object.defineProperty(carousel, "clientWidth", { configurable: true, value: 300 });
     cards.forEach((card, index) => {

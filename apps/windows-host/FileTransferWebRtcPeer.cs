@@ -9,7 +9,8 @@ internal sealed record FileTransferPeerConfiguration(
     string DataChannelLabel = FileTransferProtocol.DataChannelLabel,
     int MinimumRecordBytes = FileTransferProtocol.HeaderBytes,
     int MaximumRecordBytes = FileTransferProtocol.MaximumRecordBytes,
-    long MaximumBufferedBytes = FileTransferProtocol.MaximumUnacknowledgedBytes);
+    long MaximumBufferedBytes = FileTransferProtocol.MaximumUnacknowledgedBytes,
+    bool CoalesceIncomingMessages = false);
 
 internal interface IFileTransferWebRtcPeer : IAsyncDisposable
 {
@@ -36,7 +37,7 @@ internal sealed class IsolatedFileTransferWebRtcPeerFactory : IFileTransferWebRt
 
     private sealed class IsolatedFileTransferWebRtcPeer(FileTransferPeerConfiguration? configuration) : IFileTransferWebRtcPeer
     {
-        private readonly Channel<byte[]> _messages = Channel.CreateBounded<byte[]>(16);
+        private readonly Channel<byte[]> _messages = CreateMessageChannel(configuration);
         private readonly TaskCompletionSource _opened = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Task Opened => _opened.Task;
         public ChannelReader<byte[]> Messages => _messages.Reader;
@@ -56,17 +57,23 @@ internal sealed class IsolatedFileTransferWebRtcPeerFactory : IFileTransferWebRt
             return ValueTask.CompletedTask;
         }
     }
+
+    private static Channel<byte[]> CreateMessageChannel(FileTransferPeerConfiguration? configuration) =>
+        Channel.CreateBounded<byte[]>(new BoundedChannelOptions(
+            configuration?.CoalesceIncomingMessages == true ? 1 : 16)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = configuration?.CoalesceIncomingMessages == true
+                ? BoundedChannelFullMode.DropOldest
+                : BoundedChannelFullMode.Wait
+        });
 }
 
 internal sealed class FileTransferWebRtcPeer : IFileTransferWebRtcPeer
 {
     private readonly Lock _gate = new();
-    private readonly Channel<byte[]> _messages = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(16)
-    {
-        SingleReader = true,
-        SingleWriter = false,
-        FullMode = BoundedChannelFullMode.Wait
-    });
+    private readonly Channel<byte[]> _messages;
     private readonly TaskCompletionSource _opened = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource<string> _offer = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly LibDataChannelNative.DescriptionCallback _descriptionCallback;
@@ -102,6 +109,15 @@ internal sealed class FileTransferWebRtcPeer : IFileTransferWebRtcPeer
             _minimumRecordBytes < 1 || _maximumRecordBytes < _minimumRecordBytes ||
             _maximumRecordBytes > FileTransferProtocol.MaximumRecordBytes || _maximumBufferedBytes < _maximumRecordBytes)
             throw new ArgumentOutOfRangeException(nameof(configuration));
+        _messages = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(
+            configuration?.CoalesceIncomingMessages == true ? 1 : 16)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = configuration?.CoalesceIncomingMessages == true
+                ? BoundedChannelFullMode.DropOldest
+                : BoundedChannelFullMode.Wait
+        });
         _descriptionCallback = OnDescription;
         _stateCallback = OnState;
         _gatheringCallback = OnGathering;

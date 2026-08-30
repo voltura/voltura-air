@@ -1339,11 +1339,16 @@ at most 48 exact window objects: `windowId`, bounded `title`, bounded
 `applicationName`, and Boolean `active`, `minimized`, `maximizeSupported`, and
 `previewSupported`. Failure omits `revision` and has an empty list. Handles,
 process/session IDs, executable paths, command lines, arguments, icons, desktop
-IDs, and capture details are never sent. Each refresh replaces the map; actions
-require the same authenticated socket, current revision, opaque ID, effective
-**Control open applications** permission, and successful native revalidation.
+IDs, and capture details are never sent. Each refresh replaces the revision map;
+an opaque window ID is reused only when the host verifies that the native window
+identity is unchanged. Actions require the same authenticated socket, current
+revision, opaque ID, effective **Control open applications** permission, and
+successful current-permission and native-identity revalidation.
 Activation restores or suitably maximizes before requesting focus. Close posts
 the normal Windows close message and does not bypass application prompts.
+Windows that UIPI prevents the host from lifetime-tagging remain listable, but
+are not previewed or closed; their activation uses non-destructive current
+process/thread identity revalidation and does not maximize them.
 
 Preview signaling is host-offered and uses `apps.preview.offer`,
 `apps.preview.answer.result`, and `apps.preview.ended`. The signed offer transcript
@@ -1370,8 +1375,10 @@ discriminator, window ID, unsigned 32-bit big-endian offset, and 1–49,152 byte
 Offsets are exact and sequential. Invalid records close the preview peer.
 
 Listing occurs once on Apps entry and once after explicit refresh, activate,
-close, or successful approved-app launch; there is no polling or proactive
-push. Preview requests cover only the centered card and immediate neighbors.
+close, successful approved-app launch, or return from browser background; there
+is no polling or proactive push. Preview requests cover only the centered card
+and immediate neighbors. The Apps peer's bounded inbound request slot keeps the
+newest request when rapid deck changes outpace sequential capture.
 The host performs no discovery or capture and owns no Apps preview peer while
 the tool is closed. IDs, maps, captures, encoded bytes, browser assembly buffers,
 and object URLs are transient and excluded from persistence, logs, and telemetry.

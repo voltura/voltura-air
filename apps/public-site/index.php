@@ -120,6 +120,10 @@
           <p>View one selected Windows display live on a phone or tablet. Use touch gestures for cursor movement, local zoom and pan, and scrolling, with a separate Click control for precise clicks. Capture the watched display as a native PNG and save or share it from the device.</p>
         </article>
         <article>
+          <h2>Switch between open apps</h2>
+          <p>Flick through previews of open PC windows, tap the centered card to restore or focus it, swipe up to close it normally, or open applications defined on the PC.</p>
+        </article>
+        <article>
           <h2>Use Windows PowerShell remotely</h2>
           <p>Open an interactive Windows PowerShell terminal from a paired phone, tablet, or browser. Run commands over Direct LAN or the encrypted Cloud relay, with touch shortcuts, selectable output, copy, two-axis scrolling, and authenticated reconnect.</p>
         </article>

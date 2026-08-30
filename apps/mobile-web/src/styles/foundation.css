@@ -679,8 +679,15 @@ button span {
 
 @media (orientation: landscape) {
   .app-shell.screen-view-active {
+    display: flex;
+    flex-direction: column;
     gap: 0.35rem;
     padding-top: max(6px, env(safe-area-inset-top));
     padding-bottom: 0;
+  }
+
+  .app-shell.screen-view-active > .screen-view-workspace {
+    flex: 1 1 0;
+    min-height: 0;
   }
 }

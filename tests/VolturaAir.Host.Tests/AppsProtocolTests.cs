@@ -5,6 +5,25 @@ namespace VolturaAir.Host.Tests;
 
 public sealed class AppsProtocolTests
 {
+    [Fact]
+    public void WindowIdentitySurvivesTitleChangesButRejectsRecycledHandles()
+    {
+        var listed = Snapshot(processId: 41, threadId: 42, title: "Old page");
+
+        Assert.True(WindowsAppsWindowAdapter.HasSameIdentity(
+            listed,
+            Snapshot(processId: 41, threadId: 42, title: "New page")));
+        Assert.False(WindowsAppsWindowAdapter.HasSameIdentity(
+            listed,
+            Snapshot(processId: 99, threadId: 100, title: "Old page")));
+        Assert.False(WindowsAppsWindowAdapter.HasSameIdentity(
+            listed,
+            Snapshot(processId: 41, threadId: 42, title: "Replacement page", identityToken: 8)));
+        Assert.False(WindowsAppsWindowAdapter.HasSameIdentity(
+            Snapshot(processId: 41, threadId: 42, title: "Elevated page", identityToken: 0),
+            Snapshot(processId: 41, threadId: 42, title: "Elevated page", identityToken: 0)));
+    }
+
     private const string Revision = "0123456789abcdef0123456789abcdef";
     private const string WindowId = "fedcba9876543210fedcba9876543210";
 
@@ -120,4 +139,22 @@ public sealed class AppsProtocolTests
 
         Assert.Null(exception);
     }
+
+    private static AppsWindowSnapshot Snapshot(
+        uint processId,
+        uint threadId,
+        string title,
+        nint? identityToken = null) =>
+        new(
+            new nint(1234),
+            processId,
+            threadId,
+            identityToken ?? new nint(7),
+            title,
+            "Browser",
+            true,
+            false,
+            true,
+            true,
+            false);
 }

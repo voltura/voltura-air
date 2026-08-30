@@ -257,17 +257,18 @@ export function AppsWorkspace({
 
   useEffect(() => {
     const visibilityChange = () => {
-      if (document.visibilityState !== "hidden") {
+      if (document.visibilityState === "hidden") {
+        listOperationRef.current = null;
+        actionOperationRef.current = null;
+        setLoading(false);
+        setPendingWindowId(null);
         return;
       }
-      listOperationRef.current = null;
-      actionOperationRef.current = null;
-      setLoading(false);
-      setPendingWindowId(null);
+      requestList(true);
     };
     document.addEventListener("visibilitychange", visibilityChange);
     return () => document.removeEventListener("visibilitychange", visibilityChange);
-  }, []);
+  }, [requestList]);
 
   useEffect(() => {
     return subscribeAppsResults((result) => {
@@ -673,12 +674,12 @@ export function AppsWorkspace({
                           : "unavailable")
                       }
                       previewUrl={previewUrls.get(window.windowId)}
-                      selected={selectedIndex === logicalIndex}
+                      selected={!loopClone && selectedIndex === logicalIndex}
                       window={window}
                     />
                   ) : (
                     <article
-                      className={`apps-window-card apps-open-card${selectedIndex === openCardIndex ? " is-selected" : ""}`}
+                      className={`apps-window-card apps-open-card${!loopClone && selectedIndex === openCardIndex ? " is-selected" : ""}`}
                     >
                       <button
                         type="button"

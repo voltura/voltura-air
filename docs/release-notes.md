@@ -9,10 +9,10 @@ create one. Keep the shared notices in
 ## v1.1.7
 
 - Added **Apps** to the mobile Menu for quickly switching between open PC
-  applications. Flick through a card deck that coasts naturallappy and stops when
-  touched, restore or focus the centered window, close it normally, and start
-  host-approved apps from the final card. Static previews use the separate
-  Screen viewing permission.
+  applications. Flick through a card deck that coasts naturally,
+  restore or focus the centered window, close it normally, and start
+  host-approved apps from the final card. Static previews follow the device's
+  **View PC screen** permission.
 
 ## v1.1.6
 

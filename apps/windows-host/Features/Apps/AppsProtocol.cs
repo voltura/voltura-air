@@ -130,12 +130,16 @@ internal static class AppsProtocol
 
 internal sealed record AppsWindowSnapshot(
     nint Handle,
+    uint ProcessId,
+    uint ThreadId,
+    nint IdentityToken,
     string Title,
     string ApplicationName,
     bool Active,
     bool Minimized,
     bool MaximizeSupported,
-    bool PreviewSupported);
+    bool PreviewSupported,
+    bool IsVolturaAir);
 
 internal sealed record AppsWindowDiscoveryResult(
     bool Succeeded,
@@ -154,11 +158,10 @@ internal sealed record AppsPreviewCaptureResult(
 internal interface IAppsWindowAdapter : IDisposable
 {
     AppsWindowDiscoveryResult Discover(bool includeVolturaAir);
-    bool IsUsable(nint windowHandle, bool includeVolturaAir);
-    AppsWindowActionResult Activate(nint windowHandle, bool includeVolturaAir);
-    AppsWindowActionResult Close(nint windowHandle, bool includeVolturaAir);
+    AppsWindowActionResult Activate(AppsWindowSnapshot window, bool includeVolturaAir);
+    AppsWindowActionResult Close(AppsWindowSnapshot window, bool includeVolturaAir);
     AppsPreviewCaptureResult CapturePreview(
-        nint windowHandle,
+        AppsWindowSnapshot window,
         bool includeVolturaAir,
         CancellationToken cancellationToken);
 
@@ -172,16 +175,14 @@ internal sealed class UnavailableAppsWindowAdapter : IAppsWindowAdapter
     public AppsWindowDiscoveryResult Discover(bool includeVolturaAir) =>
         new(false, "unavailable", "Open applications are unavailable in isolated mode.", []);
 
-    public bool IsUsable(nint windowHandle, bool includeVolturaAir) => false;
-
-    public AppsWindowActionResult Activate(nint windowHandle, bool includeVolturaAir) =>
+    public AppsWindowActionResult Activate(AppsWindowSnapshot window, bool includeVolturaAir) =>
         new(false, "unavailable", "The application window is unavailable.");
 
-    public AppsWindowActionResult Close(nint windowHandle, bool includeVolturaAir) =>
+    public AppsWindowActionResult Close(AppsWindowSnapshot window, bool includeVolturaAir) =>
         new(false, "unavailable", "The application window is unavailable.");
 
     public AppsPreviewCaptureResult CapturePreview(
-        nint windowHandle,
+        AppsWindowSnapshot window,
         bool includeVolturaAir,
         CancellationToken cancellationToken) =>
         new(false, null, 0, 0);

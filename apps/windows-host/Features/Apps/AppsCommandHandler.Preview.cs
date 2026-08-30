@@ -17,7 +17,9 @@ internal sealed class AppsPreviewSessionCoordinator : IAsyncDisposable
     private readonly Func<string, WebSocket, string, IReadOnlyDictionary<string, AppsWindowSnapshot>?> _getWindowMap;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly Lock _gate = new();
+    private readonly SemaphoreSlim _sendGate = new(1, 1);
     private AppsPreviewSession? _preview;
+    private PendingPreviewEnsure? _pendingEnsure;
     private int _disposed;
 
     internal AppsPreviewSessionCoordinator(
@@ -40,31 +42,74 @@ internal sealed class AppsPreviewSessionCoordinator : IAsyncDisposable
         _getWindowMap = getWindowMap;
     }
 
-    internal void Ensure(WebSocket socket, string clientId, string offerOperationId)
+    internal void Ensure(
+        WebSocket socket,
+        string clientId,
+        string offerOperationId,
+        bool includesVolturaAir)
     {
         lock (_gate)
         {
-            if (_preview is not null)
+            if (!_status.CanPreviewOpenApps(clientId) ||
+                includesVolturaAir && !_status.CanControlHostApplication(clientId))
             {
+                if (_pendingEnsure is { } pending &&
+                    pending.ClientId == clientId &&
+                    ReferenceEquals(pending.Socket, socket))
+                {
+                    _pendingEnsure = null;
+                }
+                if (_preview is { } unauthorized &&
+                    unauthorized.ClientId == clientId &&
+                    ReferenceEquals(unauthorized.Socket, socket))
+                {
+                    unauthorized.Cancellation.Cancel();
+                }
                 return;
             }
 
-#pragma warning disable CA2000 // AppsPreviewSession owns the linked cancellation source through its run task.
-            var preview = new AppsPreviewSession(
-                NewId(),
-                clientId,
-                socket,
-                offerOperationId,
-                CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token));
-#pragma warning restore CA2000
-            _preview = preview;
-            preview.RunTask = RunPreviewAsync(preview);
-            _ = preview.RunTask.ContinueWith(
-                completed => _ = completed.Exception,
-                CancellationToken.None,
-                TaskContinuationOptions.ExecuteSynchronously,
-                TaskScheduler.Default);
+            if (_preview is { } current)
+            {
+                if (current.ClientId == clientId && ReferenceEquals(current.Socket, socket))
+                {
+                    current.IncludesVolturaAir |= includesVolturaAir;
+                }
+                if (current.Cancellation.IsCancellationRequested)
+                {
+                    _pendingEnsure = new(socket, clientId, offerOperationId, includesVolturaAir);
+                }
+                return;
+            }
+
+            StartPreviewLocked(socket, clientId, offerOperationId, includesVolturaAir);
         }
+    }
+
+    private void StartPreviewLocked(
+        WebSocket socket,
+        string clientId,
+        string offerOperationId,
+        bool includesVolturaAir)
+    {
+#pragma warning disable CA2000 // AppsPreviewSession owns the linked cancellation source through its run task.
+        var preview = new AppsPreviewSession(
+            NewId(),
+            clientId,
+            socket,
+            offerOperationId,
+            CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token))
+        {
+            IncludesVolturaAir = includesVolturaAir
+        };
+#pragma warning restore CA2000
+        _preview = preview;
+        _pendingEnsure = null;
+        preview.RunTask = RunPreviewAsync(preview);
+        _ = preview.RunTask.ContinueWith(
+            completed => _ = completed.Exception,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 
     internal async Task AnswerAsync(
@@ -169,6 +214,12 @@ internal sealed class AppsPreviewSessionCoordinator : IAsyncDisposable
     {
         lock (_gate)
         {
+            if (_pendingEnsure is { } pending &&
+                pending.ClientId == clientId &&
+                ReferenceEquals(pending.Socket, socket))
+            {
+                _pendingEnsure = null;
+            }
             if (_preview is { } preview &&
                 preview.ClientId == clientId &&
                 ReferenceEquals(preview.Socket, socket))
@@ -182,9 +233,30 @@ internal sealed class AppsPreviewSessionCoordinator : IAsyncDisposable
     {
         lock (_gate)
         {
-            if (_preview is { } preview && !_status.CanPreviewOpenApps(preview.ClientId))
+            if (Volatile.Read(ref _disposed) != 0)
             {
-                preview.Cancellation.Cancel();
+                return;
+            }
+
+            _sendGate.Wait();
+            try
+            {
+                if (_pendingEnsure is { } pending &&
+                    (!_status.CanPreviewOpenApps(pending.ClientId) ||
+                        pending.IncludesVolturaAir && !_status.CanControlHostApplication(pending.ClientId)))
+                {
+                    _pendingEnsure = null;
+                }
+                if (_preview is { } preview &&
+                    (!_status.CanPreviewOpenApps(preview.ClientId) ||
+                        preview.IncludesVolturaAir && !_status.CanControlHostApplication(preview.ClientId)))
+                {
+                    preview.Cancellation.Cancel();
+                }
+            }
+            finally
+            {
+                _sendGate.Release();
             }
         }
     }
@@ -201,6 +273,7 @@ internal sealed class AppsPreviewSessionCoordinator : IAsyncDisposable
         lock (_gate)
         {
             preview = _preview;
+            _pendingEnsure = null;
         }
 
         if (preview is not null)
@@ -221,6 +294,18 @@ internal sealed class AppsPreviewSessionCoordinator : IAsyncDisposable
         }
 
         _lifetime.Dispose();
+        if (preview?.RunTask is { IsCompleted: false } pendingRun)
+        {
+            _ = pendingRun.ContinueWith(
+                _ => _sendGate.Dispose(),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
+        else
+        {
+            _sendGate.Dispose();
+        }
     }
 
     private async Task RunPreviewAsync(AppsPreviewSession preview)
@@ -256,7 +341,8 @@ internal sealed class AppsPreviewSessionCoordinator : IAsyncDisposable
                 RelayOnly: relay is not null,
                 DataChannelLabel: AppsProtocol.DataChannelLabel,
                 MinimumRecordBytes: AppsProtocol.MinimumRecordBytes,
-                MaximumRecordBytes: AppsProtocol.MaximumRecordBytes));
+                MaximumRecordBytes: AppsProtocol.MaximumRecordBytes,
+                CoalesceIncomingMessages: true));
             using (var signaling = CancellationTokenSource.CreateLinkedTokenSource(preview.Token))
             {
                 signaling.CancelAfter(PreviewSignalingLifetime);
@@ -317,6 +403,22 @@ internal sealed class AppsPreviewSessionCoordinator : IAsyncDisposable
                 if (ReferenceEquals(_preview, preview))
                 {
                     _preview = null;
+                    if (Volatile.Read(ref _disposed) == 0 &&
+                        _pendingEnsure is { } pending &&
+                        _status.CanPreviewOpenApps(pending.ClientId) &&
+                        (!pending.IncludesVolturaAir ||
+                            _status.CanControlHostApplication(pending.ClientId)))
+                    {
+                        StartPreviewLocked(
+                            pending.Socket,
+                            pending.ClientId,
+                            pending.OfferOperationId,
+                            pending.IncludesVolturaAir);
+                    }
+                    else
+                    {
+                        _pendingEnsure = null;
+                    }
                 }
             }
 
@@ -348,18 +450,19 @@ internal sealed class AppsPreviewSessionCoordinator : IAsyncDisposable
             }
 
             bool includeVolturaAir = _status.CanControlHostApplication(preview.ClientId);
-            AppsPreviewCaptureResult capture = _windows.CapturePreview(
-                window.Handle,
-                includeVolturaAir,
-                preview.Token);
+            AppsPreviewCaptureResult capture = _windows.CapturePreview(window, includeVolturaAir, preview.Token);
             if (!capture.Succeeded || capture.Content is null ||
                 capture.Content.Length > AppsProtocol.MaximumPreviewBytes)
             {
-                await SendRecordAsync(preview, AppsProtocol.CreateUnavailableHeader(windowId)).ConfigureAwait(false);
+                await SendRecordAsync(
+                    preview,
+                    AppsProtocol.CreateUnavailableHeader(windowId),
+                    window.IsVolturaAir).ConfigureAwait(false);
                 continue;
             }
 
-            if (!_status.CanPreviewOpenApps(preview.ClientId))
+            if (!_status.CanPreviewOpenApps(preview.ClientId) ||
+                window.IsVolturaAir && !_status.CanControlHostApplication(preview.ClientId))
             {
                 await preview.Cancellation.CancelAsync().ConfigureAwait(false);
                 return;
@@ -382,7 +485,8 @@ internal sealed class AppsPreviewSessionCoordinator : IAsyncDisposable
                     windowId,
                     capture.Width,
                     capture.Height,
-                    capture.Content.Length)).ConfigureAwait(false);
+                    capture.Content.Length),
+                window.IsVolturaAir).ConfigureAwait(false);
             for (int offset = 0; offset < capture.Content.Length; offset += AppsProtocol.PreviewChunkBytes)
             {
                 int count = Math.Min(AppsProtocol.PreviewChunkBytes, capture.Content.Length - offset);
@@ -391,16 +495,19 @@ internal sealed class AppsPreviewSessionCoordinator : IAsyncDisposable
                     AppsProtocol.CreatePreviewData(
                         windowId,
                         offset,
-                        capture.Content.AsSpan(offset, count))).ConfigureAwait(false);
+                        capture.Content.AsSpan(offset, count)),
+                    window.IsVolturaAir).ConfigureAwait(false);
             }
 
             preview.RelayPayloadBytes = checked(preview.RelayPayloadBytes + capture.Content.Length);
         }
     }
 
-    private static async Task SendRecordAsync(AppsPreviewSession preview, byte[] record)
+    private async Task SendRecordAsync(
+        AppsPreviewSession preview,
+        byte[] record,
+        bool requiresHostControl = false)
     {
-        preview.Token.ThrowIfCancellationRequested();
         if (preview.Peer is null)
         {
             throw new FileTransferWebRtcException("The Apps preview connection is unavailable.");
@@ -408,8 +515,35 @@ internal sealed class AppsPreviewSessionCoordinator : IAsyncDisposable
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(preview.Token);
         timeout.CancelAfter(PreviewSendLifetime);
-        while (!preview.Peer.TrySend(record))
+        while (true)
         {
+            await _sendGate.WaitAsync(timeout.Token).ConfigureAwait(false);
+            bool authorized;
+            bool sent = false;
+            try
+            {
+                preview.Token.ThrowIfCancellationRequested();
+                authorized = _status.CanPreviewOpenApps(preview.ClientId) &&
+                    (!requiresHostControl || _status.CanControlHostApplication(preview.ClientId));
+                if (authorized)
+                {
+                    sent = preview.Peer.TrySend(record);
+                }
+            }
+            finally
+            {
+                _sendGate.Release();
+            }
+
+            if (!authorized)
+            {
+                await preview.Cancellation.CancelAsync().ConfigureAwait(false);
+                preview.Token.ThrowIfCancellationRequested();
+            }
+            if (sent)
+            {
+                return;
+            }
             await Task.Delay(10, timeout.Token).ConfigureAwait(false);
         }
     }
@@ -479,5 +613,11 @@ internal sealed class AppsPreviewSessionCoordinator : IAsyncDisposable
         $"VolturaAir apps-preview:answer:v1\n{clientId}\n{hostPublicKey}\n{offerOperationId}\n{answerOperationId}\n{previewId}\n{offerHash}\n{answerHash}";
 
     private static string NewId() => Guid.NewGuid().ToString("N");
+
+    private sealed record PendingPreviewEnsure(
+        WebSocket Socket,
+        string ClientId,
+        string OfferOperationId,
+        bool IncludesVolturaAir);
 
 }

@@ -66,7 +66,17 @@ export function useAppsPreviews({
   const refreshWindowIdsRef = useRef(new Set<string>());
   const [previewRefreshVersion, setPreviewRefreshVersion] = useState(0);
   const pairedRef = useRef(state === "paired");
-  const [previewChannel, setPreviewChannel] = useState<RTCDataChannel | null>(null);
+  const [previewChannelVersion, setPreviewChannelVersion] = useState(0);
+  const hasPreviewAccess = state === "paired" && capability.canUse;
+  const [previousPreviewAccess, setPreviousPreviewAccess] = useState(hasPreviewAccess);
+
+  if (previousPreviewAccess !== hasPreviewAccess) {
+    setPreviousPreviewAccess(hasPreviewAccess);
+    if (!hasPreviewAccess) {
+      setPreviewUrls(new Map());
+      setPreviewStates(new Map());
+    }
+  }
 
   useEffect(() => {
     pairedRef.current = state === "paired";
@@ -81,7 +91,7 @@ export function useAppsPreviews({
     }, 5_000);
   }, []);
 
-  const clearPreviewUrls = useCallback(() => {
+  const clearPreviewResources = useCallback(() => {
     for (const url of previewUrlsRef.current.values()) {
       URL.revokeObjectURL(url);
     }
@@ -90,14 +100,18 @@ export function useAppsPreviews({
     }
     retiringPreviewUrlsRef.current.clear();
     previewUrlsRef.current = new Map();
-    setPreviewUrls(new Map());
     previewStatesRef.current = new Map();
-    setPreviewStates(new Map());
     assemblerRef.current.clear();
     lastPreviewRequestRef.current = "";
     requestedWindowIdsRef.current.clear();
     refreshWindowIdsRef.current.clear();
   }, []);
+
+  const clearPreviewUrls = useCallback(() => {
+    clearPreviewResources();
+    setPreviewUrls(new Map());
+    setPreviewStates(new Map());
+  }, [clearPreviewResources]);
 
   const reconcilePreviewUrls = useCallback(
     (
@@ -173,7 +187,6 @@ export function useAppsPreviews({
       previewIdRef.current = null;
       channelRef.current?.close();
       channelRef.current = null;
-      setPreviewChannel(null);
       peerRef.current?.close();
       peerRef.current = null;
       assemblerRef.current.clear();
@@ -188,7 +201,13 @@ export function useAppsPreviews({
   );
 
   const requestVisiblePreviews = useCallback(() => {
-    if (!capability.previewAvailable || !revision || previewChannel?.readyState !== "open") {
+    const previewChannel = channelRef.current;
+    if (
+      previewChannelVersion === 0 ||
+      !capability.previewAvailable ||
+      !revision ||
+      previewChannel?.readyState !== "open"
+    ) {
       return;
     }
     const ids = [selectedIndex - 1, selectedIndex, selectedIndex + 1]
@@ -215,18 +234,16 @@ export function useAppsPreviews({
       requestedWindowIdsRef.current = new Set(ids);
       previewChannel.send(createAppsPreviewRequest(revision, ids));
       lastPreviewRequestRef.current = requestKey;
-      updatePreviewState(ids, "loading");
     } catch {
       closePreview();
     }
   }, [
     capability.previewAvailable,
     closePreview,
-    previewChannel,
+    previewChannelVersion,
     previewRefreshVersion,
     revision,
     selectedIndex,
-    updatePreviewState,
     windows,
   ]);
 
@@ -280,16 +297,14 @@ export function useAppsPreviews({
           }
           channel.binaryType = "arraybuffer";
           channelRef.current = channel;
-          setPreviewChannel(null);
           channel.addEventListener("open", () => {
             if (channelRef.current === channel) {
-              setPreviewChannel(channel);
+              setPreviewChannelVersion((version) => version + 1);
             }
           });
           channel.addEventListener("close", () => {
             if (channelRef.current === channel) {
               channelRef.current = null;
-              setPreviewChannel(null);
             }
           });
           channel.addEventListener("message", (event) => {
@@ -395,7 +410,6 @@ export function useAppsPreviews({
   const ownsPreview = useCallback((previewId: string) => previewIdRef.current === previewId, []);
 
   useEffect(() => {
-    // oxlint-disable-next-line react/set-state-in-effect -- the open external data channel must be synchronized with the latest visible-window state
     requestVisiblePreviews();
   }, [requestVisiblePreviews]);
 
@@ -403,10 +417,9 @@ export function useAppsPreviews({
     if (state === "paired" && capability.canUse) {
       return;
     }
-    // oxlint-disable-next-line react/set-state-in-effect -- permission loss must close the external peer and clear its rendered state together
     closePreview();
-    clearPreviewUrls();
-  }, [capability.canUse, clearPreviewUrls, closePreview, state]);
+    clearPreviewResources();
+  }, [capability.canUse, clearPreviewResources, closePreview, state]);
 
   useEffect(() => {
     const visibilityChange = () => {
@@ -422,18 +435,9 @@ export function useAppsPreviews({
   useEffect(
     () => () => {
       closePreview();
-      for (const url of previewUrlsRef.current.values()) {
-        URL.revokeObjectURL(url);
-      }
-      for (const url of retiringPreviewUrlsRef.current) {
-        URL.revokeObjectURL(url);
-      }
-      retiringPreviewUrlsRef.current.clear();
-      previewUrlsRef.current.clear();
-      assemblerRef.current.clear();
-      requestedWindowIdsRef.current.clear();
+      clearPreviewResources();
     },
-    [closePreview],
+    [clearPreviewResources, closePreview],
   );
 
   return {

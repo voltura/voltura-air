@@ -21,4 +21,5 @@ internal sealed class AppsPreviewSession(
     internal string? OfferHash { get; set; }
     internal Task? RunTask { get; set; }
     internal long RelayPayloadBytes { get; set; }
+    internal bool IncludesVolturaAir { get; set; }
 }

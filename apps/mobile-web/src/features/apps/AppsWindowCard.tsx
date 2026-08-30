@@ -25,52 +25,31 @@ const closeThreshold = 72;
 const previewSwapDurationMs = 180;
 
 function AppsPreviewImage({ url }: { url: string }) {
-  const [swap, setSwap] = useState({
-    displayedUrl: url,
-    incomingUrl: null as string | null,
-    incomingReady: false,
-  });
+  const [displayedUrl, setDisplayedUrl] = useState(url);
+  const [readyUrl, setReadyUrl] = useState<string | null>(null);
+  const incomingUrl = url === displayedUrl ? null : url;
+  const incomingReady = incomingUrl !== null && readyUrl === incomingUrl;
 
   useEffect(() => {
-    if (url === swap.displayedUrl || url === swap.incomingUrl) {
+    if (!incomingReady || !incomingUrl) {
       return;
     }
-    // oxlint-disable-next-line react/set-state-in-effect -- replacement object URLs must be staged behind the painted image before the browser loads them
-    setSwap((current) => ({ ...current, incomingUrl: url, incomingReady: false }));
-  }, [swap.displayedUrl, swap.incomingUrl, url]);
-
-  useEffect(() => {
-    if (!swap.incomingReady || !swap.incomingUrl) {
-      return;
-    }
-    const incomingUrl = swap.incomingUrl;
     const timeout = window.setTimeout(() => {
-      setSwap((current) =>
-        current.incomingUrl === incomingUrl
-          ? { displayedUrl: incomingUrl, incomingUrl: null, incomingReady: false }
-          : current,
-      );
+      setDisplayedUrl((current) => (current === displayedUrl ? incomingUrl : current));
     }, previewSwapDurationMs);
     return () => window.clearTimeout(timeout);
-  }, [swap.incomingReady, swap.incomingUrl]);
+  }, [displayedUrl, incomingReady, incomingUrl]);
 
   return (
     <span className="apps-preview-images">
-      <img src={swap.displayedUrl} alt="" draggable={false} />
-      {swap.incomingUrl && (
+      <img src={displayedUrl} alt="" draggable={false} />
+      {incomingUrl && (
         <img
-          src={swap.incomingUrl}
+          src={incomingUrl}
           alt=""
-          className={`apps-preview-image-incoming${swap.incomingReady ? " is-ready" : ""}`}
+          className={`apps-preview-image-incoming${incomingReady ? " is-ready" : ""}`}
           draggable={false}
-          onLoad={(event) => {
-            const incomingUrl = event.currentTarget.getAttribute("src");
-            setSwap((current) =>
-              incomingUrl && current.incomingUrl === incomingUrl
-                ? { ...current, incomingReady: true }
-                : current,
-            );
-          }}
+          onLoad={() => setReadyUrl(incomingUrl)}
         />
       )}
     </span>

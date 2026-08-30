@@ -20,9 +20,13 @@ internal sealed class WindowsAppsWindowAdapter(
     private const uint WindowMessageClose = 0x0010;
     private readonly IWindowsWindowActivator _windowActivator = windowActivator ?? new WindowsWindowActivator();
     private readonly Lock _desktopGate = new();
+    private readonly Lock _identityGate = new();
+    private readonly Dictionary<nint, nint> _identityTokens = [];
+    private readonly string _identityPropertyName = $"VolturaAir.Apps.Identity.{Guid.NewGuid():N}";
     private readonly int _sessionId = Process.GetCurrentProcess().SessionId;
     private readonly int _hostProcessId = Environment.ProcessId;
     private IAppsVirtualDesktopManager? _desktopManager;
+    private long _nextIdentityToken;
     private int _disposed;
 
     public AppsWindowDiscoveryResult Discover(bool includeVolturaAir)
@@ -64,62 +68,83 @@ internal sealed class WindowsAppsWindowAdapter(
         return new(true, "accepted", "Open applications loaded.", windows);
     }
 
-    public bool IsUsable(nint windowHandle, bool includeVolturaAir)
+    private bool TryGetCurrent(
+        AppsWindowSnapshot expected,
+        bool includeVolturaAir,
+        out AppsWindowSnapshot current)
     {
         if (!EnsureVirtualDesktopManager())
+        {
+            current = null!;
+            return false;
+        }
+
+        if (!TryCreateSnapshot(
+            expected.Handle,
+            WindowNativeMethods.GetForegroundWindow(),
+            includeVolturaAir,
+            out current))
         {
             return false;
         }
 
-        return TryCreateSnapshot(
-            windowHandle,
-            WindowNativeMethods.GetForegroundWindow(),
-            includeVolturaAir,
-            out _);
+        return expected.IdentityToken == nint.Zero
+            ? HasSameProcessIdentity(expected, current)
+            : HasSameIdentity(expected, current);
     }
 
-    public AppsWindowActionResult Activate(nint windowHandle, bool includeVolturaAir)
+    public AppsWindowActionResult Activate(AppsWindowSnapshot window, bool includeVolturaAir)
     {
-        if (!IsUsable(windowHandle, includeVolturaAir))
+        if (!TryGetCurrent(window, includeVolturaAir, out _))
         {
             return new(false, "stale-window", "The application window is no longer available.");
         }
 
-        bool maximize = SupportsMaximize(windowHandle) &&
-            !AppsWindowNativeMethods.IsZoomed(windowHandle) &&
-            !IsApplicationFullscreen(windowHandle);
-        return _windowActivator.TryActivateWindow(windowHandle, maximize)
+        bool maximize = window.IdentityToken != nint.Zero && SupportsMaximize(window.Handle) &&
+            !AppsWindowNativeMethods.IsZoomed(window.Handle) &&
+            !IsApplicationFullscreen(window.Handle);
+        return _windowActivator.TryActivateWindow(window.Handle, maximize)
             ? new(true, "accepted", "Application activated.")
             : new(false, "activation-rejected", "Windows did not allow the application to take focus.");
     }
 
-    public AppsWindowActionResult Close(nint windowHandle, bool includeVolturaAir)
+    public AppsWindowActionResult Close(AppsWindowSnapshot window, bool includeVolturaAir)
     {
-        if (!IsUsable(windowHandle, includeVolturaAir))
+        if (window.IdentityToken == nint.Zero)
+        {
+            return new(
+                false,
+                "unavailable",
+                "Windows security does not permit Voltura Air to verify this window for closing.");
+        }
+
+        if (!TryGetCurrent(window, includeVolturaAir, out _))
         {
             return new(false, "stale-window", "The application window is no longer available.");
         }
 
-        return AppsWindowNativeMethods.PostMessage(windowHandle, WindowMessageClose, nint.Zero, nint.Zero)
+        return AppsWindowNativeMethods.PostMessage(window.Handle, WindowMessageClose, nint.Zero, nint.Zero)
             ? new(true, "close-requested", "Close requested.")
             : new(false, "unavailable", "Windows could not request that the application close.");
     }
 
     public AppsPreviewCaptureResult CapturePreview(
-        nint windowHandle,
+        AppsWindowSnapshot window,
         bool includeVolturaAir,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!IsUsable(windowHandle, includeVolturaAir) || WindowNativeMethods.IsIconic(windowHandle) ||
-            !TryGetCaptureBounds(windowHandle, out var bounds) ||
+        if (window.IdentityToken == nint.Zero ||
+            !TryGetCurrent(window, includeVolturaAir, out _) ||
+            WindowNativeMethods.IsIconic(window.Handle) ||
+            !TryGetCaptureBounds(window.Handle, out var bounds) ||
             bounds.Width <= 0 || bounds.Height <= 0 ||
             (long)bounds.Width * bounds.Height > AppsProtocol.MaximumPreviewPixels)
         {
             return new(false, null, 0, 0);
         }
 
-        return AppsWindowPreviewCapture.Capture(windowHandle, bounds, cancellationToken);
+        return AppsWindowPreviewCapture.Capture(window.Handle, bounds, cancellationToken);
     }
 
     internal static bool ShouldIncludeCandidate(
@@ -164,9 +189,10 @@ internal sealed class WindowsAppsWindowAdapter(
         bool rootOwnerPopup = isWindow && IsRootOwnerPopup(windowHandle);
         bool cloaked = isWindow && IsCloaked(windowHandle);
         uint processId = 0;
+        uint threadId = 0;
         if (isWindow)
         {
-            _ = WindowNativeMethods.GetWindowThreadProcessId(windowHandle, out processId);
+            threadId = WindowNativeMethods.GetWindowThreadProcessId(windowHandle, out processId);
         }
         bool currentSession = false;
         bool isVolturaAir = false;
@@ -205,15 +231,63 @@ internal sealed class WindowsAppsWindowAdapter(
             return false;
         }
 
+        nint identityToken = GetIdentityToken(windowHandle);
+        bool identityVerified = identityToken != nint.Zero;
+
         snapshot = new AppsWindowSnapshot(
             windowHandle,
+            processId,
+            threadId,
+            identityToken,
             ProtocolStringLimits.Limit(title.Trim(), AppsProtocol.MaximumWindowTitleLength),
             ProtocolStringLimits.Limit(applicationName.Trim(), AppsProtocol.MaximumApplicationNameLength),
             WindowsWindowActivator.IsRequestedForegroundWindow(windowHandle, foreground),
             minimized,
-            SupportsMaximize(windowHandle),
-            !minimized);
+            identityVerified && SupportsMaximize(windowHandle),
+            identityVerified && !minimized,
+            isVolturaAir);
         return true;
+    }
+
+    internal static bool HasSameIdentity(AppsWindowSnapshot expected, AppsWindowSnapshot current) =>
+        expected.IdentityToken != nint.Zero &&
+        expected.Handle == current.Handle &&
+        expected.ProcessId == current.ProcessId &&
+        expected.ThreadId == current.ThreadId &&
+        expected.IdentityToken == current.IdentityToken &&
+        expected.IsVolturaAir == current.IsVolturaAir &&
+        string.Equals(expected.ApplicationName, current.ApplicationName, StringComparison.Ordinal);
+
+    private static bool HasSameProcessIdentity(AppsWindowSnapshot expected, AppsWindowSnapshot current) =>
+        expected.Handle == current.Handle &&
+        expected.ProcessId == current.ProcessId &&
+        expected.ThreadId == current.ThreadId &&
+        expected.IsVolturaAir == current.IsVolturaAir &&
+        string.Equals(expected.ApplicationName, current.ApplicationName, StringComparison.Ordinal);
+
+    private nint GetIdentityToken(nint windowHandle)
+    {
+        lock (_identityGate)
+        {
+            if (Volatile.Read(ref _disposed) != 0)
+            {
+                return nint.Zero;
+            }
+
+            nint current = AppsWindowNativeMethods.GetProp(windowHandle, _identityPropertyName);
+            if (current == nint.Zero)
+            {
+                current = new nint(Interlocked.Increment(ref _nextIdentityToken));
+                if (!AppsWindowNativeMethods.SetProp(windowHandle, _identityPropertyName, current) ||
+                    AppsWindowNativeMethods.GetProp(windowHandle, _identityPropertyName) != current)
+                {
+                    return nint.Zero;
+                }
+            }
+
+            _identityTokens[windowHandle] = current;
+            return current;
+        }
     }
 
     private static bool IsRootOwnerPopup(nint windowHandle)
@@ -407,6 +481,17 @@ internal sealed class WindowsAppsWindowAdapter(
         lock (_desktopGate)
         {
             ReleaseVirtualDesktopManager();
+        }
+        lock (_identityGate)
+        {
+            foreach (var identity in _identityTokens)
+            {
+                if (AppsWindowNativeMethods.GetProp(identity.Key, _identityPropertyName) == identity.Value)
+                {
+                    _ = AppsWindowNativeMethods.RemoveProp(identity.Key, _identityPropertyName);
+                }
+            }
+            _identityTokens.Clear();
         }
     }
 

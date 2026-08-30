@@ -11,6 +11,7 @@ internal sealed class AppsCommandHandler : IAsyncDisposable
     private readonly AppsPreviewSessionCoordinator _previews;
     private readonly Lock _gate = new();
     private readonly Dictionary<(string ClientId, WebSocket Socket), AppsWindowMap> _windowMaps = [];
+    private readonly HashSet<AppsListSendLease> _listSends = [];
     private int _disposed;
 
     internal AppsCommandHandler(
@@ -97,59 +98,108 @@ internal sealed class AppsCommandHandler : IAsyncDisposable
         }
 
         string revision = NewId();
-        var entries = new List<object>(Math.Min(discovery.Windows.Count, AppsProtocol.MaximumWindows));
-        var handles = new Dictionary<string, AppsWindowSnapshot>(StringComparer.Ordinal);
-        var previousWindows = new Dictionary<nint, (string Id, AppsWindowSnapshot Window)>();
+        List<object> entries;
+        Dictionary<string, AppsWindowSnapshot> handles;
+        AppsListSendLease? listSend = null;
+        bool authorized;
         lock (_gate)
         {
-            if (_windowMaps.TryGetValue((clientId, socket), out var previousMap))
+            authorized = _status.CanControlOpenApps(clientId);
+            if (!authorized)
             {
-                foreach (var previous in previousMap.Windows)
+                _windowMaps.Remove((clientId, socket));
+                entries = [];
+                handles = new(StringComparer.Ordinal);
+            }
+            else
+            {
+                bool canIncludeVolturaAir = _status.CanControlHostApplication(clientId);
+                IReadOnlyList<AppsWindowSnapshot> discoveredWindows = canIncludeVolturaAir
+                    ? discovery.Windows
+                    : [.. discovery.Windows.Where(window => !window.IsVolturaAir)];
+                entries = new List<object>(Math.Min(discoveredWindows.Count, AppsProtocol.MaximumWindows));
+                handles = new Dictionary<string, AppsWindowSnapshot>(StringComparer.Ordinal);
+                var previousWindows = new Dictionary<nint, (string Id, AppsWindowSnapshot Window)>();
+                if (_windowMaps.TryGetValue((clientId, socket), out var previousMap))
                 {
-                    previousWindows[previous.Value.Handle] = (previous.Key, previous.Value);
+                    foreach (var previous in previousMap.Windows)
+                    {
+                        previousWindows[previous.Value.Handle] = (previous.Key, previous.Value);
+                    }
                 }
+
+                foreach (AppsWindowSnapshot window in discoveredWindows.Take(AppsProtocol.MaximumWindows))
+                {
+                    string windowId = previousWindows.TryGetValue(window.Handle, out var previous) &&
+                        WindowsAppsWindowAdapter.HasSameIdentity(previous.Window, window)
+                            ? previous.Id
+                            : NewId();
+                    handles.Add(windowId, window);
+                    entries.Add(new
+                    {
+                        windowId,
+                        title = ProtocolStringLimits.Limit(window.Title, AppsProtocol.MaximumWindowTitleLength),
+                        applicationName = ProtocolStringLimits.Limit(
+                            window.ApplicationName,
+                            AppsProtocol.MaximumApplicationNameLength),
+                        active = window.Active,
+                        minimized = window.Minimized,
+                        maximizeSupported = window.MaximizeSupported,
+                        previewSupported = window.PreviewSupported
+                    });
+                }
+
+                _windowMaps[(clientId, socket)] = new AppsWindowMap(revision, handles);
+#pragma warning disable CA2000 // AppsListSendLease owns the linked cancellation source until the send completes.
+                listSend = new AppsListSendLease(
+                    clientId,
+                    handles.Values.Any(window => window.IsVolturaAir),
+                    CancellationTokenSource.CreateLinkedTokenSource(cancellationToken));
+#pragma warning restore CA2000
+                _listSends.Add(listSend);
             }
         }
-        foreach (AppsWindowSnapshot window in discovery.Windows.Take(AppsProtocol.MaximumWindows))
+
+        if (!authorized)
         {
-            string windowId = previousWindows.TryGetValue(window.Handle, out var previous) &&
-                string.Equals(previous.Window.Title, window.Title, StringComparison.Ordinal) &&
-                string.Equals(previous.Window.ApplicationName, window.ApplicationName, StringComparison.Ordinal)
-                    ? previous.Id
-                    : NewId();
-            handles.Add(windowId, window);
-            entries.Add(new
-            {
-                windowId,
-                title = ProtocolStringLimits.Limit(window.Title, AppsProtocol.MaximumWindowTitleLength),
-                applicationName = ProtocolStringLimits.Limit(
-                    window.ApplicationName,
-                    AppsProtocol.MaximumApplicationNameLength),
-                active = window.Active,
-                minimized = window.Minimized,
-                maximizeSupported = window.MaximizeSupported,
-                previewSupported = window.PreviewSupported
-            });
+            _previews.Cancel(clientId, socket);
+            await SendListResultAsync(
+                socket,
+                operationId,
+                false,
+                "permission-denied",
+                "Control open applications is disabled for this device.",
+                null,
+                [],
+                cancellationToken);
+            return;
         }
 
-        lock (_gate)
+        try
         {
-            _windowMaps[(clientId, socket)] = new AppsWindowMap(revision, handles);
+            await SendListResultAsync(
+                socket,
+                operationId,
+                true,
+                "accepted",
+                discovery.Message,
+                revision,
+                entries,
+                listSend!.Token);
         }
-
-        await SendListResultAsync(
-            socket,
-            operationId,
-            true,
-            "accepted",
-            discovery.Message,
-            revision,
-            entries,
-            cancellationToken);
+        catch (OperationCanceledException) when (
+            listSend!.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        finally
+        {
+            CompleteListSend(listSend!);
+        }
 
         if (_status.CanPreviewOpenApps(clientId))
         {
-            _previews.Ensure(socket, clientId, operationId);
+            _previews.Ensure(socket, clientId, operationId, listSend!.IncludesVolturaAir);
         }
         else
         {
@@ -171,7 +221,7 @@ internal sealed class AppsCommandHandler : IAsyncDisposable
             operationId,
             revision,
             windowId,
-            static (adapter, handle, includeVolturaAir) => adapter.Activate(handle, includeVolturaAir),
+            static (adapter, window, includeVolturaAir) => adapter.Activate(window, includeVolturaAir),
             cancellationToken);
 
     internal Task CloseAsync(
@@ -188,7 +238,7 @@ internal sealed class AppsCommandHandler : IAsyncDisposable
             operationId,
             revision,
             windowId,
-            static (adapter, handle, includeVolturaAir) => adapter.Close(handle, includeVolturaAir),
+            static (adapter, window, includeVolturaAir) => adapter.Close(window, includeVolturaAir),
             cancellationToken);
 
     internal Task AnswerPreviewAsync(
@@ -233,6 +283,10 @@ internal sealed class AppsCommandHandler : IAsyncDisposable
         AppClientControlSettings.Changed -= OnHostControlChanged;
         lock (_gate)
         {
+            foreach (AppsListSendLease listSend in _listSends)
+            {
+                listSend.Cancel();
+            }
             _windowMaps.Clear();
         }
         await _previews.DisposeAsync().ConfigureAwait(false);
@@ -246,67 +300,47 @@ internal sealed class AppsCommandHandler : IAsyncDisposable
         string operationId,
         string revision,
         string windowId,
-        Func<IAppsWindowAdapter, nint, bool, AppsWindowActionResult> action,
+        Func<IAppsWindowAdapter, AppsWindowSnapshot, bool, AppsWindowActionResult> action,
         CancellationToken cancellationToken)
     {
-        if (!_status.CanControlOpenApps(clientId))
-        {
-            await SendActionResultAsync(
-                socket,
-                resultType,
-                operationId,
-                false,
-                "permission-denied",
-                "Control open applications is disabled for this device.",
-                cancellationToken,
-                windowId);
-            return;
-        }
-
-        AppsWindowSnapshot? window;
-        lock (_gate)
-        {
-            window = _windowMaps.TryGetValue((clientId, socket), out var map) &&
-                map.Revision == revision &&
-                map.Windows.TryGetValue(windowId, out var current)
-                    ? current
-                    : null;
-        }
-
-        if (window is null)
-        {
-            await SendActionResultAsync(
-                socket,
-                resultType,
-                operationId,
-                false,
-                "stale-window",
-                "Refresh Apps and try again.",
-                cancellationToken,
-                windowId);
-            return;
-        }
-
-        if (!_status.CanControlOpenApps(clientId))
-        {
-            await SendActionResultAsync(
-                socket,
-                resultType,
-                operationId,
-                false,
-                "permission-denied",
-                "Control open applications is disabled for this device.",
-                cancellationToken,
-                windowId);
-            return;
-        }
-
-        bool includeVolturaAir = _status.CanControlHostApplication(clientId);
         AppsWindowActionResult result;
         try
         {
             result = await Task.Run(
-                () => action(_windows, window.Handle, includeVolturaAir),
+                () =>
+                {
+                    lock (_gate)
+                    {
+                        if (!_status.CanControlOpenApps(clientId))
+                        {
+                            return new AppsWindowActionResult(
+                                false,
+                                "permission-denied",
+                                "Control open applications is disabled for this device.");
+                        }
+
+                        if (!_windowMaps.TryGetValue((clientId, socket), out var map) ||
+                            map.Revision != revision ||
+                            !map.Windows.TryGetValue(windowId, out var window))
+                        {
+                            return new AppsWindowActionResult(
+                                false,
+                                "stale-window",
+                                "Refresh Apps and try again.");
+                        }
+
+                        bool includeVolturaAir = _status.CanControlHostApplication(clientId);
+                        if (window.IsVolturaAir && !includeVolturaAir)
+                        {
+                            return new AppsWindowActionResult(
+                                false,
+                                "permission-denied",
+                                "Control Voltura Air is disabled for this device.");
+                        }
+
+                        return action(_windows, window, includeVolturaAir);
+                    }
+                },
                 cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
@@ -328,10 +362,16 @@ internal sealed class AppsCommandHandler : IAsyncDisposable
     {
         lock (_gate)
         {
-            foreach (var key in _windowMaps.Keys.Where(key => !_status.CanControlOpenApps(key.ClientId)).ToArray())
+            foreach (var entry in _windowMaps.ToArray())
             {
-                _windowMaps.Remove(key);
+                if (!_status.CanControlOpenApps(entry.Key.ClientId) ||
+                    !_status.CanControlHostApplication(entry.Key.ClientId) &&
+                    entry.Value.Windows.Values.Any(window => window.IsVolturaAir))
+                {
+                    _windowMaps.Remove(entry.Key);
+                }
             }
+            CancelUnauthorizedListSendsLocked();
         }
         _previews.PermissionsChanged();
     }
@@ -341,7 +381,12 @@ internal sealed class AppsCommandHandler : IAsyncDisposable
         lock (_gate)
         {
             _windowMaps.Clear();
+            foreach (AppsListSendLease listSend in _listSends.Where(send => send.IncludesVolturaAir))
+            {
+                listSend.Cancel();
+            }
         }
+        _previews.PermissionsChanged();
     }
 
     private void RemoveMap(string clientId, WebSocket socket)
@@ -350,6 +395,27 @@ internal sealed class AppsCommandHandler : IAsyncDisposable
         {
             _windowMaps.Remove((clientId, socket));
         }
+    }
+
+    private void CancelUnauthorizedListSendsLocked()
+    {
+        foreach (AppsListSendLease listSend in _listSends)
+        {
+            if (!_status.CanControlOpenApps(listSend.ClientId) ||
+                listSend.IncludesVolturaAir && !_status.CanControlHostApplication(listSend.ClientId))
+            {
+                listSend.Cancel();
+            }
+        }
+    }
+
+    private void CompleteListSend(AppsListSendLease listSend)
+    {
+        lock (_gate)
+        {
+            _listSends.Remove(listSend);
+        }
+        listSend.Dispose();
     }
 
     private IReadOnlyDictionary<string, AppsWindowSnapshot>? GetWindowMap(
@@ -409,5 +475,18 @@ internal sealed class AppsCommandHandler : IAsyncDisposable
     private sealed record AppsWindowMap(
         string Revision,
         IReadOnlyDictionary<string, AppsWindowSnapshot> Windows);
+
+    private sealed class AppsListSendLease(
+        string clientId,
+        bool includesVolturaAir,
+        CancellationTokenSource cancellation) : IDisposable
+    {
+        internal string ClientId { get; } = clientId;
+        internal bool IncludesVolturaAir { get; } = includesVolturaAir;
+        internal CancellationToken Token => cancellation.Token;
+        internal bool IsCancellationRequested => cancellation.IsCancellationRequested;
+        internal void Cancel() => cancellation.Cancel();
+        public void Dispose() => cancellation.Dispose();
+    }
 
 }

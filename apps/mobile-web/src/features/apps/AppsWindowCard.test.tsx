@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AppsWindowCard } from "./AppsWindowCard";
 
@@ -47,6 +47,7 @@ describe("Apps window card", () => {
   });
 
   it("keeps the current preview painted until its replacement is ready", () => {
+    vi.useFakeTimers();
     const view = render(card("unavailable", vi.fn(), vi.fn(), "blob:current"));
 
     view.rerender(card("unavailable", vi.fn(), vi.fn(), "blob:replacement"));
@@ -58,6 +59,16 @@ describe("Apps window card", () => {
 
     fireEvent.load(images[1]!);
     expect(images[1]?.classList.contains("is-ready")).toBe(true);
+
+    act(() => {
+      vi.advanceTimersByTime(180);
+    });
+    const replacedImages = screen
+      .getByRole("button", { name: "Activate Draft" })
+      .querySelectorAll("img");
+    expect(replacedImages).toHaveLength(1);
+    expect(replacedImages[0]?.src).toBe("blob:replacement");
+    vi.useRealTimers();
   });
 
   it("reveals close feedback but sends nothing below the upward threshold", () => {

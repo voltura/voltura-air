@@ -166,6 +166,12 @@ async function captureScreenViewPhone(browser, previewUrl, desktopDataUrl) {
         .screen-view-browser-preview .screen-view-video {
           background: ${hostDarkPalette.bg} url("${desktopDataUrl}") center / contain no-repeat !important;
         }
+        .screen-view-browser-preview .screen-view-controls {
+          padding-left: 44px;
+        }
+        .screen-view-browser-preview .screen-view-live-pill {
+          margin-right: 44px;
+        }
       `,
     });
     return await page.screenshot({ type: "png" });

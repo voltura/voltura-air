@@ -11,8 +11,8 @@ create one. Keep the shared notices in
 - Added **Apps** to the mobile Menu for quickly switching between open PC
   applications. Flick through a card deck that coasts naturally,
   restore or focus the centered window, close it normally, and start
-  host-approved apps from the final card. Static previews follow the device's
-  **View PC screen** permission.
+  applications defined on the PC from the final card. Static previews follow
+  the device's **View PC screen** permission.
 - Fixed **View PC screen** so its live view remains visible when a phone rotates
   from portrait to landscape without first maximizing the view.
 

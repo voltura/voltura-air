@@ -111,7 +111,7 @@ connection-scoped references for eligible application windows in the current
 Windows session and virtual desktop. It does not return native window handles,
 process IDs, executable paths, command lines, arguments, or icons. Discovery
 happens only on entry or an explicit refresh/action; it is not polled or stored.
-The separate Screen viewing permission controls static card previews. Only the
+The separate **View PC screen** permission controls static card previews. Only the
 centered window and immediate neighbors are requested, and preview pixels can
 contain private content visible in those application windows. JPEG previews
 travel over a short-lived WebRTC DTLS-protected data channel and exist only in
@@ -120,6 +120,16 @@ telemetry, or retained after replacement, leaving Apps, disconnect, permission
 loss, or failure. Relay previews use Cloudflare TURN with the same encrypted
 content, network-metadata visibility, aggregate byte metering, and quota cutoff
 described for Relay file transfer; Cloudflare cannot decrypt the preview pixels.
+
+When Terminal is opened and **Terminal** permission is allowed, commands and
+PowerShell output travel over a dedicated WebRTC DTLS-protected data channel.
+Voltura Air keeps only bounded in-memory output needed for delivery and a
+same-device reconnect window of up to 15 minutes; browser scrollback is also
+in-memory and does not survive reload. Commands, output, working directories,
+environment values, and terminal contents are not persisted by Voltura Air,
+added to telemetry, or included in application logs. Commands still run with
+the signed-in Windows user's normal access and can read or change anything that
+account can access.
 
 Relay screen viewing uses Cloudflare TURN. Cloudflare processes participant IP
 addresses, connection timing, credential requests, and byte counts while
@@ -318,6 +328,8 @@ paths or names, file-operation conflict names, opened
 web addresses, pointer coordinates, pairing tokens or IDs, private reconnect or
 PC-identity keys, pairing/reconnect proofs, screen pixels, cursor coordinates,
 screen SDP, encoded video, or negotiated screen-session keys.
+Terminal commands, output, working directories, environment values, signaling,
+and session keys are also excluded.
 Phone webcam camera frames, SDP, encoded or decoded video, device IDs, credentials,
 and session proofs are also excluded.
 Safe Relay entries may record the connection method, official/custom endpoint

@@ -423,7 +423,7 @@ Authenticated metadata is not authentication state:
   remains present when blocked so the mobile destination can explain recovery.
 - `apps`: `enabled`, effective `permissionGranted`, authenticated `canUse`, and
   `previewAvailable`. The capability remains present when blocked.
-  `previewAvailable` additionally requires effective Screen viewing permission;
+  `previewAvailable` additionally requires the effective **View PC screen** permission;
   application-launch and Voltura-host-window control remain separate gates.
 - `terminal`: `enabled`, effective `permissionGranted`, authenticated `canUse`,
   `requiresRepair`, host-wide `active`, device-specific `ownedByClient`, an
@@ -628,7 +628,7 @@ owned input messages on the same authenticated socket:
 displayed image, inclusive. Buttons are `left` or `right`; direct button actions
 are `down` or `up`. Wheel deltas retain the input bound of -5000 through 5000.
 The host accepts these messages only from the active viewer for its exact
-selected display and only while both Screen viewing and **Pointer and keyboard**
+selected display and only while both **View PC screen** and **Pointer and keyboard**
 are allowed. It maps against host-owned rotated monitor bounds and the complete
 virtual desktop. A stale display, missing active view, or permission denial
 returns a recoverable `input.error` without closing the socket.
@@ -1312,7 +1312,7 @@ One mutation runs host-wide. Reordering swaps only adjacent queued slots owned b
 One host-wide transfer may run beside Screen viewing or Phone webcam. The host owns `FileTransferCoordinator` and always creates a dedicated reliable ordered `voltura-file-transfer` WebRTC data channel; the device never offers. Transfer setup and results use the authenticated control session, while file bytes never use its command queue.
 
 - The Files form of `file.transfer.start` binds `operationId`, `direction` (`download|upload`), opaque session/panel/revision, and a reconnect-key signature. Download includes one opaque `entryId`; upload includes one untrusted `fileName` and a safe non-negative integer `declaredSize`. Zero is valid. Its start transcript is `VolturaAir file-transfer:start:v1` followed on separate lines by client ID, pinned host public key, request ID, direction, session, panel, revision, entry ID, file name, and upload size.
-- The exact download-only screenshot form instead carries `source: screen-capture`, `operationId`, the active `screenOperationId`, `displayId`, and `clientSignature`, with no Files session, panel, revision, entry, name, or size fields. Its dedicated transcript is `VolturaAir screen-capture-transfer:start:v1` followed on separate lines by client ID, pinned host public key, request ID, screen operation ID, and display ID. The host requires current Screen viewing and Transfer files permissions, verifies that the requesting device owns that active operation and display, and rechecks ownership and permissions after capture and during transfer. Hosts that support it advertise PNG, 33,177,600 pixels, 64 MiB, and current Transfer-files permission under `screenView.screenshot`; older hosts omit the object and clients hide the action.
+- The exact download-only screenshot form instead carries `source: screen-capture`, `operationId`, the active `screenOperationId`, `displayId`, and `clientSignature`, with no Files session, panel, revision, entry, name, or size fields. Its dedicated transcript is `VolturaAir screen-capture-transfer:start:v1` followed on separate lines by client ID, pinned host public key, request ID, screen operation ID, and display ID. The host requires current **View PC screen** and Transfer files permissions, verifies that the requesting device owns that active operation and display, and rechecks ownership and permissions after capture and during transfer. Hosts that support it advertise PNG, 33,177,600 pixels, 64 MiB, and current Transfer-files permission under `screenView.screenshot`; older hosts omit the object and clients hide the action.
 - The host returns `file.transfer.start.result`, then `file.transfer.offer` with host-authoritative name/size, bounded SDP, pinned-host signature, and optional Relay ICE/usage fields. Its transcript is `VolturaAir file-transfer:offer:v1` plus client ID, host public key, request ID, transfer ID, direction, name, size, and SHA-256 SDP hash on separate lines. Negotiation expires after 20 seconds.
 - The device returns `file.transfer.answer` with bounded SDP and a reconnect-key signature over `VolturaAir file-transfer:answer:v1`, client ID, host public key, request ID, transfer ID, direction, host-authoritative name and size, offer hash, and answer hash. `file.transfer.cancel` targets exactly one established `transferId` or pending start `requestId`, so Cancel remains authoritative before the host has issued a transfer ID. `file.transfer.answer.result`, `file.transfer.cancel.result`, coalesced `file.transfer.status`, and terminal `file.transfer.result` carry setup, cancellation, progress, and outcome only.
 

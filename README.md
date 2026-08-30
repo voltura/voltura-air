@@ -31,6 +31,9 @@ networks that block inbound PC connections.
 - From another computer, use **View PC screen** with a mouse or trackpad and
   physical keyboard to move, left- or right-click, drag, scroll, and type on
   the selected Windows display.
+- Switch between open PC windows with **Apps**. Flick through a circular card
+  deck, restore or focus the centered window, close it normally, or open an
+  application defined on the PC. Static previews are available when permitted.
 - Browse and manage files on the PC or its mapped drives. **Files** adapts from
   one touch panel in narrow views to two panels whenever the screen is wide
   enough, including phones in landscape, with direct copy/move, Windows
@@ -43,6 +46,10 @@ networks that block inbound PC connections.
   available to your Windows account. The host entry stays visible when Codex is
   unavailable; the paired-device tool appears when it is ready. Questions are
   typed on the host and can also be dictated on supported mobile browsers.
+- Open an interactive Windows PowerShell session with **Terminal** over Direct
+  LAN or Cloud relay, with touch shortcuts, selectable output, copy, scrolling,
+  and authenticated reconnect. PowerShell runs with the signed-in Windows
+  user's normal access.
 - Control presentations, use a laser pointer, track time, and review saved
   reports on the PC.
 - Dictate, reuse snippets, and send text to a PC app, document, email draft, or
@@ -184,12 +191,15 @@ profile. Its Windows host entry is always visible. Codex must be installed and
 signed in on the PC. The Assistant is read-only but can inspect information with
 the same Windows-user access as local Codex, so use it only from a personal
 trusted device.
-The optional **View PC screen** tool requires Screen viewing permission on the
-PC before a paired phone, tablet, or browser can use it. Direct physical mouse
-and keyboard control from another computer also requires Pointer and keyboard
-permission. **Files** separately requires Browse and open files permission;
-file-changing actions also require Change files permission, and one-file
-transfers require Transfer files permission.
+The optional **View PC screen** tool requires the **View PC screen** permission
+on the PC before a paired phone, tablet, or browser can use it. Direct physical
+mouse and keyboard control from another computer also requires Pointer and
+keyboard permission. **Files** separately requires Browse and open files
+permission; file-changing actions also require Change files permission, and
+one-file transfers require Transfer files permission. **Apps** requires Control
+open applications; static previews additionally require View PC screen, while
+applications defined on the PC retain the separate Application launch permission.
+**Terminal** requires Terminal permission and a current PC identity pairing.
 **Phone webcam** requires Enhanced Direct or Relay, an enabled virtual camera, and
 the effective Phone webcam permission for the paired device.
 

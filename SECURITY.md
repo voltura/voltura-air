@@ -77,6 +77,22 @@ revisions are revalidated host-side; journaled partial and backup ownership pres
 an original through commit or rollback. This is remote operation with the signed-in
 Windows user's authority, not a sandbox against that user or same-user malware.
 
+Terminal requires the effective **Terminal** permission, a current pinned host
+identity, signed WebRTC negotiation, and same-device ownership of the one
+host-wide session. Its reliable DTLS data channel has bounded records, queues,
+acknowledged output, and reconnect lifetime. Windows PowerShell runs through
+ConPTY with the signed-in user's normal unelevated token; it is not sandboxed or
+command-restricted. A kill-on-close Job Object terminates the shell and its child
+process tree when ownership, permission, pairing, reconnect, or host lifetime ends.
+
+Apps requires **Control open applications** and resolves only bounded opaque
+window references from the current Windows session and virtual desktop. Focus
+and normal-close actions require the current connection revision and revalidate
+the native window identity and policy before acting. Static previews separately
+require **View PC screen**, use a short-lived WebRTC DTLS data channel, and remain
+bounded and transient. Native handles, process IDs, executable paths, commands,
+and arguments never cross the control protocol.
+
 AI Assistant is exposed only to an identity-current paired device using exactly
 the My device profile. The host owns a hidden local Codex app-server over stdio;
 no Codex listener or credential is exposed to the device. Open, ask, and reset

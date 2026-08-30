@@ -28,6 +28,9 @@ flowchart LR
   Session --> FileHandler["FileManagerCommandHandler\nbrowse/change permission + opaque references"]
   Session --> Transfer["FileTransferCoordinator\ntransfer permission + signed WebRTC setup"]
   Client <-->|"DTLS one-file records\n+ cumulative ACKs"| Transfer
+  Session --> AppsHandler["AppsCommandHandler\nControl open applications + opaque revision"]
+  Session --> AppsPreview["Apps preview session\nView PC screen + signed WebRTC"]
+  Client <-->|"DTLS bounded JPEG records"| AppsPreview
   Session --> Terminal["TerminalCoordinator\nTerminal permission + signed ownership"]
   Client <-->|"DTLS terminal records\n+ output ACKs"| Terminal
   Terminal --> ConPTY["ConPTY + kill-on-close Job\nWindows PowerShell as signed-in user"]
@@ -39,9 +42,11 @@ flowchart LR
   FileService --> FileSystem["Windows Shell, file system,\nRecycle Bin, mapped drives"]
   CustomHandler --> CustomStore[("custom-screens.json\nhost-only actions + assignments")]
   CustomHandler --> Handlers
+  AppsHandler --> Windows
+  AppsPreview --> Windows
   LocalBrowser["Default browser on this PC"] -->|"loopback-only saved preview GET"| Preview["Saved preview endpoint\nvisual definition only"]
   Preview --> CustomStore
-  Handlers --> Windows["Windows user session\nSendInput, clipboard,\nprocess launch, power APIs"]
+  Handlers --> Windows["Windows user session\nSendInput, clipboard, window actions,\nprocess launch, power APIs"]
 
   Internet["Internet-origin website"] -. "browser WebSocket attempt\nOrigin is untrusted input" .-> Session
   Lan["LAN attacker"] -. "can reach listener if network allows" .-> HostWeb
@@ -132,6 +137,11 @@ flowchart TD
   FilePerm -- "true" --> FileRevision{"Opaque session + current\ndirectory revision valid"}
   FileRevision -- "false" --> FileStale["stale-panel\nno partial action"]
   FileRevision -- "true" --> FileAction["Windows Shell/file-system action\nunder signed-in user authority"]
+
+  Dispatch --> AppsRequest["apps.list / activate / close / preview"]
+  AppsRequest --> AppsGate{"Control open applications\n+ current opaque revision/ID\n+ View PC screen for preview"}
+  AppsGate -- "false" --> AppsDenied["Bounded denied/stale result\nno native action or capture"]
+  AppsGate -- "true" --> AppsAction["Revalidate native identity\nfocus, normal close, or bounded preview"]
 
   Dispatch --> TerminalRequest["terminal.start / attach / answer / stop"]
   TerminalRequest --> TerminalPerm{"AllowTerminal + pinned identity\n+ same-device ownership"}

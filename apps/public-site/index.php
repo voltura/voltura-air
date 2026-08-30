@@ -294,8 +294,8 @@
                 <td><strong class="comparison-status">Not documented</strong></td>
               </tr>
               <tr>
-                <th scope="row">Application launching</th>
-                <td class="comparison-voltura">Host-approved application buttons, with paths and arguments kept on the PC</td>
+                <th scope="row">Application switching and launching</th>
+                <td class="comparison-voltura">Circular open-window switcher with static previews, plus application buttons defined on the PC with paths and arguments kept there</td>
                 <td>Application switcher and launcher</td>
                 <td>Custom controls and gaming layouts</td>
               </tr>
@@ -358,7 +358,7 @@
         </div>
         <p class="comparison-note">
           Competitor information was checked on 27 August 2026; Voltura Air
-          capabilities were updated on 28 August 2026. Features, availability,
+          capabilities were updated on 30 August 2026. Features, availability,
           and pricing models may change.
         </p>
         <details class="comparison-sources">

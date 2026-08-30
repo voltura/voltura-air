@@ -65,7 +65,7 @@ internal sealed class GlobalPermissionsSettingsSection(
 
         var details = preferenceVisuals.AddNestedSection(parent, "More about device access");
         details.Children.Add(visuals.CreateMutedText(
-            "My device allows every product permission. Remote controls allows pointer and keyboard, volume, presentations, application launch, PC lock, display blackout, and the screen saver. Customize access for a specific device from Devices."));
+            "My device allows every product permission. Remote controls allows pointer and keyboard, volume, presentations, application launch, open-application control, PC lock, display blackout, and the screen saver. Customize access for a specific device from Devices."));
         details.Children.Add(visuals.CreateMutedText(
             "Control of the Voltura Air window or tray stays separate and is disabled by default. Protected-file filtering is also separate from access profiles."));
     }

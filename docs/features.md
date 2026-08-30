@@ -107,7 +107,7 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   remote capabilities, malformed network state returns to automatic Direct,
   and malformed Awake state is Off. Superseded individual registry fields are
   not read.
-- Profile-managed permissions cover sleep, volume, Screen viewing, Phone webcam,
+- Profile-managed permissions cover sleep, volume, **View PC screen**, Phone webcam,
   Presentation, file browsing/opening, file changes, file transfer, Terminal,
   open-application control, application launch, web
   addresses, PC clipboard reads, View diagnostics, Lock, Blackout, display off, screen saver,
@@ -139,7 +139,7 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 ### Live screen mirror
 
 - **View PC screen** is a lazy-loaded mobile tool. It remains visible on hosts
-  that support it and explains whether the effective Screen viewing permission
+  that support it and explains whether the effective **View PC screen** permission
   or a fresh identity-pinning pairing is required.
 - Direct viewing uses LAN ICE. Relay viewing uses relay-only TURN candidates,
   15-minute credentials renewed with a fresh negotiation, and **High** (8 Mbps),
@@ -152,14 +152,14 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   messages over certificate-validated TLS/TCP 443, including the stream framing
   and ChannelData padding required by RFC 8656. The PC therefore needs no
   outbound UDP for relay screen viewing; Direct LAN behavior is unchanged.
-- Screen viewing follows the paired device's profile or explicit Custom value.
+- **View PC screen** follows the paired device's profile or explicit Custom value.
 - One authorized device can view one selected display at a time. Multiple
   displays are selectable before or during viewing; another device receives a
   busy result. Leaving the workspace stops viewing.
 - While a display is live, a camera action can copy one cursor-free frame at the
   selected display's native orientation and resolution, encode it as lossless
   PNG, and send it through the existing one-file Save/Share flow. It requires
-  both Screen viewing and Transfer files permission, but not Browse files. The
+  both **View PC screen** and Transfer files permission, but not Browse files. The
   host accepts at most 33,177,600 pixels and 64 MiB of encoded PNG, holds no PC
   temporary file or history, and keeps the live mirror running on success or
   failure. The device keeps only the existing per-tab OPFS partial until Save,
@@ -742,8 +742,8 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 - **Apps** is a lazy-loaded Menu tool for switching between ordinary top-level application windows on the signed-in Windows session and current virtual desktop. It presents a circular, orientation-responsive horizontal carousel with the same decelerating flick momentum as Terminal scrolling; touching a coasting deck stops it immediately. Tapping the centered card restores a minimized window, maximizes a suitable normal window, and asks Windows to focus it. Swipe up or the explicit Close button posts the application's normal close request, so unsaved-work prompts remain on the PC. A final **Open app** card expands into a vertically scrollable panel of existing host-approved application-launch shortcuts and closes back to the same deck position; the shortcuts retain their separate permission.
 - The host applies Windows' generic visible root-owner/last-active-popup and extended-style rules, then filters cloaked, other-session, other-desktop, and untitled windows before returning at most 48 bounded summaries. Voltura Air itself is included only when the separate host-application control setting permits that device. The browser receives a fresh connection-scoped revision and random opaque window IDs; the same verified native identity retains its opaque ID across title changes, while recycled or changed identities do not. Native handles, process IDs, executable paths, icons, commands, and arguments never cross the wire. Every action revalidates the current native window against that revision and current policy. Higher-integrity windows that Windows will not let Voltura Air lifetime-tag remain visible and may be focused, but fail closed for preview and close instead of being omitted or risking a recycled-window action.
 - Opening Apps performs one list request. Refresh, activate, close, a confirmed stale action, a successful launcher action, and returning to Apps after the browser was backgrounded each cause one explicit refresh; a confirmed stale card disappears locally without an error toast. There is no polling, timer-driven capture, background discovery, or work while the tool is closed. The selected title is preserved when possible and the active window is otherwise centered.
-- Static card previews require both **Control open applications** and the independently resolved **Screen viewing** permission. Apps owns one short-lived, data-channel-only WebRTC peer and requests only the centered window and immediate neighbors; rapid deck changes coalesce to the newest pending request instead of accumulating capture work. Previews are bounded in size and memory, are unavailable for minimized or uncapturable windows, and are revoked on replacement, close, disconnect, permission loss, or failure. A loaded preview remains painted until its refreshed replacement is ready, then cross-fades without an empty frame. Direct, Secure Direct, and Relay reuse the existing ICE/TURN and bounded TLS bridge primitives without sharing Screen, Phone webcam, or Files lifecycle owners.
-- **My device** and **Remote controls** allow **Control open applications**. Custom exposes an explicit Allow/Block value; older complete Custom matrices migrate with it blocked. Screen viewing separately gates previews, application launch separately gates the final launcher card, and host-window control separately gates the Voltura Air window.
+- Static card previews require both **Control open applications** and the independently resolved **View PC screen** permission. Apps owns one short-lived, data-channel-only WebRTC peer and requests only the centered window and immediate neighbors; rapid deck changes coalesce to the newest pending request instead of accumulating capture work. Previews are bounded in size and memory, are unavailable for minimized or uncapturable windows, and are revoked on replacement, close, disconnect, permission loss, or failure. A loaded preview remains painted until its refreshed replacement is ready, then cross-fades without an empty frame. Direct, Secure Direct, and Relay reuse the existing ICE/TURN and bounded TLS bridge primitives without sharing Screen, Phone webcam, or Files lifecycle owners.
+- **My device** and **Remote controls** allow **Control open applications**. Custom exposes an explicit Allow/Block value; older complete Custom matrices migrate with it blocked. **View PC screen** separately gates previews, Application launch separately gates the final launcher card, and host-window control separately gates the Voltura Air window.
 
 ### Terminal
 

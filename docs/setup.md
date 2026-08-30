@@ -122,8 +122,8 @@ secure desktop, lock screen, or higher-integrity apps. Firewall/network isolatio
 can block traffic, and an unreachable/sleeping/shut-down host cannot receive
 commands.
 
-Encrypted Screen viewing requires Screen viewing permission globally or for the
-intended device. A freshly paired client must have the PC identity pin.
+Encrypted Screen viewing requires the intended device's **View PC screen**
+permission. A freshly paired client must have the PC identity pin.
 Desktop Duplication GPU frames and cursor metadata support one display and one
 viewer at a time, video only. D3D11 conversion and a hardware Media Foundation
 H.264 encoder feed an aspect-preserving adaptive WebRTC stream using direct LAN

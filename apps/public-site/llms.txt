@@ -9,6 +9,15 @@ for a Windows 11 PC.
 - Touch trackpad, Enhanced-capabilities gyro mouse on sensor-equipped phones
   and tablets, keyboard, browser-supported dictation, media remote, and
   landscape split mode.
+- Live viewing of one selected Windows display over Direct LAN or optional Cloud
+  relay, with touch or physical mouse and keyboard control, local zoom, and a
+  native PNG Save/Share action.
+- A circular Apps deck for previewing and switching between eligible open PC
+  windows, closing them normally, and opening applications defined on the PC.
+- An interactive Windows PowerShell Terminal over Direct LAN or Cloud relay,
+  with a dedicated per-device permission and the signed-in Windows user's access.
+- A read-only AI Assistant on the Windows host and trusted My device pairings
+  when Codex is installed and signed in.
 - Presentation mode for PowerPoint, Google Slides, and
   PDF/browser control, with trackpad, native laser pointer, timer, statistics,
   and optional reports stored on the PC.
@@ -19,9 +28,11 @@ for a Windows 11 PC.
   trackpads, read-only Windows preview, and per-device assignment.
 - Acknowledged text transfer to reviewed PC destinations and an explicit,
   host-permitted PC clipboard text read.
-- A touch-first Files on PC tool for browsing and managing files that remain on
-  the Windows host or mapped drives, with one/two-panel layouts, background
+- A touch-first Files on PC tool for browsing and managing files on the Windows
+  host or mapped drives, with one/two-panel layouts, background
   operations, Windows clipboard integration, and separate host permissions.
+  One explicitly selected file can also be saved to the device or uploaded into
+  the active PC folder.
 - An optional Phone webcam tool with default-off audio that exposes a selected
   paired-phone camera over Enhanced Direct or Relay. Active audio can be muted from
   the phone and tested through the Windows page. Audio requires user-installed
@@ -47,8 +58,9 @@ for a Windows 11 PC.
   relay carries encrypted commands and TURN-relayed encrypted screen media.
   The separate community library uses an
   optional account for submissions, ratings, and submission management.
-- Not a general remote-desktop, file-sync, device file-transfer, or
-  public-internet remote-control service.
+- Not a general remote-desktop, file-sync, bulk-transfer, or public-internet
+  remote-control service. Device transfer is intentionally one selected file at
+  a time.
 - A sleeping or shut-down PC cannot receive a Voltura Air wake command.
 - Release binaries are not code-signed, so Windows may show an
   unknown-publisher or SmartScreen warning.

@@ -3,7 +3,13 @@ using System.Threading.Channels;
 
 namespace VolturaAir.Host;
 
-internal sealed record FileTransferPeerConfiguration(IReadOnlyList<string> IceServerUris, bool RelayOnly);
+internal sealed record FileTransferPeerConfiguration(
+    IReadOnlyList<string> IceServerUris,
+    bool RelayOnly,
+    string DataChannelLabel = FileTransferProtocol.DataChannelLabel,
+    int MinimumRecordBytes = FileTransferProtocol.HeaderBytes,
+    int MaximumRecordBytes = FileTransferProtocol.MaximumRecordBytes,
+    long MaximumBufferedBytes = FileTransferProtocol.MaximumUnacknowledgedBytes);
 
 internal interface IFileTransferWebRtcPeer : IAsyncDisposable
 {
@@ -26,9 +32,9 @@ internal sealed class FileTransferWebRtcPeerFactory : IFileTransferWebRtcPeerFac
 
 internal sealed class IsolatedFileTransferWebRtcPeerFactory : IFileTransferWebRtcPeerFactory
 {
-    public IFileTransferWebRtcPeer Create(FileTransferPeerConfiguration? configuration) => new IsolatedFileTransferWebRtcPeer();
+    public IFileTransferWebRtcPeer Create(FileTransferPeerConfiguration? configuration) => new IsolatedFileTransferWebRtcPeer(configuration);
 
-    private sealed class IsolatedFileTransferWebRtcPeer : IFileTransferWebRtcPeer
+    private sealed class IsolatedFileTransferWebRtcPeer(FileTransferPeerConfiguration? configuration) : IFileTransferWebRtcPeer
     {
         private readonly Channel<byte[]> _messages = Channel.CreateBounded<byte[]>(16);
         private readonly TaskCompletionSource _opened = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -40,7 +46,9 @@ internal sealed class IsolatedFileTransferWebRtcPeerFactory : IFileTransferWebRt
             if (string.IsNullOrWhiteSpace(answerSdp)) throw new FileTransferWebRtcException("The isolated answer was empty.");
             _opened.TrySetResult();
         }
-        public bool TrySend(byte[] record) => record.Length is >= FileTransferProtocol.HeaderBytes and <= FileTransferProtocol.MaximumRecordBytes;
+        public bool TrySend(byte[] record) =>
+            record.Length >= (configuration?.MinimumRecordBytes ?? FileTransferProtocol.HeaderBytes) &&
+            record.Length <= (configuration?.MaximumRecordBytes ?? FileTransferProtocol.MaximumRecordBytes);
         public ValueTask DisposeAsync()
         {
             _opened.TrySetCanceled();
@@ -69,6 +77,9 @@ internal sealed class FileTransferWebRtcPeer : IFileTransferWebRtcPeer
     private readonly LibDataChannelNative.ErrorCallback _errorCallback;
     private readonly LibDataChannelNative.MessageCallback _messageCallback;
     private readonly List<ITurnTlsBridge> _turnTlsBridges = [];
+    private readonly int _minimumRecordBytes;
+    private readonly int _maximumRecordBytes;
+    private readonly long _maximumBufferedBytes;
     private readonly GCHandle _selfHandle;
     private int _peer;
     private int _channel;
@@ -83,6 +94,14 @@ internal sealed class FileTransferWebRtcPeer : IFileTransferWebRtcPeer
 
     internal FileTransferWebRtcPeer(FileTransferPeerConfiguration? configuration, Func<TurnTlsEndpoint, ITurnTlsBridge> createTurnTlsBridge)
     {
+        string channelLabel = configuration?.DataChannelLabel ?? FileTransferProtocol.DataChannelLabel;
+        _minimumRecordBytes = configuration?.MinimumRecordBytes ?? FileTransferProtocol.HeaderBytes;
+        _maximumRecordBytes = configuration?.MaximumRecordBytes ?? FileTransferProtocol.MaximumRecordBytes;
+        _maximumBufferedBytes = configuration?.MaximumBufferedBytes ?? FileTransferProtocol.MaximumUnacknowledgedBytes;
+        if (string.IsNullOrWhiteSpace(channelLabel) || channelLabel.Length > 64 ||
+            _minimumRecordBytes < 1 || _maximumRecordBytes < _minimumRecordBytes ||
+            _maximumRecordBytes > FileTransferProtocol.MaximumRecordBytes || _maximumBufferedBytes < _maximumRecordBytes)
+            throw new ArgumentOutOfRangeException(nameof(configuration));
         _descriptionCallback = OnDescription;
         _stateCallback = OnState;
         _gatheringCallback = OnGathering;
@@ -113,14 +132,14 @@ internal sealed class FileTransferWebRtcPeer : IFileTransferWebRtcPeer
                 DisableAutoNegotiation = 1,
                 ForceMediaTransport = 0,
                 Mtu = 1280,
-                MaxMessageSize = FileTransferProtocol.MaximumRecordBytes
+                MaxMessageSize = _maximumRecordBytes
             };
             _peer = EnsureCreated(LibDataChannelNative.rtcCreatePeerConnection(in nativeConfiguration), "create the file-transfer peer");
             LibDataChannelNative.rtcSetUserPointer(_peer, pointer);
             EnsureSuccess(LibDataChannelNative.rtcSetLocalDescriptionCallback(_peer, _descriptionCallback), "listen for the file-transfer offer");
             EnsureSuccess(LibDataChannelNative.rtcSetStateChangeCallback(_peer, _stateCallback), "listen for file-transfer state");
             EnsureSuccess(LibDataChannelNative.rtcSetGatheringStateChangeCallback(_peer, _gatheringCallback), "listen for file-transfer candidates");
-            _channel = EnsureCreated(LibDataChannelNative.rtcCreateDataChannel(_peer, FileTransferProtocol.DataChannelLabel), "create the file-transfer channel");
+            _channel = EnsureCreated(LibDataChannelNative.rtcCreateDataChannel(_peer, channelLabel), "create the file-transfer channel");
             LibDataChannelNative.rtcSetUserPointer(_channel, pointer);
             EnsureSuccess(LibDataChannelNative.rtcSetOpenCallback(_channel, _openCallback), "listen for file-transfer channel open");
             EnsureSuccess(LibDataChannelNative.rtcSetClosedCallback(_channel, _closedCallback), "listen for file-transfer channel closure");
@@ -155,12 +174,12 @@ internal sealed class FileTransferWebRtcPeer : IFileTransferWebRtcPeer
     public bool TrySend(byte[] record)
     {
         ArgumentNullException.ThrowIfNull(record);
-        if (record.Length is < FileTransferProtocol.HeaderBytes or > FileTransferProtocol.MaximumRecordBytes) return false;
+        if (record.Length < _minimumRecordBytes || record.Length > _maximumRecordBytes) return false;
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             if (_stopped) throw new FileTransferWebRtcException("The file-transfer connection stopped.");
-            if (!_channelOpen || LibDataChannelNative.rtcGetBufferedAmount(_channel) > FileTransferProtocol.MaximumUnacknowledgedBytes) return false;
+            if (!_channelOpen || LibDataChannelNative.rtcGetBufferedAmount(_channel) > _maximumBufferedBytes) return false;
             if (LibDataChannelNative.rtcSendMessage(_channel, record, record.Length) >= 0) return true;
             _stopped = true;
             _channelOpen = false;
@@ -268,7 +287,7 @@ internal sealed class FileTransferWebRtcPeer : IFileTransferWebRtcPeer
     private static void OnMessage(int id, nint message, int size, nint pointer)
     {
         var owner = From(pointer);
-        if (owner is null || id != owner._channel || size is < FileTransferProtocol.HeaderBytes or > FileTransferProtocol.MaximumRecordBytes)
+        if (owner is null || id != owner._channel || size < owner._minimumRecordBytes || size > owner._maximumRecordBytes)
         {
             owner?.Stop(new FileTransferWebRtcException("An invalid file-transfer record was received."));
             return;

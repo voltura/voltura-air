@@ -90,9 +90,105 @@ export interface ServerCapabilities {
   screenView?: ScreenViewCapability | null;
   phoneWebcam?: PhoneWebcamCapability | null;
   fileManager?: FileManagerCapability | null;
+  apps?: AppsCapability | null;
   terminal?: TerminalCapability | null;
   aiAssistant?: AiAssistantCapability | null;
 }
+
+export interface AppsCapability {
+  enabled: boolean;
+  permissionGranted: boolean;
+  canUse: boolean;
+  previewAvailable: boolean;
+}
+
+export interface AppsWindowSummary {
+  windowId: string;
+  title: string;
+  applicationName: string;
+  active: boolean;
+  minimized: boolean;
+  maximizeSupported: boolean;
+  previewSupported: boolean;
+}
+
+export interface AppsListMessage {
+  type: "apps.list";
+  operationId: string;
+}
+
+export interface AppsWindowActionMessage {
+  type: "apps.activate" | "apps.close";
+  operationId: string;
+  revision: string;
+  windowId: string;
+}
+
+export interface AppsPreviewAnswerMessage {
+  type: "apps.preview.answer";
+  operationId: string;
+  offerOperationId: string;
+  previewId: string;
+  answerSdp: string;
+  clientSignature: string;
+}
+
+export interface AppsPreviewStopMessage {
+  type: "apps.preview.stop";
+  operationId: string;
+  previewId: string;
+}
+
+export interface AppsListResultMessage {
+  type: "apps.list.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string | null;
+  message: string;
+  revision?: string | null;
+  windows: AppsWindowSummary[];
+}
+
+export interface AppsWindowActionResultMessage {
+  type: "apps.activate.result" | "apps.close.result";
+  operationId: string;
+  windowId: string;
+  succeeded: boolean;
+  code?: string | null;
+  message: string;
+}
+
+export interface AppsPreviewOfferMessage {
+  type: "apps.preview.offer";
+  operationId: string;
+  previewId: string;
+  offerSdp: string;
+  hostSignature: string;
+  iceServers?: RTCIceServer[] | null;
+  turnExpiresAt?: string | null;
+}
+
+export interface AppsPreviewAnswerResultMessage {
+  type: "apps.preview.answer.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string | null;
+  message: string;
+}
+
+export interface AppsPreviewEndedMessage {
+  type: "apps.preview.ended";
+  previewId: string;
+  reason: string;
+  message: string;
+}
+
+export type AppsServerMessage =
+  | AppsListResultMessage
+  | AppsWindowActionResultMessage
+  | AppsPreviewOfferMessage
+  | AppsPreviewAnswerResultMessage
+  | AppsPreviewEndedMessage;
 
 export interface AiAssistantCapability {
   enabled: boolean;
@@ -1596,6 +1692,10 @@ export type ClientMessage =
   | FileTransferStartMessage
   | FileTransferAnswerMessage
   | FileTransferCancelMessage
+  | AppsListMessage
+  | AppsWindowActionMessage
+  | AppsPreviewAnswerMessage
+  | AppsPreviewStopMessage
   | TerminalStartMessage
   | TerminalAttachMessage
   | TerminalAnswerMessage

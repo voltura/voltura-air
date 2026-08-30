@@ -7,6 +7,7 @@ import type { ManualConnectionTarget } from "../../foundation/pairing/pairingLin
 import type { RemoteSettings } from "../../foundation/settings/remoteSettings";
 import type {
   AiAssistantCapability,
+  AppsCapability,
   CustomScreenSummary,
   PhoneWebcamCapability,
   ScreenViewCapability,
@@ -57,12 +58,14 @@ export interface SettingsDrawerProps {
   onOpenThirdPartyNotices: () => void;
   onOpenDiagnostics: () => void;
   onOpenAiAssistant?: (() => void) | undefined;
+  onOpenApps?: (() => void) | undefined;
   onOpenCustomScreen?: ((screenId: string) => void) | undefined;
   onOpenScreenView?: (() => void) | undefined;
   onOpenPhoneWebcam?: (() => void) | undefined;
   screenViewCapability?: ScreenViewCapability | undefined;
   phoneWebcamCapability?: PhoneWebcamCapability | undefined;
   aiAssistantCapability?: AiAssistantCapability | undefined;
+  appsCapability?: AppsCapability | undefined;
   pairedPcs: PcProfile[];
   pairingQrInputRef: RefObject<HTMLInputElement | null>;
   pairingScanMessage: string;

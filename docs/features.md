@@ -87,7 +87,8 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - Profile-managed product permissions use **My device**, **Remote controls**, or
   an explicit per-device **Custom** matrix. My device allows every current product
   permission. Remote controls explicitly allows pointer/keyboard, volume,
-  Presentation, application launch, PC lock, Blackout, and screen saver only.
+  Presentation, application launch, open-application control, PC lock, Blackout,
+  and screen saver only.
   Preferences selects My device or Remote controls for newly paired devices;
   changing it never recalculates existing devices. Devices shows effective values
   and materializes a complete Custom matrix before an individual edit.
@@ -107,7 +108,8 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   and malformed Awake state is Off. Superseded individual registry fields are
   not read.
 - Profile-managed permissions cover sleep, volume, Screen viewing, Phone webcam,
-  Presentation, file browsing/opening, file changes, file transfer, Terminal, application launch, web
+  Presentation, file browsing/opening, file changes, file transfer, Terminal,
+  open-application control, application launch, web
   addresses, PC clipboard reads, View diagnostics, Lock, Blackout, display off, screen saver,
   sign out, restart, shutdown, Keep awake, and pointer/keyboard input. Control of
   the Voltura Air Windows application is a separate setting that remains disabled
@@ -734,6 +736,14 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   global plus per-device policy model. A supported but denied device keeps Files
   visible with permission guidance. Revocation closes opaque navigation sessions
   and cancels that device's active mutation and transfer work. **My device** allows transfer; **Remote controls** blocks it. A complete pre-transfer Custom matrix migrates with transfer blocked; malformed Custom data remains fail-closed.
+
+### Apps
+
+- **Apps** is a lazy-loaded Menu tool for switching between ordinary top-level application windows on the signed-in Windows session and current virtual desktop. It presents a circular, orientation-responsive horizontal carousel with the same decelerating flick momentum as Terminal scrolling; touching a coasting deck stops it immediately. Tapping the centered card restores a minimized window, maximizes a suitable normal window, and asks Windows to focus it. Swipe up or the explicit Close button posts the application's normal close request, so unsaved-work prompts remain on the PC. A final **Open app** card expands into a vertically scrollable panel of existing host-approved application-launch shortcuts and closes back to the same deck position; the shortcuts retain their separate permission.
+- The host applies Windows' generic visible root-owner/last-active-popup and extended-style rules, then filters cloaked, other-session, other-desktop, and untitled windows before returning at most 48 bounded summaries. Voltura Air itself is included only when the separate host-application control setting permits that device. The browser receives a fresh connection-scoped revision and random opaque window IDs; native handles, process IDs, executable paths, icons, commands, and arguments never cross the wire. Every action revalidates the current native window against that revision and policy.
+- Opening Apps performs one list request. Refresh, activate, close, a confirmed stale action, and a successful launcher action each cause one explicit refresh; a confirmed stale card disappears locally without an error toast. There is no polling, timer-driven capture, background discovery, or work while the tool is closed. The selected title is preserved when possible and the active window is otherwise centered.
+- Static card previews require both **Control open applications** and the independently resolved **Screen viewing** permission. Apps owns one short-lived, data-channel-only WebRTC peer and requests only the centered window and immediate neighbors. Previews are bounded in size and memory, are unavailable for minimized or uncapturable windows, and are revoked on replacement, close, disconnect, permission loss, or failure. Direct, Secure Direct, and Relay reuse the existing ICE/TURN and bounded TLS bridge primitives without sharing Screen, Phone webcam, or Files lifecycle owners.
+- **My device** and **Remote controls** allow **Control open applications**. Custom exposes an explicit Allow/Block value; older complete Custom matrices migrate with it blocked. Screen viewing separately gates previews, application launch separately gates the final launcher card, and host-window control separately gates the Voltura Air window.
 
 ### Terminal
 

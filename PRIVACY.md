@@ -105,6 +105,22 @@ session keys, SDP, cursor coordinates, and encoded video are neither logged nor
 persisted. Captured GPU frames and encoded access units exist only in bounded
 memory until sent or replaced by newer work.
 
+When Apps is opened and **Control open applications** is permitted, the PC
+returns bounded titles, application display names, state flags, and random
+connection-scoped references for eligible application windows in the current
+Windows session and virtual desktop. It does not return native window handles,
+process IDs, executable paths, command lines, arguments, or icons. Discovery
+happens only on entry or an explicit refresh/action; it is not polled or stored.
+The separate Screen viewing permission controls static card previews. Only the
+centered window and immediate neighbors are requested, and preview pixels can
+contain private content visible in those application windows. JPEG previews
+travel over a short-lived WebRTC DTLS-protected data channel and exist only in
+bounded PC and browser memory. They are not written to files, logged, added to
+telemetry, or retained after replacement, leaving Apps, disconnect, permission
+loss, or failure. Relay previews use Cloudflare TURN with the same encrypted
+content, network-metadata visibility, aggregate byte metering, and quota cutoff
+described for Relay file transfer; Cloudflare cannot decrypt the preview pixels.
+
 Relay screen viewing uses Cloudflare TURN. Cloudflare processes participant IP
 addresses, connection timing, credential requests, and byte counts while
 forwarding DTLS-SRTP ciphertext, but cannot decrypt screen pixels or the

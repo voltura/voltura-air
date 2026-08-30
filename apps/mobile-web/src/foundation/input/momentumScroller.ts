@@ -1,6 +1,6 @@
-export type TerminalScrollAxis = "horizontal" | "vertical";
+export type ScrollAxis = "horizontal" | "vertical";
 
-interface TerminalMomentumDependencies {
+interface MomentumDependencies {
   cancelFrame?: (frame: number) => void;
   now?: () => number;
   requestFrame?: (callback: FrameRequestCallback) => number;
@@ -14,8 +14,8 @@ const maximumFrameMilliseconds = 32;
 const maximumFrameGapMilliseconds = 100;
 const decayMilliseconds = 325;
 
-export class TerminalMomentumScroller {
-  private axis: TerminalScrollAxis | null = null;
+export class MomentumScroller {
+  private axis: ScrollAxis | null = null;
   private velocity = 0;
   private lastSampleTime = 0;
   private lastFrameTime = 0;
@@ -25,8 +25,8 @@ export class TerminalMomentumScroller {
   private readonly requestFrame: (callback: FrameRequestCallback) => number;
 
   constructor(
-    private readonly scroll: (axis: TerminalScrollAxis, distance: number) => void,
-    dependencies: TerminalMomentumDependencies = {},
+    private readonly scroll: (axis: ScrollAxis, distance: number) => void,
+    dependencies: MomentumDependencies = {},
   ) {
     this.cancelFrame = dependencies.cancelFrame ?? window.cancelAnimationFrame.bind(window);
     this.now = dependencies.now ?? performance.now.bind(performance);
@@ -38,7 +38,7 @@ export class TerminalMomentumScroller {
     this.lastSampleTime = this.now();
   }
 
-  move(axis: TerminalScrollAxis, distance: number) {
+  move(axis: ScrollAxis, distance: number) {
     const time = this.now();
     const elapsed = time - this.lastSampleTime;
     if (this.axis !== axis) {

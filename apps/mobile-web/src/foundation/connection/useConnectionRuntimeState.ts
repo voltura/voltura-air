@@ -4,6 +4,7 @@ import type {
   AwakeCapability,
   CustomScreensCapability,
   FileManagerCapability,
+  AppsCapability,
   TerminalCapability,
   AiAssistantCapability,
   HostStatusMetadata,
@@ -22,6 +23,7 @@ import {
   getScreenViewCapability,
   getPhoneWebcamCapability,
   getFileManagerCapability,
+  getAppsCapability,
   getTerminalCapability,
   getAiAssistantCapability,
   hasGestureDebugCapability,
@@ -73,6 +75,7 @@ export function useConnectionRuntimeState(
   const [fileManagerCapability, setFileManagerCapability] = useState<
     FileManagerCapability | undefined
   >(undefined);
+  const [appsCapability, setAppsCapability] = useState<AppsCapability | undefined>(undefined);
   const [terminalCapability, setTerminalCapability] = useState<TerminalCapability | undefined>(
     undefined,
   );
@@ -104,6 +107,7 @@ export function useConnectionRuntimeState(
       setScreenViewCapability(undefined);
       setPhoneWebcamCapability(undefined);
       setFileManagerCapability(undefined);
+      setAppsCapability(undefined);
       if (!preserveTerminal) {
         setTerminalCapability(undefined);
       }
@@ -135,6 +139,7 @@ export function useConnectionRuntimeState(
       setScreenViewCapability(connected ? getScreenViewCapability(capabilities) : undefined);
       setPhoneWebcamCapability(connected ? getPhoneWebcamCapability(capabilities) : undefined);
       setFileManagerCapability(connected ? getFileManagerCapability(capabilities) : undefined);
+      setAppsCapability(connected ? getAppsCapability(capabilities) : undefined);
       if (connected) {
         setTerminalCapability(getTerminalCapability(capabilities));
       }
@@ -174,6 +179,7 @@ export function useConnectionRuntimeState(
     phoneWebcamCapability,
     screenViewCapability,
     fileManagerCapability,
+    appsCapability,
     terminalCapability,
     aiAssistantCapability,
     setAudioState,

@@ -38,6 +38,7 @@ const TerminalWorkspace = lazy(() => import("./features/terminal"));
 const AiAssistantWorkspace = lazy(() =>
   import("./features/ai-assistant").then((module) => ({ default: module.AiAssistantWorkspace })),
 );
+const AppsWorkspace = lazy(() => import("./features/apps"));
 const PairingQrScannerDialog = lazy(loadPairingQrScannerDialog);
 
 export function App() {
@@ -62,6 +63,7 @@ export function App() {
     screenViewCapability,
     phoneWebcamCapability,
     fileManagerCapability,
+    appsCapability,
     terminalCapability,
     aiAssistantCapability,
     diagnosticsPermission,
@@ -160,6 +162,9 @@ export function App() {
   const [isThirdPartyNoticesOpen, setIsThirdPartyNoticesOpen] = useState(false);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
+  const [isAppsOpen, setIsAppsOpen] = useState(false);
+  const [appsCapabilitySnapshot, setAppsCapabilitySnapshot] = useState(appsCapability);
+  const activeAppsCapability = appsCapability ?? appsCapabilitySnapshot;
   const connectionErrorKey = lastConnectionError
     ? `${lastConnectionError.code}\n${lastConnectionError.message}`
     : null;
@@ -255,6 +260,7 @@ export function App() {
     setIsThirdPartyNoticesOpen(false);
     setIsDiagnosticsOpen(false);
     setIsAiAssistantOpen(false);
+    setIsAppsOpen(false);
     setIsScreenViewOpen(true);
     setIsPhoneWebcamOpen(false);
   }, []);
@@ -322,7 +328,11 @@ export function App() {
     trackpadSettings,
     suppressSplitMode: gyroSelected,
     showModeButtons:
-      showModeButtons && !isThirdPartyNoticesOpen && !isDiagnosticsOpen && !isAiAssistantOpen,
+      showModeButtons &&
+      !isThirdPartyNoticesOpen &&
+      !isDiagnosticsOpen &&
+      !isAiAssistantOpen &&
+      !isAppsOpen,
   });
   useEffect(() => {
     if (
@@ -358,6 +368,7 @@ export function App() {
       setIsThirdPartyNoticesOpen(false);
       setIsDiagnosticsOpen(false);
       setIsAiAssistantOpen(false);
+      setIsAppsOpen(false);
       if (nextTab === "presentation") {
         requestPresentationActivation();
       }
@@ -381,6 +392,7 @@ export function App() {
       setIsThirdPartyNoticesOpen(false);
       setIsDiagnosticsOpen(false);
       setIsAiAssistantOpen(false);
+      setIsAppsOpen(false);
       if (mode === "presentation") {
         requestPresentationActivation();
       }
@@ -404,6 +416,7 @@ export function App() {
       setIsThirdPartyNoticesOpen(false);
       setIsDiagnosticsOpen(false);
       setIsAiAssistantOpen(false);
+      setIsAppsOpen(false);
       openGestureDebug();
     });
   };
@@ -417,6 +430,7 @@ export function App() {
       setIsThirdPartyNoticesOpen(false);
       setIsDiagnosticsOpen(false);
       setIsAiAssistantOpen(false);
+      setIsAppsOpen(false);
       setGyroActivationRequest(request);
       openModeFromMenu("trackpad");
     });
@@ -458,6 +472,7 @@ export function App() {
         setIsScreenViewOpen(false);
         setIsThirdPartyNoticesOpen(false);
         setIsDiagnosticsOpen(false);
+        setIsAppsOpen(false);
         selectModeTab("remote", "settings");
         setIsSettingsOpen(false);
         requestRemoteModeLaunch(value, nextSettings);
@@ -549,6 +564,7 @@ export function App() {
     tab === "terminal" &&
     !isDiagnosticsOpen &&
     !isAiAssistantOpen &&
+    !isAppsOpen &&
     !isThirdPartyNoticesOpen &&
     !isPhoneWebcamOpen &&
     !isScreenViewOpen &&
@@ -679,11 +695,11 @@ export function App() {
   return (
     <div className={`app-frame${controlDepth ? " control-depth" : ""}`}>
       <main
-        className={`${shellClassName}${controlDepth ? " control-depth" : ""}${isScreenViewOpen ? " screen-view-active" : ""}${isDiagnosticsOpen ? " diagnostics-active" : ""}${isAiAssistantOpen ? " ai-assistant-active" : ""}${tab === "files" ? " files-active" : ""}`}
+        className={`${shellClassName}${controlDepth ? " control-depth" : ""}${isScreenViewOpen ? " screen-view-active" : ""}${isDiagnosticsOpen ? " diagnostics-active" : ""}${isAiAssistantOpen ? " ai-assistant-active" : ""}${isAppsOpen ? " apps-active" : ""}${tab === "files" ? " files-active" : ""}`}
       >
         <AppHeader
           activeMode={activeModeTab}
-          canShowModeNavigation={canShowModeNavigation}
+          canShowModeNavigation={canShowModeNavigation && !isAppsOpen}
           compactModeButtonRef={headerCompactModeButtonRef}
           connectionPcName={connectionPcName}
           developerMode={developerMode}
@@ -783,6 +799,7 @@ export function App() {
           accentColorOverridden={hostStatus?.accentColorOverridden}
           accentColorSupported={typeof hostStatus?.accentColorOverridden === "boolean"}
           aiAssistantCapability={aiAssistantCapability}
+          appsCapability={appsCapability}
           appSettings={appSettings}
           customPointerEnabled={hostStatus?.customPointerEnabled}
           customScreens={customScreensCapability?.screens ?? []}
@@ -817,6 +834,21 @@ export function App() {
               setIsThirdPartyNoticesOpen(false);
               setIsDiagnosticsOpen(false);
               setIsAiAssistantOpen(true);
+              setIsAppsOpen(false);
+              setIsSettingsOpen(false);
+            });
+          }}
+          onOpenApps={() => {
+            requestPresentationExit(() => {
+              closeTransientSurfaces();
+              setAppsCapabilitySnapshot(appsCapability);
+              setActiveCustomScreenId(null);
+              setIsScreenViewOpen(false);
+              setIsPhoneWebcamOpen(false);
+              setIsThirdPartyNoticesOpen(false);
+              setIsDiagnosticsOpen(false);
+              setIsAiAssistantOpen(false);
+              setIsAppsOpen(true);
               setIsSettingsOpen(false);
             });
           }}
@@ -828,6 +860,7 @@ export function App() {
               setIsThirdPartyNoticesOpen(false);
               setIsDiagnosticsOpen(false);
               setIsAiAssistantOpen(false);
+              setIsAppsOpen(false);
               setIsSettingsOpen(false);
             });
           }}
@@ -837,6 +870,7 @@ export function App() {
               setIsThirdPartyNoticesOpen(false);
               setIsDiagnosticsOpen(false);
               setIsAiAssistantOpen(false);
+              setIsAppsOpen(false);
               setIsScreenViewOpen(true);
               setIsPhoneWebcamOpen(false);
               setIsSettingsOpen(false);
@@ -849,6 +883,7 @@ export function App() {
               setIsThirdPartyNoticesOpen(false);
               setIsDiagnosticsOpen(false);
               setIsAiAssistantOpen(false);
+              setIsAppsOpen(false);
               setIsScreenViewOpen(false);
               setIsPhoneWebcamOpen(true);
               setIsSettingsOpen(false);
@@ -865,6 +900,7 @@ export function App() {
             setIsPhoneWebcamOpen(false);
             setIsDiagnosticsOpen(false);
             setIsAiAssistantOpen(false);
+            setIsAppsOpen(false);
             setIsThirdPartyNoticesOpen(true);
           }}
           onOpenDiagnostics={() => {
@@ -874,6 +910,7 @@ export function App() {
             setIsPhoneWebcamOpen(false);
             setIsThirdPartyNoticesOpen(false);
             setIsAiAssistantOpen(false);
+            setIsAppsOpen(false);
             setIsDiagnosticsOpen(true);
           }}
           onOpenGyroMouse={openGyroMouse}
@@ -945,6 +982,7 @@ export function App() {
           !isScreenViewOpen &&
           !isPhoneWebcamOpen &&
           !isAiAssistantOpen &&
+          !isAppsOpen &&
           tab !== "files" &&
           isModeButtonsVisible && (
             <ModeNavigation
@@ -955,7 +993,36 @@ export function App() {
             />
           )}
 
-        {isAiAssistantOpen && activePc && aiAssistantCapability ? (
+        {isAppsOpen && activePc && activeAppsCapability ? (
+          <WorkspaceErrorBoundary
+            featureName="Apps"
+            onBack={() => {
+              setIsAppsOpen(false);
+            }}
+          >
+            <Suspense fallback={<div className="workspace-loading">Opening Apps…</div>}>
+              <AppsWorkspace
+                key={`${connectionEpoch}-${activePc.id}`}
+                activePc={activePc}
+                appLaunchActions={hostStatus?.appLaunchActions ?? []}
+                appLaunchResult={appLaunchResult}
+                capability={activeAppsCapability}
+                clientId={clientId}
+                onAppLaunch={connection.requestAppLaunch}
+                onBack={() => {
+                  setIsAppsOpen(false);
+                }}
+                onFeedback={(feedbackMessage, tone) => {
+                  setTransientFeedback({ message: feedbackMessage, tone });
+                }}
+                pendingAppLaunchId={pendingAppLaunchId}
+                send={send}
+                state={state}
+                supportsRemoteLaunch={supportsRemoteLaunch}
+              />
+            </Suspense>
+          </WorkspaceErrorBoundary>
+        ) : isAiAssistantOpen && activePc && aiAssistantCapability ? (
           <WorkspaceErrorBoundary
             featureName="AI Assistant"
             onBack={() => {
@@ -1207,13 +1274,13 @@ export function App() {
         )}
 
         <GlobalOperationFeedback
-          appLaunchResult={appLaunchResult}
+          appLaunchResult={isAppsOpen && appLaunchResult?.succeeded ? null : appLaunchResult}
           clipboardReadResult={
             clipboardReadResult?.operationId === suppressedClipboardResultId
               ? null
               : clipboardReadResult
           }
-          pendingAppLaunchId={pendingAppLaunchId}
+          pendingAppLaunchId={isAppsOpen ? null : pendingAppLaunchId}
           pendingClipboardRead={pendingClipboardRead}
           pendingTextTransfer={pendingTextTransfer}
           powerPointRefreshResult={connection.powerPointRefreshResult}
@@ -1279,6 +1346,7 @@ export function App() {
         !isScreenViewOpen &&
         !isPhoneWebcamOpen &&
         !isAiAssistantOpen &&
+        !isAppsOpen &&
         tab !== "files" &&
         isBottomModeNavigationVisible && (
           <ModeNavigation

@@ -6,6 +6,18 @@ namespace VolturaAir.Host.Tests;
 public sealed class ClientMessageValidatorTests
 {
     [Theory]
+    [InlineData("apps.list", """{ "type": "apps.list", "operationId": "apps-1" }""", true)]
+    [InlineData("apps.activate", """{ "type": "apps.activate", "operationId": "apps-2", "revision": "0123456789abcdef0123456789abcdef", "windowId": "fedcba9876543210fedcba9876543210" }""", true)]
+    [InlineData("apps.close", """{ "type": "apps.close", "operationId": "apps-3", "revision": "0123456789abcdef0123456789abcdef", "windowId": "42" }""", false)]
+    [InlineData("apps.preview.answer", """{ "type": "apps.preview.answer", "operationId": "apps-4", "offerOperationId": "apps-1", "previewId": "0123456789abcdef0123456789abcdef", "answerSdp": "v=0\r\n", "clientSignature": "proof" }""", true)]
+    [InlineData("apps.preview.stop", """{ "type": "apps.preview.stop", "operationId": "apps-5", "previewId": "0123456789abcdef0123456789abcdef", "processId": 42 }""", false)]
+    public void ValidatesExactAppsMessages(string type, string json, bool expected)
+    {
+        using var document = JsonDocument.Parse(json);
+        Assert.Equal(expected, ClientMessageValidator.IsValidAuthenticatedMessage(document.RootElement, type));
+    }
+
+    [Theory]
     [InlineData("terminal.start", """{ "type": "terminal.start", "operationId": "terminal-1", "columns": 80, "rows": 24, "clientSignature": "proof" }""", true)]
     [InlineData("terminal.start", """{ "type": "terminal.start", "operationId": "terminal-1", "columns": 9, "rows": 24, "clientSignature": "proof" }""", false)]
     [InlineData("terminal.attach", """{ "type": "terminal.attach", "operationId": "terminal-2", "terminalId": "0123456789abcdef0123456789abcdef", "acknowledgedOffset": 42, "columns": 120, "rows": 40, "clientSignature": "proof" }""", true)]

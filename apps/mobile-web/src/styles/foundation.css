@@ -668,7 +668,8 @@ button span {
   padding-bottom: max(12px, env(safe-area-inset-bottom));
 }
 
-.app-shell.files-active {
+.app-shell.files-active,
+.app-shell.apps-active {
   grid-template-rows: auto minmax(0, 1fr);
 }
 

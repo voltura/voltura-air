@@ -175,11 +175,22 @@ internal static class DeviceAccessProfilePersistence
         if (values.AllowTerminal is null)
         {
             var completeBeforeTerminal = DeviceAccessProfiles.Permissions
-                .Where(permission => permission.Kind != DevicePermissionKind.Terminal)
+                .Where(permission => permission.Kind is not (DevicePermissionKind.Terminal or DevicePermissionKind.AppsControl))
                 .All(permission => permission.ReadOverride(values) is not null);
             if (completeBeforeTerminal)
             {
                 values = values with { AllowTerminal = false };
+            }
+        }
+
+        if (values.AllowAppsControl is null)
+        {
+            var completeBeforeApps = DeviceAccessProfiles.Permissions
+                .Where(permission => permission.Kind != DevicePermissionKind.AppsControl)
+                .All(permission => permission.ReadOverride(values) is not null);
+            if (completeBeforeApps)
+            {
+                values = values with { AllowAppsControl = false };
             }
         }
 

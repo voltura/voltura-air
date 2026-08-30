@@ -33,6 +33,7 @@ public enum DevicePermissionKind
     FileTransfer,
     Diagnostics,
     Terminal,
+    AppsControl,
     SignOut,
     Restart,
     Shutdown
@@ -109,6 +110,9 @@ public static class DeviceAccessProfiles
         Define(DevicePermissionKind.Terminal, "allowTerminal", "Terminal", false,
             value => value.AllowTerminal, (value, allowed) => value with { AllowTerminal = allowed },
             value => value.AllowTerminal, (value, allowed) => value with { AllowTerminal = allowed }),
+        Define(DevicePermissionKind.AppsControl, "allowAppsControl", "Control open applications", true,
+            value => value.AllowAppsControl, (value, allowed) => value with { AllowAppsControl = allowed },
+            value => value.AllowAppsControl, (value, allowed) => value with { AllowAppsControl = allowed }),
         Define(DevicePermissionKind.SignOut, "allowSignOut", "Sign out", false,
             value => value.AllowSignOut, (value, allowed) => value with { AllowSignOut = allowed },
             value => value.AllowSignOut, (value, allowed) => value with { AllowSignOut = allowed }),
@@ -199,6 +203,7 @@ public static class DeviceAccessProfiles
             AllowFileTransfer: values.AllowFileTransfer!.Value,
             AllowDiagnostics: values.AllowDiagnostics!.Value,
             AllowTerminal: values.AllowTerminal!.Value,
+            AllowAppsControl: values.AllowAppsControl!.Value,
             HideProtectedFileSystemItems: hideProtected);
 
         return true;
@@ -252,6 +257,7 @@ public static class DeviceAccessProfiles
             AllowFileTransfer: false,
             AllowDiagnostics: false,
             AllowTerminal: false,
+            AllowAppsControl: false,
             HideProtectedFileSystemItems: true);
         foreach (var permission in Permissions)
         {

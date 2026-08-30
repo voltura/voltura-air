@@ -25,6 +25,7 @@ public sealed record HostPermissionSet(
     bool AllowFileTransfer = false,
     bool AllowDiagnostics = false,
     bool AllowTerminal = false,
+    bool AllowAppsControl = false,
     bool HideProtectedFileSystemItems = true);
 
 [JsonConverter(typeof(DevicePermissionOverridesJsonConverter))]
@@ -51,6 +52,7 @@ public sealed record DevicePermissionOverrides(
     bool? AllowFileTransfer = null,
     bool? AllowDiagnostics = null,
     bool? AllowTerminal = null,
+    bool? AllowAppsControl = null,
     bool? HideProtectedFileSystemItems = null);
 
 public static class HostPermissions
@@ -78,6 +80,7 @@ public static class HostPermissions
         AllowFileTransfer: false,
         AllowDiagnostics: false,
         AllowTerminal: false,
+        AllowAppsControl: false,
         HideProtectedFileSystemItems: true);
 
     public static HostPermissionSet Resolve(
@@ -125,6 +128,7 @@ public static class HostPermissions
             AllowFileTransfer: deviceOverrides?.AllowFileTransfer ?? global.AllowFileTransfer,
             AllowDiagnostics: deviceOverrides?.AllowDiagnostics ?? global.AllowDiagnostics,
             AllowTerminal: deviceOverrides?.AllowTerminal ?? global.AllowTerminal,
+            AllowAppsControl: deviceOverrides?.AllowAppsControl ?? global.AllowAppsControl,
             HideProtectedFileSystemItems: deviceOverrides?.HideProtectedFileSystemItems ?? global.HideProtectedFileSystemItems);
     }
 }

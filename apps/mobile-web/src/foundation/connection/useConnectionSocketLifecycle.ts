@@ -102,6 +102,7 @@ import {
 import { connectSecureDirect } from "./secureDirect";
 import { publishTerminalResult } from "./terminalResultBus";
 import { publishAiAssistantResult } from "./aiAssistantResultBus";
+import { publishAppsResult } from "./appsResultBus";
 
 const directConnectionTimeoutMs = 3000;
 const relayConnectionTimeoutMs = 10000;
@@ -774,6 +775,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         let pendingFileTransferMessages = Promise.resolve();
         let pendingTerminalMessages = Promise.resolve();
         let pendingAiAssistantMessages = Promise.resolve();
+        let pendingAppsMessages = Promise.resolve();
         function handleSocketMessage(messageData: unknown) {
           const response = parseServerMessage(messageData);
           if (response) {
@@ -837,6 +839,26 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
                   ws,
                   "The AI Assistant protocol could not be loaded. Retrying...",
                   "VAIR-AI-ASSISTANT-PROTOCOL",
+                ),
+              );
+            return;
+          }
+          if (lazyMessageType?.startsWith("apps.")) {
+            pendingAppsMessages = pendingAppsMessages
+              .then(async () => {
+                const { parseAppsServerMessage } = await import("./appsServerProtocol");
+                const appsResponse = parseAppsServerMessage(messageData);
+                if (appsResponse && !disposed && ws === socketRef.current) {
+                  touchHealthy();
+                  publishAppsResult(appsResponse);
+                  scheduleHealthCheck(ws);
+                }
+              })
+              .catch(() =>
+                markUnavailable(
+                  ws,
+                  "The Apps protocol could not be loaded. Retrying...",
+                  "VAIR-APPS-PROTOCOL",
                 ),
               );
             return;

@@ -104,6 +104,11 @@ internal static class ClientMessageValidator
             ["text.send"] = Fields("type", "operationId", "text", "sendEnter"),
             ["clipboard.get"] = Fields("type", "operationId"),
             ["diagnostics.get"] = Fields("type", "operationId"),
+            ["apps.list"] = Fields("type", "operationId"),
+            ["apps.activate"] = Fields("type", "operationId", "revision", "windowId"),
+            ["apps.close"] = Fields("type", "operationId", "revision", "windowId"),
+            ["apps.preview.answer"] = Fields("type", "operationId", "offerOperationId", "previewId", "answerSdp", "clientSignature"),
+            ["apps.preview.stop"] = Fields("type", "operationId", "previewId"),
             ["file.session.open"] = Fields("type", "operationId"),
             ["file.page.get"] = Fields("type", "operationId", "sessionId", "panel", "revision", "continuation"),
             ["file.navigate"] = Fields("type", "operationId", "sessionId", "panel", "revision", "targetId"),
@@ -368,7 +373,22 @@ internal static class ClientMessageValidator
                 root.TryGetProperty("sendEnter", out var sendEnter) && sendEnter.ValueKind is JsonValueKind.True or JsonValueKind.False,
             "clipboard.get" => TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var clipboardOperationId) &&
                 IsValidOperationId(clipboardOperationId),
-            "file.session.open" or "file.jobs.get" or "diagnostics.get" => IsValidFileOperationId(root),
+            "file.session.open" or "file.jobs.get" or "diagnostics.get" or "apps.list" => IsValidFileOperationId(root),
+            "apps.activate" or "apps.close" => IsValidFileOperationId(root) &&
+                TryGetRequiredString(root, "revision", Features.Apps.AppsProtocol.OpaqueIdLength, allowEmpty: false, out var appsRevision) &&
+                Features.Apps.AppsProtocol.IsOpaqueId(appsRevision) &&
+                TryGetRequiredString(root, "windowId", Features.Apps.AppsProtocol.OpaqueIdLength, allowEmpty: false, out var appsWindowId) &&
+                Features.Apps.AppsProtocol.IsOpaqueId(appsWindowId),
+            "apps.preview.answer" => IsValidFileOperationId(root) &&
+                TryGetRequiredString(root, "offerOperationId", MaxOperationIdLength, allowEmpty: false, out var appsOfferOperationId) &&
+                IsValidOperationId(appsOfferOperationId) &&
+                TryGetRequiredString(root, "previewId", Features.Apps.AppsProtocol.OpaqueIdLength, allowEmpty: false, out var appsPreviewId) &&
+                Features.Apps.AppsProtocol.IsOpaqueId(appsPreviewId) &&
+                TryGetRequiredString(root, "answerSdp", ScreenViewProtocol.MaxSdpLength, allowEmpty: false, out _) &&
+                TryGetRequiredString(root, "clientSignature", MaxCredentialLength, allowEmpty: false, out _),
+            "apps.preview.stop" => IsValidFileOperationId(root) &&
+                TryGetRequiredString(root, "previewId", Features.Apps.AppsProtocol.OpaqueIdLength, allowEmpty: false, out var appsStopPreviewId) &&
+                Features.Apps.AppsProtocol.IsOpaqueId(appsStopPreviewId),
             "file.page.get" => IsValidFilePanelRequest(root, requireRevision: true) &&
                 TryGetRequiredString(root, "continuation", MaxCredentialLength, allowEmpty: false, out _),
             "file.navigate" => IsValidFilePanelRequest(root, requireRevision: true) &&

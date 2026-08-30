@@ -7,7 +7,7 @@ public sealed class HostPermissionsTests
     [Fact]
     public void MyDeviceAllowsEveryCatalogPermission()
     {
-        Assert.Equal(22, DeviceAccessProfiles.Permissions.Count);
+        Assert.Equal(23, DeviceAccessProfiles.Permissions.Count);
         Assert.All(
             DeviceAccessProfiles.Permissions,
             permission => Assert.True(permission.Read(DeviceAccessProfiles.MyDevice), permission.PersistedKey));
@@ -22,6 +22,7 @@ public sealed class HostPermissionsTests
             DevicePermissionKind.VolumeControl,
             DevicePermissionKind.PresentationControl,
             DevicePermissionKind.RemoteAppLaunch,
+            DevicePermissionKind.AppsControl,
             DevicePermissionKind.PcLock,
             DevicePermissionKind.BlackoutDisplay,
             DevicePermissionKind.ScreenSaver
@@ -39,6 +40,7 @@ public sealed class HostPermissionsTests
         Assert.False(DeviceAccessProfiles.RemoteControls.AllowDiagnostics);
         Assert.True(DeviceAccessProfiles.MyDevice.AllowTerminal);
         Assert.False(DeviceAccessProfiles.RemoteControls.AllowTerminal);
+        Assert.True(DeviceAccessProfiles.RemoteControls.AllowAppsControl);
     }
 
     [Fact]

@@ -93,6 +93,10 @@ internal sealed class HostStatusPayloadFactory(
     public bool CanOpenUrls(string clientId) => GetEffectivePermissions(clientId).AllowUrlOpen;
     public bool CanReadClipboard(string clientId) => GetEffectivePermissions(clientId).AllowClipboardRead;
     public bool CanViewDiagnostics(string clientId) => GetEffectivePermissions(clientId).AllowDiagnostics;
+    public bool CanControlOpenApps(string clientId) =>
+        pairingManager.HasCurrentHostIdentity(clientId) && GetEffectivePermissions(clientId).AllowAppsControl;
+    public bool CanPreviewOpenApps(string clientId) =>
+        CanControlOpenApps(clientId) && GetEffectivePermissions(clientId).AllowScreenViewing;
     public bool CanUseTerminal(string clientId) =>
         pairingManager.HasCurrentHostIdentity(clientId) && GetEffectivePermissions(clientId).AllowTerminal;
     public bool CanUseAiAssistant(string clientId) =>
@@ -143,6 +147,14 @@ internal sealed class HostStatusPayloadFactory(
         textTransfer = permissions.AllowRemoteInput,
         clipboardRead = permissions.AllowClipboardRead,
         diagnostics = new { canView = permissions.AllowDiagnostics },
+        apps = new
+        {
+            enabled = true,
+            permissionGranted = permissions.AllowAppsControl,
+            canUse = permissions.AllowAppsControl && pairingManager.HasCurrentHostIdentity(clientId),
+            previewAvailable = permissions.AllowAppsControl && permissions.AllowScreenViewing &&
+                pairingManager.HasCurrentHostIdentity(clientId)
+        },
         terminal = CreateTerminalCapability(clientId, permissions),
         aiAssistant = CreateAiAssistantCapability(clientId),
         gestureDebug = AppDeveloperSettings.EnableGestureDebug(),

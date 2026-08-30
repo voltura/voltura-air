@@ -244,6 +244,35 @@ describe("connection protocol policy", () => {
     }
   });
 
+  it("accepts only the exact Apps capability shape", () => {
+    const capability = {
+      enabled: true,
+      permissionGranted: true,
+      canUse: true,
+      previewAvailable: false,
+    };
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          type: "status",
+          connected: true,
+          capabilities: { apps: capability },
+        }),
+      ),
+    ).not.toBeNull();
+    for (const invalid of [
+      { ...capability, canUse: "yes" },
+      { ...capability, previewAvailable: 1 },
+      { ...capability, processId: 42 },
+    ]) {
+      expect(
+        parseServerMessage(
+          JSON.stringify({ type: "status", connected: true, capabilities: { apps: invalid } }),
+        ),
+      ).toBeNull();
+    }
+  });
+
   it("normalizes untrusted audio state without accepting coerced values", () => {
     expect(normalizeAudioState({ muted: true, volume: 101.6 })).toEqual({
       type: "audio.state",

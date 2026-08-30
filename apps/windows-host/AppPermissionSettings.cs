@@ -27,6 +27,7 @@ public static class AppPermissionSettings
         AllowFileTransfer: false,
         AllowDiagnostics: false,
         AllowTerminal: false,
+        AllowAppsControl: false,
         HideProtectedFileSystemItems: true);
     private static HostPermissionSet _cachedPermissions = HostPermissions.DefaultGlobal;
     private static int _cachedDefaultAccessProfile = (int)DeviceAccessProfile.MyDevice;

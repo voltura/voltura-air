@@ -5,11 +5,11 @@ import { fileURLToPath } from "node:url";
 // Media workspaces stay in lazy chunks. The reviewed initial shell includes
 // guarded browser storage, destructive-action confirmation, result routing,
 // explicit secure-context clipboard actions, capability-gated input context,
-// and the bounded diagnostics, Terminal, AI Assistant, and host-synchronized
+// and the bounded diagnostics, Terminal, AI Assistant, Apps, and host-synchronized
 // appearance routing. Their substantial workspaces and color picker remain in
 // separate lazy chunks.
-const maximumRawJavaScriptBytes = 595 * 1024;
-const maximumBrotliJavaScriptBytes = 142.5 * 1024;
+const maximumRawJavaScriptBytes = 597 * 1024;
+const maximumBrotliJavaScriptBytes = 143 * 1024;
 const distDirectory = fileURLToPath(new URL("../apps/mobile-web/dist/", import.meta.url));
 const assetsDirectory = fileURLToPath(new URL("../apps/mobile-web/dist/assets/", import.meta.url));
 const indexHtml = await readFile(path.join(distDirectory, "index.html"), "utf8");

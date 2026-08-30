@@ -5,6 +5,7 @@ using VolturaAir.Host.Features.PhoneWebcam;
 using VolturaAir.Host.Features.Diagnostics;
 using VolturaAir.Host.Features.UsageTelemetry;
 using VolturaAir.Host.Features.AiAssistant;
+using VolturaAir.Host.Features.Apps;
 
 namespace VolturaAir.Host;
 
@@ -25,6 +26,7 @@ internal sealed class WebSocketSessionHandler(
     TextTransferCommandHandler textTransferCommands,
     ClipboardCommandHandler clipboardCommands,
     DiagnosticsCommandHandler diagnosticsCommands,
+    AppsCommandHandler appsCommands,
     FileManagerCommandHandler fileManagerCommands,
     FileTransferCoordinator fileTransfers,
     TerminalCoordinator terminal,
@@ -293,6 +295,7 @@ internal sealed class WebSocketSessionHandler(
                     aiAssistant.ClientDisconnected(authenticatedClientId, socket);
                     await screenViewCommands.ClientDisconnectedAsync(authenticatedClientId);
                     await phoneWebcamCommands.ClientDisconnectedAsync(authenticatedClientId, socket);
+                    appsCommands.ClientDisconnected(authenticatedClientId, socket);
                     fileManagerCommands.ClientDisconnected(authenticatedClientId, socket);
                     fileTransfers.ClientDisconnected(authenticatedClientId, socket);
                     terminal.ClientDisconnected(authenticatedClientId, socket);
@@ -779,6 +782,48 @@ internal sealed class WebSocketSessionHandler(
                 return true;
             case "diagnostics.get":
                 await diagnosticsCommands.HandleAsync(socket, clientId, ProtocolMessageFields.GetString(root, "operationId"), cancellationToken);
+                return true;
+            case "apps.list":
+                await appsCommands.ListAsync(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    cancellationToken);
+                return true;
+            case "apps.activate":
+                await appsCommands.ActivateAsync(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    ProtocolMessageFields.GetString(root, "revision"),
+                    ProtocolMessageFields.GetString(root, "windowId"),
+                    cancellationToken);
+                return true;
+            case "apps.close":
+                await appsCommands.CloseAsync(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    ProtocolMessageFields.GetString(root, "revision"),
+                    ProtocolMessageFields.GetString(root, "windowId"),
+                    cancellationToken);
+                return true;
+            case "apps.preview.answer":
+                await appsCommands.AnswerPreviewAsync(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    ProtocolMessageFields.GetString(root, "offerOperationId"),
+                    ProtocolMessageFields.GetString(root, "previewId"),
+                    ProtocolMessageFields.GetString(root, "answerSdp"),
+                    ProtocolMessageFields.GetString(root, "clientSignature"),
+                    cancellationToken);
+                return true;
+            case "apps.preview.stop":
+                appsCommands.StopPreview(
+                    clientId,
+                    socket,
+                    ProtocolMessageFields.GetString(root, "previewId"));
                 return true;
             case "file.session.open":
                 if (usageSession.NeedsRecord(UsageFeature.Files, recordingToken) &&

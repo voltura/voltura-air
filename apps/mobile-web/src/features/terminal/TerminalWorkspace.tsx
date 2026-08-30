@@ -31,7 +31,7 @@ import {
 } from "../../foundation/terminal/terminalTranscripts";
 import { applyTerminalModifier, type TerminalModifier } from "./terminalModifiers";
 import { limitTerminalPaste, TerminalInputQueue } from "./terminalInputQueue";
-import { TerminalMomentumScroller, type TerminalScrollAxis } from "./terminalMomentum";
+import { MomentumScroller, type ScrollAxis } from "../../foundation/input/momentumScroller";
 import "./terminal.css";
 
 interface Props {
@@ -201,7 +201,7 @@ export function TerminalWorkspace({
     let pendingTouchX = 0;
     let pendingTouchY = 0;
     let pendingTouchDistance = 0;
-    let touchAxis: TerminalScrollAxis | null = null;
+    let touchAxis: ScrollAxis | null = null;
     let selectionAnchor: { column: number; row: number } | null = null;
     let selectionHoldTimer: number | undefined;
     const resize = new ResizeObserver(() => {
@@ -224,7 +224,7 @@ export function TerminalWorkspace({
     window.addEventListener("resize", scheduleLayout);
     window.addEventListener("orientationchange", scheduleLayout);
     window.visualViewport?.addEventListener("resize", scheduleLayout);
-    const scrollByDistance = (axis: TerminalScrollAxis, distance: number) => {
+    const scrollByDistance = (axis: ScrollAxis, distance: number) => {
       if (axis === "horizontal") {
         host.scrollLeft += distance;
         return;
@@ -242,7 +242,7 @@ export function TerminalWorkspace({
         pendingTouchDistance -= lines * lineHeight;
       }
     };
-    const momentum = new TerminalMomentumScroller(scrollByDistance);
+    const momentum = new MomentumScroller(scrollByDistance);
     stopMomentumRef.current = () => momentum.stop();
     const cancelSelectionHold = () => {
       if (selectionHoldTimer !== undefined) {

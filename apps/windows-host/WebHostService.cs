@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using VolturaAir.Host.Features.PhoneWebcam;
 using VolturaAir.Host.Features.AiAssistant;
 using VolturaAir.Host.Features.Diagnostics;
+using VolturaAir.Host.Features.Apps;
 using VolturaAir.Host.Features.UsageTelemetry;
 
 namespace VolturaAir.Host;
@@ -37,6 +38,7 @@ public sealed class WebHostService : IAsyncDisposable
     private readonly FileManagerService _fileManager;
     private readonly FileManagerCommandHandler _fileManagerCommands;
     private readonly FileTransferCoordinator _fileTransfers;
+    private readonly AppsCommandHandler _apps;
     private readonly TerminalCoordinator _terminal;
     private readonly AiAssistantSessionManager _aiAssistantSessions;
     private readonly AiAssistantCoordinator _aiAssistant;
@@ -165,7 +167,8 @@ public sealed class WebHostService : IAsyncDisposable
         ITerminalProcessFactory? terminalProcessFactory = null,
         ITerminalWebRtcPeerFactory? terminalPeerFactory = null,
         TimeProvider? terminalTimeProvider = null,
-        IAiAssistantClientFactory? aiAssistantClientFactory = null)
+        IAiAssistantClientFactory? aiAssistantClientFactory = null,
+        IAppsWindowAdapter? appsWindowAdapter = null)
     {
         _configureWebHost = configureWebHost;
 
@@ -388,6 +391,9 @@ public sealed class WebHostService : IAsyncDisposable
             inputDispatcher,
             _powerController);
         _screenViewCommands = new ScreenViewCommandHandler(_screenView, _transport, GetRelayTurnConfigurationAsync, _appLog);
+        IFileTransferWebRtcPeerFactory resolvedFileTransferPeerFactory =
+            fileTransferPeerFactory ??
+            (isolatedTestMode ? new IsolatedFileTransferWebRtcPeerFactory() : new FileTransferWebRtcPeerFactory());
         _fileTransfers = new FileTransferCoordinator(
             _fileManager,
             _screenView,
@@ -396,7 +402,15 @@ public sealed class WebHostService : IAsyncDisposable
             _transport,
             TransportMode == ConnectionTransportMode.Relay,
             GetFileTransferRelayTurnConfigurationAsync,
-            fileTransferPeerFactory ?? (isolatedTestMode ? new IsolatedFileTransferWebRtcPeerFactory() : null));
+            resolvedFileTransferPeerFactory);
+        _apps = new AppsCommandHandler(
+            statusFactory,
+            pairingManager,
+            _transport,
+            appsWindowAdapter ?? (isolatedTestMode ? new UnavailableAppsWindowAdapter() : new WindowsAppsWindowAdapter()),
+            TransportMode == ConnectionTransportMode.Relay,
+            GetFileTransferRelayTurnConfigurationAsync,
+            resolvedFileTransferPeerFactory);
         _terminal = terminalCoordinator = new TerminalCoordinator(
             pairingManager,
             statusFactory,
@@ -450,6 +464,7 @@ public sealed class WebHostService : IAsyncDisposable
             textTransferCommands,
             clipboardCommands,
             diagnosticsCommands,
+            _apps,
             _fileManagerCommands,
             _fileTransfers,
             _terminal,
@@ -667,6 +682,7 @@ public sealed class WebHostService : IAsyncDisposable
         await _terminal.StopFromHostAsync();
         await _aiAssistant.DisposeAsync();
         await _aiAssistantSessions.DisposeAsync();
+        await _apps.DisposeAsync();
         await _screenViewCommands.DisposeAsync();
         await _screenView.DisposeAsync();
         await _phoneWebcamCommands.DisposeAsync();
@@ -705,6 +721,7 @@ public sealed class WebHostService : IAsyncDisposable
         await _terminal.DisposeAsync();
         await _aiAssistant.DisposeAsync();
         await _aiAssistantSessions.DisposeAsync();
+        await _apps.DisposeAsync();
         await _fileTransfers.DisposeAsync();
         await _fileManagerCommands.DisposeAsync();
         await _fileManager.DisposeAsync();

@@ -632,6 +632,7 @@ function isServerCapabilities(value: unknown): boolean {
       "fileManager",
       (candidate) => candidate === null || isFileManagerCapability(candidate),
     ) &&
+    isOptional(value, "apps", (candidate) => candidate === null || isAppsCapability(candidate)) &&
     isOptional(
       value,
       "terminal",
@@ -1653,6 +1654,9 @@ export const getPhoneWebcamCapability = (capabilities: ServerCapabilities | unde
 export const getFileManagerCapability = (capabilities: ServerCapabilities | undefined) =>
   capabilities?.fileManager ?? undefined;
 
+export const getAppsCapability = (capabilities: ServerCapabilities | undefined) =>
+  capabilities?.apps ?? undefined;
+
 export const getTerminalCapability = (capabilities: ServerCapabilities | undefined) =>
   capabilities?.terminal ?? undefined;
 
@@ -1711,6 +1715,16 @@ function isTerminalCapability(value: unknown): boolean {
     Number.isInteger(value.reconnectGraceSeconds) &&
     (value.reconnectGraceSeconds as number) >= 0 &&
     (value.reconnectGraceSeconds as number) <= 3600
+  );
+}
+
+function isAppsCapability(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    hasOnlyFields(value, ["enabled", "permissionGranted", "canUse", "previewAvailable"]) &&
+    ["enabled", "permissionGranted", "canUse", "previewAvailable"].every(
+      (name) => typeof value[name] === "boolean",
+    )
   );
 }
 export const hasTextTransferCapability = (capabilities: ServerCapabilities | undefined) =>

@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
-import { Activity, Bot, Camera, MonitorUp, Orbit, X } from "lucide-react";
+import { Activity, AppWindow, Bot, Camera, MonitorUp, Orbit, X } from "lucide-react";
 import {
   CustomPointerSettingsSection,
   KeyboardSettingsSection,
@@ -145,6 +145,17 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
                 >
                   <Bot aria-hidden="true" />
                   <span>AI Assistant</span>
+                </button>
+              )}
+              {props.appsCapability && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeThen(props.onOpenApps);
+                  }}
+                >
+                  <AppWindow aria-hidden="true" />
+                  <span>Apps</span>
                 </button>
               )}
               {props.screenViewCapability && (

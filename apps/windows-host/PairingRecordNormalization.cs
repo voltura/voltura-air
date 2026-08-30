@@ -86,6 +86,7 @@ internal static class PairingRecordNormalization
         AllowFileTransfer: permissionOverrides?.AllowFileTransfer,
         AllowDiagnostics: permissionOverrides?.AllowDiagnostics,
         AllowTerminal: permissionOverrides?.AllowTerminal,
+        AllowAppsControl: permissionOverrides?.AllowAppsControl,
         HideProtectedFileSystemItems: permissionOverrides?.HideProtectedFileSystemItems);
 
     private static CustomScreenViewport? NormalizeCustomScreenViewport(CustomScreenViewport? viewport) =>

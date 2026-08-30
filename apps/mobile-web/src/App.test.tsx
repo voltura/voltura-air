@@ -31,6 +31,17 @@ vi.mock("./features/ai-assistant", () => ({
   ),
 }));
 
+vi.mock("./features/apps", () => ({
+  default: ({ onBack }: { onBack: () => void }) => (
+    <div data-testid="apps-workspace">
+      Apps workspace
+      <button type="button" onClick={onBack}>
+        Back from Apps
+      </button>
+    </div>
+  ),
+}));
+
 function createStorage(): Storage {
   const items = new Map<string, string>();
   return {
@@ -76,6 +87,7 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     screenViewCapability: undefined,
     phoneWebcamCapability: undefined,
     fileManagerCapability: undefined,
+    appsCapability: undefined,
     terminalCapability: undefined,
     aiAssistantCapability: undefined,
     requestAudioState: vi.fn(),
@@ -694,6 +706,41 @@ describe("App header and mode navigation", () => {
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Keyboard" }));
     expect(screen.queryByText("Live mirror")).toBeNull();
     expect(document.querySelector(".app-shell")?.classList).not.toContain("screen-view-active");
+    expect(document.querySelector(".bottom-mode-tabs")).not.toBeNull();
+  });
+
+  it("opens Apps as a separate lazy workspace and restores mode navigation on back", async () => {
+    mockConnection({
+      appLaunchResult: {
+        type: "app.launch.result",
+        operationId: "launch-apps-test",
+        actionId: "preset.browser",
+        succeeded: true,
+        code: "accepted",
+        message: "Application opened.",
+      },
+      appsCapability: {
+        enabled: true,
+        permissionGranted: true,
+        canUse: true,
+        previewAvailable: false,
+      },
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    const menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog");
+    fireEvent.click(within(menu!).getByRole("button", { name: "Apps" }));
+
+    expect(await screen.findByTestId("apps-workspace")).toBeTruthy();
+    expect(document.querySelector(".app-shell")?.classList).toContain("apps-active");
+    expect(document.querySelector(".top-mode-tabs")).toBeNull();
+    expect(document.querySelector(".bottom-mode-tabs")).toBeNull();
+    expect(screen.queryByText("Application opened.")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Back from Apps" }));
+    expect(screen.queryByTestId("apps-workspace")).toBeNull();
+    expect(document.querySelector(".app-shell")?.classList).not.toContain("apps-active");
     expect(document.querySelector(".bottom-mode-tabs")).not.toBeNull();
   });
 

@@ -421,6 +421,10 @@ Authenticated metadata is not authentication state:
   device permissions.
 - `diagnostics.canView`: effective **View diagnostics** permission. The capability
   remains present when blocked so the mobile destination can explain recovery.
+- `apps`: `enabled`, effective `permissionGranted`, authenticated `canUse`, and
+  `previewAvailable`. The capability remains present when blocked.
+  `previewAvailable` additionally requires effective Screen viewing permission;
+  application-launch and Voltura-host-window control remain separate gates.
 - `terminal`: `enabled`, effective `permissionGranted`, authenticated `canUse`,
   `requiresRepair`, host-wide `active`, device-specific `ownedByClient`, an
   owner-only `terminalId`, `shell: "windows-powershell"`, and
@@ -1319,6 +1323,58 @@ Files downloads require browse and transfer permissions plus one current file re
 The host journals an upload partial before creating it, excludes every journal-owned partial or backup from all client directory revisions, ACKs only flushed bytes, and revalidates the captured destination directory before commit. A later panel refresh or navigation cannot redirect or cancel that upload. The original remains preserved until Replace commits or rolls back. Explicit cancel, 60 seconds without committed progress, control/data-channel loss, disconnect, unpair, owner exit, permission loss, and host shutdown cancel and clean up. Direct transfer duration is not capped and bypasses Relay admission. Relay requests sign the exact purpose `file-transfer`, receive a 60-minute credential, and stop at expiry; media credentials remain 15 minutes. For a screenshot using the official Voltura Cloud Relay, the host rejects before peer creation when aggregate usage is already at the provider cutoff or when `usage + (3 x PNG bytes) + 1 MiB` reaches it, and immediately disposes the PNG. Missing or unavailable official usage fails closed. Custom Relay has no Voltura cutoff. Aggregate Cloudflare analytics may lag and concurrent sessions are not reserved, so this is conservative admission rather than an exact one-byte reservation. Other file transfer bytes count toward the existing TURN warning and cutoff, but screen quality throttling is not applied to file bytes.
 
 Every file control message remains within the existing 64 KiB frame limit. Paths, filenames, clipboard lists, conflict names, temporary names, tokens, keys, proofs, and file contents are excluded from application logs.
+
+### Open applications
+
+Apps uses exact authenticated JSON control messages. `apps.list` has only `type`
+and `operationId`. `apps.activate` and `apps.close` additionally contain one
+32-character lowercase hexadecimal `revision` and `windowId`.
+`apps.preview.answer` has `operationId`, `offerOperationId`, `previewId`, bounded
+`answerSdp`, and `clientSignature`; `apps.preview.stop` has `operationId` and
+`previewId`. Unknown fields, malformed IDs, and oversized values are rejected.
+
+`apps.list.result` contains `operationId`, `succeeded`, bounded `code` and
+`message`, and `windows`. Success additionally has a fresh opaque `revision` and
+at most 48 exact window objects: `windowId`, bounded `title`, bounded
+`applicationName`, and Boolean `active`, `minimized`, `maximizeSupported`, and
+`previewSupported`. Failure omits `revision` and has an empty list. Handles,
+process/session IDs, executable paths, command lines, arguments, icons, desktop
+IDs, and capture details are never sent. Each refresh replaces the map; actions
+require the same authenticated socket, current revision, opaque ID, effective
+**Control open applications** permission, and successful native revalidation.
+Activation restores or suitably maximizes before requesting focus. Close posts
+the normal Windows close message and does not bypass application prompts.
+
+Preview signaling is host-offered and uses `apps.preview.offer`,
+`apps.preview.answer.result`, and `apps.preview.ended`. The signed offer transcript
+is `VolturaAir apps-preview:offer:v1`, client ID, pinned host public key, list
+operation ID, preview ID, and unpadded base64url SHA-256 offer hash on separate
+lines. The answer transcript is `VolturaAir apps-preview:answer:v1` followed by
+those identity values, offer operation ID, answer operation ID, preview ID,
+offer hash, and answer hash. Relay offers may include bounded TURN servers and
+expiry, use the existing file-transfer Relay purpose/quota cutoff, and require
+relay-only candidates. The peer is a separate reliable ordered
+`voltura-apps-preview` data-channel-only connection; it shares lower-level
+ICE/TURN and TLS bridge code but no Files session, transfer coordinator, or
+Screen/Phone lifecycle.
+
+Binary Apps preview records place version `1` in byte zero's high nibble. A
+request (`kind 1`) is exactly the discriminator, 32 ASCII revision bytes, a
+count from 1 through 3, and that many 32-byte opaque IDs. The host accepts only
+the current revision and captures requested windows sequentially. A header
+(`kind 2`) is the discriminator, window ID, availability byte, unsigned 16-bit
+big-endian width and height, unsigned 32-bit big-endian encoded length, and MIME
+code `1` for JPEG. Available images are at most 1024 by 640 and 1.5 MiB; an
+unavailable header has zero dimensions and length. Data (`kind 3`) is the
+discriminator, window ID, unsigned 32-bit big-endian offset, and 1–49,152 bytes.
+Offsets are exact and sequential. Invalid records close the preview peer.
+
+Listing occurs once on Apps entry and once after explicit refresh, activate,
+close, or successful approved-app launch; there is no polling or proactive
+push. Preview requests cover only the centered card and immediate neighbors.
+The host performs no discovery or capture and owns no Apps preview peer while
+the tool is closed. IDs, maps, captures, encoded bytes, browser assembly buffers,
+and object URLs are transient and excluded from persistence, logs, and telemetry.
 
 ### Interactive Terminal
 

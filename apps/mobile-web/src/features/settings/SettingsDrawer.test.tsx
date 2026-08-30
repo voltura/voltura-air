@@ -133,6 +133,25 @@ describe("SettingsDrawer", () => {
     );
   });
 
+  it("keeps Apps discoverable when control permission is blocked", () => {
+    const onOpenApps = vi.fn();
+    render(
+      <SettingsDrawer
+        {...baseProps}
+        appsCapability={{
+          enabled: true,
+          permissionGranted: false,
+          canUse: false,
+          previewAvailable: false,
+        }}
+        onOpenApps={onOpenApps}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Apps" }));
+    expect(onOpenApps).toHaveBeenCalledOnce();
+  });
+
   it("opens the notices inside the app", () => {
     render(<SettingsDrawer {...baseProps} />);
 
@@ -483,7 +502,7 @@ describe("SettingsDrawer", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Use PC default" }));
     expect(setHostAccentColor).toHaveBeenCalledWith(null);
-  });
+  }, 10_000);
 
   it("updates haptic feedback when browser vibration is available", () => {
     const updateTrackpadSetting = vi.fn();

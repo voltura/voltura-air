@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { TerminalMomentumScroller } from "./terminalMomentum";
+import { MomentumScroller } from "./momentumScroller";
 
-describe("TerminalMomentumScroller", () => {
+describe("MomentumScroller", () => {
   it("coasts after a fast flick and stops immediately on the next touch", () => {
     let now = 0;
     let nextFrame = 1;
     const frames = new Map<number, FrameRequestCallback>();
     const scroll = vi.fn();
-    const scroller = new TerminalMomentumScroller(scroll, {
+    const scroller = new MomentumScroller(scroll, {
       now: () => now,
       requestFrame: (callback) => {
         const frame = nextFrame++;
@@ -47,7 +47,7 @@ describe("TerminalMomentumScroller", () => {
   it("does not coast after a slow drag or a delayed release", () => {
     let now = 0;
     const requestFrame = vi.fn(() => 1);
-    const scroller = new TerminalMomentumScroller(vi.fn(), {
+    const scroller = new MomentumScroller(vi.fn(), {
       now: () => now,
       requestFrame,
       cancelFrame: vi.fn(),
@@ -71,7 +71,7 @@ describe("TerminalMomentumScroller", () => {
     let now = 0;
     let frame: FrameRequestCallback | null = null;
     const scroll = vi.fn();
-    const scroller = new TerminalMomentumScroller(scroll, {
+    const scroller = new MomentumScroller(scroll, {
       now: () => now,
       requestFrame: (callback) => {
         frame = callback;

@@ -6,6 +6,10 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.2.0
+
+- Increased connection timeout for **Relay connection** and **View PC screen**.
+
 ## v1.1.9
 
 - Restored a distinct **Audio track** icon in Kodi Remote so the control is

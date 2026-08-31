@@ -220,68 +220,79 @@ describe("ScreenViewWorkspace", () => {
     expect(screen.getByRole("status").textContent).toBe("Preparing encrypted WebRTC mirror...");
   });
 
-  it("stops a host-owned pending capture before allowing a retry after start response timeout", async () => {
-    vi.useFakeTimers();
-    const send = vi.fn<(message: ClientMessage) => void>();
-    const pcId = "http://192.168.1.10:51396";
-    const key = createPairingKeyMaterial();
-    if (!key) {
-      throw new Error("Test key generation is unavailable.");
-    }
-    localStorage.setItem(`voltura-air.reconnect-key.client-test.${pcId}`, key.privateKey);
-    render(
-      <ScreenViewWorkspace
-        activePc={{
-          customName: false,
-          id: pcId,
-          name: "PC",
-          url: pcId,
-          hostIdentityPublicKey: key.reconnectPublicKey,
-        }}
-        capability={capability}
-        clientId="client-test"
-        onBack={vi.fn()}
-        onOpenKeyboard={vi.fn()}
-        send={send}
-        state="paired"
-        trackpadSettings={defaultTrackpadSettings}
-      />,
-    );
-    act(() => {
-      publishScreenViewResult({
-        type: "screen.view.sources.result",
-        operationId: sourceRequestId(send),
-        succeeded: true,
-        message: "Displays are available.",
-        sources: [
-          { id: "display-1", label: "Main display", width: 1920, height: 1080, isPrimary: true },
-        ],
+  it.each([
+    ["secure-direct", 10_000],
+    ["relay", 20_000],
+  ] as const)(
+    "allows the full %s preparation window before timing out",
+    async (transportMode, hostPreparationWindowMs) => {
+      vi.useFakeTimers();
+      const send = vi.fn<(message: ClientMessage) => void>();
+      const pcId = "http://192.168.1.10:51396";
+      const key = createPairingKeyMaterial();
+      if (!key) {
+        throw new Error("Test key generation is unavailable.");
+      }
+      localStorage.setItem(`voltura-air.reconnect-key.client-test.${pcId}`, key.privateKey);
+      render(
+        <ScreenViewWorkspace
+          activePc={{
+            customName: false,
+            id: pcId,
+            name: "PC",
+            url: pcId,
+            hostIdentityPublicKey: key.reconnectPublicKey,
+            transportMode,
+          }}
+          capability={capability}
+          clientId="client-test"
+          onBack={vi.fn()}
+          onOpenKeyboard={vi.fn()}
+          send={send}
+          state="paired"
+          trackpadSettings={defaultTrackpadSettings}
+        />,
+      );
+      act(() => {
+        publishScreenViewResult({
+          type: "screen.view.sources.result",
+          operationId: sourceRequestId(send),
+          succeeded: true,
+          message: "Displays are available.",
+          sources: [
+            { id: "display-1", label: "Main display", width: 1920, height: 1080, isPrimary: true },
+          ],
+        });
       });
-    });
 
-    await act(() => vi.advanceTimersByTime(10_000));
+      await act(() => vi.advanceTimersByTime(hostPreparationWindowMs));
+      expect(send.mock.calls.some(([message]) => message.type === "screen.view.stop")).toBe(false);
+      expect(screen.getByRole("status").textContent).toBe("Preparing encrypted WebRTC mirror...");
 
-    const stopRequest = [...send.mock.calls]
-      .reverse()
-      .find(([message]) => message.type === "screen.view.stop")?.[0];
-    if (stopRequest?.type !== "screen.view.stop") {
-      throw new Error("Timed-out capture was not stopped.");
-    }
-    expect((screen.getByRole("button", { name: /Start/u }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
-    act(() =>
-      publishScreenViewResult({
-        type: "screen.view.stop.result",
-        operationId: stopRequest.operationId,
-        succeeded: true,
-        message: "Screen viewing stopped.",
-      }),
-    );
-    expect((screen.getByRole("button", { name: /Start/u }) as HTMLButtonElement).disabled).toBe(
-      false,
-    );
-  });
+      await act(() => vi.advanceTimersByTime(5_000));
+
+      const stopRequest = [...send.mock.calls]
+        .reverse()
+        .find(([message]) => message.type === "screen.view.stop")?.[0];
+      if (stopRequest?.type !== "screen.view.stop") {
+        throw new Error("Timed-out capture was not stopped.");
+      }
+      expect((screen.getByRole("button", { name: /Start/u }) as HTMLButtonElement).disabled).toBe(
+        true,
+      );
+      act(() =>
+        publishScreenViewResult({
+          type: "screen.view.stop.result",
+          operationId: stopRequest.operationId,
+          succeeded: true,
+          message: "Screen viewing stopped.",
+        }),
+      );
+      expect((screen.getByRole("button", { name: /Start/u }) as HTMLButtonElement).disabled).toBe(
+        false,
+      );
+    },
+  );
 
   it("stops the host capture before allowing retry when a successful offer is rejected", () => {
     const send = vi.fn<(message: ClientMessage) => void>();

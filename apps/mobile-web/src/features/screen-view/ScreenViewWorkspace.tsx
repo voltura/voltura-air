@@ -88,7 +88,8 @@ interface PendingSource {
 }
 
 const disconnectedRecoveryMs = 8_000;
-const startResponseTimeoutMs = 10_000;
+const directStartResponseTimeoutMs = 15_000;
+const relayStartResponseTimeoutMs = 25_000;
 
 export default function ScreenViewWorkspace({
   activePc,
@@ -538,15 +539,20 @@ export default function ScreenViewWorkspace({
     setStatus("Preparing encrypted WebRTC mirror...");
     send({ type: "screen.view.start", operationId, displayId, clientSignature: signature });
     window.clearTimeout(startResponseTimeoutRef.current);
-    startResponseTimeoutRef.current = window.setTimeout(() => {
-      if (pendingOfferRef.current?.operationId !== operationId) {
-        return;
-      }
-      pendingOfferRef.current = null;
-      cancelHostCapture(
-        "The PC did not respond to the screen-view request. Canceling the pending capture...",
-      );
-    }, startResponseTimeoutMs);
+    startResponseTimeoutRef.current = window.setTimeout(
+      () => {
+        if (pendingOfferRef.current?.operationId !== operationId) {
+          return;
+        }
+        pendingOfferRef.current = null;
+        cancelHostCapture(
+          "The PC did not respond to the screen-view request. Canceling the pending capture...",
+        );
+      },
+      activePc.transportMode === "relay"
+        ? relayStartResponseTimeoutMs
+        : directStartResponseTimeoutMs,
+    );
   }
 
   function cancelHostCapture(message: string) {

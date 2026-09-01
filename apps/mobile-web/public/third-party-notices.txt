@@ -7,7 +7,7 @@ with Voltura Air or Voltura AB. Each component is provided under its own
 license and warranty disclaimer.
 
 ------------------------------------------------------------------------
-@noble/curves 2.3.0
+@noble/curves 2.4.0
 License: MIT
 Source: https://github.com/paulmillr/noble-curves
 ------------------------------------------------------------------------
@@ -35,7 +35,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ------------------------------------------------------------------------
-@noble/hashes 2.3.0
+@noble/hashes 2.4.0
 License: MIT
 Source: https://github.com/paulmillr/noble-hashes
 ------------------------------------------------------------------------

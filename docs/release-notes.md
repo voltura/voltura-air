@@ -9,6 +9,7 @@ create one. Keep the shared notices in
 ## v1.2.0
 
 - Increased connection timeout for **Relay connection** and **View PC screen**.
+- Updated supporting components to keep Voltura Air reliable and compatible.
 
 ## v1.1.9
 

@@ -16,7 +16,11 @@ function commandVersion(command, args = []) {
     const resolvedCommand = command === "npm" ? process.execPath : command;
     const resolvedArguments =
       command === "npm"
-        ? [join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"), ...args]
+        ? [
+            process.env.npm_execpath ??
+              join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"),
+            ...args,
+          ]
         : args;
     return execFileSync(resolvedCommand, resolvedArguments, {
       cwd: repositoryRoot,
@@ -53,8 +57,8 @@ function requireVersion(label, actual, expected, comparison = "exact") {
   if (!valid) failures.push(`${label} ${actual} does not satisfy ${expectation}.`);
 }
 
-requireVersion("Node.js", process.versions.node, [24, 19, 0]);
-requireVersion("npm", commandVersion("npm", ["--version"]), [11, 19, 0]);
+requireVersion("Node.js", process.versions.node, [24, 20, 0]);
+requireVersion("npm", commandVersion("npm", ["--version"]), [12, 0, 2]);
 requireVersion(".NET SDK", commandVersion("dotnet", ["--version"]), [10, 0, 400]);
 const dotnetRuntimes = commandVersion("dotnet", ["--list-runtimes"]);
 for (const runtime of [
@@ -84,19 +88,19 @@ if (
 
 const packageJson = JSON.parse(readFileSync(join(repositoryRoot, "package.json"), "utf8"));
 if (
-  packageJson.packageManager !== "npm@11.19.0" ||
-  packageJson.engines?.node !== ">=24.19.0 <25" ||
-  packageJson.engines?.npm !== "11.19.0"
+  packageJson.packageManager !== "npm@12.0.2" ||
+  packageJson.engines?.node !== ">=24.20.0 <25" ||
+  packageJson.engines?.npm !== "12.0.2"
 ) {
-  failures.push("package.json must declare the Node 24 LTS and npm 11.19.0 toolchain contract.");
+  failures.push("package.json must declare the Node 24 LTS and npm 12.0.2 toolchain contract.");
 }
 
 const dockerfile = readFileSync(join(repositoryRoot, "services", "relay", "Dockerfile"), "utf8");
 if (
   !dockerfile.startsWith(
-    "FROM node:24.19.0-alpine@sha256:d32cdf619f63fe0471182d08996dd516c6275bb5fd31ae06e55a570bd9e1ad43 AS build\n",
+    "FROM node:24.20.0-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS build\n",
   ) ||
-  !dockerfile.includes("npm@11.19.0") ||
+  !dockerfile.includes("npm@12.0.2") ||
   !dockerfile.includes("npm ci --workspace")
 ) {
   failures.push(
@@ -150,5 +154,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  "Toolchain check passed: Node 24.19.0, npm 11.19.0, .NET SDK 10.0.400/runtime 10.0.11, PowerShell 7.6.4, PHP 8.5.9+, Visual Studio 2026 18.9+, and NSIS.",
+  "Toolchain check passed: Node 24.20.0, npm 12.0.2, .NET SDK 10.0.400/runtime 10.0.11, PowerShell 7.6.4, PHP 8.5.9+, Visual Studio 2026 18.9+, and NSIS.",
 );

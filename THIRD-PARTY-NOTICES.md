@@ -51,7 +51,7 @@ SDK used for that release.
 | Component | Version | Use | License/source |
 | --- | --- | --- | --- |
 | Microsoft .NET, ASP.NET Core, and Windows Desktop runtime | 10.0 release family | Self-contained Windows runtime and local web host | Microsoft .NET redistribution terms and bundled third-party notices; source at [dotnet/runtime](https://github.com/dotnet/runtime) and [dotnet/aspnetcore](https://github.com/dotnet/aspnetcore) |
-| Microsoft WebView2 SDK | 1.0.4129.50 | Host WebView integration and loader | BSD 3-Clause; included Microsoft license and NOTICE |
+| Microsoft WebView2 SDK | 1.0.4191.47 | Host WebView integration and loader | BSD 3-Clause; included Microsoft license and NOTICE |
 | Markdig | 1.3.2 | Safe Markdown parsing for AI Assistant answers | [BSD 2-Clause; xoofx/markdig](https://github.com/xoofx/markdig/tree/fc705234fa211d179ee1d5e7656b51ab99f70ca9) |
 | QRCoder | 1.8.0 | Pairing QR generation | [MIT; codebude/QRCoder](https://github.com/codebude/QRCoder/tree/v1.8.0) |
 | Vortice.Windows | 3.8.3 | Direct3D, DXGI, D3DCompiler, and Media Foundation bindings | [MIT; amerkoleci/Vortice.Windows](https://github.com/amerkoleci/Vortice.Windows) |

@@ -10,16 +10,18 @@ test("repository toolchains are pinned to supported stable releases", () => {
   const dotnet = json("global.json");
   const dockerfile = read("services/relay/Dockerfile");
 
-  assert.equal(root.packageManager, "npm@11.19.0");
-  assert.deepEqual(root.engines, { node: ">=24.19.0 <25", npm: "11.19.0" });
+  assert.equal(root.packageManager, "npm@12.0.2");
+  assert.deepEqual(root.engines, { node: ">=24.20.0 <25", npm: "12.0.2" });
   assert.deepEqual(dotnet.sdk, {
     version: "10.0.400",
     rollForward: "latestPatch",
     allowPrerelease: false,
   });
-  assert.match(read("scripts/check-toolchain.mjs"), /\[18, 9, 0\], "minimum"/u);
-  assert.match(dockerfile, /^FROM node:24\.19\.0-alpine@sha256:[a-f0-9]{64} AS build$/mu);
-  assert.match(dockerfile, /npm install --global npm@11\.19\.0/u);
+  const toolchainCheck = read("scripts/check-toolchain.mjs");
+  assert.match(toolchainCheck, /process\.env\.npm_execpath/u);
+  assert.match(toolchainCheck, /\[18, 9, 0\], "minimum"/u);
+  assert.match(dockerfile, /^FROM node:24\.20\.0-alpine@sha256:[a-f0-9]{64} AS build$/mu);
+  assert.match(dockerfile, /npm install --global npm@12\.0\.2/u);
   assert.match(dockerfile, /npm ci --workspace/u);
 });
 

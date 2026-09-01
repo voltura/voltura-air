@@ -243,7 +243,7 @@ Support is optional:
 
 ## Develop from source
 
-Requirements: Node.js 24.19.0 LTS, npm 11.19.0, the .NET 10.0.400 SDK,
+Requirements: Node.js 24.20.0 LTS, npm 12.0.2, the .NET 10.0.400 SDK,
 PowerShell 7.6 LTS, PHP 8.5.9 or newer on the 8.5 line, NSIS 3.12 or newer, and Visual Studio 2026 18.9 or newer with
 the **Desktop development with C++** workload. `npm run tools:check` verifies
 the installed toolchain before a broad build.

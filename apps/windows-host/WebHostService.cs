@@ -168,7 +168,8 @@ public sealed class WebHostService : IAsyncDisposable
         ITerminalWebRtcPeerFactory? terminalPeerFactory = null,
         TimeProvider? terminalTimeProvider = null,
         IAiAssistantClientFactory? aiAssistantClientFactory = null,
-        IAppsWindowAdapter? appsWindowAdapter = null)
+        IAppsWindowAdapter? appsWindowAdapter = null,
+        IScreenViewSystemAudioCaptureFactory? screenViewAudioCaptureFactory = null)
     {
         _configureWebHost = configureWebHost;
 
@@ -389,7 +390,9 @@ public sealed class WebHostService : IAsyncDisposable
             screenViewPeerFactory ?? (isolatedTestMode ? new IsolatedScreenViewWebRtcPeerFactory() : null),
             _appLog,
             inputDispatcher,
-            _powerController);
+            _powerController,
+            screenViewAudioCaptureFactory ??
+            (isolatedTestMode ? new UnavailableScreenViewSystemAudioCaptureFactory() : null));
         _screenViewCommands = new ScreenViewCommandHandler(_screenView, _transport, GetRelayTurnConfigurationAsync, _appLog);
         IFileTransferWebRtcPeerFactory resolvedFileTransferPeerFactory =
             fileTransferPeerFactory ??

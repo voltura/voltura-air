@@ -15,9 +15,35 @@ public sealed class ScreenViewWebRtcTests
     }
 
     [Fact]
+    public async Task BundledPeerGeneratesTheExactTwoTrackOffer()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        using var peer = new ScreenViewWebRtcPeer();
+        string offer = await peer.CreateOfferAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(ScreenViewWebRtcPeer.HasExpectedMedia(offer, "sendonly"));
+    }
+
+    [Fact]
     public void AdvertisesABaselineLevelThatSupportsTheMaximum4k60Stream()
     {
         Assert.Contains("profile-level-id=42e034", ScreenViewWebRtcPeer.H264FormatParameters, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RequiresExactlyH264VideoAndStereoOpusAudio()
+    {
+        const string offer = "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=sendonly\r\n" +
+            "m=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=rtpmap:111 opus/48000/2\r\na=sendonly\r\n" +
+            "m=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n";
+
+        Assert.True(ScreenViewWebRtcPeer.HasExpectedMedia(offer, "sendonly"));
+        Assert.False(ScreenViewWebRtcPeer.HasExpectedMedia(offer.Replace("opus/48000/2", "PCMU/8000", StringComparison.Ordinal), "sendonly"));
+        Assert.False(ScreenViewWebRtcPeer.HasExpectedMedia(offer.Replace("a=sendonly", "a=recvonly", StringComparison.Ordinal), "sendonly"));
+        Assert.False(ScreenViewWebRtcPeer.HasExpectedMedia(offer.Replace("m=application 9", "m=application 0", StringComparison.Ordinal), "sendonly"));
+        Assert.False(ScreenViewWebRtcPeer.HasExpectedMedia(offer.Replace("UDP/DTLS/SCTP", "UDP/TLS/RTP/SAVPF", StringComparison.Ordinal), "sendonly"));
+        Assert.False(ScreenViewWebRtcPeer.HasExpectedMedia(offer.Replace("webrtc-datachannel", "5000", StringComparison.Ordinal), "sendonly"));
     }
 
     [Fact]

@@ -6,11 +6,13 @@ namespace VolturaAir.Host;
 internal interface IScreenViewWebRtcPeer : IDisposable
 {
     event EventHandler? Stopped;
+    event EventHandler? AudioStopped;
     event EventHandler? KeyFrameRequested;
     Task Connected { get; }
     Task<string> CreateOfferAsync(CancellationToken cancellationToken);
     void ApplyAnswer(string answerSdp);
     bool TrySendH264(byte[] accessUnit, int framesPerSecond);
+    bool TrySendOpus(byte[] packet, uint rtpTimestamp);
     bool TrySendEvent(byte[] eventBytes);
 }
 
@@ -37,6 +39,7 @@ internal sealed class IsolatedScreenViewWebRtcPeerFactory : IScreenViewWebRtcPee
         private readonly TaskCompletionSource _connected = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private bool _disposed;
         public event EventHandler? Stopped;
+        public event EventHandler? AudioStopped;
         public event EventHandler? KeyFrameRequested;
         public Task Connected => _connected.Task;
         public Task<string> CreateOfferAsync(CancellationToken cancellationToken)
@@ -52,6 +55,7 @@ internal sealed class IsolatedScreenViewWebRtcPeerFactory : IScreenViewWebRtcPee
             _connected.TrySetResult();
         }
         public bool TrySendH264(byte[] accessUnit, int framesPerSecond) => !_disposed && accessUnit.Length > 0 && framesPerSecond > 0;
+        public bool TrySendOpus(byte[] packet, uint rtpTimestamp) => !_disposed && packet.Length > 0 && rtpTimestamp > 0;
         public bool TrySendEvent(byte[] eventBytes) => !_disposed && eventBytes.Length > 0;
         public void Dispose()
         {
@@ -59,6 +63,7 @@ internal sealed class IsolatedScreenViewWebRtcPeerFactory : IScreenViewWebRtcPee
             _disposed = true;
             _connected.TrySetCanceled();
             _ = Stopped;
+            _ = AudioStopped;
             _ = KeyFrameRequested;
         }
     }
@@ -67,8 +72,10 @@ internal sealed class IsolatedScreenViewWebRtcPeerFactory : IScreenViewWebRtcPee
 internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
 {
     private const int H264PayloadType = 102;
+    private const int OpusPayloadType = 111;
     internal const string H264FormatParameters = "profile-level-id=42e034;packetization-mode=1;level-asymmetry-allowed=1";
     private const uint H264ClockRate = 90_000;
+    private const uint OpusClockRate = 48_000;
     private const uint MaximumStoredRtpPackets = 256;
     private static readonly TimeSpan OfferTimeout = TimeSpan.FromSeconds(10);
     private readonly Lock _gate = new();
@@ -85,10 +92,12 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
     private readonly List<ITurnTlsBridge> _turnTlsBridges = [];
     private int _peer;
     private int _track;
+    private int _audioTrack;
     private int _eventsChannel;
     private uint _rtpTimestamp;
     private long _lastVideoSendTimestamp;
     private bool _trackOpen;
+    private bool _audioTrackOpen;
     private bool _eventsOpen;
     private bool _transportConnected;
     private bool _disposed;
@@ -185,6 +194,43 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
             EnsureSuccess(LibDataChannelNative.rtcChainRtcpNackResponder(_track, MaximumStoredRtpPackets), "configure WebRTC retransmission");
             EnsureSuccess(LibDataChannelNative.rtcChainPliHandler(_track, _pliCallback), "listen for keyframe requests");
 
+            using var audioMid = new Utf8String("1");
+            using var audioName = new Utf8String("screen-audio");
+            using var audioTrackId = new Utf8String("screen-audio");
+            uint audioSsrc;
+            do { audioSsrc = RandomUInt32(); } while (audioSsrc == 0 || audioSsrc == ssrc);
+            var audioInitialization = new LibDataChannelNative.TrackInit
+            {
+                Direction = LibDataChannelNative.Direction.SendOnly,
+                Codec = LibDataChannelNative.Codec.Opus,
+                PayloadType = OpusPayloadType,
+                Ssrc = audioSsrc,
+                Mid = audioMid.Pointer,
+                Name = audioName.Pointer,
+                Msid = stream.Pointer,
+                TrackId = audioTrackId.Pointer
+            };
+            _audioTrack = EnsureCreated(LibDataChannelNative.rtcAddTrackEx(_peer, in audioInitialization), "create the WebRTC audio track");
+            LibDataChannelNative.rtcSetUserPointer(_audioTrack, pointer);
+            EnsureSuccess(LibDataChannelNative.rtcSetOpenCallback(_audioTrack, _openCallback), "listen for the audio track");
+            EnsureSuccess(LibDataChannelNative.rtcSetClosedCallback(_audioTrack, _closedCallback), "listen for audio track closure");
+            EnsureSuccess(LibDataChannelNative.rtcSetErrorCallback(_audioTrack, _errorCallback), "listen for audio track errors");
+
+            uint audioTimestamp = RandomUInt32();
+            var audioPacketizerInitialization = new LibDataChannelNative.PacketizerInit
+            {
+                Ssrc = audioSsrc,
+                Cname = cname.Pointer,
+                PayloadType = OpusPayloadType,
+                ClockRate = OpusClockRate,
+                SequenceNumber = (ushort)RandomNumberGenerator.GetInt32(ushort.MaxValue + 1),
+                Timestamp = audioTimestamp,
+                MaxFragmentSize = 1200
+            };
+            EnsureSuccess(LibDataChannelNative.rtcSetOpusPacketizer(_audioTrack, in audioPacketizerInitialization), "configure Opus packetization");
+            EnsureSuccess(LibDataChannelNative.rtcChainRtcpSrReporter(_audioTrack), "configure audio WebRTC sender reports");
+            EnsureSuccess(LibDataChannelNative.rtcChainRtcpNackResponder(_audioTrack, 64), "configure audio WebRTC retransmission");
+
             _eventsChannel = EnsureCreated(LibDataChannelNative.rtcCreateDataChannel(_peer, "screen-events"), "create the screen event channel");
             LibDataChannelNative.rtcSetUserPointer(_eventsChannel, pointer);
             EnsureSuccess(LibDataChannelNative.rtcSetOpenCallback(_eventsChannel, _openCallback), "listen for the screen event channel");
@@ -199,6 +245,7 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
     }
 
     public event EventHandler? Stopped;
+    public event EventHandler? AudioStopped;
     public event EventHandler? KeyFrameRequested;
 
     public Task Connected => _connected.Task;
@@ -215,6 +262,13 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
     public void ApplyAnswer(string answerSdp)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (string.IsNullOrWhiteSpace(answerSdp) ||
+            answerSdp.Length > ScreenViewProtocol.MaxSdpLength ||
+            !answerSdp.StartsWith("v=0", StringComparison.Ordinal) ||
+            !HasExpectedMedia(answerSdp, "recvonly"))
+        {
+            throw new ScreenViewWebRtcException("The browser answer did not contain the expected Screen media.");
+        }
         EnsureSuccess(LibDataChannelNative.rtcSetRemoteDescription(_peer, answerSdp, "answer"), "apply the WebRTC answer");
     }
 
@@ -257,9 +311,22 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
         }
     }
 
+    public bool TrySendOpus(byte[] packet, uint rtpTimestamp)
+    {
+        ArgumentNullException.ThrowIfNull(packet);
+        if (packet.Length == 0 || packet.Length > 1275 || rtpTimestamp == 0) return false;
+        lock (_gate)
+        {
+            if (_disposed || !_audioTrackOpen || LibDataChannelNative.rtcGetBufferedAmount(_audioTrack) > 64 * 1024) return false;
+            EnsureSuccess(LibDataChannelNative.rtcSetTrackRtpTimestamp(_audioTrack, rtpTimestamp), "set the screen audio timestamp");
+            return LibDataChannelNative.rtcSendMessage(_audioTrack, packet, packet.Length) >= 0;
+        }
+    }
+
     public void Dispose()
     {
         int eventsChannel;
+        int audioTrack;
         int track;
         int peer;
         lock (_gate)
@@ -269,15 +336,19 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
             _connected.TrySetCanceled();
             _offer.TrySetCanceled();
             eventsChannel = _eventsChannel;
+            audioTrack = _audioTrack;
             track = _track;
             peer = _peer;
             _eventsChannel = 0;
+            _audioTrack = 0;
             _track = 0;
             _peer = 0;
             _eventsOpen = false;
+            _audioTrackOpen = false;
             _trackOpen = false;
         }
         if (eventsChannel > 0) _ = LibDataChannelNative.rtcDeleteDataChannel(eventsChannel);
+        if (audioTrack > 0) _ = LibDataChannelNative.rtcDeleteTrack(audioTrack);
         if (track > 0) _ = LibDataChannelNative.rtcDeleteTrack(track);
         if (peer > 0)
         {
@@ -315,6 +386,11 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
             if (string.IsNullOrWhiteSpace(sdp) || sdp.Length > ScreenViewProtocol.MaxSdpLength)
             {
                 _offer.TrySetException(new ScreenViewWebRtcException("The generated WebRTC offer exceeded its limit."));
+                return;
+            }
+            if (!HasExpectedMedia(sdp, "sendonly"))
+            {
+                _offer.TrySetException(new ScreenViewWebRtcException("The generated WebRTC offer did not contain the expected Screen media."));
                 return;
             }
             _offer.TrySetResult(sdp);
@@ -369,6 +445,7 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
         lock (owner._gate)
         {
             if (id == owner._track) owner._trackOpen = true;
+            if (id == owner._audioTrack) owner._audioTrackOpen = true;
             if (id == owner._eventsChannel) owner._eventsOpen = true;
             owner.TryCompleteConnected();
         }
@@ -381,17 +458,21 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
         lock (owner._gate)
         {
             if (id == owner._track) owner._trackOpen = false;
+            if (id == owner._audioTrack) owner._audioTrackOpen = false;
             if (id == owner._eventsChannel) owner._eventsOpen = false;
         }
-        if (!owner._disposed) owner.Stopped?.Invoke(owner, EventArgs.Empty);
+        if (owner._disposed) return;
+        if (id == owner._audioTrack) owner.AudioStopped?.Invoke(owner, EventArgs.Empty);
+        else owner.Stopped?.Invoke(owner, EventArgs.Empty);
     }
 
     private static void OnError(int id, nint message, nint pointer)
     {
-        _ = id;
         _ = message;
         ScreenViewWebRtcPeer? owner = From(pointer);
-        if (owner is not null && !owner._disposed) owner.Stopped?.Invoke(owner, EventArgs.Empty);
+        if (owner is null || owner._disposed) return;
+        if (id == owner._audioTrack) owner.AudioStopped?.Invoke(owner, EventArgs.Empty);
+        else owner.Stopped?.Invoke(owner, EventArgs.Empty);
     }
 
     private static void OnPictureLoss(int track, nint pointer)
@@ -418,6 +499,58 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
     private void TryCompleteConnected()
     {
         if (_transportConnected && _trackOpen && _eventsOpen) _connected.TrySetResult();
+    }
+
+    internal static bool HasExpectedMedia(string sdp, string direction)
+    {
+        string[] lines = sdp.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var sections = new List<(string Kind, List<string> Lines)>();
+        foreach (string line in lines)
+        {
+            if (line.StartsWith("m=", StringComparison.Ordinal))
+            {
+                string kind = line[2..].Split(' ', 2)[0];
+                sections.Add((kind, [line]));
+            }
+            else if (sections.Count > 0)
+            {
+                sections[^1].Lines.Add(line);
+            }
+        }
+
+        (string Kind, List<string> Lines)[] video = [.. sections.Where(section => section.Kind == "video")];
+        (string Kind, List<string> Lines)[] audio = [.. sections.Where(section => section.Kind == "audio")];
+        (string Kind, List<string> Lines)[] application = [.. sections.Where(section => section.Kind == "application")];
+        return sections.Count == 3 && video.Length == 1 && audio.Length == 1 && application.Length == 1 &&
+            HasExactCodec(video[0], H264PayloadType.ToString(System.Globalization.CultureInfo.InvariantCulture), "H264/90000", direction) &&
+            HasExactCodec(audio[0], OpusPayloadType.ToString(System.Globalization.CultureInfo.InvariantCulture), "opus/48000/2", direction) &&
+            HasExpectedDataChannel(application[0]);
+    }
+
+    private static bool HasExactCodec(
+        (string Kind, List<string> Lines) section,
+        string payloadType,
+        string codec,
+        string direction)
+    {
+        string[] media = section.Lines[0].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (media.Length != 4 || media[1] == "0" || !media[3].Equals(payloadType, StringComparison.Ordinal)) return false;
+        string[] mappings = [.. section.Lines.Where(line => line.StartsWith("a=rtpmap:", StringComparison.Ordinal))];
+        string[] directions = [.. section.Lines.Where(static line =>
+            line is "a=sendrecv" or "a=sendonly" or "a=recvonly" or "a=inactive")];
+        string prefix = $"a=rtpmap:{payloadType} ";
+        return mappings.Length == 1 && mappings[0].StartsWith(prefix, StringComparison.Ordinal) &&
+            mappings[0][prefix.Length..].Equals(codec, StringComparison.OrdinalIgnoreCase) &&
+            directions.Length == 1 && directions[0].Equals($"a={direction}", StringComparison.Ordinal);
+    }
+
+    private static bool HasExpectedDataChannel((string Kind, List<string> Lines) section)
+    {
+        string[] media = section.Lines[0].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return media.Length == 4 &&
+            media[1] != "0" &&
+            media[2].Equals("UDP/DTLS/SCTP", StringComparison.OrdinalIgnoreCase) &&
+            media[3].Equals("webrtc-datachannel", StringComparison.OrdinalIgnoreCase);
     }
 
 }

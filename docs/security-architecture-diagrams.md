@@ -14,8 +14,8 @@ flowchart LR
   SecureRoom -->|"authenticated route envelopes"| SecureHost["SecureDirectHostConnection\npending signaling ownership"]
   Client -->|"private direct WebRTC\nDTLS DataChannel"| SecureSocket["SecureDirectWebSocket\nLAN validation + bounded text"]
   SecureSocket --> Session
-  Client -->|"WebRTC H.264 + data channel\nDTLS-SRTP / DTLS"| ScreenStream["ScreenViewCoordinator\none viewer, bounded peer"]
-  ScreenStream --> Capture["DXGI GPU frames + cursor\nD3D11 NV12 + hardware H.264\none selected display"]
+  Client -->|"WebRTC H.264 + Opus + data channel\nDTLS-SRTP / DTLS"| ScreenStream["ScreenViewCoordinator\none viewer, bounded peer"]
+  ScreenStream --> Capture["DXGI GPU frames + cursor\nWASAPI system output\nH.264 + Opus, one selected display"]
   Session -->|"validated signed webcam\nstart and answer"| WebcamStream["PhoneWebcamCoordinator\none producer, bounded peer"]
   Client -->|"DTLS-SRTP H.264\n+ explicit optional Opus"| WebcamStream
   WebcamStream --> VirtualCamera["authenticated local frame pipe\nVoltura Air Webcam"]

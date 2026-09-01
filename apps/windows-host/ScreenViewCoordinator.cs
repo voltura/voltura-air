@@ -13,6 +13,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
     private readonly HostStatusPayloadFactory _statusFactory;
     private readonly IScreenViewCaptureSource _capture;
     private readonly IScreenViewWebRtcPeerFactory _peerFactory;
+    private readonly IScreenViewSystemAudioCaptureFactory _audioFactory;
     private readonly IAppLogWriter _appLog;
     private readonly InputDispatcher? _inputDispatcher;
     private readonly ISystemPowerController? _powerController;
@@ -28,12 +29,14 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         IScreenViewWebRtcPeerFactory? peerFactory = null,
         IAppLogWriter? appLog = null,
         InputDispatcher? inputDispatcher = null,
-        ISystemPowerController? powerController = null)
+        ISystemPowerController? powerController = null,
+        IScreenViewSystemAudioCaptureFactory? audioFactory = null)
     {
         _pairingManager = pairingManager;
         _statusFactory = statusFactory;
         _capture = capture ?? new DxgiScreenViewCaptureSource();
         _peerFactory = peerFactory ?? new ScreenViewWebRtcPeerFactory();
+        _audioFactory = audioFactory ?? new ScreenViewSystemAudioCaptureFactory();
         _appLog = appLog ?? NullAppLog.Instance;
         _inputDispatcher = inputDispatcher;
         _powerController = powerController;
@@ -147,7 +150,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                 relay?.CheckedAt,
                 relay?.EffectiveQuality);
         }
-        catch (Exception ex) when (ex is OperationCanceledException or ScreenViewWebRtcException or ObjectDisposedException)
+        catch (Exception ex) when (ex is OperationCanceledException or TimeoutException or ScreenViewWebRtcException or ObjectDisposedException)
         {
             RemovePending(pending);
             pending.Release();
@@ -464,7 +467,9 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
     private async Task RunActiveAsync(ActiveView active)
     {
         bool activityStarted = false;
+        Task? audioRunner = null;
         active.Peer.Stopped += active.OnPeerStopped;
+        active.Peer.AudioStopped += active.OnAudioStopped;
         active.Peer.KeyFrameRequested += active.OnKeyFrameRequested;
         try
         {
@@ -472,6 +477,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             if (!CanStart(active.ClientId)) return;
             activityStarted = true;
             NotifyActivityChanged(true, active.ClientId, active.OperationId);
+            audioRunner = RunAudioAsync(active, active.Stop.Token);
             await SendFramesAsync(active, active.Stop.Token).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is OperationCanceledException or ScreenViewWebRtcException or ObjectDisposedException)
@@ -479,7 +485,18 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         }
         finally
         {
+            active.RequestStop();
+            if (audioRunner is not null)
+            {
+                try { await audioRunner.ConfigureAwait(false); }
+                catch (OperationCanceledException) when (active.Stop.IsCancellationRequested) { }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    _appLog.Write(new AppLogEntry("screen_view", "windows_host", Action: "audio_cleanup_failed", Outcome: "failed", Code: ex.GetType().Name));
+                }
+            }
             active.Peer.Stopped -= active.OnPeerStopped;
+            active.Peer.AudioStopped -= active.OnAudioStopped;
             active.Peer.KeyFrameRequested -= active.OnKeyFrameRequested;
             _capture.EndCapture();
             ReleaseHeldButtons(active);
@@ -490,6 +507,40 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             active.Release();
             if (activityStarted)
                 NotifyActivityChanged(false, active.ClientId, active.OperationId);
+        }
+    }
+
+    private async Task RunAudioAsync(ActiveView active, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using IScreenViewSystemAudioCapture capture = _audioFactory.Create();
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, active.AudioStop.Token);
+            try
+            {
+                await capture.RunAsync(
+                    frame => active.Peer.TrySendOpus(frame.Bytes, frame.RtpTimestamp),
+                    availability => active.Peer.TrySendEvent(ScreenViewRecordEncoder.EncodeAudioAvailability(
+                        availability.Available,
+                        availability.Code,
+                        availability.Message)),
+                    linked.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (active.AudioStop.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+            {
+                active.Peer.TrySendEvent(ScreenViewRecordEncoder.EncodeAudioAvailability(
+                    false,
+                    "audio-unavailable",
+                    "PC sound stopped. Video is still available."));
+            }
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException && !cancellationToken.IsCancellationRequested)
+        {
+            _appLog.Write(new AppLogEntry("screen_view", "windows_host", Action: "audio_failed", Outcome: "failed", Code: exception.GetType().Name));
+            active.Peer.TrySendEvent(ScreenViewRecordEncoder.EncodeAudioAvailability(
+                false,
+                "audio-unavailable",
+                "PC sound is unavailable. Video is still available."));
         }
     }
 
@@ -811,7 +862,11 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         private ScreenViewSource _source = source;
         private VirtualDesktopBounds _virtualDesktop = virtualDesktop;
         private readonly HashSet<string> _heldButtons = new(StringComparer.Ordinal);
-        private readonly ScreenViewQualityController _quality = new(source, directQuality, maximumBitrate);
+        private readonly ScreenViewQualityController _quality = new(
+            source,
+            directQuality,
+            maximumBitrate,
+            ScreenViewSystemAudioCapture.BitrateReservation);
         private readonly Lock _stopGate = new();
         private int _forceKeyFrame = 1;
         private int _released;
@@ -824,6 +879,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         public ScreenViewQualityProfile Quality => _quality.Current;
         public IScreenViewWebRtcPeer Peer { get; } = peer;
         public CancellationTokenSource Stop { get; } = new();
+        public CancellationTokenSource AudioStop { get; } = new();
         public Task? Runner { get; set; }
         public void SetSource(ScreenViewSource source, VirtualDesktopBounds virtualDesktop)
         {
@@ -849,6 +905,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         public bool TakeForceKeyFrame() => Interlocked.Exchange(ref _forceKeyFrame, 0) != 0;
         public void RequestKeyFrame() => Interlocked.Exchange(ref _forceKeyFrame, 1);
         public void OnPeerStopped(object? sender, EventArgs e) => RequestStop();
+        public void OnAudioStopped(object? sender, EventArgs e) => RequestAudioStop();
         public void OnKeyFrameRequested(object? sender, EventArgs e) => RequestKeyFrame();
         public bool ReportBackpressure() => _quality.ReportBackpressure(DateTimeOffset.UtcNow);
         public bool ReportReceiverQuality(ScreenViewReceiverQuality quality) =>
@@ -861,12 +918,21 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                 if (_released == 0) Stop.Cancel();
             }
         }
+        private void RequestAudioStop()
+        {
+            lock (_stopGate)
+            {
+                if (_released == 0) AudioStop.Cancel();
+            }
+        }
         public void Release()
         {
             lock (_stopGate)
             {
                 if (_released != 0) return;
                 _released = 1;
+                AudioStop.Cancel();
+                AudioStop.Dispose();
                 Stop.Dispose();
             }
             Peer.Dispose();

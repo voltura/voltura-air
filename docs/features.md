@@ -156,6 +156,12 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - One authorized device can view one selected display at a time. Multiple
   displays are selectable before or during viewing; another device receives a
   busy result. Leaving the workspace stops viewing.
+- The same authorized session captures the current default Windows multimedia
+  output and sends 48 kHz stereo Opus beside the video. Device playback starts
+  muted on every new peer and a visible local **Sound** action enables or mutes
+  it. Display switching retains that local mute state. Audio unavailability or
+  output-device changes are reported in the live view and never stop video;
+  local PC playback continues normally.
 - While a display is live, a camera action can copy one cursor-free frame at the
   selected display's native orientation and resolution, encode it as lossless
   PNG, and send it through the existing one-file Save/Share flow. It requires
@@ -169,7 +175,8 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   Foundation transform encodes baseline H.264 using the selected display's
   native aspect ratio and resolution/frame-rate combinations within the sender's
   advertised H.264 level, up to 60 frames per second. A direct LAN WebRTC peer
-  sends video over DTLS-SRTP and cursor/status over a DTLS data channel.
+  sends H.264 video and Opus system audio over DTLS-SRTP and cursor/status/audio
+  availability over a DTLS data channel.
   Monotonic capture pacing drops early frames from higher-refresh desktops before
   GPU conversion and encoding, so the selected profile's frame rate is a real
   wall-clock ceiling rather than only an encoder timestamp.
@@ -202,8 +209,8 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   orientations expands the mirror edge-to-edge across the device viewport and
   remains expanded across orientation changes; its explicit exit action restores
   the normal workspace.
-  Compact Click, keyboard, display, and Stop controls sit around the responsive
-  canvas. V1 is video-only and excludes audio, absolute touch, windows,
+  Compact Sound, Click, keyboard, display, and Stop controls sit around the responsive
+  canvas. Screen View excludes microphone/per-app capture, recording, absolute touch, windows,
   all-monitor composition, multiple viewers, and game optimization.
 - On browsers with an available fine hovering pointer, supported hosts add a
   session-only mouse-and-keyboard icon action beside **Scroll/Zoom**. It starts

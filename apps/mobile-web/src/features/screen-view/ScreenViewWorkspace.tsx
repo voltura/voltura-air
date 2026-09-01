@@ -19,6 +19,8 @@ import {
   Play,
   Square,
   Share2,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
 import type { ConnectionState } from "../../foundation/connection/connectionTypes";
@@ -62,6 +64,7 @@ import {
   startScreenViewQualityMonitor,
   type ScreenViewQualitySample,
 } from "./screenViewQuality";
+import { hasExpectedScreenMedia } from "./screenViewSdp";
 import "./screen-view.css";
 
 interface Props {
@@ -120,6 +123,10 @@ export default function ScreenViewWorkspace({
   const [streaming, setStreaming] = useState(browserPreviewState !== undefined);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
   const [qualityText, setQualityText] = useState("");
+  const [soundOn, setSoundOn] = useState(false);
+  const [audioAvailable, setAudioAvailable] = useState(browserPreviewState !== undefined);
+  const [audioTrackReady, setAudioTrackReady] = useState(browserPreviewState !== undefined);
+  const [audioNotice, setAudioNotice] = useState("");
   const [viewTransform, setViewTransform] = useState<ScreenViewTransform>(
     identityScreenViewTransform,
   );
@@ -139,6 +146,7 @@ export default function ScreenViewWorkspace({
   const cursorUrlRef = useRef<string | null>(null);
   const hasVisualFrameRef = useRef(false);
   const peerRef = useRef<RTCPeerConnection | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
   const eventsRef = useRef<RTCDataChannel | null>(null);
   const pendingOfferRef = useRef<PendingOffer | null>(null);
   const activeOperationRef = useRef<string | null>(
@@ -612,6 +620,29 @@ export default function ScreenViewWorkspace({
     }
   }
 
+  async function toggleSound() {
+    const video = videoRef.current;
+    if (!video || !audioAvailable || !audioTrackReady) {
+      setAudioNotice("PC sound is unavailable. Video is still available.");
+      return;
+    }
+    if (soundOn) {
+      video.muted = true;
+      setSoundOn(false);
+      return;
+    }
+    try {
+      video.muted = false;
+      await video.play();
+      setSoundOn(true);
+      setAudioNotice("");
+    } catch {
+      video.muted = true;
+      setSoundOn(false);
+      setAudioNotice("Tap Sound again to allow PC audio playback.");
+    }
+  }
+
   async function acceptStart(message: ScreenViewStartResultMessage) {
     const pending = pendingOfferRef.current;
     if (pending?.operationId !== message.operationId) {
@@ -645,12 +676,9 @@ export default function ScreenViewWorkspace({
       }
       return;
     }
-    if (
-      !/a=rtpmap:\d+ H264\/90000/i.test(message.offerSdp) ||
-      /^m=audio\s/im.test(message.offerSdp)
-    ) {
+    if (!hasExpectedScreenMedia(message.offerSdp, "sendonly")) {
       cancelHostCapture(
-        "The PC did not offer a video-only H.264 screen connection. Canceling the PC capture...",
+        "The PC did not offer the expected H.264 video and Opus audio connection. Canceling the PC capture...",
       );
       return;
     }
@@ -669,6 +697,13 @@ export default function ScreenViewWorkspace({
       return;
     }
     activeOperationRef.current = message.operationId;
+    setSoundOn(false);
+    setAudioAvailable(false);
+    setAudioTrackReady(false);
+    setAudioNotice("");
+    if (videoRef.current) {
+      videoRef.current.muted = true;
+    }
 
     const relayMode = activePc.transportMode === "relay";
     if (relayMode && (!message.iceServers || message.iceServers.length === 0)) {
@@ -716,11 +751,24 @@ export default function ScreenViewWorkspace({
       if (!isCurrentNegotiation()) {
         return;
       }
-      if (event.track.kind !== "video" || !videoRef.current) {
+      if ((event.track.kind !== "video" && event.track.kind !== "audio") || !videoRef.current) {
         return;
       }
-      videoRef.current.srcObject = event.streams[0] ?? new MediaStream([event.track]);
-      void playVideo();
+      const stream = remoteStreamRef.current ?? new MediaStream();
+      if (stream.getTracks().some((track) => track.kind === event.track.kind)) {
+        if (event.track.kind === "video") {
+          void playVideo();
+        }
+        return;
+      }
+      remoteStreamRef.current = stream;
+      stream.addTrack(event.track);
+      videoRef.current.srcObject = stream;
+      if (event.track.kind === "audio") {
+        setAudioTrackReady(true);
+      } else {
+        void playVideo();
+      }
     });
     peer.addEventListener("datachannel", (event) => {
       if (!isCurrentNegotiation()) {
@@ -801,8 +849,7 @@ export default function ScreenViewWorkspace({
       if (
         !answerSdp ||
         answerSdp.length > 32 * 1024 ||
-        !/a=rtpmap:\d+ H264\/90000/i.test(answerSdp) ||
-        /^m=audio\s/im.test(answerSdp)
+        !hasExpectedScreenMedia(answerSdp, "recvonly")
       ) {
         throw new Error("Invalid WebRTC answer.");
       }
@@ -835,7 +882,7 @@ export default function ScreenViewWorkspace({
         );
       } else {
         cancelHostCapture(
-          "This browser could not negotiate the PC's H.264 WebRTC stream. Canceling the PC capture...",
+          "This browser could not negotiate the PC's H.264 and Opus WebRTC stream. Canceling the PC capture...",
         );
       }
     }
@@ -854,6 +901,15 @@ export default function ScreenViewWorkspace({
       } else if (record.type === "status") {
         closeStream();
         setStatus(record.message);
+      } else if (record.type === "audio-availability") {
+        setAudioAvailable(record.available);
+        setAudioNotice(record.message);
+        if (!record.available) {
+          if (videoRef.current) {
+            videoRef.current.muted = true;
+          }
+          setSoundOn(false);
+        }
       } else {
         throw new Error("Unexpected screen event.");
       }
@@ -963,12 +1019,17 @@ export default function ScreenViewWorkspace({
     const peer = peerRef.current;
     peerRef.current = null;
     peer?.close();
+    remoteStreamRef.current = null;
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
     setStreaming(false);
     setViewing(false);
     setPlaybackBlocked(false);
+    setSoundOn(false);
+    setAudioAvailable(false);
+    setAudioTrackReady(false);
+    setAudioNotice("");
     hasVisualFrameRef.current = false;
     cursorStateRef.current = null;
     if (cursorUrlRef.current) {
@@ -1180,6 +1241,27 @@ export default function ScreenViewWorkspace({
       >
         {viewing && (
           <div className="screen-view-top-actions">
+            <button
+              type="button"
+              className="screen-view-sound-action"
+              onTouchStart={stopScreenGesture}
+              onTouchMove={stopScreenGesture}
+              onTouchEnd={stopScreenGesture}
+              onTouchCancel={stopScreenGesture}
+              disabled={!audioAvailable || !audioTrackReady}
+              onClick={() => void toggleSound()}
+              aria-label={soundOn ? "Mute PC sound" : "Play PC sound"}
+              aria-pressed={soundOn}
+              title={
+                !audioAvailable || !audioTrackReady
+                  ? "PC sound is unavailable"
+                  : soundOn
+                    ? "Mute PC sound"
+                    : "Play PC sound"
+              }
+            >
+              {soundOn ? <Volume2 aria-hidden="true" /> : <VolumeX aria-hidden="true" />}
+            </button>
             {capability.screenshot && activeOperationRef.current && (
               <button
                 type="button"
@@ -1234,6 +1316,11 @@ export default function ScreenViewWorkspace({
               {immersive ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
             </button>
           </div>
+        )}
+        {immersive && viewing && audioNotice && !audioAvailable && (
+          <p className="screen-view-audio-overlay" role="status">
+            {audioNotice}
+          </p>
         )}
         {viewing && (
           <div className="screen-view-overlay-actions">
@@ -1304,7 +1391,7 @@ export default function ScreenViewWorkspace({
             className="screen-view-video"
             aria-label="Mirrored PC display video"
             autoPlay
-            muted
+            muted={!soundOn}
             playsInline
             onLoadedData={() => {
               hasVisualFrameRef.current = true;
@@ -1319,7 +1406,9 @@ export default function ScreenViewWorkspace({
               setPlaybackBlocked(false);
               setStatus("Live - Encrypted WebRTC");
             }}
-          />
+          >
+            <track kind="captions" label="Live PC audio has no captions" />
+          </video>
           <img ref={cursorRef} className="screen-view-cursor" alt="" hidden />
           <div
             ref={directPointerSurfaceRef}
@@ -1341,7 +1430,7 @@ export default function ScreenViewWorkspace({
             <div className="screen-view-placeholder">
               <MonitorUp />
               <strong>Your PC display appears here</strong>
-              <span>Video only. Touch gestures remain relative.</span>
+              <span>Video and PC sound. Touch gestures remain relative.</span>
             </div>
           )}
         </div>
@@ -1370,7 +1459,6 @@ export default function ScreenViewWorkspace({
             onTouchCancel={stopScreenGesture}
             onClick={() => {
               applyViewTransform(identityScreenViewTransform);
-              setTwoFingerMode("scroll");
             }}
             aria-label="Reset screen zoom"
           >
@@ -1437,6 +1525,7 @@ export default function ScreenViewWorkspace({
         )}
         <div className="screen-view-status-block">
           <p role="status">{status}</p>
+          {audioNotice && <p className="screen-view-audio-notice">{audioNotice}</p>}
           {qualityText && (
             <p className="screen-view-quality" aria-hidden="true">
               {qualityText}

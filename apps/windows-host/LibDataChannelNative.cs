@@ -220,6 +220,9 @@ internal static partial class LibDataChannelNative
     internal static partial int rtcSetH264Packetizer(int track, in PacketizerInit initialization);
 
     [LibraryImport(LibraryName)]
+    internal static partial int rtcSetOpusPacketizer(int track, in PacketizerInit initialization);
+
+    [LibraryImport(LibraryName)]
     internal static partial int rtcChainRtcpSrReporter(int track);
 
     [LibraryImport(LibraryName)]

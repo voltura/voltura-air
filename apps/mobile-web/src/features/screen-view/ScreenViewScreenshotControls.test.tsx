@@ -57,6 +57,7 @@ describe("Screen View screenshot controls", () => {
           maxWidth: 1920,
           maxHeight: 1080,
           maxFramesPerSecond: 30,
+          systemAudio: { codec: "opus", sampleRate: 48_000, channels: 2 },
           screenshot: {
             transferPermissionGranted: true,
             format: "image/png",
@@ -96,6 +97,7 @@ describe("Screen View screenshot controls", () => {
       maxWidth: 1920,
       maxHeight: 1080,
       maxFramesPerSecond: 30,
+      systemAudio: { codec: "opus", sampleRate: 48_000, channels: 2 },
       screenshot: {
         transferPermissionGranted: true,
         format: "image/png" as const,

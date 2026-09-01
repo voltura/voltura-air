@@ -172,6 +172,12 @@ internal sealed class HostStatusPayloadFactory(
             maxHeight = LegacyScreenViewHeightMarker,
             maxFramesPerSecond = LegacyScreenViewFrameRateMarker,
             receiverQualityFeedback = true,
+            systemAudio = new
+            {
+                codec = "opus",
+                sampleRate = ScreenViewSystemAudioCapture.SampleRate,
+                channels = ScreenViewSystemAudioCapture.Channels
+            },
             screenshot = new
             {
                 transferPermissionGranted = permissions.AllowFileTransfer && pairingManager.HasCurrentHostIdentity(clientId),

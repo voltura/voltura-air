@@ -67,6 +67,108 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         }
     }
 
+    [Fact]
+    public async Task AudioCaptureFailureLeavesVideoAndCommandHealthAvailable()
+    {
+        HostPermissionSet originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true });
+            var capture = new AdaptiveCaptureSource();
+            var peer = new AdaptivePeer(true);
+            var audio = new FailingAudioCaptureFactory();
+            await using var fixture = await WebHostFixture.StartAsync(
+                screenViewCapture: capture,
+                screenViewPeerFactory: new AdaptivePeerFactory(peer),
+                screenViewAudioCaptureFactory: audio);
+            using var reconnectKey = new PairingTestKey();
+            using WebSocket control = await ConnectAsync(fixture.WebHost);
+            await PairAsync(control, fixture.Manager, reconnectKey);
+
+            await StartAndAnswerAsync(control, reconnectKey, "screen-audio-failure");
+            await audio.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await peer.AudioUnavailable.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await peer.AcceptedFrame.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await AssertControlHealthyAsync(control);
+
+            _ = await SendUntilTypeAsync(control, new { type = "screen.view.stop", operationId = "screen-audio-failure-stop" }, "screen.view.stop.result");
+            await capture.Ended.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public async Task AudioTrackClosureLeavesVideoAndCommandHealthAvailable()
+    {
+        HostPermissionSet originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true });
+            var capture = new AdaptiveCaptureSource();
+            var peer = new AdaptivePeer(true);
+            var audio = new WaitingAudioCaptureFactory();
+            await using var fixture = await WebHostFixture.StartAsync(
+                screenViewCapture: capture,
+                screenViewPeerFactory: new AdaptivePeerFactory(peer),
+                screenViewAudioCaptureFactory: audio);
+            using var reconnectKey = new PairingTestKey();
+            using WebSocket control = await ConnectAsync(fixture.WebHost);
+            await PairAsync(control, fixture.Manager, reconnectKey);
+
+            await StartAndAnswerAsync(control, reconnectKey, "screen-audio-track-close");
+            await audio.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            peer.RaiseAudioStopped();
+            await audio.Ended.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await peer.AudioUnavailable.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await peer.AcceptedFrame.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await AssertControlHealthyAsync(control);
+
+            _ = await SendUntilTypeAsync(control, new { type = "screen.view.stop", operationId = "screen-audio-track-close-stop" }, "screen.view.stop.result");
+            await capture.Ended.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public async Task LateAudioTrackCallbackCannotEscapeCompletedSessionTeardown()
+    {
+        HostPermissionSet originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true });
+            var capture = new AdaptiveCaptureSource();
+            var peer = new AdaptivePeer(true);
+            var audio = new WaitingAudioCaptureFactory();
+            await using var fixture = await WebHostFixture.StartAsync(
+                screenViewCapture: capture,
+                screenViewPeerFactory: new AdaptivePeerFactory(peer),
+                screenViewAudioCaptureFactory: audio);
+            using var reconnectKey = new PairingTestKey();
+            using WebSocket control = await ConnectAsync(fixture.WebHost);
+            await PairAsync(control, fixture.Manager, reconnectKey);
+
+            await StartAndAnswerAsync(control, reconnectKey, "screen-audio-late-callback");
+            await audio.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            (Task callback, Action release) = peer.DeferAudioStoppedCallback();
+            _ = await SendUntilTypeAsync(control, new { type = "screen.view.stop", operationId = "screen-audio-late-callback-stop" }, "screen.view.stop.result");
+            await peer.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            release();
+            await callback.WaitAsync(TimeSpan.FromSeconds(2));
+            await AssertControlHealthyAsync(control);
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
     private static async Task PairAsync(WebSocket control, PairingManager manager, PairingTestKey key)
     {
         JsonElement accepted = await SendAndReceiveAsync(control, new
@@ -116,6 +218,12 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         throw new InvalidOperationException($"The host did not send {expectedType}.");
     }
 
+    private static async Task AssertControlHealthyAsync(WebSocket control)
+    {
+        JsonElement pong = await SendUntilTypeAsync(control, new { type = "health.ping" }, "health.pong");
+        Assert.Equal("health.pong", pong.GetProperty("type").GetString());
+    }
+
     private static string HashSdp(string sdp) =>
         ScreenViewHostIdentity.Base64Url(SHA256.HashData(Encoding.UTF8.GetBytes(sdp)));
 
@@ -155,9 +263,12 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
     {
         private readonly Queue<bool> _sendResults = new(sendResults);
         public event EventHandler? Stopped;
+        public event EventHandler? AudioStopped;
         public event EventHandler? KeyFrameRequested;
         public Task Connected => Task.CompletedTask;
         public TaskCompletionSource AcceptedFrame { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource AudioUnavailable { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Disposed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Task<string> CreateOfferAsync(CancellationToken cancellationToken) =>
             Task.FromResult("v=0\r\no=voltura 1 1 IN IP4 127.0.0.1\r\ns=offer\r\nt=0 0\r\n");
         public void ApplyAnswer(string answerSdp) { }
@@ -167,11 +278,82 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
             if (accepted) AcceptedFrame.TrySetResult();
             return accepted;
         }
-        public bool TrySendEvent(byte[] eventBytes) => true;
+        public bool TrySendOpus(byte[] packet, uint rtpTimestamp) => packet.Length > 0 && rtpTimestamp > 0;
+        public bool TrySendEvent(byte[] eventBytes)
+        {
+            if (eventBytes is [7, 0, ..]) AudioUnavailable.TrySetResult();
+            return true;
+        }
+        public void RaiseAudioStopped() => AudioStopped?.Invoke(this, EventArgs.Empty);
+        public (Task Callback, Action Release) DeferAudioStoppedCallback()
+        {
+            EventHandler? callback = AudioStopped;
+            var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            return (Task.Run(async () =>
+            {
+                await release.Task.ConfigureAwait(false);
+                callback?.Invoke(this, EventArgs.Empty);
+            }), () => release.TrySetResult());
+        }
         public void Dispose()
         {
+            Disposed.TrySetResult();
             _ = Stopped;
+            _ = AudioStopped;
             _ = KeyFrameRequested;
+        }
+    }
+
+    private sealed class FailingAudioCaptureFactory : IScreenViewSystemAudioCaptureFactory
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public IScreenViewSystemAudioCapture Create() => new Capture(this);
+
+        private sealed class Capture(FailingAudioCaptureFactory owner) : IScreenViewSystemAudioCapture
+        {
+            public Task RunAsync(
+                Func<ScreenViewEncodedAudioFrame, bool> send,
+                Action<ScreenViewAudioAvailability> reportAvailability,
+                CancellationToken cancellationToken)
+            {
+                _ = send;
+                cancellationToken.ThrowIfCancellationRequested();
+                reportAvailability(new(true, "audio-ready", "PC sound is available."));
+                owner.Started.TrySetResult();
+                throw new InvalidOperationException("Injected audio capture failure.");
+            }
+
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class WaitingAudioCaptureFactory : IScreenViewSystemAudioCaptureFactory
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Ended { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public IScreenViewSystemAudioCapture Create() => new Capture(this);
+
+        private sealed class Capture(WaitingAudioCaptureFactory owner) : IScreenViewSystemAudioCapture
+        {
+            public async Task RunAsync(
+                Func<ScreenViewEncodedAudioFrame, bool> send,
+                Action<ScreenViewAudioAvailability> reportAvailability,
+                CancellationToken cancellationToken)
+            {
+                _ = send;
+                reportAvailability(new(true, "audio-ready", "PC sound is available."));
+                owner.Started.TrySetResult();
+                try
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    owner.Ended.TrySetResult();
+                }
+            }
+
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
         }
     }
 }

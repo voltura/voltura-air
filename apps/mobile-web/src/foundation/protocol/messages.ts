@@ -792,6 +792,11 @@ export interface ScreenViewCapability {
   maxHeight: number;
   maxFramesPerSecond: number;
   receiverQualityFeedback?: true;
+  systemAudio: {
+    codec: "opus";
+    sampleRate: 48000;
+    channels: 2;
+  };
   screenshot?: {
     transferPermissionGranted: boolean;
     format: "image/png";

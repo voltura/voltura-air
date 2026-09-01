@@ -20,7 +20,14 @@ const capability: ScreenViewCapability = {
   maxWidth: 1920,
   maxHeight: 1080,
   maxFramesPerSecond: 30,
+  systemAudio: { codec: "opus", sampleRate: 48_000, channels: 2 },
 };
+
+const screenOfferSdp =
+  "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=sendonly\r\n" +
+  "m=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=rtpmap:111 opus/48000/2\r\na=sendonly\r\n" +
+  "m=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n";
+const screenAnswerSdp = screenOfferSdp.replaceAll("a=sendonly", "a=recvonly");
 
 beforeEach(() => {
   const items = new Map<string, string>();
@@ -41,6 +48,18 @@ beforeEach(() => {
     },
   } satisfies Storage);
   vi.stubGlobal("RTCPeerConnection", class {});
+  vi.stubGlobal(
+    "MediaStream",
+    class {
+      private readonly tracks: MediaStreamTrack[] = [];
+      addTrack(track: MediaStreamTrack) {
+        this.tracks.push(track);
+      }
+      getTracks() {
+        return [...this.tracks];
+      }
+    },
+  );
 });
 
 afterEach(() => {
@@ -59,6 +78,32 @@ function sourceRequestId(send: ReturnType<typeof vi.fn<(message: ClientMessage) 
 }
 
 describe("ScreenViewWorkspace", () => {
+  it("starts each visible Sound control muted and toggles playback locally", async () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    render(
+      <ScreenViewWorkspace
+        activePc={{ customName: false, id: "preview", name: "PC", url: "http://127.0.0.1" }}
+        browserPreviewState="active"
+        capability={capability}
+        clientId="preview-client"
+        onBack={vi.fn()}
+        onOpenKeyboard={vi.fn()}
+        send={vi.fn()}
+        state="paired"
+        trackpadSettings={defaultTrackpadSettings}
+      />,
+    );
+
+    const sound = screen.getByRole("button", { name: "Play PC sound" });
+    expect(sound.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(sound);
+    const unmutedSound = await screen.findByRole("button", { name: "Mute PC sound" });
+    expect(unmutedSound.getAttribute("aria-pressed")).toBe("true");
+    expect(unmutedSound.classList).not.toContain("active");
+    expect(play).toHaveBeenCalledOnce();
+    play.mockRestore();
+  });
+
   it("keeps the active pointer overlay in the StrictMode browser preview", () => {
     vi.stubGlobal(
       "matchMedia",
@@ -616,7 +661,7 @@ describe("ScreenViewWorkspace", () => {
     if (firstStart?.type !== "screen.view.start") {
       throw new Error("Screen start request was not sent.");
     }
-    const offerSdp = "m=video 9 UDP/TLS/RTP/SAVPF 96\r\na=rtpmap:96 H264/90000\r\n";
+    const offerSdp = screenOfferSdp;
     const offerHash = hashScreenSdp(offerSdp);
     const transcript = `VolturaAir screen-view:offer:v2:client-test:${firstStart.operationId}:display-1:${offerHash}`;
     const hostSignature = signPrivateKeyPayload(
@@ -739,7 +784,7 @@ describe("ScreenViewWorkspace", () => {
       createAnswer(): Promise<RTCSessionDescriptionInit> {
         return Promise.resolve({
           type: "answer",
-          sdp: "m=video 9 UDP/TLS/RTP/SAVPF 96\r\na=rtpmap:96 H264/90000\r\n",
+          sdp: screenAnswerSdp,
         });
       }
       setLocalDescription(description: RTCSessionDescriptionInit) {
@@ -826,7 +871,7 @@ describe("ScreenViewWorkspace", () => {
       }
       return request;
     });
-    const offerSdp = "m=video 9 UDP/TLS/RTP/SAVPF 96\r\na=rtpmap:96 H264/90000\r\n";
+    const offerSdp = screenOfferSdp;
     const offerHash = hashScreenSdp(offerSdp);
     const transcript = `VolturaAir screen-view:offer:v2:client-test:${startRequest.operationId}:display-1:${offerHash}`;
     const hostSignature = signPrivateKeyPayload(
@@ -900,6 +945,25 @@ describe("ScreenViewWorkspace", () => {
     fireEvent.click(showVideo);
     await waitFor(() => expect(play).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.queryByRole("button", { name: "Show video" })).toBeNull());
+    fireEvent.loadedData(video);
+
+    const audioCode = new TextEncoder().encode("audio-unavailable");
+    const audioMessage = new TextEncoder().encode("PC sound stopped. Video is still available.");
+    const audioRecord = new Uint8Array(5 + audioCode.length + audioMessage.length);
+    audioRecord[0] = 7;
+    audioRecord[1] = 0;
+    audioRecord[2] = audioCode.length;
+    new DataView(audioRecord.buffer).setUint16(3, audioMessage.length, false);
+    audioRecord.set(audioCode, 5);
+    audioRecord.set(audioMessage, 5 + audioCode.length);
+    act(() => staleMessageListener?.(new MessageEvent("message", { data: audioRecord.buffer })));
+    fireEvent.click(screen.getByRole("button", { name: "View PC screen full screen" }));
+    await waitFor(() =>
+      expect(document.querySelector(".screen-view-workspace")?.classList).toContain("is-immersive"),
+    );
+    expect(document.querySelector(".screen-view-audio-overlay")?.textContent).toBe(
+      "PC sound stopped. Video is still available.",
+    );
 
     if (!FakePeerConnection.instance) {
       throw new Error("Fake peer connection was not created.");
@@ -908,7 +972,7 @@ describe("ScreenViewWorkspace", () => {
     act(() => {
       FakePeerConnection.instance?.emit("connectionstatechange", {});
     });
-    expect(screen.getByRole("status").textContent).toBe(
+    expect(document.querySelector('.screen-view-status-block [role="status"]')?.textContent).toBe(
       "Screen video interrupted. Reconnecting for up to 8 seconds...",
     );
     expect(screen.getByText("Your PC display appears here")).toBeTruthy();
@@ -917,7 +981,9 @@ describe("ScreenViewWorkspace", () => {
     act(() => {
       FakePeerConnection.instance?.emit("connectionstatechange", {});
     });
-    expect(screen.getByRole("status").textContent).toBe("Live - Encrypted WebRTC");
+    expect(document.querySelector('.screen-view-status-block [role="status"]')?.textContent).toBe(
+      "Live - Encrypted WebRTC",
+    );
 
     act(() => {
       FakePeerConnection.instance?.emit("track", { track: { kind: "video" }, streams: [{}] });
@@ -933,13 +999,13 @@ describe("ScreenViewWorkspace", () => {
     });
     expect(screen.queryByRole("button", { name: "Show video" })).toBeNull();
     expect(screen.getByText("Your PC display appears here")).toBeTruthy();
-    expect(screen.getByRole("status").textContent).toBe(
+    expect(document.querySelector('.screen-view-status-block [role="status"]')?.textContent).toBe(
       "Screen video connection was lost. Tap Start to reconnect.",
     );
     act(() => {
       staleMessageListener?.(new MessageEvent("message", { data: "stale invalid record" }));
     });
-    expect(screen.getByRole("status").textContent).toBe(
+    expect(document.querySelector('.screen-view-status-block [role="status"]')?.textContent).toBe(
       "Screen video connection was lost. Tap Start to reconnect.",
     );
   });
@@ -1164,6 +1230,19 @@ describe("ScreenViewWorkspace", () => {
       { identifier: 1, clientX: 90, clientY: 100 },
       { identifier: 2, clientX: 170, clientY: 100 },
     ];
+
+    fireEvent.touchStart(stage, { targetTouches: first });
+    fireEvent.touchMove(stage, { targetTouches: spread });
+    fireEvent.touchEnd(stage, { targetTouches: [] });
+    await waitFor(() =>
+      expect(document.querySelector(".screen-view-content")?.classList).toContain("zoomed"),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset screen zoom" }));
+    expect(document.querySelector(".screen-view-content")?.classList).not.toContain("zoomed");
+    expect(
+      screen.getByRole("button", { name: "Two-finger mode: Zoom. Switch to Scroll" }),
+    ).toBeTruthy();
 
     fireEvent.touchStart(stage, { targetTouches: first });
     fireEvent.touchMove(stage, { targetTouches: spread });

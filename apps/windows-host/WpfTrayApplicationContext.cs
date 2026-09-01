@@ -365,7 +365,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         {
             ShowNotification(
                 "Screen viewing active",
-                $"{_screenViewingDeviceName} can see this display. Use the tray menu to stop immediately.",
+                $"{_screenViewingDeviceName} can see this display and receive PC sound. Use the tray menu to stop immediately.",
                 Forms.ToolTipIcon.Info);
         }
     }

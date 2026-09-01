@@ -552,6 +552,7 @@ describe("SettingsDrawer", () => {
           maxWidth: 1920,
           maxHeight: 1080,
           maxFramesPerSecond: 30,
+          systemAudio: { codec: "opus", sampleRate: 48_000, channels: 2 },
         }}
       />,
     );

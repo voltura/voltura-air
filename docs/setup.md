@@ -124,12 +124,12 @@ commands.
 
 Encrypted Screen viewing requires the intended device's **View PC screen**
 permission. A freshly paired client must have the PC identity pin.
-Desktop Duplication GPU frames and cursor metadata support one display and one
-viewer at a time, video only. D3D11 conversion and a hardware Media Foundation
-H.264 encoder feed an aspect-preserving adaptive WebRTC stream using direct LAN
+Desktop Duplication GPU frames, cursor metadata, and default Windows multimedia
+output support one display and one viewer at a time. D3D11 conversion and a hardware Media Foundation
+H.264 encoder plus WASAPI loopback/Opus feed an adaptive WebRTC stream using direct LAN
 ICE or Relay-only TURN, up to 60 frames per second within the negotiated codec,
 hardware, receiver, and network capabilities. The browser must support H.264
-WebRTC playback. Pinch/spread
+and Opus WebRTC playback. Each new peer starts device playback muted. Pinch/spread
 magnifies the local mirror up to 10×, and two-finger drag pans while magnified.
 UAC/secure desktop, protected content,
 lock/session loss, display removal, or duplication loss stops/pauses the

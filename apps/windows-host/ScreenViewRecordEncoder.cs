@@ -91,5 +91,21 @@ internal static class ScreenViewRecordEncoder
         return payload;
     }
 
+    public static byte[] EncodeAudioAvailability(bool available, string code, string message)
+    {
+        byte[] codeBytes = Encoding.UTF8.GetBytes(code);
+        byte[] messageBytes = Encoding.UTF8.GetBytes(message);
+        if (codeBytes.Length is < 1 or > 64 || messageBytes.Length is < 1 or > 512)
+            throw new ArgumentException("The screen audio status exceeded its bounded payload.");
+        var payload = new byte[5 + codeBytes.Length + messageBytes.Length];
+        payload[0] = 7;
+        payload[1] = available ? (byte)1 : (byte)0;
+        payload[2] = checked((byte)codeBytes.Length);
+        BinaryPrimitives.WriteUInt16BigEndian(payload.AsSpan(3, 2), checked((ushort)messageBytes.Length));
+        codeBytes.CopyTo(payload, 5);
+        messageBytes.CopyTo(payload, 5 + codeBytes.Length);
+        return payload;
+    }
+
     private static byte EncodeMime(string mimeType) => mimeType == "image/png" ? (byte)2 : (byte)1;
 }

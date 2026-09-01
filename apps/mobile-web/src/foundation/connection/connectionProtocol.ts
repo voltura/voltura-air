@@ -989,6 +989,11 @@ function isScreenViewCapability(value: unknown): boolean {
     value.maxWidth === 1920 &&
     value.maxHeight === 1080 &&
     value.maxFramesPerSecond === 30 &&
+    isRecord(value.systemAudio) &&
+    hasOnlyFields(value.systemAudio, ["codec", "sampleRate", "channels"]) &&
+    value.systemAudio.codec === "opus" &&
+    value.systemAudio.sampleRate === 48_000 &&
+    value.systemAudio.channels === 2 &&
     isOptional(value, "receiverQualityFeedback", (candidate) => candidate === true) &&
     isOptional(
       value,

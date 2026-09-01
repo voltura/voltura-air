@@ -17,8 +17,8 @@ networks that block inbound PC connections.
 - Use a phone or tablet as a wireless touch trackpad and keyboard—or point the
   device itself to steer the mouse with Gyro. Enhanced device features over HTTPS
   unlock Gyro on supported phones and tablets.
-- View one selected Windows display live on a paired phone, tablet, or browser
-  over Direct LAN or the optional Cloud relay, with encrypted video, responsive
+- View one selected Windows display and its system sound live on a paired phone, tablet, or browser
+  over Direct LAN or the optional Cloud relay, with encrypted media, muted-by-default sound, responsive
   cursor movement, scrolling, and up to 10× local zoom. Direct viewing adapts up
   to the display, hardware, receiving device, and network capabilities; Relay
   offers High, Standard, and Data saver quality choices under the existing usage
@@ -210,7 +210,7 @@ service. Enhanced Direct uses `voltura.se` to load the secure controller and
 exchange connection setup; established control traffic stays on the private
 LAN. Optional Cloud relay carries end-to-end encrypted command frames through a
 routing service and uses TURN for DTLS-SRTP screen media; the relay cannot read
-commands or screen pixels. Voltura Air is not file sync or a remote wake solution
+commands, screen pixels, or PC audio. Voltura Air is not file sync or a remote wake solution
 for a sleeping or shut-down PC.
 
 Voltura Air is freeware from Voltura AB and is open source under the

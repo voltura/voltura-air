@@ -99,11 +99,15 @@ opened web addresses, pairing tokens, private reconnect keys, and reconnect
 proofs are not included in Voltura Air application logs.
 
 When the optional Screen tool is enabled and permitted, selected-display video
-travels on a WebRTC DTLS-SRTP media track and cursor/status updates use a
-DTLS-protected WebRTC data channel. Screen pixels, display contents, negotiated
-session keys, SDP, cursor coordinates, and encoded video are neither logged nor
-persisted. Captured GPU frames and encoded access units exist only in bounded
-memory until sent or replaced by newer work.
+and current Windows system-output audio travel on WebRTC DTLS-SRTP media tracks;
+cursor/status/audio-availability updates use a DTLS-protected WebRTC data channel.
+Screen pixels, display contents, system-audio samples, negotiated session keys,
+SDP, cursor coordinates, and encoded media are neither logged nor persisted.
+Captured GPU frames, loopback audio, and encoded media exist only in bounded
+memory until sent or replaced by newer work. Capture uses the same **View PC
+screen** permission, starts with the session, and does not capture a microphone
+or a selected application. Device playback starts muted and local PC playback
+continues normally.
 
 When Apps is opened and **Control open applications** is permitted, the PC
 returns bounded titles, application display names, state flags, and random
@@ -133,7 +137,7 @@ account can access.
 
 Relay screen viewing uses Cloudflare TURN. Cloudflare processes participant IP
 addresses, connection timing, credential requests, and byte counts while
-forwarding DTLS-SRTP ciphertext, but cannot decrypt screen pixels or the
+forwarding DTLS-SRTP ciphertext, but cannot decrypt screen pixels, PC audio, or the
 DTLS-protected data channel. Voltura Air queries aggregate current-month TURN
 ingress and egress solely for the local usage estimate and quota cutoff. TURN
 credentials expire after 15 minutes. Command relay remains available if screen

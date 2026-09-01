@@ -60,6 +60,54 @@ describe("screenViewQualityFromStats", () => {
 
     expect(screenViewQualityFromStats(report, null, null, 1_000)).toBeNull();
   });
+
+  it("uses only video counters when the peer also carries system audio", () => {
+    const report = new Map([
+      [
+        "video",
+        {
+          id: "video",
+          type: "inbound-rtp",
+          kind: "video",
+          frameWidth: 1920,
+          frameHeight: 1080,
+          framesPerSecond: 30,
+          bytesReceived: 2_000_000,
+          framesDecoded: 60,
+          framesDropped: 1,
+          freezeCount: 0,
+          packetsLost: 2,
+        },
+      ],
+      [
+        "audio",
+        {
+          id: "audio",
+          type: "inbound-rtp",
+          kind: "audio",
+          bytesReceived: 99_000_000,
+          packetsLost: 50_000,
+        },
+      ],
+    ]) as unknown as RTCStatsReport;
+
+    const result = screenViewQualityFromStats(
+      report,
+      null,
+      {
+        bytesReceived: 1_000_000,
+        sampledAt: 1_000,
+        framesDecoded: 30,
+        framesDropped: 0,
+        freezeCount: 0,
+        packetsLost: 1,
+      },
+      2_000,
+    );
+
+    expect(result?.text).toBe("1920×1080 · 30.0 fps · 8.00 Mbps");
+    expect(result?.feedback?.packetsLost).toBe(1);
+  });
 });
 
 describe("startScreenViewQualityMonitor", () => {

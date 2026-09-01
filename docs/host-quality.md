@@ -29,6 +29,10 @@
   bounded, validated, and atomically replaced.
 - External failures stop at their owning boundary and are logged without
   secrets, payload contents, typed text, pointer coordinates, or credentials.
+- The active Screen View session owns system-output capture, endpoint-change
+  subscriptions, bounded PCM/Opus work, and audio cancellation. Audio capture or
+  track failure reports sound unavailable and must not cancel video or the
+  authenticated command session.
 - Prefer event-driven work. Polling or lifetime allocations require measured
   justification.
 

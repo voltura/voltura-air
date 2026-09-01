@@ -147,8 +147,10 @@ browser-local; `ScreenViewCoordinator` authorizes the active viewer/display,
 maps normalized positions through cached host monitor rotation and virtual-
 desktop bounds, and owns held-button cleanup. The existing input dispatcher and
 `SendInputInjector` perform guarded atomic absolute position/action batches.
-Screen media uses a separate H.264 RTP track;
-cursor/status uses the `screen-events` data channel, so media backpressure cannot
+Screen media uses H.264 and Opus RTP tracks on one peer. `ScreenViewCoordinator`
+owns one session-scoped WASAPI loopback/Concentus pipeline for the current default
+multimedia output, follows endpoint changes through notifications, and isolates
+audio failure from video. Cursor/status/audio availability uses the `screen-events` data channel, so media backpressure cannot
 consume the command socket's serialized send queue.
 
 Apps follows the lazy mobile boundary but is not part of the Screen or Files

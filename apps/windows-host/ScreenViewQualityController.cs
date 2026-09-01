@@ -51,13 +51,14 @@ internal sealed class ScreenViewQualityController
     public ScreenViewQualityController(
         ScreenViewSource source,
         DirectScreenQualityMode mode,
-        int? maximumBitrate = null)
+        int? maximumBitrate = null,
+        int reservedBitrate = 0)
     {
         _mode = mode;
         _isBitrateConstrained = maximumBitrate is not null;
-        _maximumBitrate = Math.Min(
+        _maximumBitrate = Math.Max(500_000, Math.Min(
             maximumBitrate ?? DirectMaximumBitrate,
-            mode == DirectScreenQualityMode.DataSaver ? DataSaverMaximumBitrate : DirectMaximumBitrate);
+            mode == DirectScreenQualityMode.DataSaver ? DataSaverMaximumBitrate : DirectMaximumBitrate) - Math.Max(0, reservedBitrate));
         _profiles = CreateProfiles(source, mode, _maximumBitrate);
         _unsupportedUntil = new DateTimeOffset[_profiles.Count];
         _index = maximumBitrate is null ? FindInitialDirectProfile(source) : FindHighestAffordableProfile(_maximumBitrate);

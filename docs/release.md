@@ -202,9 +202,11 @@ Before announcement, confirm:
 - Windows file/product and host/mobile displayed versions;
 - fresh QR pairing and reconnect;
 - when Screen viewing changes: short-QR scan at normal camera distance,
-  authenticated first frame, display switch, relative input responsiveness,
-  tray indicator/Stop, revocation/disconnect/lock cleanup, slow-client behavior,
-  and no command-channel degradation over a real phone and Wi-Fi;
+  authenticated first frame, muted-by-default PC sound, local Sound toggle,
+  output-device change or audio failure without video/control loss, display
+  switch, relative input responsiveness, tray indicator/Stop,
+  revocation/disconnect/lock cleanup, slow-client behavior, and no command-channel
+  degradation over a real phone and Wi-Fi;
 - public copy, links, package labels, and screenshots.
 
 Installer choices and requirements are owned by the

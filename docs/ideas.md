@@ -119,12 +119,12 @@ browser-local unless a cross-device workflow justifies host ownership.
    picture-in-picture or secondary view while the primary remains interactive.
    Define capture ownership, input targeting, bandwidth, quality adaptation, and
    cleanup for every displayed stream.
-2. **Optional PC audio streaming**
-   Stream system audio or, if Windows exposes a reliable boundary, one selected
-   process to the device using the existing encrypted WebRTC transport
-   primitives. Add explicit permission, mute, volume, and listen-only controls;
-   keep capture off by default and stop it on navigation, disconnect, revocation,
-   or failure.
+2. **Selected-application sound and local listening controls**
+   Screen viewing already carries muted-by-default Windows system output under
+   its existing permission. Consider selecting one application's sound when
+   Windows exposes a reliable boundary, plus browser-local listening volume.
+   Preserve session ownership, bounded capture, encrypted transport, and
+   audio-only failure without adding remote control of PC playback.
 3. **Notification relay or mirror**
    Optionally send Windows toast notifications or a host-filtered subset to the
    paired device, with bounded quick actions such as dismiss or an explicit

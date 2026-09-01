@@ -19,7 +19,16 @@ export interface ScreenStatusRecord {
   code: string;
   message: string;
 }
-export type ScreenPlaintextRecord = ScreenCursorRecord | ScreenStatusRecord;
+export interface ScreenAudioAvailabilityRecord {
+  type: "audio-availability";
+  available: boolean;
+  code: string;
+  message: string;
+}
+export type ScreenPlaintextRecord =
+  | ScreenCursorRecord
+  | ScreenStatusRecord
+  | ScreenAudioAvailabilityRecord;
 
 export function parseScreenPlaintextRecord(bytes: Uint8Array): ScreenPlaintextRecord {
   if (bytes.length === 0 || bytes.length > maxPlaintextBytes) {
@@ -31,7 +40,34 @@ export function parseScreenPlaintextRecord(bytes: Uint8Array): ScreenPlaintextRe
   if (bytes[0] === 5) {
     return parseStatus(bytes);
   }
+  if (bytes[0] === 7) {
+    return parseAudioAvailability(bytes);
+  }
   throw new Error("Unknown screen event type.");
+}
+
+function parseAudioAvailability(bytes: Uint8Array): ScreenAudioAvailabilityRecord {
+  if (bytes.length < 5 || (bytes[1] !== 0 && bytes[1] !== 1)) {
+    throw new Error("Truncated audio availability record.");
+  }
+  const codeLength = bytes[2]!;
+  const messageLength = dataView(bytes).getUint16(3, false);
+  if (
+    codeLength === 0 ||
+    codeLength > 64 ||
+    messageLength === 0 ||
+    messageLength > 512 ||
+    5 + codeLength + messageLength !== bytes.length
+  ) {
+    throw new Error("Invalid audio availability record.");
+  }
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  return {
+    type: "audio-availability",
+    available: bytes[1] === 1,
+    code: decoder.decode(bytes.slice(5, 5 + codeLength)),
+    message: decoder.decode(bytes.slice(5 + codeLength)),
+  };
 }
 
 function parseCursor(bytes: Uint8Array): ScreenCursorRecord {

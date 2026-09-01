@@ -35,6 +35,18 @@ If the button is absent, confirm the phone session is actively streaming with it
 microphone enabled. If testing reports that the default output is VB-CABLE, choose
 speakers or headphones as the default Windows output and try again.
 
+## PC sound is unavailable in View PC screen
+
+Video remains available if PC sound cannot start or stops. Confirm that Windows
+has an enabled default output device for multimedia, then choose or reconnect
+speakers or headphones in Windows Sound settings. Voltura Air follows a later
+default-output change automatically; you do not need to stop the screen view.
+
+Each new screen-view connection starts muted on the phone, tablet, or browser.
+Choose **Sound** in the live view to begin playback. If the browser blocks
+playback, choose **Sound** again. This control changes only playback on the viewing
+device; it does not mute or change volume on the PC.
+
 ## Device cannot reach the PC
 
 Confirm:

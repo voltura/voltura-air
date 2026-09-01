@@ -361,6 +361,7 @@ Success:
       "maxWidth": 1920,
       "maxHeight": 1080,
       "maxFramesPerSecond": 30,
+      "systemAudio": { "codec": "opus", "sampleRate": 48000, "channels": 2 },
       "directPointer": { "permissionGranted": true }
     },
     "phoneWebcam": {
@@ -449,7 +450,8 @@ Authenticated metadata is not authentication state:
   for already-published clients; they are not adaptive stream ceilings. The
   selected adaptive profile bounds the actual stream. Supporting hosts also set
   `receiverQualityFeedback: true` so current controllers can report aggregate
-  WebRTC decoder health.
+  WebRTC decoder health. `systemAudio` is exactly `{ codec: "opus", sampleRate:
+48000, channels: 2 }` and uses the same **View PC screen** authorization.
 
 Adapter metadata may reveal local hardware and appears only in explicit redacted
 diagnostics.
@@ -590,7 +592,7 @@ connection.
 
 ## Encrypted screen viewing
 
-Screen viewing is video-only, one display and one viewer at a time. Its adaptive
+Screen viewing carries one display with Windows system-output audio to one viewer at a time. Its adaptive
 capture profiles retain the display aspect ratio and stay within the sender's
 advertised H.264 frame-size and frame-rate limits. These bounded control messages
 use the authenticated `/ws` session:
@@ -642,6 +644,19 @@ offer SDP and a host-identity signature over UTF-8
 where `offerHash` is unpadded base64url SHA-256 of the exact UTF-8 offer SDP.
 The browser verifies that signature against its pinned PC identity before
 applying the offer or rendering pixels.
+
+The offer contains exactly one send-only H.264 video media section, one
+send-only Opus/48000/2 audio media section, and the `screen-events` data channel;
+the answer contains matching receive-only media. Missing, extra, wrong-codec,
+disabled, or wrong-direction media is rejected. Both SDP hashes therefore bind
+the complete two-track contract without a separate audio command. Device mute is
+browser-local and starts enabled for each new peer.
+
+`screen-events` binary record type `7` is non-terminal audio availability. It is
+`type:u8 = 7`, `available:u8` (0 or 1), `codeLength:u8`,
+`messageLength:u16be`, then bounded UTF-8 code (1..64 bytes) and message
+(1..512 bytes). `audio-ready`, `audio-unavailable`, and `audio-recovered`
+update the local Sound action; unavailable audio never ends video.
 
 When the PC owner uses the tray Stop action, the host sends the current viewer
 one terminal command-channel event as it ends the media session:

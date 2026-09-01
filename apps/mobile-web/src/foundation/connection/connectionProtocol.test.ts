@@ -80,6 +80,7 @@ describe("connection protocol policy", () => {
       maxWidth: 1920,
       maxHeight: 1080,
       maxFramesPerSecond: 30,
+      systemAudio: { codec: "opus", sampleRate: 48_000, channels: 2 },
     };
     expect(
       parseServerMessage(
@@ -115,6 +116,7 @@ describe("connection protocol policy", () => {
       maxWidth: 1920,
       maxHeight: 1080,
       maxFramesPerSecond: 30,
+      systemAudio: { codec: "opus", sampleRate: 48_000, channels: 2 },
     };
     for (const receiverQualityFeedback of [undefined, true]) {
       expect(
@@ -148,6 +150,7 @@ describe("connection protocol policy", () => {
       maxWidth: 1920,
       maxHeight: 1080,
       maxFramesPerSecond: 30,
+      systemAudio: { codec: "opus", sampleRate: 48_000, channels: 2 },
     };
     const screenshot = {
       transferPermissionGranted: true,

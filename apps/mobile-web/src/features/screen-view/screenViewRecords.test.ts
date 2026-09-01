@@ -46,4 +46,25 @@ describe("screen WebRTC event records", () => {
     expect(() => parseScreenPlaintextRecord(Uint8Array.of(1))).toThrow("Unknown screen event type");
     expect(() => parseScreenPlaintextRecord(Uint8Array.of(6))).toThrow("Unknown screen event type");
   });
+
+  it("parses bounded non-terminal system-audio availability", () => {
+    const code = new TextEncoder().encode("audio-ready");
+    const message = new TextEncoder().encode("PC sound is available.");
+    const bytes = new Uint8Array(5 + code.length + message.length);
+    bytes[0] = 7;
+    bytes[1] = 1;
+    bytes[2] = code.length;
+    new DataView(bytes.buffer).setUint16(3, message.length, false);
+    bytes.set(code, 5);
+    bytes.set(message, 5 + code.length);
+
+    expect(parseScreenPlaintextRecord(bytes)).toEqual({
+      type: "audio-availability",
+      available: true,
+      code: "audio-ready",
+      message: "PC sound is available.",
+    });
+    bytes[1] = 2;
+    expect(() => parseScreenPlaintextRecord(bytes)).toThrow();
+  });
 });

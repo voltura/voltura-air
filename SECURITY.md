@@ -132,7 +132,8 @@ control session: `/ws` for Standard Local, its encrypted virtual WebSocket for
 Relay, or the DTLS DataChannel for Secure Direct. The reconnect key signs the
 start request and answer; the pinned PC identity signs the exact offer hash. Invalid,
 mismatched, or expired signaling is rejected before capture begins. Screen
-video uses DTLS-SRTP and cursor/status records use a DTLS-protected data channel,
+video and Windows system-output audio use separate DTLS-SRTP tracks on one peer,
+and cursor/status/audio-availability records use a DTLS-protected data channel,
 which provide confidentiality, integrity, and replay protection in transit.
 Standard Local's HTTP app/control metadata and JSON command traffic retain the
 trusted-LAN threat model described above. Enhanced Direct protects its control
@@ -155,6 +156,13 @@ credentials. Signed credential requests require the active host routing key and
 reject timestamp/nonce replay. Usage thresholds restrict TURN issuance without
 affecting command authentication. A self-hosted relay changes endpoint and
 deployment ownership, not these application-layer security contracts.
+
+Screen negotiation accepts exactly send-only H.264 and stereo Opus offers with
+matching receive-only answers. The same **View PC screen** decision authorizes
+both tracks. Audio capture, bounded encoding queues, and endpoint notifications
+are session-owned; their failure reports audio unavailable without weakening or
+terminating the video authorization. No microphone, recording, or remote audio
+control message is part of this boundary.
 
 Relay file transfer uses the exact signed TURN purpose `file-transfer` and a
 60-minute credential; existing media credentials remain 15 minutes. Transfer

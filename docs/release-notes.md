@@ -10,6 +10,8 @@ create one. Keep the shared notices in
 
 - Added PC sound to **View PC screen**. Playback starts muted on every connection,
   and you can turn it on or off from the live view.
+- You can now scroll with two fingers while using **Gyro** in Trackpad,
+  Presentation, and Gyro-enabled Custom Screens.
 - Increased connection timeout for **Relay connection** and **View PC screen**.
 - Updated supporting components to keep Voltura Air reliable and compatible.
 

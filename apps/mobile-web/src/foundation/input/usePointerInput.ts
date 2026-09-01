@@ -161,16 +161,27 @@ export function usePointerInput({
     recognizerRef.current.start(touchesFromList(event.targetTouches), event.timeStamp);
   };
 
-  const onTouchMove = (event: TouchEvent<HTMLDivElement>) => {
+  const onTouchMove = (
+    event: TouchEvent<HTMLDivElement>,
+    twoFingerModeOverride?: TwoFingerMode,
+  ) => {
     event.preventDefault();
     recognizerRef.current
-      .move(touchesFromList(event.targetTouches), event.timeStamp, trackpadSettings, twoFingerMode)
+      .move(
+        touchesFromList(event.targetTouches),
+        event.timeStamp,
+        trackpadSettings,
+        twoFingerModeOverride ?? twoFingerMode,
+      )
       .forEach(emit);
   };
 
-  const onTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+  const onTouchEnd = (event: TouchEvent<HTMLDivElement>, emitEndActions = true) => {
     event.preventDefault();
     const outputs = recognizerRef.current.end(event.timeStamp, trackpadSettings);
+    if (!emitEndActions) {
+      return;
+    }
     if (outputs.some((output) => output.type === "pointer.button" && output.action === "click")) {
       triggerHapticFeedback(trackpadSettings);
     }

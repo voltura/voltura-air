@@ -29,8 +29,12 @@ interface TrackpadModeProps {
   onToggleMute: () => void;
   onTwoFingerModeChange: (mode: TwoFingerMode) => void;
   onTouchCancel: (event: React.TouchEvent<HTMLDivElement>) => void;
-  onTouchEnd: (event: React.TouchEvent<HTMLDivElement>) => void;
-  onTouchMove: (event: React.TouchEvent<HTMLDivElement>) => void;
+  onTouchEnd: (event: React.TouchEvent<HTMLDivElement>, emitEndActions?: boolean) => void;
+  onTouchInputCancel: () => void;
+  onTouchMove: (
+    event: React.TouchEvent<HTMLDivElement>,
+    twoFingerModeOverride?: TwoFingerMode,
+  ) => void;
   onTouchStart: (event: React.TouchEvent<HTMLDivElement>) => void;
   onMouseButtonClick: (button: MouseButtonName) => void;
   onMouseButtonDown: (button: MouseButtonName) => void;
@@ -52,6 +56,7 @@ export function TrackpadMode({
   onTwoFingerModeChange,
   onTouchCancel,
   onTouchEnd,
+  onTouchInputCancel,
   onTouchMove,
   onTouchStart,
   onMouseButtonClick,
@@ -62,6 +67,7 @@ export function TrackpadMode({
   const clutchPointerRef = useRef<number | null>(null);
   const clutchEngagementTimerRef = useRef<number | null>(null);
   const gyroClutchEngagedRef = useRef(false);
+  const gyroScrollActiveRef = useRef(false);
   const gyroTapRef = useRef<{
     pointerId: number;
     startedAt: number;
@@ -70,6 +76,7 @@ export function TrackpadMode({
   const updateGyroEngagement = () => {
     gyro.setEngaged(
       gyro.availability === "ready" &&
+        !gyroScrollActiveRef.current &&
         (gyroClutchEngagedRef.current || activeButtonPointers.current.size > 0),
     );
   };
@@ -124,6 +131,10 @@ export function TrackpadMode({
     clutchPointerRef.current = null;
     gyroClutchEngagedRef.current = false;
     gyroTapRef.current = null;
+    if (gyroScrollActiveRef.current) {
+      gyroScrollActiveRef.current = false;
+      onTouchInputCancel();
+    }
     for (const button of heldButtons) {
       onMouseButtonUp(button);
     }
@@ -150,14 +161,22 @@ export function TrackpadMode({
     if (gyro.selected && gyro.availability === "ready") {
       return;
     }
-    if (clutchPointerRef.current !== null || gyroTapRef.current !== null) {
+    if (
+      clutchPointerRef.current !== null ||
+      gyroTapRef.current !== null ||
+      gyroScrollActiveRef.current
+    ) {
       clearClutchEngagementTimer();
       clutchPointerRef.current = null;
       gyroClutchEngagedRef.current = false;
       gyroTapRef.current = null;
+      if (gyroScrollActiveRef.current) {
+        gyroScrollActiveRef.current = false;
+        onTouchInputCancel();
+      }
       gyro.setEngaged(false);
     }
-  }, [gyro]);
+  }, [gyro, onTouchInputCancel]);
 
   const stopTouchPropagation = (event: React.TouchEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -288,6 +307,9 @@ export function TrackpadMode({
                 if ((event.target as HTMLElement).closest("button")) {
                   return;
                 }
+                if (gyroScrollActiveRef.current) {
+                  return;
+                }
                 if (clutchPointerRef.current !== null) {
                   gyroTapRef.current = null;
                   return;
@@ -326,6 +348,10 @@ export function TrackpadMode({
         onTouchCancel={
           gyro.selected
             ? (event) => {
+                if (gyroScrollActiveRef.current) {
+                  gyroScrollActiveRef.current = false;
+                  onTouchCancel(event);
+                }
                 const touch = Array.from(event.changedTouches).find(
                   (candidate) => candidate.identifier === clutchPointerRef.current,
                 );
@@ -344,6 +370,22 @@ export function TrackpadMode({
                 ) {
                   return;
                 }
+                if (event.targetTouches.length === 2 && !gyroScrollActiveRef.current) {
+                  gyroScrollActiveRef.current = true;
+                  const clutchPointer = clutchPointerRef.current;
+                  if (clutchPointer !== null) {
+                    finishGyroClutch(clutchPointer, event.timeStamp, false);
+                  } else {
+                    updateGyroEngagement();
+                  }
+                  onTouchStart(event);
+                  return;
+                }
+                if (gyroScrollActiveRef.current) {
+                  event.preventDefault();
+                  gyroScrollActiveRef.current = false;
+                  onTouchInputCancel();
+                }
                 if (event.touches.length !== 1 || clutchPointerRef.current !== null) {
                   gyroTapRef.current = null;
                   return;
@@ -356,10 +398,23 @@ export function TrackpadMode({
               }
             : onTouchStart
         }
-        onTouchMove={gyro.selected ? undefined : onTouchMove}
+        onTouchMove={
+          gyro.selected
+            ? (event) => {
+                if (gyroScrollActiveRef.current) {
+                  onTouchMove(event, "scroll");
+                }
+              }
+            : onTouchMove
+        }
         onTouchEnd={
           gyro.selected
             ? (event) => {
+                if (gyroScrollActiveRef.current) {
+                  onTouchEnd(event, false);
+                  gyroScrollActiveRef.current = false;
+                  return;
+                }
                 const touch = Array.from(event.changedTouches).find(
                   (candidate) => candidate.identifier === clutchPointerRef.current,
                 );
@@ -446,7 +501,7 @@ export function TrackpadMode({
             className="gyro-clutch-content"
             aria-label={
               gyro.availability === "ready"
-                ? "Tap to click, double-tap to double-click, hold to move the mouse"
+                ? "Tap to click, double-tap to double-click, hold to move the mouse, two fingers to scroll"
                 : undefined
             }
             aria-live="polite"
@@ -498,7 +553,7 @@ export function TrackpadMode({
               {gyro.engaged
                 ? "Moving"
                 : gyro.availability === "ready"
-                  ? "Tap to click · Double-tap to double-click · Hold to move"
+                  ? "Tap to click · Double-tap to double-click · Hold to move · Two fingers to scroll"
                   : gyroMessage(gyro.availability)}
             </strong>
             {gyro.availability !== "ready" && (

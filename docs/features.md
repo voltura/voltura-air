@@ -564,10 +564,12 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   clicks, and a double-tap uses the PC's configured double-click behavior. It
   keeps the pointer still during short taps so normal hand movement does not
   break double-click recognition, then begins pointer movement when the surface
-  is held. It sends ordinary pointer movement, so Presentation's separately
-  controlled laser cursor moves naturally without any sensor-specific host
-  behavior. Custom Screen trackpads can also provide the same Touch/Gyro
-  selector. Screen View trackpads remain touch-only.
+  is held. While Gyro is selected, a two-finger drag temporarily takes over the
+  surface for the same two-axis PC scrolling as Touch mode. It sends ordinary
+  pointer movement, so Presentation's separately controlled laser cursor moves
+  naturally without any sensor-specific host behavior. Custom Screen trackpads
+  can also provide the same Touch/Gyro selector. Screen View trackpads remain
+  touch-only.
 - Gyro mouse requires enhanced device features over HTTPS (always present for
   Relay and available through Secure Direct). Motion permission is requested
   from the user's Gyro action and is never remembered as an active mode. Gyro

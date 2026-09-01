@@ -107,6 +107,7 @@ describe("CustomScreenWorkspace", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it("applies orientation order and visibility while preserving accessible button names", () => {
@@ -630,6 +631,73 @@ describe("CustomScreenWorkspace", () => {
 
     view.unmount();
     expect(onGyroSelectedChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("uses the existing custom-trackpad gesture for two-finger Gyro scrolling", async () => {
+    const send = vi.fn();
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        frames.push(callback);
+        return frames.length;
+      }),
+    );
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    render(
+      <CustomScreenWorkspace
+        connectionEpoch={8}
+        definition={gyroTrackpadDefinition()}
+        gyroActivationRequest={{ id: 4, permission: Promise.resolve(true) }}
+        invoke={vi.fn()}
+        onBack={vi.fn()}
+        onGyroSelectedChange={vi.fn()}
+        pendingButtonIds={new Set()}
+        requestedName="Gyro pointer"
+        send={send}
+        state="paired"
+        trackpadSettings={{ ...defaultTrackpadSettings, zoomGestures: true }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Gyro" }).getAttribute("aria-pressed")).toBe(
+        "true",
+      );
+    });
+    const surface = screen.getByRole("application", { name: "Gyro pointer" });
+    expect(screen.getByText("Trackpad").classList.contains("custom-screen-trackpad-label")).toBe(
+      true,
+    );
+    const start = [
+      { identifier: 41, clientX: 100, clientY: 100 },
+      { identifier: 42, clientX: 140, clientY: 100 },
+    ];
+    fireEvent.touchStart(surface, { touches: start, targetTouches: start });
+    fireEvent.touchMove(surface, {
+      touches: start.map((touch) => ({ ...touch, clientY: touch.clientY + 20 })),
+      targetTouches: start.map((touch) => ({ ...touch, clientY: touch.clientY + 20 })),
+    });
+    act(() => {
+      frames.at(-1)?.(0);
+    });
+    fireEvent.touchEnd(surface, {
+      touches: [start[1]],
+      targetTouches: [start[1]],
+      changedTouches: [start[0]],
+    });
+    fireEvent.touchEnd(surface, {
+      touches: [],
+      targetTouches: [],
+      changedTouches: [start[1]],
+    });
+
+    expect(send).toHaveBeenCalledExactlyOnceWith({
+      type: "pointer.wheel",
+      inputContext: "custom-screens",
+      dx: 0,
+      dy: -22,
+    });
   });
 
   it("stops Gyro when its collapsible trackpad is folded", async () => {

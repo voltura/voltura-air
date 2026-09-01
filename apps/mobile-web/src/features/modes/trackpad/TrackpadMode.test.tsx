@@ -18,6 +18,7 @@ const baseProps = {
   onTwoFingerModeChange: vi.fn(),
   onTouchCancel: vi.fn(),
   onTouchEnd: vi.fn(),
+  onTouchInputCancel: vi.fn(),
   onTouchMove: vi.fn(),
   onTouchStart: vi.fn(),
 };
@@ -355,7 +356,7 @@ describe("TrackpadMode gyro movement", () => {
       />,
     );
     const clutch = screen.getByRole("button", {
-      name: "Tap to click, double-tap to double-click, hold to move the mouse",
+      name: "Tap to click, double-tap to double-click, hold to move the mouse, two fingers to scroll",
     });
 
     fireEvent.keyDown(clutch, { key: "Enter" });
@@ -386,7 +387,7 @@ describe("TrackpadMode gyro movement", () => {
       />,
     );
     const clutch = screen.getByRole("button", {
-      name: "Tap to click, double-tap to double-click, hold to move the mouse",
+      name: "Tap to click, double-tap to double-click, hold to move the mouse, two fingers to scroll",
     });
 
     fireEvent.click(clutch, { detail: 0 });
@@ -453,6 +454,80 @@ describe("TrackpadMode gyro movement", () => {
 
     expect(onMouseButtonDown).not.toHaveBeenCalled();
     expect(onMouseButtonUp).not.toHaveBeenCalled();
+  });
+
+  it("gives two fingers exclusive scroll ownership and waits for a fresh contact", () => {
+    vi.useFakeTimers();
+    const onMouseButtonClick = vi.fn();
+    const onTouchEnd = vi.fn();
+    const onTouchMove = vi.fn();
+    const onTouchStart = vi.fn();
+    const setEngaged = vi.fn();
+    const view = render(
+      <TrackpadMode
+        {...baseProps}
+        onMouseButtonClick={onMouseButtonClick}
+        onTouchEnd={onTouchEnd}
+        onTouchMove={onTouchMove}
+        onTouchStart={onTouchStart}
+        gyro={{
+          availability: "ready",
+          enableFromUserGesture: vi.fn(),
+          engaged: false,
+          selected: true,
+          setEngaged,
+          setSelected: vi.fn(),
+        }}
+      />,
+    );
+    const surface = view.container.querySelector(".trackpad-surface")!;
+    const first = { identifier: 71, clientX: 100, clientY: 100 };
+    const second = { identifier: 72, clientX: 140, clientY: 100 };
+
+    fireEvent.touchStart(surface, { touches: [first], targetTouches: [first] });
+    act(() => {
+      vi.advanceTimersByTime(301);
+    });
+    expect(setEngaged).toHaveBeenLastCalledWith(true);
+
+    fireEvent.touchStart(surface, {
+      touches: [first, second],
+      targetTouches: [first, second],
+    });
+    expect(setEngaged).toHaveBeenLastCalledWith(false);
+    expect(onTouchStart).toHaveBeenCalledOnce();
+
+    fireEvent.touchMove(surface, {
+      touches: [
+        { ...first, clientY: 120 },
+        { ...second, clientY: 120 },
+      ],
+      targetTouches: [
+        { ...first, clientY: 120 },
+        { ...second, clientY: 120 },
+      ],
+    });
+    expect(onTouchMove.mock.calls[0]?.[1]).toBe("scroll");
+
+    fireEvent.touchEnd(surface, {
+      touches: [second],
+      targetTouches: [second],
+      changedTouches: [first],
+    });
+    expect(onTouchEnd.mock.calls[0]?.[1]).toBe(false);
+    fireEvent.touchEnd(surface, {
+      touches: [],
+      targetTouches: [],
+      changedTouches: [second],
+    });
+
+    const fresh = { identifier: 73, clientX: 100, clientY: 100 };
+    fireEvent.touchStart(surface, { touches: [fresh], targetTouches: [fresh] });
+    act(() => {
+      vi.advanceTimersByTime(301);
+    });
+    expect(setEngaged).toHaveBeenLastCalledWith(true);
+    expect(onMouseButtonClick).not.toHaveBeenCalled();
   });
 
   it("does not add a surface click after an explicit button tap during the clutch", () => {

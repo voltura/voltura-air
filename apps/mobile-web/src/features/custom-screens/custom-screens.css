@@ -330,6 +330,10 @@
   user-select: none;
 }
 
+.custom-screen-trackpad-label {
+  pointer-events: none;
+}
+
 .custom-screen-trackpad-expand {
   position: absolute;
   z-index: 1;

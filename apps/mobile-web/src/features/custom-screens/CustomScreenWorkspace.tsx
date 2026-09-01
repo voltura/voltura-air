@@ -94,6 +94,7 @@ export function CustomScreenWorkspace({
   const gyroClutchPointerRef = useRef<number | null>(null);
   const gyroClutchTimerRef = useRef<number | null>(null);
   const gyroClutchEngagedRef = useRef(false);
+  const gyroScrollActiveRef = useRef(false);
   const gyroTapRef = useRef<{
     pointerId: number;
     startedAt: number;
@@ -160,12 +161,17 @@ export function CustomScreenWorkspace({
       emitRef.current({ type: "pointer.button", button, action: "up" });
     }
     pressedPointerButtonsRef.current.clear();
+    if (gyroScrollActiveRef.current) {
+      gyroScrollActiveRef.current = false;
+      cancel();
+    }
     cancelGyroClutch();
-  }, [cancelGyroClutch]);
+  }, [cancel, cancelGyroClutch]);
 
   const updateGyroEngagement = useCallback(() => {
     setGyroEngaged(
       gyro.availability === "ready" &&
+        !gyroScrollActiveRef.current &&
         (gyroClutchEngagedRef.current || pressedPointerButtonsRef.current.size > 0),
     );
   }, [gyro.availability, setGyroEngaged]);
@@ -227,8 +233,12 @@ export function CustomScreenWorkspace({
     if (gyro.selected && gyro.availability === "ready") {
       return;
     }
+    if (gyroScrollActiveRef.current) {
+      gyroScrollActiveRef.current = false;
+      cancel();
+    }
     cancelGyroClutch();
-  }, [cancelGyroClutch, gyro.availability, gyro.selected]);
+  }, [cancel, cancelGyroClutch, gyro.availability, gyro.selected]);
 
   useEffect(() => {
     const update = () => {
@@ -493,7 +503,8 @@ export function CustomScreenWorkspace({
                                         event.pointerType === "touch" ||
                                         (event.target as HTMLElement).closest("button") ||
                                         event.button !== 0 ||
-                                        event.isPrimary === false
+                                        event.isPrimary === false ||
+                                        gyroScrollActiveRef.current
                                       ) {
                                         return;
                                       }
@@ -546,6 +557,25 @@ export function CustomScreenWorkspace({
                                           return;
                                         }
                                         if (
+                                          event.targetTouches.length === 2 &&
+                                          !gyroScrollActiveRef.current
+                                        ) {
+                                          gyroScrollActiveRef.current = true;
+                                          const clutchPointer = gyroClutchPointerRef.current;
+                                          if (clutchPointer !== null) {
+                                            finishGyroClutch(clutchPointer, event.timeStamp, false);
+                                          } else {
+                                            updateGyroEngagement();
+                                          }
+                                          onTouchStart(event);
+                                          return;
+                                        }
+                                        if (gyroScrollActiveRef.current) {
+                                          event.preventDefault();
+                                          gyroScrollActiveRef.current = false;
+                                          cancel();
+                                        }
+                                        if (
                                           event.touches.length !== 1 ||
                                           gyroClutchPointerRef.current !== null
                                         ) {
@@ -562,14 +592,25 @@ export function CustomScreenWorkspace({
                                   : undefined
                               }
                               onTouchMove={
-                                trackpadEnabled && !(section.trackpadGyroControl && gyro.selected)
-                                  ? onTouchMove
+                                trackpadEnabled
+                                  ? section.trackpadGyroControl && gyro.selected
+                                    ? (event) => {
+                                        if (gyroScrollActiveRef.current) {
+                                          onTouchMove(event, "scroll");
+                                        }
+                                      }
+                                    : onTouchMove
                                   : undefined
                               }
                               onTouchEnd={
                                 trackpadEnabled
                                   ? section.trackpadGyroControl && gyro.selected
                                     ? (event) => {
+                                        if (gyroScrollActiveRef.current) {
+                                          onTouchEnd(event, false);
+                                          gyroScrollActiveRef.current = false;
+                                          return;
+                                        }
                                         const touch = Array.from(event.changedTouches).find(
                                           (candidate) =>
                                             candidate.identifier === gyroClutchPointerRef.current,
@@ -585,6 +626,10 @@ export function CustomScreenWorkspace({
                                 trackpadEnabled
                                   ? section.trackpadGyroControl && gyro.selected
                                     ? (event) => {
+                                        if (gyroScrollActiveRef.current) {
+                                          gyroScrollActiveRef.current = false;
+                                          onTouchCancel(event);
+                                        }
                                         const touch = Array.from(event.changedTouches).find(
                                           (candidate) =>
                                             candidate.identifier === gyroClutchPointerRef.current,
@@ -665,7 +710,9 @@ export function CustomScreenWorkspace({
                                   )}
                                 </button>
                               )}
-                              <span aria-hidden="true">Trackpad</span>
+                              <span className="custom-screen-trackpad-label" aria-hidden="true">
+                                Trackpad
+                              </span>
                               {fullscreen &&
                                 (section.trackpadLeftClick || section.trackpadRightClick) && (
                                   <div

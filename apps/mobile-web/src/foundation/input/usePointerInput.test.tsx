@@ -107,6 +107,71 @@ describe("usePointerInput", () => {
     ]);
   });
 
+  it("can force the existing two-finger gesture to scroll without an end action", () => {
+    const send = vi.fn();
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        frames.push(callback);
+        return frames.length;
+      }),
+    );
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const { result } = renderHook(() =>
+      usePointerInput({
+        send,
+        state: "paired",
+        trackpadSettings: { ...defaultTrackpadSettings, zoomGestures: true },
+        twoFingerMode: "zoom",
+        inputContext: "trackpad",
+      }),
+    );
+    const touchEvent = (
+      targetTouches: { identifier: number; clientX: number; clientY: number }[],
+      timeStamp: number,
+    ) =>
+      ({
+        preventDefault: vi.fn(),
+        targetTouches,
+        timeStamp,
+      }) as never;
+    const start = [
+      { identifier: 1, clientX: 100, clientY: 100 },
+      { identifier: 2, clientX: 140, clientY: 100 },
+    ];
+
+    act(() => {
+      result.current.onTouchStart(touchEvent(start, 0));
+      result.current.onTouchEnd(touchEvent([], 100), false);
+    });
+    expect(send).not.toHaveBeenCalled();
+
+    act(() => {
+      result.current.onTouchStart(touchEvent(start, 200));
+      result.current.onTouchMove(
+        touchEvent(
+          start.map((touch) => ({ ...touch, clientY: touch.clientY + 20 })),
+          220,
+        ),
+        "scroll",
+      );
+    });
+    act(() => {
+      frames.at(-1)?.(0);
+    });
+
+    expect(send).toHaveBeenCalledExactlyOnceWith({
+      type: "pointer.wheel",
+      inputContext: "trackpad",
+      dx: 0,
+      dy: -22,
+    });
+    act(() => {
+      result.current.onTouchEnd(touchEvent([], 240), false);
+    });
+  });
+
   it("lets a functional owner override the context of a special key", () => {
     const send = vi.fn();
     const { result } = renderHook(() =>

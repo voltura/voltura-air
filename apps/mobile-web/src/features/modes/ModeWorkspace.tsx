@@ -252,6 +252,7 @@ export function ModeWorkspace({
         onTwoFingerModeChange: setTrackpadTwoFingerMode,
         onTouchCancel,
         onTouchEnd,
+        onTouchInputCancel: cancel,
         onTouchMove,
         onTouchStart,
         supportsVolumeControl: connection.supportsVolumeControl,

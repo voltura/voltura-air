@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.InteropServices;
 
@@ -12,9 +13,12 @@ internal sealed partial class CursorWatchdogService : IDisposable
 {
     internal static readonly TimeSpan ReadyTimeout = TimeSpan.FromSeconds(5);
     private readonly Lock _gate = new();
+    private readonly HashSet<TaskCompletionSource> _pendingCleanups = [];
     private readonly string _watchdogPath;
     private readonly int _hostProcessId;
+    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "The monitor is detached under the service gate and disposed immediately after releasing the gate on every cleanup path.")]
     private Process? _monitor;
+    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "The ready event is detached under the service gate and disposed immediately after releasing the gate on every cleanup path.")]
     private EventWaitHandle? _readyEvent;
     private bool _ready;
     private bool _disposed;
@@ -61,60 +65,87 @@ internal sealed partial class CursorWatchdogService : IDisposable
         var effectiveTimeout = timeout ?? ReadyTimeout;
         ArgumentOutOfRangeException.ThrowIfLessThan(effectiveTimeout, TimeSpan.Zero);
 
-        lock (_gate)
+        DetachedMonitor detachedBeforeStart = default;
+        DetachedMonitor detachedAfterStart = default;
+        try
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            if (_ready && _monitor is { HasExited: false })
+            lock (_gate)
             {
-                return true;
-            }
-
-            if (_monitor is null || _monitor.HasExited)
-            {
-                ReleaseMonitorCore();
-                StartMonitorCore();
-            }
-
-            var deadline = Stopwatch.GetTimestamp() +
-                (long)(effectiveTimeout.TotalSeconds * Stopwatch.Frequency);
-            while (_monitor is { HasExited: false } && _readyEvent is not null)
-            {
-                var remainingTicks = deadline - Stopwatch.GetTimestamp();
-                if (remainingTicks <= 0)
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                if (_ready && _monitor is { HasExited: false })
                 {
-                    return false;
-                }
-
-                var remaining = TimeSpan.FromSeconds(remainingTicks / (double)Stopwatch.Frequency);
-                if (_readyEvent.WaitOne(remaining < TimeSpan.FromMilliseconds(50)
-                        ? remaining
-                        : TimeSpan.FromMilliseconds(50)))
-                {
-                    _ready = true;
                     return true;
                 }
-            }
 
-            ReleaseMonitorCore();
-            return false;
+                if (_monitor is null || _monitor.HasExited)
+                {
+                    detachedBeforeStart = DetachMonitorCore();
+                    StartMonitorCore(ref detachedAfterStart);
+                }
+
+                var deadline = Stopwatch.GetTimestamp() +
+                    (long)(effectiveTimeout.TotalSeconds * Stopwatch.Frequency);
+                while (_monitor is { HasExited: false } && _readyEvent is not null)
+                {
+                    var remainingTicks = deadline - Stopwatch.GetTimestamp();
+                    if (remainingTicks <= 0)
+                    {
+                        return false;
+                    }
+
+                    var remaining = TimeSpan.FromSeconds(remainingTicks / (double)Stopwatch.Frequency);
+                    if (_readyEvent.WaitOne(remaining < TimeSpan.FromMilliseconds(50)
+                            ? remaining
+                            : TimeSpan.FromMilliseconds(50)))
+                    {
+                        _ready = true;
+                        return true;
+                    }
+                }
+
+                detachedAfterStart = DetachMonitorCore();
+                return false;
+            }
+        }
+        finally
+        {
+            try
+            {
+                DisposeDetachedMonitor(detachedAfterStart);
+            }
+            finally
+            {
+                DisposeDetachedMonitor(detachedBeforeStart);
+            }
         }
     }
 
     public void Dispose()
     {
+        DetachedMonitor detached = default;
+        Task[] pendingCleanups;
         lock (_gate)
         {
-            if (_disposed)
+            if (!_disposed)
             {
-                return;
+                _disposed = true;
+                detached = DetachMonitorCore();
             }
 
-            _disposed = true;
-            ReleaseMonitorCore();
+            pendingCleanups = [.. _pendingCleanups.Select(cleanup => cleanup.Task)];
+        }
+
+        try
+        {
+            DisposeDetachedMonitor(detached);
+        }
+        finally
+        {
+            Task.WhenAll(pendingCleanups).GetAwaiter().GetResult();
         }
     }
 
-    private void StartMonitorCore()
+    private void StartMonitorCore(ref DetachedMonitor cleanupOnFailure)
     {
         if (!File.Exists(_watchdogPath))
         {
@@ -141,29 +172,68 @@ internal sealed partial class CursorWatchdogService : IDisposable
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Win32Exception or ArgumentException)
         {
-            ReleaseMonitorCore();
+            cleanupOnFailure = DetachMonitorCore();
             throw new CursorRecoveryUnavailableException("Cursor recovery is unavailable.", ex);
         }
     }
 
-    private void ReleaseMonitorCore()
+    private DetachedMonitor DetachMonitorCore()
     {
         var monitor = _monitor;
+        var readyEvent = _readyEvent;
         _monitor = null;
+        _readyEvent = null;
         _ready = false;
-        if (monitor is not null)
+        if (monitor is null && readyEvent is null)
         {
-            monitor.Exited -= OnMonitorExited;
-            monitor.Dispose();
+            return default;
         }
 
-        _readyEvent?.Dispose();
-        _readyEvent = null;
+        var cleanup = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _pendingCleanups.Add(cleanup);
+        return new DetachedMonitor(monitor, readyEvent, cleanup);
+    }
+
+    private void DisposeDetachedMonitor(DetachedMonitor detached)
+    {
+        try
+        {
+            if (detached.Monitor is not null)
+            {
+                try
+                {
+                    detached.Monitor.Exited -= OnMonitorExited;
+                }
+                finally
+                {
+                    detached.Monitor.Dispose();
+                }
+            }
+        }
+        finally
+        {
+            try
+            {
+                detached.ReadyEvent?.Dispose();
+            }
+            finally
+            {
+                if (detached.Cleanup is not null)
+                {
+                    detached.Cleanup.TrySetResult();
+                    lock (_gate)
+                    {
+                        _pendingCleanups.Remove(detached.Cleanup);
+                    }
+                }
+            }
+        }
     }
 
     private void OnMonitorExited(object? sender, EventArgs eventArgs)
     {
         bool notify;
+        DetachedMonitor detached;
         lock (_gate)
         {
             if (_disposed || sender is not Process monitor || !ReferenceEquals(monitor, _monitor))
@@ -172,14 +242,26 @@ internal sealed partial class CursorWatchdogService : IDisposable
             }
 
             notify = _ready;
-            ReleaseMonitorCore();
+            detached = DetachMonitorCore();
         }
 
-        if (notify)
+        try
         {
-            MonitoringLost?.Invoke(this, EventArgs.Empty);
+            DisposeDetachedMonitor(detached);
+        }
+        finally
+        {
+            if (notify)
+            {
+                MonitoringLost?.Invoke(this, EventArgs.Empty);
+            }
         }
     }
+
+    private readonly record struct DetachedMonitor(
+        Process? Monitor,
+        EventWaitHandle? ReadyEvent,
+        TaskCompletionSource? Cleanup);
 
     private static partial class IndependentProcessLauncher
     {

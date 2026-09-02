@@ -1,6 +1,8 @@
 const opfsDirectoryName = "voltura-air-transfers";
 const opfsOwnerStorageKey = "voltura-air-transfer-owner";
+const opfsOwnerLockPrefix = "voltura-air-transfer-owner:";
 const validOwnerId = /^[a-zA-Z0-9_-]{1,64}$/;
+const ownerClaimLifetime = new Promise<void>(() => undefined);
 
 export interface DeviceFileStorage {
   directory: FileSystemDirectoryHandle;
@@ -18,32 +20,85 @@ export function supportsDeviceFileStorage(): boolean {
   );
 }
 
-let initializedOwnerId: string | null = null;
-let initialization: Promise<void> | null = null;
-let memoryOwnerId: string | null = null;
+interface DeviceFileStorageOwner {
+  ownerId: string;
+  sweepInheritedOwner: boolean;
+}
 
-function getDeviceFileStorageOwnerId(): string {
+let ownerResolution: Promise<DeviceFileStorageOwner> | null = null;
+let initialization: Promise<void> | null = null;
+
+function readStoredOwnerId(): string | null {
   try {
     const stored = sessionStorage.getItem(opfsOwnerStorageKey);
     if (stored && validOwnerId.test(stored)) {
-      memoryOwnerId = stored;
-      return memoryOwnerId;
+      return stored;
     }
-    memoryOwnerId ??= crypto.randomUUID();
-    sessionStorage.setItem(opfsOwnerStorageKey, memoryOwnerId);
-    return memoryOwnerId;
   } catch {
-    memoryOwnerId ??= crypto.randomUUID();
-    return memoryOwnerId;
+    /* A page-unique in-memory owner remains safe when storage is unavailable. */
+  }
+  return null;
+}
+
+function storeOwnerId(ownerId: string): void {
+  try {
+    sessionStorage.setItem(opfsOwnerStorageKey, ownerId);
+  } catch {
+    /* The in-memory owner remains valid for this page lifetime. */
   }
 }
 
-export async function ensureDeviceFileStorageInitialized(): Promise<void> {
-  const ownerId = getDeviceFileStorageOwnerId();
-  if (initializedOwnerId !== ownerId || !initialization) {
-    initializedOwnerId = ownerId;
-    initialization = sweepDeviceFileStorageOwner(ownerId);
+function tryClaimOwner(ownerId: string): Promise<boolean> {
+  const lockManager = (navigator as Navigator & { locks?: LockManager }).locks;
+  if (!lockManager) {
+    return Promise.resolve(false);
   }
+
+  return new Promise<boolean>((resolve) => {
+    let callbackStarted = false;
+    try {
+      void lockManager
+        .request(
+          `${opfsOwnerLockPrefix}${ownerId}`,
+          { mode: "exclusive", ifAvailable: true },
+          async (lock) => {
+            callbackStarted = true;
+            resolve(lock !== null);
+            if (lock) {
+              await ownerClaimLifetime;
+            }
+          },
+        )
+        .catch(() => {
+          if (!callbackStarted) {
+            resolve(false);
+          }
+        });
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+function resolveDeviceFileStorageOwner(): Promise<DeviceFileStorageOwner> {
+  ownerResolution ??= (async () => {
+    const inheritedOwnerId = readStoredOwnerId();
+    if (inheritedOwnerId && (await tryClaimOwner(inheritedOwnerId))) {
+      return { ownerId: inheritedOwnerId, sweepInheritedOwner: true };
+    }
+
+    const ownerId = crypto.randomUUID();
+    storeOwnerId(ownerId);
+    await tryClaimOwner(ownerId);
+    return { ownerId, sweepInheritedOwner: false };
+  })();
+  return ownerResolution;
+}
+
+export async function ensureDeviceFileStorageInitialized(): Promise<void> {
+  initialization ??= resolveDeviceFileStorageOwner().then(({ ownerId, sweepInheritedOwner }) =>
+    sweepInheritedOwner ? sweepDeviceFileStorageOwner(ownerId) : undefined,
+  );
   await initialization;
 }
 
@@ -74,7 +129,7 @@ export async function prepareDeviceFileStorage(
   }
   const root = await navigator.storage.getDirectory();
   const transfers = await root.getDirectoryHandle(opfsDirectoryName, { create: true });
-  const ownerId = getDeviceFileStorageOwnerId();
+  const { ownerId } = await resolveDeviceFileStorageOwner();
   const directory = await transfers.getDirectoryHandle(ownerId, { create: true });
   const storedName = `${transferId}.partial`;
   const handle = await directory.getFileHandle(storedName, { create: true });
@@ -105,7 +160,8 @@ export async function removeDeviceFile(
 }
 
 export async function sweepDeviceFileStorage(): Promise<void> {
-  await sweepDeviceFileStorageOwner(getDeviceFileStorageOwnerId());
+  const { ownerId } = await resolveDeviceFileStorageOwner();
+  await sweepDeviceFileStorageOwner(ownerId);
 }
 
 async function sweepDeviceFileStorageOwner(ownerId: string): Promise<void> {

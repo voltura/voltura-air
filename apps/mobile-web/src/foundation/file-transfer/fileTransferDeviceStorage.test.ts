@@ -1,12 +1,58 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  ensureDeviceFileStorageInitialized,
-  prepareDeviceFileStorage,
-  saveOrShareDeviceFile,
-  sweepDeviceFileStorage,
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type {
+  ensureDeviceFileStorageInitialized as EnsureDeviceFileStorageInitialized,
+  prepareDeviceFileStorage as PrepareDeviceFileStorage,
+  saveOrShareDeviceFile as SaveOrShareDeviceFile,
+  sweepDeviceFileStorage as SweepDeviceFileStorage,
 } from "./fileTransferDeviceStorage";
 
-function storageWithEstimate(estimate: () => Promise<StorageEstimate>) {
+let ensureDeviceFileStorageInitialized: typeof EnsureDeviceFileStorageInitialized;
+let prepareDeviceFileStorage: typeof PrepareDeviceFileStorage;
+let saveOrShareDeviceFile: typeof SaveOrShareDeviceFile;
+let sweepDeviceFileStorage: typeof SweepDeviceFileStorage;
+
+function availableLockManager(): LockManager {
+  return {
+    request: vi.fn(
+      (name: string, _options: LockOptions, callback: (lock: Lock | null) => unknown) =>
+        Promise.resolve(callback({ name, mode: "exclusive" } as Lock)),
+    ),
+  } as unknown as LockManager;
+}
+
+function exclusiveLockManager(): LockManager {
+  const held = new Set<string>();
+  return {
+    request: vi.fn(
+      async (name: string, _options: LockOptions, callback: (lock: Lock | null) => unknown) => {
+        if (held.has(name)) {
+          return callback(null);
+        }
+        held.add(name);
+        try {
+          return await callback({ name, mode: "exclusive" } as Lock);
+        } finally {
+          held.delete(name);
+        }
+      },
+    ),
+  } as unknown as LockManager;
+}
+
+function ownerStorage(initialOwnerId: string): Storage {
+  let ownerId = initialOwnerId;
+  return {
+    getItem: vi.fn(() => ownerId),
+    setItem: vi.fn((_key: string, value: string) => {
+      ownerId = value;
+    }),
+  } as unknown as Storage;
+}
+
+function storageWithEstimate(
+  estimate: () => Promise<StorageEstimate>,
+  locks = availableLockManager(),
+) {
   const writable = {} as FileSystemWritableFileStream;
   const handle = {
     createWritable: vi.fn(() => Promise.resolve(writable)),
@@ -24,14 +70,25 @@ function storageWithEstimate(estimate: () => Promise<StorageEstimate>) {
   } as unknown as FileSystemDirectoryHandle;
   vi.stubGlobal("navigator", {
     storage: { estimate, getDirectory: vi.fn(() => Promise.resolve(root)) },
+    locks,
   });
   return { directory, handle, root, transfers, writable };
 }
 
 describe("device file storage", () => {
+  beforeEach(async () => {
+    vi.resetModules();
+    const storageModule = await import("./fileTransferDeviceStorage");
+    ensureDeviceFileStorageInitialized = storageModule.ensureDeviceFileStorageInitialized;
+    prepareDeviceFileStorage = storageModule.prepareDeviceFileStorage;
+    saveOrShareDeviceFile = storageModule.saveOrShareDeviceFile;
+    sweepDeviceFileStorage = storageModule.sweepDeviceFileStorage;
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    sessionStorage.clear();
   });
 
   it("rejects a file larger than reported available browser storage", async () => {
@@ -139,5 +196,43 @@ describe("device file storage", () => {
 
     expect(storage.transfers.removeEntry).toHaveBeenCalledTimes(1);
     expect(storage.transfers.removeEntry).toHaveBeenCalledWith("tab-shared", { recursive: true });
+  });
+
+  it("gives a cloned live tab a fresh owner without sweeping the original tab", async () => {
+    const locks = exclusiveLockManager();
+    const storage = storageWithEstimate(() => Promise.resolve({}), locks);
+    vi.stubGlobal("sessionStorage", ownerStorage("tab-a"));
+
+    await ensureDeviceFileStorageInitialized();
+    vi.mocked(storage.transfers.removeEntry).mockClear();
+    vi.mocked(storage.transfers.getDirectoryHandle).mockClear();
+
+    const clonedStorage = ownerStorage("tab-a");
+    vi.stubGlobal("sessionStorage", clonedStorage);
+    vi.stubGlobal("crypto", { randomUUID: vi.fn(() => "tab-b") });
+    vi.resetModules();
+    const clonedTab = await import("./fileTransferDeviceStorage");
+
+    await clonedTab.prepareDeviceFileStorage(0, "recording-a");
+
+    expect(storage.transfers.removeEntry).not.toHaveBeenCalled();
+    expect(storage.transfers.getDirectoryHandle).toHaveBeenCalledWith("tab-b", { create: true });
+    expect(clonedStorage.setItem).toHaveBeenCalledWith("voltura-air-transfer-owner", "tab-b");
+  });
+
+  it("uses a fresh owner without sweeping when browser locking fails", async () => {
+    const locks = {
+      request: vi.fn(() => Promise.reject(new DOMException("Unavailable", "NotSupportedError"))),
+    } as unknown as LockManager;
+    const storage = storageWithEstimate(() => Promise.resolve({}), locks);
+    const currentStorage = ownerStorage("tab-a");
+    vi.stubGlobal("sessionStorage", currentStorage);
+    vi.stubGlobal("crypto", { randomUUID: vi.fn(() => "tab-b") });
+
+    await prepareDeviceFileStorage(0, "recording-b");
+
+    expect(storage.transfers.removeEntry).not.toHaveBeenCalled();
+    expect(storage.transfers.getDirectoryHandle).toHaveBeenCalledWith("tab-b", { create: true });
+    expect(currentStorage.setItem).toHaveBeenCalledWith("voltura-air-transfer-owner", "tab-b");
   });
 });

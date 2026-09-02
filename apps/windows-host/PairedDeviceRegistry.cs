@@ -144,7 +144,10 @@ internal sealed class PairedDeviceRegistry
         return true;
     }
 
-    public InitialDeviceConnectionNotice? AddConnection(string clientId, DateTimeOffset connectedAt)
+    public InitialDeviceConnectionNotice? AddConnection(
+        string clientId,
+        DateTimeOffset connectedAt,
+        DeviceConnectionMethod connectionMethod)
     {
         var index = FindIndex(clientId);
         if (index < 0)
@@ -157,7 +160,10 @@ internal sealed class PairedDeviceRegistry
         var next = Snapshot();
         next[index] = existing with
         {
-            LastConnectedAt = connectedAt
+            LastConnectedAt = connectedAt,
+            LastConnectionMethod = connectionMethod == DeviceConnectionMethod.Unknown
+                ? existing.LastConnectionMethod
+                : connectionMethod
         };
         try
         {
@@ -412,7 +418,8 @@ internal sealed class PairedDeviceRegistry
             GetEffectiveControlDepth(record),
             record.AccentColorOverride,
             GetEffectiveAccentColor(record),
-            record.CustomScreenViewport);
+            record.CustomScreenViewport,
+            record.LastConnectionMethod);
     })];
 
     private PairedDeviceStatus[] GetDuplicateCleanupCandidatesCore() => [.. BuildDeviceStatuses()

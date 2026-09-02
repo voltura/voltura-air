@@ -42,7 +42,13 @@ function AppsPreviewImage({ url }: { url: string }) {
 
   return (
     <span className="apps-preview-images">
-      <img src={displayedUrl} alt="" draggable={false} />
+      <img
+        src={displayedUrl}
+        alt=""
+        className={`apps-preview-image-current${readyUrl === displayedUrl ? " is-ready" : ""}`}
+        draggable={false}
+        onLoad={() => setReadyUrl(displayedUrl)}
+      />
       {incomingUrl && (
         <img
           src={incomingUrl}

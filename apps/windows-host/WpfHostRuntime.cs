@@ -168,7 +168,8 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 phoneWebcamFeature: phoneWebcam,
                 phoneWebcamPeerFactory: null,
                 screenViewPeerFactory: null,
-                usageTelemetry: usageTelemetry);
+                usageTelemetry: usageTelemetry,
+                useDevelopmentHostedApp: useDevelopmentHostedApp);
             EventHandler cursorOverridesRevoked = (_, _) => webHost.RevokeCursorOverrides();
             cursorOverrides.OverridesRevoked += cursorOverridesRevoked;
 

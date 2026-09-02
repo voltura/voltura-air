@@ -37,7 +37,8 @@ internal sealed class WebSocketSessionHandler(
     PhoneWebcamCommandHandler phoneWebcamCommands,
     IUsageTelemetryRecorder usageTelemetry,
     IAppLogWriter appLog,
-    Action<ControllerSocketClosedEventArgs> reportSocketClosed)
+    Action<ControllerSocketClosedEventArgs> reportSocketClosed,
+    bool useDevelopmentHostedApp)
 {
     public static readonly TimeSpan PairingHandshakeTimeout = TimeSpan.FromSeconds(10);
     public static readonly TimeSpan AuthenticatedInactivityTimeout = TimeSpan.FromMinutes(5);
@@ -205,7 +206,10 @@ internal sealed class WebSocketSessionHandler(
                         authentication.ClientId,
                         () => transport.Register(authentication.ClientId, socket),
                         out activeConnection,
-                        out authenticatedPairingEpoch))
+                        out authenticatedPairingEpoch,
+                        connectionMethod: ResolveDeviceConnectionMethod(
+                            connectionMethod,
+                            useDevelopmentHostedApp)))
                     {
                         authenticatedAdmission?.Dispose();
                         authenticatedAdmission = null;
@@ -310,6 +314,17 @@ internal sealed class WebSocketSessionHandler(
             }
         }
     }
+
+    internal static DeviceConnectionMethod ResolveDeviceConnectionMethod(
+        UsageConnectionMethod connectionMethod,
+        bool useDevelopmentHostedApp) => connectionMethod switch
+        {
+            UsageConnectionMethod.StandardLocal => DeviceConnectionMethod.StandardLocal,
+            UsageConnectionMethod.EnhancedDirect when useDevelopmentHostedApp => DeviceConnectionMethod.DebugDirect,
+            UsageConnectionMethod.EnhancedDirect => DeviceConnectionMethod.EnhancedDirect,
+            UsageConnectionMethod.Relay => DeviceConnectionMethod.CloudRelay,
+            _ => DeviceConnectionMethod.Unknown
+        };
 
     private async Task<AuthenticatedClient?> TryAuthenticateAsync(
         WebSocket socket,

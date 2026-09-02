@@ -14,7 +14,10 @@ internal static class PairingRecordNormalization
             PermissionOverrides = NormalizePermissionOverrides(record.PermissionOverrides),
             PointerSpeedOverride = NormalizePointerSpeedOverride(record.PointerSpeedOverride),
             AccentColorOverride = AccentColor.NormalizePersisted(record.AccentColorOverride),
-            CustomScreenViewport = NormalizeCustomScreenViewport(record.CustomScreenViewport)
+            CustomScreenViewport = NormalizeCustomScreenViewport(record.CustomScreenViewport),
+            LastConnectionMethod = Enum.IsDefined(record.LastConnectionMethod)
+                ? record.LastConnectionMethod
+                : DeviceConnectionMethod.Unknown
         };
         return DeviceAccessProfilePersistence.Normalize(normalized, legacyGlobalPermissions);
     }
@@ -59,7 +62,8 @@ internal static class PairingRecordNormalization
             ShowModeButtonsOverride = existing.ShowModeButtonsOverride,
             ControlDepthOverride = existing.ControlDepthOverride,
             AccentColorOverride = existing.AccentColorOverride,
-            CustomScreenViewport = existing.CustomScreenViewport
+            CustomScreenViewport = existing.CustomScreenViewport,
+            LastConnectionMethod = existing.LastConnectionMethod
         };
     }
 

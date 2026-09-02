@@ -100,6 +100,7 @@ public partial class MainWindow : Window
         _devicesPage = new DevicesPageController(
             this,
             pairingManager,
+            webHost,
             effectivePowerController,
             () => SelectPage(HostPage.Devices));
         var customScreenActivityLog =

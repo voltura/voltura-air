@@ -11,6 +11,7 @@ internal sealed class DeviceListItem(
     string name,
     string status,
     bool isConnected,
+    bool isConnectionAvailable,
     string activity,
     string metadata,
     int pointerSpeed,
@@ -49,6 +50,7 @@ internal sealed class DeviceListItem(
     public string Name { get; } = name;
     public string Status { get; } = status;
     public bool IsConnected { get; } = isConnected;
+    public bool IsConnectionAvailable { get; } = isConnectionAvailable;
     public string Activity { get; } = activity;
     public string Metadata { get; } = metadata;
     public IReadOnlyList<DeviceAccessProfileChoice> AccessProfileChoices => ProfileChoices;
@@ -146,7 +148,11 @@ internal sealed class DeviceListItem(
         }
     }
 
-    public PillBadgeTone StatusTone => IsConnected ? PillBadgeTone.Success : PillBadgeTone.Danger;
+    public PillBadgeTone StatusTone => IsConnected
+        ? PillBadgeTone.Success
+        : IsConnectionAvailable
+            ? PillBadgeTone.Outline
+            : PillBadgeTone.Danger;
 
     public void ApplyAccessProfile(DeviceAccessProfile profile, HostPermissionSet effectivePermissions)
     {

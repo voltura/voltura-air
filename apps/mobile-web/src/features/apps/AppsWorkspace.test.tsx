@@ -47,6 +47,80 @@ describe("Apps workspace", () => {
     vi.unstubAllGlobals();
   });
 
+  it("holds the active-card space while discovering open applications", async () => {
+    const send = vi.fn<(message: ClientMessage) => void>();
+    renderWorkspace(send);
+
+    expect(screen.getByRole("status", { name: "Loading open applications" })).toBeTruthy();
+    expect(screen.getByText("Loading…")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Open application launcher" })).toBeNull();
+
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    const list = send.mock.calls[0]![0];
+    if (list.type !== "apps.list") {
+      throw new TypeError("Expected Apps list request.");
+    }
+    act(() => publishAppsResult(listResult(list.operationId)));
+
+    expect(screen.queryByText("Loading…")).toBeNull();
+    expect(await screen.findByRole("button", { name: /activate browser/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /select notes/i })).toBeTruthy();
+  });
+
+  it("reveals the active card when its initial preview does not settle", async () => {
+    vi.useFakeTimers();
+    try {
+      const send = vi.fn<(message: ClientMessage) => void>();
+      renderWorkspace(send, {
+        capability: {
+          enabled: true,
+          permissionGranted: true,
+          canUse: true,
+          previewAvailable: true,
+        },
+      });
+
+      await act(async () => vi.runOnlyPendingTimersAsync());
+      const list = send.mock.calls[0]?.[0];
+      if (list?.type !== "apps.list") {
+        throw new TypeError("Expected Apps list request.");
+      }
+      const result = listResult(list.operationId);
+      act(() =>
+        publishAppsResult({
+          ...result,
+          windows: result.windows.map((window) => ({ ...window, previewSupported: true })),
+        }),
+      );
+
+      expect(screen.getByRole("status", { name: "Loading open applications" })).toBeTruthy();
+      await act(async () => vi.advanceTimersByTimeAsync(2_500));
+      expect(screen.getByLabelText("Open applications")).toBeTruthy();
+      expect(screen.getAllByText("Loading preview…").length).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("opens Trackpad from the header without sending another Apps message", async () => {
+    const send = vi.fn<(message: ClientMessage) => void>();
+    const onOpenTrackpad = vi.fn();
+    renderWorkspace(send, { onOpenTrackpad });
+
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    const header = screen.getByRole("heading", { name: "Apps" }).closest("header");
+    expect(
+      [...(header?.querySelectorAll("button") ?? [])].map((button) =>
+        button.getAttribute("aria-label"),
+      ),
+    ).toEqual(["Back", "Open Trackpad", "Refresh applications"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Trackpad" }));
+
+    expect(onOpenTrackpad).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
   it("lists once on entry and only activates the centered card", async () => {
     const send = vi.fn<(message: ClientMessage) => void>();
     renderWorkspace(send);
@@ -603,15 +677,21 @@ describe("Apps workspace", () => {
     await act(() => channel.dispatchEvent(new Event("open")));
 
     await waitFor(() => expect(channel.send).toHaveBeenCalledTimes(1));
-    const canonicalCards = screen
-      .getByLabelText("Open applications")
-      .querySelectorAll("[data-app-canonical=true]");
-    expect(
-      [...canonicalCards].filter((card) => card.textContent?.includes("Loading preview…")),
-    ).toHaveLength(2);
+    expect(screen.getByRole("status", { name: "Loading open applications" })).toBeTruthy();
+    expect(screen.queryByLabelText("Open applications")).toBeNull();
     const request = new Uint8Array(channel.send.mock.calls[0]![0] as ArrayBuffer);
     expect(request[0]).toBe(0x11);
     expect(request[33]).toBe(2);
+
+    for (const record of completePreviewRecords(secondId)) {
+      await act(() => channel.dispatchEvent(new MessageEvent("message", { data: record })));
+    }
+    const canonicalCards = (await screen.findByLabelText("Open applications")).querySelectorAll(
+      "[data-app-canonical=true]",
+    );
+    expect(
+      [...canonicalCards].filter((card) => card.textContent?.includes("Loading preview…")),
+    ).toHaveLength(1);
 
     await act(() =>
       channel.dispatchEvent(
@@ -623,12 +703,9 @@ describe("Apps workspace", () => {
     ).toHaveLength(1);
     expect(
       [...canonicalCards].filter((card) => card.textContent?.includes("Loading preview…")),
-    ).toHaveLength(1);
+    ).toHaveLength(0);
 
     for (const record of completePreviewRecords(firstId)) {
-      await act(() => channel.dispatchEvent(new MessageEvent("message", { data: record })));
-    }
-    for (const record of completePreviewRecords(secondId)) {
       await act(() => channel.dispatchEvent(new MessageEvent("message", { data: record })));
     }
     const notesPreview = screen
@@ -751,6 +828,7 @@ function renderWorkspace(
       onAppLaunch={vi.fn()}
       onBack={vi.fn()}
       onFeedback={vi.fn()}
+      onOpenTrackpad={vi.fn()}
       pendingAppLaunchId={null}
       send={send}
       state="paired"

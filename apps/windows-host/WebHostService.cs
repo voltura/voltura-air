@@ -169,7 +169,8 @@ public sealed class WebHostService : IAsyncDisposable
         TimeProvider? terminalTimeProvider = null,
         IAiAssistantClientFactory? aiAssistantClientFactory = null,
         IAppsWindowAdapter? appsWindowAdapter = null,
-        IScreenViewSystemAudioCaptureFactory? screenViewAudioCaptureFactory = null)
+        IScreenViewSystemAudioCaptureFactory? screenViewAudioCaptureFactory = null,
+        bool useDevelopmentHostedApp = false)
     {
         _configureWebHost = configureWebHost;
 
@@ -478,7 +479,8 @@ public sealed class WebHostService : IAsyncDisposable
             _phoneWebcamCommands,
             usageTelemetry ?? NullUsageTelemetryRecorder.Instance,
             _appLog,
-            args => ControllerSocketClosed?.Invoke(this, args));
+            args => ControllerSocketClosed?.Invoke(this, args),
+            useDevelopmentHostedApp);
         _statusBroadcaster = new HostStatusBroadcaster(
             pairingManager,
             _awakeService,
@@ -568,6 +570,22 @@ public sealed class WebHostService : IAsyncDisposable
     internal int ActiveSocketCount => _transport.ActiveSocketCount;
     internal int SendGateCount => _transport.SendGateCount;
     internal bool IsInputBlockedByElevation => Volatile.Read(ref _inputBlockedByElevation) != 0;
+
+    internal bool IsDeviceConnectionMethodAvailable(DeviceConnectionMethod method) =>
+        IsDeviceConnectionMethodAvailable(method, TransportMode, EnhancedCapabilitiesEnabled);
+
+    internal static bool IsDeviceConnectionMethodAvailable(
+        DeviceConnectionMethod method,
+        ConnectionTransportMode transportMode,
+        bool enhancedCapabilitiesEnabled) => method switch
+        {
+            DeviceConnectionMethod.Unknown => true,
+            DeviceConnectionMethod.StandardLocal => transportMode == ConnectionTransportMode.DirectLan,
+            DeviceConnectionMethod.EnhancedDirect or DeviceConnectionMethod.DebugDirect =>
+                transportMode == ConnectionTransportMode.DirectLan && enhancedCapabilitiesEnabled,
+            DeviceConnectionMethod.CloudRelay => transportMode == ConnectionTransportMode.Relay,
+            _ => false
+        };
 
     public event EventHandler<ControllerSocketClosedEventArgs>? ControllerSocketClosed;
     internal event EventHandler<RemoteInputBlockedChangedEventArgs>? RemoteInputBlockedChanged;

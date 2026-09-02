@@ -699,7 +699,7 @@ export function App() {
       >
         <AppHeader
           activeMode={activeModeTab}
-          canShowModeNavigation={canShowModeNavigation && !isAppsOpen}
+          canShowModeNavigation={canShowModeNavigation}
           compactModeButtonRef={headerCompactModeButtonRef}
           connectionPcName={connectionPcName}
           developerMode={developerMode}
@@ -1014,6 +1014,9 @@ export function App() {
                 }}
                 onFeedback={(feedbackMessage, tone) => {
                   setTransientFeedback({ message: feedbackMessage, tone });
+                }}
+                onOpenTrackpad={() => {
+                  selectModeTabWithPresentationGuard("trackpad", "selector");
                 }}
                 pendingAppLaunchId={pendingAppLaunchId}
                 send={send}

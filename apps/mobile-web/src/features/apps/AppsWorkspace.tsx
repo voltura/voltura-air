@@ -1,4 +1,13 @@
-import { AppWindow, ArrowLeft, Maximize2, Plus, RefreshCw, X } from "lucide-react";
+import {
+  AppWindow,
+  ArrowLeft,
+  LoaderCircle,
+  Maximize2,
+  MousePointer2,
+  Plus,
+  RefreshCw,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PcProfile } from "../../foundation/connection/pcProfiles";
 import { subscribeAppsResults } from "../../foundation/connection/appsResultBus";
@@ -24,6 +33,7 @@ interface Props {
   onAppLaunch: (actionId: string) => void;
   onBack: () => void;
   onFeedback: (message: string, tone: "success" | "error" | "pending") => void;
+  onOpenTrackpad: () => void;
   pendingAppLaunchId: string | null;
   send: (message: ClientMessage) => void;
   state: ConnectionState;
@@ -31,6 +41,7 @@ interface Props {
 }
 
 const localId = () => crypto.randomUUID().replaceAll("_", "-");
+const initialPreviewWaitMs = 2_500;
 
 function findNearestCarouselCard(carousel: HTMLElement) {
   const center = carousel.scrollLeft + carousel.clientWidth / 2;
@@ -101,6 +112,7 @@ export function AppsWorkspace({
   onAppLaunch,
   onBack,
   onFeedback,
+  onOpenTrackpad,
   pendingAppLaunchId,
   send,
   state,
@@ -110,6 +122,11 @@ export function AppsWorkspace({
   const [revision, setRevision] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [hasCompletedInitialList, setHasCompletedInitialList] = useState(false);
+  const [hasPresentedInitialDeck, setHasPresentedInitialDeck] = useState(false);
+  const [initialPreviewWaitExpired, setInitialPreviewWaitExpired] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [launcherExpanded, setLauncherExpanded] = useState(false);
   const [pendingWindowId, setPendingWindowId] = useState<string | null>(null);
   const [message, setMessage] = useState("Choose an open application on your PC.");
@@ -120,6 +137,7 @@ export function AppsWorkspace({
   const scrollSettleTimeoutRef = useRef<number | null>(null);
   const scrollSelectionSuppressedRef = useRef(false);
   const selectedIndexRef = useRef(selectedIndex);
+  const hasCompletedInitialListRef = useRef(false);
   const listOperationRef = useRef<string | null>(null);
   const actionOperationRef = useRef<{
     operationId: string;
@@ -152,16 +170,70 @@ export function AppsWorkspace({
     state,
     windows,
   });
+  const initialSelectedWindow = hasCompletedInitialList ? windows[selectedIndex] : undefined;
+  const initialPreviewPending = Boolean(
+    revision &&
+    capability.previewAvailable &&
+    initialSelectedWindow?.previewSupported &&
+    !previewUrls.has(initialSelectedWindow.windowId) &&
+    previewStates.get(initialSelectedWindow.windowId) !== "unavailable",
+  );
+  const unavailableMessage =
+    state !== "paired"
+      ? "Reconnect to the PC to use Apps."
+      : !capability.enabled
+        ? "Apps is unavailable on this PC."
+        : !capability.permissionGranted || !capability.canUse
+          ? "Control open applications is blocked for this device."
+          : null;
+  const initialPresentationReady =
+    unavailableMessage === null &&
+    hasCompletedInitialList &&
+    (!initialPreviewPending || initialPreviewWaitExpired);
+  const showInitialLoading = !hasPresentedInitialDeck && !initialPresentationReady;
+  const showLoadingCard =
+    unavailableMessage === null && (showInitialLoading || closing || refreshing);
+  const carouselVisible = unavailableMessage === null && !showLoadingCard && !launcherExpanded;
+
+  useEffect(() => {
+    if (!initialPresentationReady || hasPresentedInitialDeck) {
+      return;
+    }
+    const frame = requestAnimationFrame(() => setHasPresentedInitialDeck(true));
+    return () => cancelAnimationFrame(frame);
+  }, [hasPresentedInitialDeck, initialPresentationReady]);
+
+  useEffect(() => {
+    if (hasPresentedInitialDeck || !initialPreviewPending || initialPreviewWaitExpired) {
+      return;
+    }
+    const timeout = window.setTimeout(
+      () => setInitialPreviewWaitExpired(true),
+      initialPreviewWaitMs,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [hasPresentedInitialDeck, initialPreviewPending, initialPreviewWaitExpired]);
 
   const requestList = useCallback(
     (quiet = false) => {
-      if (state !== "paired" || !capability.canUse || listOperationRef.current) {
+      if (state !== "paired" || !capability.canUse) {
+        listOperationRef.current = null;
+        actionOperationRef.current = null;
+        setLoading(false);
+        setRefreshing(false);
+        setPendingWindowId(null);
+        setClosing(false);
+        return;
+      }
+      if (listOperationRef.current) {
         return;
       }
       const operationId = localId();
+      const isManualRefresh = !quiet && hasCompletedInitialListRef.current;
       listOperationRef.current = operationId;
       setLoading(true);
-      if (!quiet) {
+      setRefreshing(isManualRefresh);
+      if (!quiet && !isManualRefresh) {
         setMessage("Checking open applications…");
       }
       send({ type: "apps.list", operationId });
@@ -176,6 +248,10 @@ export function AppsWorkspace({
       }
       listOperationRef.current = null;
       setLoading(false);
+      setRefreshing(false);
+      setClosing(false);
+      hasCompletedInitialListRef.current = true;
+      setHasCompletedInitialList(true);
       if (!result.succeeded || !result.revision) {
         actionOperationRef.current = null;
         setPendingWindowId(null);
@@ -262,6 +338,7 @@ export function AppsWorkspace({
         actionOperationRef.current = null;
         setLoading(false);
         setPendingWindowId(null);
+        setClosing(false);
         return;
       }
       requestList(true);
@@ -289,6 +366,7 @@ export function AppsWorkspace({
         setPendingWindowId(null);
         if (!result.succeeded) {
           actionOperationRef.current = null;
+          setClosing(false);
           if (result.code === "stale-window") {
             const staleIndex = windows.findIndex(
               (window) => window.windowId === pending.target?.windowId,
@@ -334,13 +412,6 @@ export function AppsWorkspace({
     requestList,
     windows,
   ]);
-
-  useEffect(() => {
-    if (state === "paired" && capability.canUse) {
-      return;
-    }
-    listOperationRef.current = null;
-  }, [capability.canUse, state]);
 
   useEffect(() => {
     const launchedAction = launchedActionRef.current;
@@ -397,12 +468,15 @@ export function AppsWorkspace({
   }, [scrollToIndex]);
 
   useEffect(() => {
-    if (revision) {
+    if (carouselVisible && revision) {
       recenterSelectedCard();
     }
-  }, [recenterSelectedCard, revision, windows.length]);
+  }, [carouselVisible, recenterSelectedCard, revision, windows.length]);
 
   useEffect(() => {
+    if (!carouselVisible) {
+      return;
+    }
     const carousel = carouselRef.current;
     if (!carousel || typeof ResizeObserver === "undefined") {
       return;
@@ -418,7 +492,7 @@ export function AppsWorkspace({
     });
     observer.observe(carousel);
     return () => observer.disconnect();
-  }, [recenterSelectedCard]);
+  }, [carouselVisible, recenterSelectedCard]);
 
   useEffect(
     () => () => {
@@ -521,6 +595,7 @@ export function AppsWorkspace({
     const operationId = localId();
     actionOperationRef.current = { operationId, type, target: window };
     setPendingWindowId(window.windowId);
+    setClosing(type === "close");
     send({
       type: type === "close" ? "apps.close" : "apps.activate",
       operationId,
@@ -529,14 +604,7 @@ export function AppsWorkspace({
     });
   };
 
-  const unavailableMessage =
-    state !== "paired"
-      ? "Reconnect to the PC to use Apps."
-      : !capability.enabled
-        ? "Apps is unavailable on this PC."
-        : !capability.permissionGranted || !capability.canUse
-          ? "Control open applications is blocked for this device."
-          : null;
+  const loadingCardText = closing ? "Closing…" : refreshing ? "Refreshing…" : "Loading…";
   const openCardIndex = windows.length;
   const carouselCardCount = openCardIndex + 1;
   const canonicalCarouselCards = Array.from({ length: carouselCardCount }, (_, logicalIndex) => ({
@@ -586,7 +654,11 @@ export function AppsWorkspace({
     );
 
   return (
-    <section className="apps-workspace" aria-labelledby="apps-title" aria-busy={loading}>
+    <section
+      className="apps-workspace"
+      aria-labelledby="apps-title"
+      aria-busy={loading || showLoadingCard}
+    >
       <header className="apps-header">
         <button type="button" className="icon-button" aria-label="Back" onClick={onBack}>
           <ArrowLeft aria-hidden="true" />
@@ -595,15 +667,26 @@ export function AppsWorkspace({
           <h2 id="apps-title">Apps</h2>
           <p>Open applications on your PC</p>
         </div>
-        <button
-          type="button"
-          className="icon-button"
-          aria-label="Refresh applications"
-          disabled={loading || unavailableMessage !== null}
-          onClick={() => requestList()}
-        >
-          <RefreshCw className={loading ? "apps-refreshing" : undefined} aria-hidden="true" />
-        </button>
+        <div className="apps-header-actions">
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Open Trackpad"
+            title="Open Trackpad"
+            onClick={onOpenTrackpad}
+          >
+            <MousePointer2 aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Refresh applications"
+            disabled={loading || unavailableMessage !== null}
+            onClick={() => requestList()}
+          >
+            <RefreshCw className={loading ? "apps-refreshing" : undefined} aria-hidden="true" />
+          </button>
+        </div>
       </header>
 
       {unavailableMessage ? (
@@ -611,6 +694,32 @@ export function AppsWorkspace({
           <AppWindow aria-hidden="true" />
           <p>{unavailableMessage}</p>
         </div>
+      ) : showLoadingCard ? (
+        <>
+          <div
+            className="apps-carousel apps-loading-carousel"
+            role="status"
+            aria-label={
+              closing
+                ? "Closing application"
+                : refreshing
+                  ? "Refreshing applications"
+                  : "Loading open applications"
+            }
+          >
+            <div className="apps-carousel-item">
+              <article className="apps-window-card apps-loading-card is-selected">
+                <span className="apps-loading-content" aria-hidden="true">
+                  <LoaderCircle className="apps-loading-spinner" />
+                  <span className="apps-loading-text">{loadingCardText}</span>
+                </span>
+              </article>
+            </div>
+          </div>
+          <p className="apps-status" role="status">
+            {message}
+          </p>
+        </>
       ) : launcherExpanded ? (
         <>
           <section className="apps-launcher-panel" aria-labelledby="apps-launcher-title">

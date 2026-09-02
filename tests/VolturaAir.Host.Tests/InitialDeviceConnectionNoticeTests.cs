@@ -6,6 +6,28 @@ namespace VolturaAir.Host.Tests;
 public sealed class InitialDeviceConnectionNoticeTests : IsolatedHostSettingsTest
 {
     [Fact]
+    public void AuthenticatedConnectionMethodRemainsAvailableAfterDisconnectAndRestart()
+    {
+        using var store = new TempPairingStore();
+        using var key = new PairingTestKey();
+        var manager = Pair(store, key, "client-a");
+
+        using (manager.TrackConnection(
+            "client-a",
+            connectionMethod: DeviceConnectionMethod.CloudRelay))
+        {
+            Assert.Equal(
+                DeviceConnectionMethod.CloudRelay,
+                Assert.Single(manager.GetDevices()).LastConnectionMethod);
+        }
+
+        var restarted = new PairingManager(store.Store);
+        Assert.Equal(
+            DeviceConnectionMethod.CloudRelay,
+            Assert.Single(restarted.GetDevices()).LastConnectionMethod);
+    }
+
+    [Fact]
     public void FirstAuthenticatedConnectionPublishesMandatoryNoticeWhenOptionalNoticesAreDisabled()
     {
         using var store = new TempPairingStore();

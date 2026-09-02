@@ -32,11 +32,14 @@ vi.mock("./features/ai-assistant", () => ({
 }));
 
 vi.mock("./features/apps", () => ({
-  default: ({ onBack }: { onBack: () => void }) => (
+  default: ({ onBack, onOpenTrackpad }: { onBack: () => void; onOpenTrackpad: () => void }) => (
     <div data-testid="apps-workspace">
       Apps workspace
       <button type="button" onClick={onBack}>
         Back from Apps
+      </button>
+      <button type="button" onClick={onOpenTrackpad}>
+        Open Trackpad
       </button>
     </div>
   ),
@@ -738,11 +741,58 @@ describe("App header and mode navigation", () => {
     expect(document.querySelector(".top-mode-tabs")).toBeNull();
     expect(document.querySelector(".bottom-mode-tabs")).toBeNull();
     expect(screen.queryByText("Application opened.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Change mode" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Back from Apps" }));
     expect(screen.queryByTestId("apps-workspace")).toBeNull();
     expect(document.querySelector(".app-shell")?.classList).not.toContain("apps-active");
     expect(document.querySelector(".bottom-mode-tabs")).not.toBeNull();
+  });
+
+  it("opens Trackpad directly from Apps when Trackpad is already selected", async () => {
+    mockConnection({
+      appsCapability: {
+        enabled: true,
+        permissionGranted: true,
+        canUse: true,
+        previewAvailable: false,
+      },
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    const menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog");
+    fireEvent.click(within(menu!).getByRole("button", { name: "Apps" }));
+    expect(await screen.findByTestId("apps-workspace")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Trackpad" }));
+
+    expect(screen.queryByTestId("apps-workspace")).toBeNull();
+    expect(document.querySelector(".app-shell")?.classList).toContain("trackpad-active");
+    expect(document.querySelector(".trackpad-mode")).not.toBeNull();
+  });
+
+  it("switches from Apps through the header mode selector", async () => {
+    mockConnection({
+      appsCapability: {
+        enabled: true,
+        permissionGranted: true,
+        canUse: true,
+        previewAvailable: false,
+      },
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    const settings = screen.getByRole("heading", { name: "Menu" }).closest("dialog");
+    fireEvent.click(within(settings!).getByRole("button", { name: "Apps" }));
+    expect(await screen.findByTestId("apps-workspace")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Change mode" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Keyboard" }));
+
+    expect(screen.queryByTestId("apps-workspace")).toBeNull();
+    expect(document.querySelector(".keyboard-mode")).not.toBeNull();
   });
 
   it.each([

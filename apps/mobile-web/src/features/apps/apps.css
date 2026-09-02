@@ -19,10 +19,15 @@
 
 .apps-header {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 10px;
+}
+
+.apps-header-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .apps-header h2,
@@ -64,6 +69,12 @@
   display: none;
 }
 
+.apps-loading-carousel {
+  justify-content: center;
+  overflow: hidden;
+  touch-action: none;
+}
+
 .apps-carousel-item {
   --apps-card-focus: 0;
 
@@ -101,6 +112,31 @@
 
 .apps-window-card.is-selected {
   border-color: color-mix(in srgb, var(--accent) 58%, transparent);
+}
+
+.apps-loading-card {
+  display: grid;
+  place-items: center;
+}
+
+.apps-loading-content {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  color: var(--muted);
+}
+
+.apps-loading-spinner {
+  width: 30px;
+  height: 30px;
+  color: var(--accent);
+  animation: apps-spin 0.8s linear infinite;
+}
+
+.apps-loading-text {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .apps-window-card.is-selected:is(.is-close-dragging, .is-close-committed) {
@@ -180,6 +216,12 @@ button.apps-card-main:disabled,
   transition: opacity 180ms ease-out;
 }
 
+.apps-preview-image-current {
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+}
+
+.apps-preview-image-current.is-ready,
 .apps-preview-image-incoming.is-ready {
   opacity: 1;
 }
@@ -496,8 +538,9 @@ button.apps-close-button:disabled,
 }
 
 .apps-status {
-  min-height: 34px;
+  height: calc(2rem + 17px + env(safe-area-inset-bottom, 0px));
   margin: 0;
+  overflow: hidden;
   padding: 7px 24px calc(10px + env(safe-area-inset-bottom, 0px));
   color: var(--muted);
   font-size: 0.74rem;
@@ -588,6 +631,7 @@ button.apps-close-button:disabled,
     transition: none;
   }
 
+  .apps-loading-spinner,
   .apps-refreshing {
     animation: none;
   }

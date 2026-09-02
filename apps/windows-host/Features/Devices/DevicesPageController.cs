@@ -10,6 +10,7 @@ internal sealed record DeviceAccessViewState(
 internal sealed class DevicesPageController(
     Window owner,
     PairingManager pairingManager,
+    WebHostService webHost,
     ISystemPowerController powerController,
     Action requestViewRefresh)
 {
@@ -250,26 +251,35 @@ internal sealed class DevicesPageController(
     {
         var globalPermissions = AppPermissionSettings.Load();
         return [.. pairingManager.GetDevices()
-            .Select(device => new DeviceListItem(
-                device.ClientId,
-                device.DeviceName,
-                device.IsActive ? "Connected" : "Not connected",
-                device.IsActive,
-                GetDeviceActivityText(device),
-                GetDeviceMetadataText(device) is { Length: > 0 } metadata ? metadata : "No device metadata",
-                device.PointerSpeed,
-                device.PointerSpeedOverride is not null,
-                device.ShowModeButtonsOverride,
-                device.ShowModeButtons,
-                device.ControlDepthOverride,
-                device.ControlDepth,
-                device.AccessProfile,
-                GetPermissionItems(device, pairingManager.GetEffectivePermissions(device.ClientId, globalPermissions)),
-                new ProtectedFileFilterItem(
+            .Select(device =>
+            {
+                var connectionAvailable = webHost.IsDeviceConnectionMethodAvailable(device.LastConnectionMethod);
+                return new DeviceListItem(
                     device.ClientId,
-                    device.PermissionOverrides.HideProtectedFileSystemItems,
-                    pairingManager.GetEffectivePermissions(device.ClientId, globalPermissions).HideProtectedFileSystemItems),
-                device.ClientId == _expandedClientId))];
+                    device.DeviceName,
+                    device.IsActive
+                        ? "Connected"
+                        : connectionAvailable
+                            ? "Not connected"
+                            : "Unavailable in current mode",
+                    device.IsActive,
+                    connectionAvailable,
+                    GetDeviceSummaryText(device),
+                    GetDeviceMetadataText(device) is { Length: > 0 } metadata ? metadata : "No device metadata",
+                    device.PointerSpeed,
+                    device.PointerSpeedOverride is not null,
+                    device.ShowModeButtonsOverride,
+                    device.ShowModeButtons,
+                    device.ControlDepthOverride,
+                    device.ControlDepth,
+                    device.AccessProfile,
+                    GetPermissionItems(device, pairingManager.GetEffectivePermissions(device.ClientId, globalPermissions)),
+                    new ProtectedFileFilterItem(
+                        device.ClientId,
+                        device.PermissionOverrides.HideProtectedFileSystemItems,
+                        pairingManager.GetEffectivePermissions(device.ClientId, globalPermissions).HideProtectedFileSystemItems),
+                    device.ClientId == _expandedClientId);
+            })];
     }
 
     private List<DevicePermissionItem> GetPermissionItems(PairedDeviceStatus device, HostPermissionSet effective)
@@ -298,6 +308,24 @@ internal sealed class DevicesPageController(
         }
 
         return $"Last active {FormatDeviceTime(device.LatestActivityAt)}";
+    }
+
+    private static string GetDeviceSummaryText(PairedDeviceStatus device) =>
+        FormatConnectionActivity(device.LastConnectionMethod, GetDeviceActivityText(device));
+
+    internal static string FormatConnectionActivity(
+        DeviceConnectionMethod connectionMethod,
+        string activity)
+    {
+        var connection = connectionMethod switch
+        {
+            DeviceConnectionMethod.StandardLocal => "Standard Local",
+            DeviceConnectionMethod.EnhancedDirect => "Enhanced Direct",
+            DeviceConnectionMethod.DebugDirect => "Debug Direct",
+            DeviceConnectionMethod.CloudRelay => "Cloud Relay",
+            _ => null
+        };
+        return connection is null ? activity : $"Connection: {connection}, {activity}";
     }
 
     private static string GetDeviceMetadataText(PairedDeviceStatus device)

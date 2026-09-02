@@ -8,6 +8,56 @@ namespace VolturaAir.Host.Tests;
 
 public sealed partial class HostUiLayoutTests
 {
+    [Theory]
+    [InlineData(DeviceConnectionMethod.StandardLocal, "Standard Local")]
+    [InlineData(DeviceConnectionMethod.EnhancedDirect, "Enhanced Direct")]
+    [InlineData(DeviceConnectionMethod.DebugDirect, "Debug Direct")]
+    [InlineData(DeviceConnectionMethod.CloudRelay, "Cloud Relay")]
+    public void DevicesHeaderKeepsConnectionAndActivityOnOneRow(
+        DeviceConnectionMethod method,
+        string expectedMethod)
+    {
+        Assert.Equal(
+            $"Connection: {expectedMethod}, Last active 2026-09-02 01:06:39",
+            DevicesPageController.FormatConnectionActivity(
+                method,
+                "Last active 2026-09-02 01:06:39"));
+    }
+
+    [Fact]
+    public void DevicesHeaderKeepsLegacyActivityWhenNoConnectionMethodWasRecorded()
+    {
+        Assert.Equal(
+            "Last active 2026-09-02 01:06:39",
+            DevicesPageController.FormatConnectionActivity(
+                DeviceConnectionMethod.Unknown,
+                "Last active 2026-09-02 01:06:39"));
+    }
+
+    [Theory]
+    [InlineData(DeviceConnectionMethod.Unknown, (int)ConnectionTransportMode.Relay, false, true)]
+    [InlineData(DeviceConnectionMethod.StandardLocal, (int)ConnectionTransportMode.DirectLan, false, true)]
+    [InlineData(DeviceConnectionMethod.StandardLocal, (int)ConnectionTransportMode.Relay, true, false)]
+    [InlineData(DeviceConnectionMethod.EnhancedDirect, (int)ConnectionTransportMode.DirectLan, false, false)]
+    [InlineData(DeviceConnectionMethod.EnhancedDirect, (int)ConnectionTransportMode.DirectLan, true, true)]
+    [InlineData(DeviceConnectionMethod.DebugDirect, (int)ConnectionTransportMode.DirectLan, true, true)]
+    [InlineData(DeviceConnectionMethod.DebugDirect, (int)ConnectionTransportMode.Relay, true, false)]
+    [InlineData(DeviceConnectionMethod.CloudRelay, (int)ConnectionTransportMode.Relay, true, true)]
+    [InlineData(DeviceConnectionMethod.CloudRelay, (int)ConnectionTransportMode.DirectLan, true, false)]
+    public void DeviceAvailabilityMatchesTheRunningHostMode(
+        DeviceConnectionMethod method,
+        int hostTransportValue,
+        bool enhancedCapabilitiesEnabled,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            WebHostService.IsDeviceConnectionMethodAvailable(
+                method,
+                (ConnectionTransportMode)hostTransportValue,
+                enhancedCapabilitiesEnabled));
+    }
+
     [Fact]
     public void DevicesPageMapsConnectionStatesToSemanticPills()
     {
@@ -18,11 +68,13 @@ public sealed partial class HostUiLayoutTests
 
         RunOnStaThread(() =>
         {
-            var connected = CreateDevice("connected", "Connected device", "Connected", true, "Connected now");
-            var disconnected = CreateDevice("disconnected", "Disconnected device", "Not connected", false, "Disconnected earlier");
-            var page = CreatePage([connected, disconnected]);
+            var connected = CreateDevice("connected", "Connected device", "Connected", true, true, "Connected now");
+            var disconnected = CreateDevice("disconnected", "Disconnected device", "Not connected", false, true, "Disconnected earlier");
+            var unavailable = CreateDevice("unavailable", "Unavailable device", "Unavailable in current mode", false, false, "Disconnected earlier");
+            var page = CreatePage([connected, disconnected, unavailable]);
             AssertStatusPill(page, connected, PillBadgeTone.Success);
-            AssertStatusPill(page, disconnected, PillBadgeTone.Danger);
+            AssertStatusPill(page, disconnected, PillBadgeTone.Outline);
+            AssertStatusPill(page, unavailable, PillBadgeTone.Danger);
         });
     }
 
@@ -39,8 +91,8 @@ public sealed partial class HostUiLayoutTests
             using var appScope = new WpfApplicationScope();
             var devices = new[]
             {
-                CreateDevice("first", "First device", "Connected", true, "Connected now"),
-                CreateDevice("second", "Second device", "Not connected", false, "Disconnected earlier")
+                CreateDevice("first", "First device", "Connected", true, true, "Connected now"),
+                CreateDevice("second", "Second device", "Not connected", false, true, "Disconnected earlier")
             };
             var page = CreatePage(devices);
             var window = new Window
@@ -118,7 +170,7 @@ public sealed partial class HostUiLayoutTests
 
         RunOnStaThread(() =>
         {
-            var page = CreatePage([CreateDevice("device", "Device", "Connected", true, "Connected now")]);
+            var page = CreatePage([CreateDevice("device", "Device", "Connected", true, true, "Connected now")]);
 
             Assert.True(VirtualizingPanel.GetIsVirtualizing(page.Devices));
             Assert.Equal(ScrollUnit.Pixel, VirtualizingPanel.GetScrollUnit(page.Devices));
@@ -138,8 +190,8 @@ public sealed partial class HostUiLayoutTests
         {
             using var appScope = new WpfApplicationScope();
             var page = CreatePage([
-                CreateDevice("first", "First device", "Connected", true, "Connected now"),
-                CreateDevice("second", "Second device", "Not connected", false, "Disconnected earlier")
+                CreateDevice("first", "First device", "Connected", true, true, "Connected now"),
+                CreateDevice("second", "Second device", "Not connected", false, true, "Disconnected earlier")
             ]);
             var window = new Window
             {
@@ -191,7 +243,7 @@ public sealed partial class HostUiLayoutTests
         RunOnStaThread(() =>
         {
             using var appScope = new WpfApplicationScope();
-            var page = CreatePage([CreateDevice("device", "Device", "Connected", true, "Connected now")]);
+            var page = CreatePage([CreateDevice("device", "Device", "Connected", true, true, "Connected now")]);
             var window = new Window
             {
                 Content = page,
@@ -257,7 +309,7 @@ public sealed partial class HostUiLayoutTests
         RunOnStaThread(() =>
         {
             using var appScope = new WpfApplicationScope();
-            var page = CreatePage([CreateDevice("device", "Device", "Connected", true, "Connected now")]);
+            var page = CreatePage([CreateDevice("device", "Device", "Connected", true, true, "Connected now")]);
             var window = new Window
             {
                 Content = page,
@@ -337,11 +389,18 @@ public sealed partial class HostUiLayoutTests
         static () => { },
         static () => { });
 
-    private static DeviceListItem CreateDevice(string clientId, string name, string status, bool isConnected, string activity) => new(
+    private static DeviceListItem CreateDevice(
+        string clientId,
+        string name,
+        string status,
+        bool isConnected,
+        bool isConnectionAvailable,
+        string activity) => new(
         clientId,
         name,
         status,
         isConnected,
+        isConnectionAvailable,
         activity,
         "Windows / Chrome / Browser",
         DevicePointerProfile.DefaultPointerSpeed,

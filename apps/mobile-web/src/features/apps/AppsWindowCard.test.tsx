@@ -50,6 +50,13 @@ describe("Apps window card", () => {
     vi.useFakeTimers();
     const view = render(card("unavailable", vi.fn(), vi.fn(), "blob:current"));
 
+    const currentImage = screen
+      .getByRole("button", { name: "Activate Draft" })
+      .querySelector<HTMLImageElement>("img");
+    expect(currentImage?.classList.contains("is-ready")).toBe(false);
+    fireEvent.load(currentImage!);
+    expect(currentImage?.classList.contains("is-ready")).toBe(true);
+
     view.rerender(card("unavailable", vi.fn(), vi.fn(), "blob:replacement"));
     const images = screen.getByRole("button", { name: "Activate Draft" }).querySelectorAll("img");
     expect(images).toHaveLength(2);

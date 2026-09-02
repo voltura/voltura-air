@@ -1,6 +1,17 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace VolturaAir.Host;
+
+[JsonConverter(typeof(DeviceConnectionMethodJsonConverter))]
+public enum DeviceConnectionMethod
+{
+    Unknown,
+    StandardLocal,
+    EnhancedDirect,
+    DebugDirect,
+    CloudRelay
+}
 
 public sealed record PairingRecord(
     string ClientId,
@@ -23,7 +34,8 @@ public sealed record PairingRecord(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ShowModeButtonsOverride = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ControlDepthOverride = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? AccentColorOverride = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CustomScreenViewport? CustomScreenViewport = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CustomScreenViewport? CustomScreenViewport = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] DeviceConnectionMethod LastConnectionMethod = DeviceConnectionMethod.Unknown);
 
 public sealed record PairedDeviceStatus(
     string ClientId,
@@ -48,7 +60,8 @@ public sealed record PairedDeviceStatus(
     bool ControlDepth,
     string? AccentColorOverride,
     string? AccentColor,
-    CustomScreenViewport? CustomScreenViewport)
+    CustomScreenViewport? CustomScreenViewport,
+    DeviceConnectionMethod LastConnectionMethod)
 {
     public DateTimeOffset LatestActivityAt => new[] { AddedAt, LastConnectedAt, LastDisconnectedAt, LastRenamedAt }
         .Where(value => value.HasValue)
@@ -72,6 +85,43 @@ public static class DevicePointerProfile
 public sealed class PairingRevokedEventArgs(string? clientId) : EventArgs
 {
     public string? ClientId { get; } = clientId;
+}
+
+internal sealed class DeviceConnectionMethodJsonConverter : JsonConverter<DeviceConnectionMethod>
+{
+    public override DeviceConnectionMethod Read(
+        ref Utf8JsonReader reader,
+        Type typeToConvert,
+        JsonSerializerOptions options)
+    {
+        if (reader.TokenType != JsonTokenType.String)
+        {
+            reader.Skip();
+            return DeviceConnectionMethod.Unknown;
+        }
+
+        return reader.GetString() switch
+        {
+            "standard-local" => DeviceConnectionMethod.StandardLocal,
+            "enhanced-direct" => DeviceConnectionMethod.EnhancedDirect,
+            "debug-direct" => DeviceConnectionMethod.DebugDirect,
+            "cloud-relay" => DeviceConnectionMethod.CloudRelay,
+            _ => DeviceConnectionMethod.Unknown
+        };
+    }
+
+    public override void Write(
+        Utf8JsonWriter writer,
+        DeviceConnectionMethod value,
+        JsonSerializerOptions options) =>
+        writer.WriteStringValue(value switch
+        {
+            DeviceConnectionMethod.StandardLocal => "standard-local",
+            DeviceConnectionMethod.EnhancedDirect => "enhanced-direct",
+            DeviceConnectionMethod.DebugDirect => "debug-direct",
+            DeviceConnectionMethod.CloudRelay => "cloud-relay",
+            _ => "unknown"
+        });
 }
 
 public sealed record InitialDeviceConnectionNotice(

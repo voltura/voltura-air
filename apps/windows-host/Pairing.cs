@@ -396,12 +396,15 @@ public sealed class PairingManager
         ConnectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public IDisposable TrackConnection(string clientId, DateTimeOffset? now = null)
+    public IDisposable TrackConnection(
+        string clientId,
+        DateTimeOffset? now = null,
+        DeviceConnectionMethod connectionMethod = DeviceConnectionMethod.Unknown)
     {
         InitialDeviceConnectionNotice? initialNotice;
         lock (_gate)
         {
-            initialNotice = _devices.AddConnection(clientId, now ?? DateTimeOffset.UtcNow);
+            initialNotice = _devices.AddConnection(clientId, now ?? DateTimeOffset.UtcNow, connectionMethod);
         }
 
         PublishInitialDeviceConnection(initialNotice);
@@ -414,7 +417,8 @@ public sealed class PairingManager
         Action registerTransport,
         out IDisposable? connection,
         out long pairingEpoch,
-        DateTimeOffset? now = null)
+        DateTimeOffset? now = null,
+        DeviceConnectionMethod connectionMethod = DeviceConnectionMethod.Unknown)
     {
         InitialDeviceConnectionNotice? initialNotice;
         lock (_gate)
@@ -428,7 +432,7 @@ public sealed class PairingManager
 
             pairingEpoch = GetPairingEpochLocked(clientId);
             registerTransport();
-            initialNotice = _devices.AddConnection(clientId, now ?? DateTimeOffset.UtcNow);
+            initialNotice = _devices.AddConnection(clientId, now ?? DateTimeOffset.UtcNow, connectionMethod);
             connection = new ConnectionScope(this, clientId);
         }
 

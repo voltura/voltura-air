@@ -43,7 +43,8 @@ public sealed class DeviceAccessProfilePersistenceTests : IsolatedHostSettingsTe
             PointerSpeedOverride: 65,
             ShowModeButtonsOverride: false,
             ControlDepthOverride: true,
-            CustomScreenViewport: viewport);
+            CustomScreenViewport: viewport,
+            LastConnectionMethod: DeviceConnectionMethod.DebugDirect);
         store.Store.Save([legacy]);
 
         var manager = new PairingManager(store.Store);
@@ -66,6 +67,7 @@ public sealed class DeviceAccessProfilePersistenceTests : IsolatedHostSettingsTe
         Assert.False(persisted.ShowModeButtonsOverride);
         Assert.True(persisted.ControlDepthOverride);
         Assert.Equal(viewport, persisted.CustomScreenViewport);
+        Assert.Equal(DeviceConnectionMethod.DebugDirect, persisted.LastConnectionMethod);
         Assert.True(effective.AllowRemoteInput);
         Assert.True(effective.AllowPcSleep);
         Assert.False(effective.AllowFileBrowsing);

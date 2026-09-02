@@ -6,12 +6,19 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
-## v1.2.0
+## v1.2.1
 
 - Added PC sound to **View PC screen**. Playback starts muted on every connection,
   and you can turn it on or off from the live view.
 - You can now scroll with two fingers while using **Gyro** in Trackpad,
   Presentation, and Gyro-enabled Custom Screens.
+- Made Trackpad quicker to reach from **Apps** with the quick mode selector and
+  a direct shortcut beside Refresh.
+- Improved **Apps** loading and refreshing, with steadier app cards and more
+  reliable previews for inactive windows.
+
+## v1.2.0
+
 - Increased connection timeout for **Relay connection** and **View PC screen**.
 - Updated supporting components to keep Voltura Air reliable and compatible.
 

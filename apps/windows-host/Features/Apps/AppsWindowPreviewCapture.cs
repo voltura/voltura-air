@@ -19,29 +19,21 @@ internal static class AppsWindowPreviewCapture
             using var source = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppArgb);
             using (var graphics = Graphics.FromImage(source))
             {
-                graphics.Clear(Color.Transparent);
-                nint hdc = graphics.GetHdc();
-                try
+                bool captured = TryPrintWindow(
+                    windowHandle,
+                    graphics,
+                    PrintWindowRenderFullContent);
+                cancellationToken.ThrowIfCancellationRequested();
+                bool needsFallback = !captured || LooksBlank(source);
+                if (needsFallback)
                 {
-                    bool printed = AppsWindowNativeMethods.PrintWindow(
-                        windowHandle,
-                        hdc,
-                        PrintWindowRenderFullContent);
-                    if (!printed)
+                    captured = TryPrintWindow(windowHandle, graphics, flags: 0);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!captured || LooksBlank(source))
                     {
                         return new(false, null, 0, 0);
                     }
                 }
-                finally
-                {
-                    graphics.ReleaseHdc(hdc);
-                }
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-            if (LooksBlank(source))
-            {
-                return new(false, null, 0, 0);
             }
 
             Size scaledSize = ScaleInside(
@@ -85,6 +77,20 @@ internal static class AppsWindowPreviewCapture
             exception is ArgumentException or ExternalException or Win32Exception or OverflowException)
         {
             return new(false, null, 0, 0);
+        }
+    }
+
+    private static bool TryPrintWindow(nint windowHandle, Graphics graphics, uint flags)
+    {
+        graphics.Clear(Color.Transparent);
+        nint hdc = graphics.GetHdc();
+        try
+        {
+            return AppsWindowNativeMethods.PrintWindow(windowHandle, hdc, flags);
+        }
+        finally
+        {
+            graphics.ReleaseHdc(hdc);
         }
     }
 

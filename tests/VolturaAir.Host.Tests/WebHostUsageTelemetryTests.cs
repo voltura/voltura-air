@@ -5,6 +5,25 @@ namespace VolturaAir.Host.Tests;
 [Collection(AppPermissionSettingsCollection.Name)]
 public sealed class WebHostUsageTelemetryTests : WebHostServiceTestBase
 {
+    [Theory]
+    [InlineData((int)UsageConnectionMethod.StandardLocal, false, DeviceConnectionMethod.StandardLocal)]
+    [InlineData((int)UsageConnectionMethod.StandardLocal, true, DeviceConnectionMethod.StandardLocal)]
+    [InlineData((int)UsageConnectionMethod.EnhancedDirect, false, DeviceConnectionMethod.EnhancedDirect)]
+    [InlineData((int)UsageConnectionMethod.EnhancedDirect, true, DeviceConnectionMethod.DebugDirect)]
+    [InlineData((int)UsageConnectionMethod.Relay, false, DeviceConnectionMethod.CloudRelay)]
+    [InlineData((int)UsageConnectionMethod.Relay, true, DeviceConnectionMethod.CloudRelay)]
+    public void DeviceConnectionMethodUsesTransportAndExistingDevelopmentHostState(
+        int transportValue,
+        bool developmentHost,
+        DeviceConnectionMethod expected)
+    {
+        Assert.Equal(
+            expected,
+            WebSocketSessionHandler.ResolveDeviceConnectionMethod(
+                (UsageConnectionMethod)transportValue,
+                developmentHost));
+    }
+
     [Fact]
     public async Task AuthenticatedSessionRecordsItsTransportAndEachFeatureContextOnce()
     {

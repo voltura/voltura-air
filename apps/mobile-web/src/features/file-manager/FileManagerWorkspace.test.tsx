@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { publishFileManagerResult } from "../../foundation/connection/fileManagerResultBus";
 import type {
   ClientMessage,
+  FileJobSnapshot,
   FileManagerEntry,
   FileManagerPanelPage,
 } from "../../foundation/protocol/messages";
@@ -386,7 +387,7 @@ describe("FileManagerWorkspace pagination and selection", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "File operations · 1 in history" }));
     expect(screen.getByRole("heading", { name: "File operations" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove history" }));
     expect(
       [...sent].reverse().find((message) => message.type === "file.job.control"),
     ).toMatchObject({
@@ -394,6 +395,24 @@ describe("FileManagerWorkspace pagination and selection", () => {
       jobId: "job-failed",
       action: "dismiss",
     });
+  });
+
+  it("places capitalized conflict actions below the conflict message", () => {
+    const sent: ClientMessage[] = [];
+    renderWorkspace(sent);
+    openSession(sent, [], []);
+    act(() =>
+      publishFileManagerResult({
+        type: "file.jobs.status",
+        jobs: [job("job-upload", "upload", "needs-attention")],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^Upload · Needs attention/u }));
+    const message = screen.getByText("image.jpg already exists.");
+    const actions = message.nextElementSibling;
+    expect(actions?.className).toBe("file-conflict-actions");
+    expect(actions?.textContent).toBe("ReplaceKeep bothCancel");
   });
 });
 
@@ -459,9 +478,9 @@ function openSession(
 
 function job(
   jobId: string,
-  operation: "copy" | "move" | "paste" | "rename" | "delete",
-  state: "running" | "completed" | "failed",
-) {
+  operation: FileJobSnapshot["operation"],
+  state: FileJobSnapshot["state"],
+): FileJobSnapshot {
   return {
     jobId,
     operation,
@@ -472,8 +491,9 @@ function job(
     bytesCompleted: state === "completed" ? 12 : 0,
     bytesTotal: 12,
     message: state === "failed" ? "Copy failed." : "Working.",
+    conflictName: state === "needs-attention" ? "image.jpg" : null,
     canPause: state === "running",
     canResume: false,
-    canCancel: state === "running",
-  } as const;
+    canCancel: state === "running" || state === "needs-attention",
+  };
 }

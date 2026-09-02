@@ -527,7 +527,8 @@
   gap: 0.35rem;
 }
 
-.file-operation-center article > div {
+.file-job-actions,
+.file-conflict-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
@@ -544,8 +545,14 @@
 }
 
 .file-conflict {
+  display: grid;
   padding-top: 0.4rem;
   border-top: 1px solid var(--border);
+  gap: 0.5rem;
+}
+
+.file-conflict > p {
+  margin: 0;
 }
 
 .file-properties {

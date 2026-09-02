@@ -6,6 +6,13 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.2.2
+
+- Added **Take photo** to **Files on PC**, letting you take a picture on your
+  phone and save it directly to the open PC folder.
+- Improved **File operations** with clearer history controls, easier-to-read
+  status labels, and better-arranged conflict actions on smaller screens.
+
 ## v1.2.1
 
 - Added PC sound to **View PC screen**. Playback starts muted on every connection,

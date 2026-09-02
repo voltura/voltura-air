@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowRightLeft, Download, Share2, Upload, X } from "lucide-react";
+import { ArrowRightLeft, Camera, Download, Share2, Upload, X } from "lucide-react";
 import type { PcProfile } from "../../foundation/connection/pcProfiles";
 import type { ClientMessage } from "../../foundation/protocol/messages";
 import { ModalDialog } from "../../ui/overlays/ModalDialog";
@@ -33,6 +33,7 @@ export function FileTransferMenu({
   const [open, setOpen] = useState(false);
   const [replacementName, setReplacementName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const transfer = useFileTransfer(
@@ -46,6 +47,15 @@ export function FileTransferMenu({
   const supportsDownload = supportsDeviceTransferStorage();
   const canDownload = supportsDownload && target.entry?.kind === "file";
   const busy = transfer.presentation.active || transfer.presentation.readyToSave;
+  const uploadSelectedFile = (input: HTMLInputElement) => {
+    const file = input.files?.[0];
+    input.value = "";
+    setOpen(false);
+    if (file) {
+      setReplacementName(file.name);
+      transfer.startUpload(target, file);
+    }
+  };
   useEffect(() => {
     onPresentationChange?.(busy);
     return () => onPresentationChange?.(false);
@@ -109,21 +119,32 @@ export function FileTransferMenu({
             <Upload />
             Choose file from this device
           </button>
+          <button
+            role="menuitem"
+            disabled={!canModify || busy}
+            onClick={() => {
+              setOpen(false);
+              photoInputRef.current?.click();
+            }}
+          >
+            <Camera />
+            Take photo
+          </button>
         </div>
       )}
       <input
         ref={inputRef}
         className="file-transfer-input"
         type="file"
-        onChange={(event) => {
-          const file = event.currentTarget.files?.[0];
-          event.currentTarget.value = "";
-          setOpen(false);
-          if (file) {
-            setReplacementName(file.name);
-            transfer.startUpload(target, file);
-          }
-        }}
+        onChange={(event) => uploadSelectedFile(event.currentTarget)}
+      />
+      <input
+        ref={photoInputRef}
+        className="file-transfer-input"
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={(event) => uploadSelectedFile(event.currentTarget)}
       />
       {(transfer.presentation.active || transfer.presentation.readyToSave) && (
         <div className="file-transfer-progress" role="status">

@@ -39,8 +39,8 @@ networks that block inbound PC connections.
   enough, including phones in landscape, with direct copy/move, Windows
   clipboard operations, properties, background progress, and an option to open
   a file and continue into the PC screen mirror. Its compact Transfer menu can
-  save one selected PC file to the device or upload one chosen device file into
-  the active PC folder.
+  save one selected PC file to the device, upload one chosen device file, or
+  take one photo and save it into the active PC folder.
 - Ask the **AI Assistant** from the Windows host or a personal paired device how
   Voltura Air works, troubleshoot a feature, or investigate information
   available to your Windows account. The host entry stays visible when Codex is

@@ -104,6 +104,9 @@ interface Props {
 
 const emptySelection = (): SelectionState => ({ all: false, ids: new Set(), excluded: new Set() });
 const maximumUploadSelectionContinuationPages = 4;
+const formatFileJobLabel = (
+  value: FileJobSnapshot["operation"] | FileJobSnapshot["state"],
+): string => `${value.charAt(0).toUpperCase()}${value.slice(1).replaceAll("-", " ")}`;
 
 export default function FileManagerWorkspace({
   activePc,
@@ -1006,7 +1009,8 @@ export default function FileManagerWorkspace({
       {leadingJob && (
         <button className="file-job-minimized" onClick={() => setOperationsOpen(true)}>
           <span>
-            {leadingJob.operation} · {leadingJob.currentName ?? leadingJob.state}
+            {formatFileJobLabel(leadingJob.operation)} ·{" "}
+            {leadingJob.currentName ?? formatFileJobLabel(leadingJob.state)}
           </span>
           <progress
             max={Math.max(1, leadingJob.bytesTotal || leadingJob.itemsTotal)}
@@ -1479,6 +1483,13 @@ function FilePanel({
   );
 }
 
+const conflictResolutionLabels = {
+  cancel: "Cancel",
+  "keep-both": "Keep both",
+  replace: "Replace",
+  skip: "Skip",
+} as const;
+
 function OperationCenter({
   jobs,
   onClose,
@@ -1521,7 +1532,7 @@ function OperationCenter({
           jobs.map((job) => (
             <article key={job.jobId}>
               <strong>
-                {job.operation} · {job.state}
+                {formatFileJobLabel(job.operation)} · {formatFileJobLabel(job.state)}
               </strong>
               <span>{job.currentName ?? job.message}</span>
               <progress
@@ -1538,7 +1549,7 @@ function OperationCenter({
                   ? ` · ${formatDuration(job.etaSeconds)} remaining`
                   : ""}
               </small>
-              <div>
+              <div className="file-job-actions">
                 {job.state === "queued" && (
                   <>
                     <button
@@ -1599,7 +1610,7 @@ function OperationCenter({
                 {isTerminalJob(job.state) && (
                   <button onClick={() => control(job.jobId, "dismiss")}>
                     <X />
-                    Remove
+                    Remove history
                   </button>
                 )}
               </div>
@@ -1621,33 +1632,35 @@ function OperationCenter({
                       Apply to all remaining conflicts
                     </label>
                   )}
-                  {(job.operation === "upload"
-                    ? (["replace", "keep-both", "cancel"] as const)
-                    : (["replace", "skip", "cancel"] as const)
-                  ).map((resolution) => (
-                    <button
-                      key={resolution}
-                      onClick={() =>
-                        send({
-                          type: "file.job.conflict.resolve",
-                          operationId: createLocalId(),
-                          jobId: job.jobId,
-                          resolution,
-                          applyToAll:
-                            job.operation === "upload" ? false : applyAll[job.jobId] === true,
-                        })
-                      }
-                    >
-                      {resolution === "skip" || resolution === "keep-both" ? (
-                        <SkipForward />
-                      ) : resolution === "replace" ? (
-                        <Copy />
-                      ) : (
-                        <X />
-                      )}
-                      {resolution === "keep-both" ? "keep both" : resolution}
-                    </button>
-                  ))}
+                  <div className="file-conflict-actions">
+                    {(job.operation === "upload"
+                      ? (["replace", "keep-both", "cancel"] as const)
+                      : (["replace", "skip", "cancel"] as const)
+                    ).map((resolution) => (
+                      <button
+                        key={resolution}
+                        onClick={() =>
+                          send({
+                            type: "file.job.conflict.resolve",
+                            operationId: createLocalId(),
+                            jobId: job.jobId,
+                            resolution,
+                            applyToAll:
+                              job.operation === "upload" ? false : applyAll[job.jobId] === true,
+                          })
+                        }
+                      >
+                        {resolution === "skip" || resolution === "keep-both" ? (
+                          <SkipForward />
+                        ) : resolution === "replace" ? (
+                          <Copy />
+                        ) : (
+                          <X />
+                        )}
+                        {conflictResolutionLabels[resolution]}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </article>

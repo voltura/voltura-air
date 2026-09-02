@@ -25,12 +25,12 @@ every browser API, require explicit user activation for sensitive access, keep
 captured data transient by default, and validate permission and lifecycle behavior
 on real target devices.
 
-| Candidate                      | Direction and evidence needed                                                                                                                                                                                                                                                                                                                  |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Motion gestures                | Extend the existing motion owner with a small set such as Shake and left/right Flick, mapped locally to existing actions. Prove useful thresholds, false-positive resistance, orientation behavior, cancellation, and real-iPhone operation before adding Tilt scroll or Custom Screen integration; do not send or persist raw sensor samples. |
-| Share to Voltura Air           | Evaluate installed-PWA share intake as an entry point to existing Send text/Open URL behavior. Confirm target-platform support, launch/session behavior, input bounds, and an understandable fallback; do not add history, inboxes, or cloud storage.                                                                                          |
-| Capture or scan directly to PC | Reuse the existing one-file upload destination, progress, cancellation, and cleanup while the existing camera owner supplies one transient photo or document capture. Prove real-device capture, review, retake, page lifecycle, and camera-track cleanup before considering multi-page scanning, correction, or OCR.                          |
-| Current location               | Consider only a direct user action that sends the current location to an existing text or URL destination. Define a concrete workflow and validate permission, precision disclosure, cancellation, and cleanup; do not add tracking, geofencing, or background automation.                                                                     |
+| Candidate                 | Direction and evidence needed                                                                                                                                                                                                                                                                                                                  |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Motion gestures           | Extend the existing motion owner with a small set such as Shake and left/right Flick, mapped locally to existing actions. Prove useful thresholds, false-positive resistance, orientation behavior, cancellation, and real-iPhone operation before adding Tilt scroll or Custom Screen integration; do not send or persist raw sensor samples. |
+| Share to Voltura Air      | Evaluate installed-PWA share intake as an entry point to existing Send text/Open URL behavior. Confirm target-platform support, launch/session behavior, input bounds, and an understandable fallback; do not add history, inboxes, or cloud storage.                                                                                          |
+| Document scanning and OCR | Build on the implemented one-photo **Take photo** upload only after defining review, correction, multi-page/PDF output, OCR ownership, quality, memory, privacy, temporary-data limits, and real-device evidence.                                                                                                                              |
+| Current location          | Consider only a direct user action that sends the current location to an existing text or URL destination. Define a concrete workflow and validate permission, precision disclosure, cancellation, and cleanup; do not add tracking, geofencing, or background automation.                                                                     |
 
 #### Share to Voltura Air
 
@@ -61,21 +61,19 @@ on real target devices.
 - Do not transmit, log, retain, or synchronize raw sensor samples. Add a protocol
   action only if no existing bounded action represents the chosen behavior.
 
-#### Capture or scan directly to PC
+#### Document scanning and OCR
 
-- Treat this as a focused entry point to the existing one-file Files transfer, not a new transfer service.
-  The user chooses or confirms the PC folder, captures one image, reviews or retakes
-  it, and explicitly uploads it through the same permission and transfer owner.
-- Reuse the existing camera permission and lifecycle mechanisms, while keeping
-  capture state separate from Phone webcam streaming and QR pairing. Release every
-  track on retake replacement, completion, cancellation, navigation, page hiding,
-  disconnect, or failure; do not retain an unsubmitted image.
-- Preserve the original capture first. Consider crop, perspective correction,
-  compression choice, multi-page documents, PDF generation, or OCR only after the
-  one-image workflow has real-device evidence and explicit quality, memory, and
-  temporary-data limits.
-- Use the existing transfer's safe names, conflicts, progress, cancellation,
-  reconnect behavior, Relay quotas, partial-file cleanup, and failure testing.
+- Keep the implemented **Take photo** one-image upload as the baseline and fallback.
+  Any scanning or OCR work should prepare a user-reviewed result for the existing
+  one-file transfer rather than introduce another transfer service.
+- Investigate crop and perspective correction, retake, multi-page documents, and
+  PDF generation only with explicit quality and memory bounds, temporary-data
+  cleanup, and real-iPhone evidence.
+- Define OCR output, language support, processing ownership, consent, and privacy
+  before implementation. Do not retain extracted text or intermediate images after
+  the user submits or cancels the result.
+- Reuse the current upload destination, permissions, safe names, conflicts,
+  progress, cancellation, Relay accounting, and partial-file cleanup.
 
 #### Send current location to the PC
 

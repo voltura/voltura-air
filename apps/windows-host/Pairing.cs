@@ -604,6 +604,16 @@ public sealed class PairingManager
 
     public bool GetDeviceAccentColorOverridden(string clientId) { lock (_gate) return _devices.GetDeviceAccentColorOverridden(clientId); }
 
+    public ScreenViewSoundQuality GetDeviceScreenSoundQuality(string clientId)
+    {
+        lock (_gate) return _devices.GetDeviceScreenSoundQuality(clientId);
+    }
+
+    public bool GetDeviceScreenSoundQualityOverridden(string clientId)
+    {
+        lock (_gate) return _devices.GetDeviceScreenSoundQualityOverridden(clientId);
+    }
+
     public CustomScreenViewport? GetCustomScreenViewport(string clientId)
     {
         lock (_gate) return _devices.GetCustomScreenViewport(clientId);
@@ -620,6 +630,9 @@ public sealed class PairingManager
 
     public bool SetDeviceAccentColorOverride(string clientId, string? accentColor) =>
         UpdateDeviceProfile(() => _devices.SetAccentColorOverride(clientId, accentColor));
+
+    public bool SetDeviceScreenSoundQualityOverride(string clientId, ScreenViewSoundQuality? soundQuality) =>
+        UpdateDeviceProfile(() => _devices.SetScreenSoundQualityOverride(clientId, soundQuality));
 
     public bool SetCustomScreenViewport(string clientId, CustomScreenViewport viewport) =>
         UpdateDeviceProfile(() => _devices.SetCustomScreenViewport(clientId, viewport));

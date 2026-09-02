@@ -14,6 +14,7 @@ internal static class PairingRecordNormalization
             PermissionOverrides = NormalizePermissionOverrides(record.PermissionOverrides),
             PointerSpeedOverride = NormalizePointerSpeedOverride(record.PointerSpeedOverride),
             AccentColorOverride = AccentColor.NormalizePersisted(record.AccentColorOverride),
+            ScreenSoundQualityOverride = NormalizeScreenSoundQualityOverride(record.ScreenSoundQualityOverride),
             CustomScreenViewport = NormalizeCustomScreenViewport(record.CustomScreenViewport),
             LastConnectionMethod = Enum.IsDefined(record.LastConnectionMethod)
                 ? record.LastConnectionMethod
@@ -62,6 +63,7 @@ internal static class PairingRecordNormalization
             ShowModeButtonsOverride = existing.ShowModeButtonsOverride,
             ControlDepthOverride = existing.ControlDepthOverride,
             AccentColorOverride = existing.AccentColorOverride,
+            ScreenSoundQualityOverride = existing.ScreenSoundQualityOverride,
             CustomScreenViewport = existing.CustomScreenViewport,
             LastConnectionMethod = existing.LastConnectionMethod
         };
@@ -104,5 +106,11 @@ internal static class PairingRecordNormalization
     private static int? NormalizePointerSpeedOverride(int? pointerSpeedOverride) =>
         pointerSpeedOverride is not null
             ? DevicePointerProfile.NormalizePointerSpeed(pointerSpeedOverride.Value)
+            : null;
+
+    private static ScreenViewSoundQuality? NormalizeScreenSoundQualityOverride(
+        ScreenViewSoundQuality? soundQualityOverride) =>
+        soundQualityOverride is not null && Enum.IsDefined(soundQualityOverride.Value)
+            ? soundQualityOverride
             : null;
 }

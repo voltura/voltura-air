@@ -11,11 +11,13 @@ import type {
   CustomScreenSummary,
   PhoneWebcamCapability,
   ScreenViewCapability,
+  ScreenViewSoundQuality,
 } from "../../foundation/protocol/messages";
 
 export type ThemeMode = "system" | "light" | "dark";
 export type SettingsSection =
   | "connection"
+  | "screen-viewing"
   | "custom-pointer"
   | "trackpad"
   | "keyboard"
@@ -63,6 +65,8 @@ export interface SettingsDrawerProps {
   onOpenScreenView?: (() => void) | undefined;
   onOpenPhoneWebcam?: (() => void) | undefined;
   screenViewCapability?: ScreenViewCapability | undefined;
+  screenSoundQuality?: ScreenViewSoundQuality | undefined;
+  screenSoundQualityOverridden?: boolean | undefined;
   phoneWebcamCapability?: PhoneWebcamCapability | undefined;
   aiAssistantCapability?: AiAssistantCapability | undefined;
   appsCapability?: AppsCapability | undefined;
@@ -81,6 +85,7 @@ export interface SettingsDrawerProps {
   selectPc: (pcId: string) => void;
   setHostCustomPointer?: ((enabled: boolean) => void) | undefined;
   setHostAccentColor?: ((accentColor: string | null) => void) | undefined;
+  setHostScreenSoundQuality?: ((soundQuality: ScreenViewSoundQuality | null) => void) | undefined;
   setHostControlDepth?: ((controlDepth: boolean) => void) | undefined;
   setHostShowModeButtons?: ((showModeButtons: boolean) => void) | undefined;
   setThemeMode: Dispatch<SetStateAction<ThemeMode>>;

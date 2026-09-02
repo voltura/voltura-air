@@ -27,6 +27,7 @@ internal sealed class DevicesPageController(
             CollapseDevice,
             SetDeviceShowModeButtonsOverride,
             SetDeviceControlDepthOverride,
+            SetDeviceScreenSoundQualityOverride,
             SetDevicePointerSpeedOverride,
             UseGlobalPointerSpeed,
             SetDeviceAccessProfile,
@@ -73,6 +74,7 @@ internal sealed class DevicesPageController(
                 item.ApplyPointerSpeed(profile.PointerSpeed, profile.PointerSpeedOverride is not null);
                 item.ApplyShowModeButtons(profile.ShowModeButtonsOverride, profile.ShowModeButtons);
                 item.ApplyControlDepth(profile.ControlDepthOverride, profile.ControlDepth);
+                item.ApplyScreenSoundQuality(profile.ScreenSoundQualityOverride, profile.ScreenSoundQuality);
                 var effectivePermissions = pairingManager.GetEffectivePermissions(
                     profile.ClientId,
                     AppPermissionSettings.Load());
@@ -129,6 +131,15 @@ internal sealed class DevicesPageController(
         pairingManager.SetDeviceControlDepthOverride(clientId, controlDepth);
         var device = pairingManager.GetDevices().FirstOrDefault(item => item.ClientId == clientId);
         return device is null ? null : (device.ControlDepthOverride, device.ControlDepth);
+    }
+
+    private (ScreenViewSoundQuality? Override, ScreenViewSoundQuality Effective)? SetDeviceScreenSoundQualityOverride(
+        string clientId,
+        ScreenViewSoundQuality? soundQuality)
+    {
+        pairingManager.SetDeviceScreenSoundQualityOverride(clientId, soundQuality);
+        var device = pairingManager.GetDevices().FirstOrDefault(item => item.ClientId == clientId);
+        return device is null ? null : (device.ScreenSoundQualityOverride, device.ScreenSoundQuality);
     }
 
     private int? UseGlobalPointerSpeed(string clientId)
@@ -272,6 +283,8 @@ internal sealed class DevicesPageController(
                     device.ShowModeButtons,
                     device.ControlDepthOverride,
                     device.ControlDepth,
+                    device.ScreenSoundQualityOverride,
+                    device.ScreenSoundQuality,
                     device.AccessProfile,
                     GetPermissionItems(device, pairingManager.GetEffectivePermissions(device.ClientId, globalPermissions)),
                     new ProtectedFileFilterItem(

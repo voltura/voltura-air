@@ -43,7 +43,7 @@ for a Windows 11 PC.
 - Host-controlled permissions for paired devices and disruptive PC actions.
 - QR pairing with saved reconnect over Direct LAN or optional end-to-end
   encrypted Cloud relay.
-- View PC screen carries one selected display and Windows system sound over encrypted WebRTC; each new device session starts muted and exposes a local Sound control.
+- View PC screen carries one selected display and Windows system sound over encrypted WebRTC; each new device session starts muted and exposes a local Sound control. PC sound offers High, Standard, and Low quality choices with a PC default and optional per-device override.
 - Cloud relay makes the Windows PC and mobile device connect outward, avoids an
   incoming PC firewall exception, and supports encrypted commands plus live
   screen viewing with High, Standard, and Data saver quality choices under the

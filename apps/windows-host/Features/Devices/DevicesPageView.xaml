@@ -109,6 +109,32 @@
                                     </ui:SpacingWrapPanel>
                                 </ui:SpacingStackPanel>
                             </Expander>
+                            <Expander Header="Screen viewing"
+                                      IsExpanded="{Binding IsScreenViewingExpanded, Mode=TwoWay}"
+                                      Expanded="OnScreenViewingExpanded"
+                                      Style="{DynamicResource PreferencesNestedAccordionStyle}">
+                                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
+                                    <TextBlock Text="Sound quality"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextBrush}" />
+                                    <TextBlock Text="{Binding ScreenSoundQualityHint}"
+                                               Foreground="{DynamicResource MutedTextBrush}"
+                                               TextWrapping="Wrap" />
+                                    <ComboBox Width="240"
+                                              HorizontalAlignment="Left"
+                                              ItemsSource="{Binding ScreenSoundQualityChoices}"
+                                              SelectedItem="{Binding SelectedScreenSoundQualityChoice, Mode=OneWay}"
+                                              SelectionChanged="OnScreenSoundQualityChanged"
+                                              Style="{DynamicResource ModernComboBoxStyle}"
+                                              AutomationProperties.Name="Sound quality">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding DisplayName}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </ui:SpacingStackPanel>
+                            </Expander>
                             <Expander Header="Trackpad profile"
                                       IsExpanded="{Binding IsTrackpadExpanded, Mode=TwoWay}"
                                       Expanded="OnTrackpadExpanded"

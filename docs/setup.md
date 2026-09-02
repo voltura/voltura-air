@@ -129,7 +129,11 @@ output support one display and one viewer at a time. D3D11 conversion and a hard
 H.264 encoder plus WASAPI loopback/Opus feed an adaptive WebRTC stream using direct LAN
 ICE or Relay-only TURN, up to 60 frames per second within the negotiated codec,
 hardware, receiver, and network capabilities. The browser must support H.264
-and Opus WebRTC playback. Each new peer starts device playback muted. Pinch/spread
+and Opus WebRTC playback. PC-sound capture remains 48 kHz stereo; High, Standard,
+and Low configure nominal 96 kbps stereo, 64 kbps stereo, and 48 kbps mono output.
+Choose the PC default under **Preferences → Screen viewing** and optional device
+overrides under Windows **Devices → Screen viewing** or the paired device's
+**Menu → Settings → Screen viewing**. Each new peer starts device playback muted. Pinch/spread
 magnifies the local mirror up to 10×, and two-finger drag pans while magnified.
 UAC/secure desktop, protected content,
 lock/session loss, display removal, or duplication loss stops/pauses the

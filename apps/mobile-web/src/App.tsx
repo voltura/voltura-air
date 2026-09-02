@@ -93,6 +93,7 @@ export function App() {
     renamePc,
     renameDevice,
     setHostAccentColor,
+    setHostScreenSoundQuality,
     setHostCustomPointer,
     setHostControlDepth,
     setHostShowModeButtons,
@@ -929,6 +930,8 @@ export function App() {
           remoteSettings={remoteSettings}
           scanPairingQr={scanPairingQr}
           screenViewCapability={screenViewCapability}
+          screenSoundQuality={hostStatus?.screenSoundQuality}
+          screenSoundQualityOverridden={hostStatus?.screenSoundQualityOverridden}
           phoneWebcamCapability={
             activePc?.transportMode === "secure-direct" || activePc?.transportMode === "relay"
               ? phoneWebcamCapability
@@ -941,6 +944,7 @@ export function App() {
           }}
           setHostCustomPointer={setHostCustomPointer}
           setHostAccentColor={setHostAccentColor}
+          setHostScreenSoundQuality={setHostScreenSoundQuality}
           setHostControlDepth={setHostControlDepth}
           setHostShowModeButtons={setHostShowModeButtons}
           setThemeMode={setThemeMode}
@@ -1050,6 +1054,7 @@ export function App() {
           <Suspense fallback={<div className="workspace-loading">Opening Diagnostics…</div>}>
             <DiagnosticsWorkspace
               state={state}
+              screenSoundQuality={hostStatus?.screenSoundQuality}
               permission={diagnosticsPermission}
               snapshot={diagnosticsSnapshot}
               pending={pendingDiagnostics}

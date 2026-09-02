@@ -491,7 +491,7 @@ describe("SettingsDrawer", () => {
     fireEvent.click(screen.getByText("Appearance"));
     fireEvent.click(await screen.findByRole("button", { name: /#5FC8B4/u }, { timeout: 5000 }));
     const input = await screen.findByLabelText("Hex color");
-    const colorSurface = screen.getByRole("slider", { name: "Saturation and brightness" });
+    const colorSurface = await screen.findByRole("slider", { name: "Saturation and brightness" });
     const initialColorDescription = colorSurface.getAttribute("aria-valuetext");
     expect(initialColorDescription).toMatch(/^Saturation \d+%, brightness \d+%$/u);
     fireEvent.keyDown(colorSurface, { key: "ArrowLeft", shiftKey: true });
@@ -559,6 +559,32 @@ describe("SettingsDrawer", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "View PC screen" }));
     expect(onOpenScreenView).toHaveBeenCalledOnce();
+  });
+
+  it("shows sound quality only for supporting hosts and sends overrides or PC default", () => {
+    const setHostScreenSoundQuality = vi.fn();
+    const { rerender } = render(<SettingsDrawer {...baseProps} />);
+
+    expect(screen.queryByText("Screen viewing")).toBeNull();
+
+    rerender(
+      <SettingsDrawer
+        {...baseProps}
+        screenSoundQuality="high"
+        screenSoundQualityOverridden={false}
+        setHostScreenSoundQuality={setHostScreenSoundQuality}
+      />,
+    );
+    fireEvent.click(screen.getByText("Screen viewing"));
+    const selector = screen.getByRole<HTMLSelectElement>("combobox", { name: "Sound quality" });
+    expect(selector.value).toBe("default");
+    expect(screen.getByText(/Using PC default: High/)).toBeTruthy();
+
+    fireEvent.change(selector, { target: { value: "low" } });
+    fireEvent.change(selector, { target: { value: "default" } });
+
+    expect(setHostScreenSoundQuality).toHaveBeenNthCalledWith(1, "low");
+    expect(setHostScreenSoundQuality).toHaveBeenNthCalledWith(2, null);
   });
 
   it("updates local remote launch action settings", () => {

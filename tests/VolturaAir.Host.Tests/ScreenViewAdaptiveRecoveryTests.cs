@@ -101,6 +101,123 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
     }
 
     [Fact]
+    public async Task SoundQualityChangesLiveWithoutReplacingAudioVideoOrControl()
+    {
+        HostPermissionSet originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true });
+            var capture = new AdaptiveCaptureSource();
+            var peer = new AdaptivePeer(true);
+            var audio = new ObservingAudioCaptureFactory();
+            await using var fixture = await WebHostFixture.StartAsync(
+                screenViewCapture: capture,
+                screenViewPeerFactory: new AdaptivePeerFactory(peer),
+                screenViewAudioCaptureFactory: audio);
+            using var reconnectKey = new PairingTestKey();
+            using WebSocket control = await ConnectAsync(fixture.WebHost);
+            await PairAsync(control, fixture.Manager, reconnectKey);
+            await SendAsync(control, new
+            {
+                type = "screen.view.sound-quality.set",
+                soundQuality = "standard"
+            });
+
+            await StartAndAnswerAsync(control, reconnectKey, "screen-audio-quality");
+            await audio.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await capture.Captured.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(ScreenViewSoundQuality.Standard, audio.SoundQuality);
+            ScreenViewCaptureProfile videoProfile = capture.Profiles.First();
+            int videoBitrate = capture.Bitrates.First();
+
+            await SendAsync(control, new
+            {
+                type = "screen.view.sound-quality.set",
+                soundQuality = "low"
+            });
+            await WaitUntilAsync(
+                () => audio.SoundQuality == ScreenViewSoundQuality.Low,
+                TimeSpan.FromSeconds(2));
+            await AssertControlHealthyAsync(control);
+
+            Assert.Equal(1, audio.CreatedCount);
+            Assert.All(capture.Profiles, profile => Assert.Equal(videoProfile, profile));
+            Assert.All(capture.Bitrates, bitrate => Assert.Equal(videoBitrate, bitrate));
+
+            _ = await SendUntilTypeAsync(
+                control,
+                new { type = "screen.view.stop", operationId = "screen-audio-quality-stop" },
+                "screen.view.stop.result");
+            await capture.Ended.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public async Task SoundQualityPersistenceFailureKeepsActiveViewAndControlHealthy()
+    {
+        HostPermissionSet originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true });
+            var capture = new AdaptiveCaptureSource();
+            var peer = new AdaptivePeer(true);
+            var audio = new ObservingAudioCaptureFactory();
+            await using var fixture = await WebHostFixture.StartAsync(
+                screenViewCapture: capture,
+                screenViewPeerFactory: new AdaptivePeerFactory(peer),
+                screenViewAudioCaptureFactory: audio);
+            using var reconnectKey = new PairingTestKey();
+            using WebSocket control = await ConnectAsync(fixture.WebHost);
+            await PairAsync(control, fixture.Manager, reconnectKey);
+            await SendAsync(control, new
+            {
+                type = "screen.view.sound-quality.set",
+                soundQuality = "standard"
+            });
+            await StartAndAnswerAsync(control, reconnectKey, "screen-audio-quality-save-failure");
+            await audio.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await capture.Captured.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            fixture.Store.Store.BeforeReplaceForTests = () => throw new IOException("injected replace failure");
+            JsonElement status;
+            try
+            {
+                status = await SendUntilTypeAsync(control, new
+                {
+                    type = "screen.view.sound-quality.set",
+                    soundQuality = "low"
+                }, "status");
+            }
+            finally
+            {
+                fixture.Store.Store.BeforeReplaceForTests = null;
+            }
+
+            JsonElement host = status.GetProperty("host");
+            Assert.Equal("standard", host.GetProperty("screenSoundQuality").GetString());
+            Assert.True(host.GetProperty("screenSoundQualityOverridden").GetBoolean());
+            Assert.Equal(ScreenViewSoundQuality.Standard, fixture.Manager.GetDeviceScreenSoundQuality("client-screen-adaptive"));
+            Assert.Equal(ScreenViewSoundQuality.Standard, audio.SoundQuality);
+            Assert.Equal(1, audio.CreatedCount);
+            await AssertControlHealthyAsync(control);
+
+            _ = await SendUntilTypeAsync(
+                control,
+                new { type = "screen.view.stop", operationId = "screen-audio-quality-save-failure-stop" },
+                "screen.view.stop.result");
+            await capture.Ended.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
     public async Task AudioTrackClosureLeavesVideoAndCommandHealthAvailable()
     {
         HostPermissionSet originalPermissions = AppPermissionSettings.Load();
@@ -224,6 +341,15 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         Assert.Equal("health.pong", pong.GetProperty("type").GetString());
     }
 
+    private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+    {
+        using var cancellation = new CancellationTokenSource(timeout);
+        while (!condition())
+        {
+            await Task.Delay(10, cancellation.Token);
+        }
+    }
+
     private static string HashSdp(string sdp) =>
         ScreenViewHostIdentity.Base64Url(SHA256.HashData(Encoding.UTF8.GetBytes(sdp)));
 
@@ -234,6 +360,7 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         public TaskCompletionSource Ended { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public System.Collections.Concurrent.ConcurrentQueue<bool> ForceKeyFrameRequests { get; } = new();
         public System.Collections.Concurrent.ConcurrentQueue<ScreenViewCaptureProfile> Profiles { get; } = new();
+        public System.Collections.Concurrent.ConcurrentQueue<int> Bitrates { get; } = new();
         public IReadOnlyList<ScreenViewSource> GetSources() =>
             [new("display-1", "Display 1", 1920, 1080, true)];
         public Task<ScreenViewEncodedFrame?> CaptureVideoAsync(
@@ -246,6 +373,7 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
             cancellationToken.ThrowIfCancellationRequested();
             ForceKeyFrameRequests.Enqueue(forceKeyFrame);
             Profiles.Enqueue(profile);
+            Bitrates.Enqueue(bitrate);
             if (Interlocked.Decrement(ref EncoderFailuresRemaining) >= 0)
                 throw new ScreenViewCaptureException("encoder-failed", "Injected encoder sample failure.");
             Captured.TrySetResult();
@@ -314,9 +442,11 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
             public Task RunAsync(
                 Func<ScreenViewEncodedAudioFrame, bool> send,
                 Action<ScreenViewAudioAvailability> reportAvailability,
+                Func<ScreenViewSoundQuality> getSoundQuality,
                 CancellationToken cancellationToken)
             {
                 _ = send;
+                _ = getSoundQuality;
                 cancellationToken.ThrowIfCancellationRequested();
                 reportAvailability(new(true, "audio-ready", "PC sound is available."));
                 owner.Started.TrySetResult();
@@ -338,9 +468,11 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
             public async Task RunAsync(
                 Func<ScreenViewEncodedAudioFrame, bool> send,
                 Action<ScreenViewAudioAvailability> reportAvailability,
+                Func<ScreenViewSoundQuality> getSoundQuality,
                 CancellationToken cancellationToken)
             {
                 _ = send;
+                _ = getSoundQuality;
                 reportAvailability(new(true, "audio-ready", "PC sound is available."));
                 owner.Started.TrySetResult();
                 try
@@ -351,6 +483,40 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
                 {
                     owner.Ended.TrySetResult();
                 }
+            }
+
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class ObservingAudioCaptureFactory : IScreenViewSystemAudioCaptureFactory
+    {
+        private Func<ScreenViewSoundQuality>? _getSoundQuality;
+        private int _createdCount;
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int CreatedCount => Volatile.Read(ref _createdCount);
+        public ScreenViewSoundQuality SoundQuality =>
+            Volatile.Read(ref _getSoundQuality)?.Invoke() ?? ScreenViewSoundQuality.High;
+
+        public IScreenViewSystemAudioCapture Create()
+        {
+            Interlocked.Increment(ref _createdCount);
+            return new Capture(this);
+        }
+
+        private sealed class Capture(ObservingAudioCaptureFactory owner) : IScreenViewSystemAudioCapture
+        {
+            public async Task RunAsync(
+                Func<ScreenViewEncodedAudioFrame, bool> send,
+                Action<ScreenViewAudioAvailability> reportAvailability,
+                Func<ScreenViewSoundQuality> getSoundQuality,
+                CancellationToken cancellationToken)
+            {
+                _ = send;
+                Volatile.Write(ref owner._getSoundQuality, getSoundQuality);
+                reportAvailability(new(true, "audio-ready", "PC sound is available."));
+                owner.Started.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
             }
 
             public ValueTask DisposeAsync() => ValueTask.CompletedTask;

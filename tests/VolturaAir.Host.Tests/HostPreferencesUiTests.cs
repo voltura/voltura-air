@@ -146,11 +146,27 @@ public sealed partial class HostUiLayoutTests
                 Assert.Contains(FindWpfDescendants<Button>(window), button =>
                     string.Equals(button.Content as string, "Voltura default", StringComparison.Ordinal));
                 Assert.Equal(
-                    ["Automatic (recommended)", "Quality", "Data saver"],
+                    ["Automatic (recommended)", "Full resolution", "Data saver"],
                     FindWpfDescendants<RadioButton>(window)
                         .Where(choice => Equals(choice.GroupName, "DirectScreenQuality"))
                         .Select(choice => choice.Content?.ToString())
                         .ToArray());
+                Assert.Equal(
+                    ["High", "Standard", "Low"],
+                    FindWpfDescendants<RadioButton>(window)
+                        .Where(choice => Equals(choice.GroupName, "ScreenViewSoundQuality"))
+                        .Select(choice => choice.Content?.ToString())
+                        .ToArray());
+                Assert.Contains(FindWpfDescendants<TextBlock>(window), text =>
+                    text.Text == "Quality for Direct connections. Relay quality is set under Connection.");
+                Assert.Contains(FindWpfDescendants<TextBlock>(window), text =>
+                    text.Text == "Limits video to 4 Mbps and 1080p.");
+                Assert.Contains(FindWpfDescendants<TextBlock>(window), text =>
+                    text.Text == "Best detail for music and movies. Stereo.");
+                Assert.Contains(FindWpfDescendants<TextBlock>(window), text =>
+                    text.Text == "Good stereo sound with lower network use.");
+                Assert.Contains(FindWpfDescendants<TextBlock>(window), text =>
+                    text.Text == "Reduced-detail mono sound with the lowest network use.");
             }
             finally
             {

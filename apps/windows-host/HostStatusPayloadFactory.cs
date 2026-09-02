@@ -354,6 +354,8 @@ internal sealed class HostStatusPayloadFactory(
             pairingManager.GetDeviceControlDepth(clientId),
             pairingManager.GetDeviceAccentColor(clientId),
             pairingManager.GetDeviceAccentColorOverridden(clientId),
+            ScreenViewSoundQualityProfile.ToProtocolId(pairingManager.GetDeviceScreenSoundQuality(clientId)),
+            pairingManager.GetDeviceScreenSoundQualityOverridden(clientId),
             developerMode,
             developerMode ? DeveloperSessionId : null,
             isInputBlockedByElevation());

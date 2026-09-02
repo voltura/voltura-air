@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Activity, ChevronLeft, Clipboard, RefreshCw } from "lucide-react";
-import type { MobileHostDiagnosticsSnapshot } from "../../foundation/protocol/messages";
+import type {
+  MobileHostDiagnosticsSnapshot,
+  ScreenViewSoundQuality,
+} from "../../foundation/protocol/messages";
 import type { ConnectionState } from "../../foundation/connection/connectionTypes";
 import { copyTextToClipboard } from "../../foundation/diagnostics/mobileDiagnostics";
 import { getBrowserName, getDisplayMode } from "../../foundation/platform/clientEnvironment";
@@ -21,6 +24,7 @@ interface DiagnosticsWorkspaceProps {
   state: ConnectionState;
   permission: boolean | undefined;
   snapshot: MobileHostDiagnosticsSnapshot | null;
+  screenSoundQuality?: ScreenViewSoundQuality | undefined;
   pending: boolean;
   failure: DiagnosticsFailure | null;
   requestDiagnostics: () => string | null;
@@ -47,8 +51,8 @@ export function DiagnosticsWorkspace(props: DiagnosticsWorkspaceProps) {
   }, [pending, permission, requestDiagnostics, state]);
 
   const groups = useMemo(
-    () => buildDiagnosticsGroups(props.state, props.snapshot),
-    [props.snapshot, props.state],
+    () => buildDiagnosticsGroups(props.state, props.snapshot, props.screenSoundQuality),
+    [props.screenSoundQuality, props.snapshot, props.state],
   );
   const rows = groups.flatMap((group) => group.rows);
   const copy = async (text: string, success: string) => {
@@ -187,6 +191,7 @@ export function DiagnosticsWorkspace(props: DiagnosticsWorkspaceProps) {
 export function buildDiagnosticsGroups(
   state: ConnectionState,
   snapshot: MobileHostDiagnosticsSnapshot | null,
+  screenSoundQuality?: ScreenViewSoundQuality,
 ): DiagnosticGroup[] {
   const groups: DiagnosticGroup[] = [
     {
@@ -194,6 +199,9 @@ export function buildDiagnosticsGroups(
       rows: [
         { label: "Web client version", value: __APP_VERSION__ },
         ...(snapshot ? [{ label: "Host version", value: snapshot.hostVersion }] : []),
+        ...(screenSoundQuality
+          ? [{ label: "Sound quality", value: displaySoundQuality(screenSoundQuality) }]
+          : []),
       ],
     },
     {
@@ -224,6 +232,10 @@ export function buildDiagnosticsGroups(
   ];
 
   return groups.filter((group) => group.rows.length > 0);
+}
+
+function displaySoundQuality(soundQuality: ScreenViewSoundQuality): string {
+  return soundQuality.charAt(0).toUpperCase() + soundQuality.slice(1);
 }
 
 function buildHostConnectionRows(snapshot: MobileHostDiagnosticsSnapshot): DiagnosticRow[] {

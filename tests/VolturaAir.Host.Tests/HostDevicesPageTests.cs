@@ -267,6 +267,8 @@ public sealed partial class HostUiLayoutTests
                     .Single(expander => string.Equals(expander.Header as string, "Trackpad profile", StringComparison.Ordinal));
                 var appearance = FindVisualDescendants<Expander>(device)
                     .Single(expander => string.Equals(expander.Header as string, "Appearance", StringComparison.Ordinal));
+                var screenViewing = FindVisualDescendants<Expander>(device)
+                    .Single(expander => string.Equals(expander.Header as string, "Screen viewing", StringComparison.Ordinal));
                 var permissions = FindVisualDescendants<Expander>(device)
                     .Single(expander => string.Equals(expander.Header as string, "Permissions", StringComparison.Ordinal));
 
@@ -281,8 +283,16 @@ public sealed partial class HostUiLayoutTests
                 Assert.False(trackpad.IsExpanded);
                 Assert.False(permissions.IsExpanded);
 
+                screenViewing.IsExpanded = true;
+                DoWpfEvents();
+                Assert.True(screenViewing.IsExpanded);
+                Assert.False(appearance.IsExpanded);
+                Assert.False(trackpad.IsExpanded);
+                Assert.False(permissions.IsExpanded);
+
                 permissions.IsExpanded = true;
                 DoWpfEvents();
+                Assert.False(screenViewing.IsExpanded);
                 Assert.False(trackpad.IsExpanded);
                 Assert.True(permissions.IsExpanded);
 
@@ -290,6 +300,63 @@ public sealed partial class HostUiLayoutTests
                 DoWpfEvents();
                 Assert.True(trackpad.IsExpanded);
                 Assert.False(permissions.IsExpanded);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void ScreenSoundQualitySelectorRepresentsGlobalAndExplicitChoices()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var item = CreateDevice("device", "Device", "Connected", true, true, "Connected now");
+            var page = CreatePage([item]);
+            var window = new Window
+            {
+                Content = page,
+                Width = 900,
+                Height = 600
+            };
+            window.Resources.MergedDictionaries.Add(new ResourceDictionary
+            {
+                Source = new Uri("/VolturaAir.Host;component/MainWindow.Styles.xaml", UriKind.Relative)
+            });
+            WpfTheme.Apply(window);
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                var device = FindVisualDescendants<Expander>(window)
+                    .Single(expander => expander.Header is DeviceListItem);
+                device.IsExpanded = true;
+                window.UpdateLayout();
+                var screenViewing = FindVisualDescendants<Expander>(device)
+                    .Single(expander => string.Equals(expander.Header as string, "Screen viewing", StringComparison.Ordinal));
+                screenViewing.IsExpanded = true;
+                DoWpfEvents();
+
+                var selector = FindVisualDescendants<ComboBox>(screenViewing).Single();
+                Assert.Equal("Use global", Assert.IsType<DeviceSoundQualityChoice>(selector.SelectedItem).DisplayName);
+
+                selector.SelectedItem = item.ScreenSoundQualityChoices.Single(choice => choice.Quality == ScreenViewSoundQuality.Low);
+                DoWpfEvents();
+                Assert.Equal(ScreenViewSoundQuality.Low, item.ScreenSoundQualityOverride);
+                Assert.Equal("Low", Assert.IsType<DeviceSoundQualityChoice>(selector.SelectedItem).DisplayName);
+
+                selector.SelectedItem = item.ScreenSoundQualityChoices.Single(choice => choice.Quality is null);
+                DoWpfEvents();
+                Assert.Null(item.ScreenSoundQualityOverride);
+                Assert.Equal("Use global", Assert.IsType<DeviceSoundQualityChoice>(selector.SelectedItem).DisplayName);
             }
             finally
             {
@@ -333,6 +400,8 @@ public sealed partial class HostUiLayoutTests
                     .Single(expander => string.Equals(expander.Header as string, "Trackpad profile", StringComparison.Ordinal));
                 var appearance = FindVisualDescendants<Expander>(device)
                     .Single(expander => string.Equals(expander.Header as string, "Appearance", StringComparison.Ordinal));
+                var screenViewing = FindVisualDescendants<Expander>(device)
+                    .Single(expander => string.Equals(expander.Header as string, "Screen viewing", StringComparison.Ordinal));
                 var permissions = FindVisualDescendants<Expander>(device)
                     .Single(expander => string.Equals(expander.Header as string, "Permissions", StringComparison.Ordinal));
 
@@ -347,6 +416,7 @@ public sealed partial class HostUiLayoutTests
 
                 Assert.False(trackpad.IsExpanded);
                 Assert.False(appearance.IsExpanded);
+                Assert.False(screenViewing.IsExpanded);
                 Assert.False(permissions.IsExpanded);
             }
             finally
@@ -380,6 +450,7 @@ public sealed partial class HostUiLayoutTests
         static _ => { },
         static (_, value) => (value, value ?? true),
         static (_, value) => (value, value ?? true),
+        static (_, value) => (value, value ?? ScreenViewSoundQuality.High),
         static (_, _) => true,
         static _ => DevicePointerProfile.DefaultPointerSpeed,
         static (_, profile) => new DeviceAccessViewState(profile, DeviceAccessProfiles.GetBuiltInMatrix(profile)),
@@ -409,6 +480,8 @@ public sealed partial class HostUiLayoutTests
         true,
         null,
         true,
+        null,
+        ScreenViewSoundQuality.High,
         DeviceAccessProfile.MyDevice,
         [],
         new ProtectedFileFilterItem("client-a", null, true),

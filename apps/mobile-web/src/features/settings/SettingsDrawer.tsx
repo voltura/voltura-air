@@ -9,6 +9,7 @@ import {
 import { AppSettingsSection, AppearanceSettingsSection } from "./AppSettingsSections";
 import { ConnectionSettingsSection } from "./ConnectionSettingsSection";
 import { SettingsSectionDetails } from "./SettingsSectionDetails";
+import { ScreenViewingSettingsSection } from "./ScreenViewingSettingsSection";
 import type { SettingsDrawerProps, SettingsSection } from "./SettingsDrawerTypes";
 import { SplitModeSettings } from "./SplitModeSettings";
 
@@ -255,6 +256,23 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
               usesLivePairingQr={props.usesLivePairingQr}
             />
           </SettingsSectionDetails>
+
+          {props.screenSoundQuality !== undefined &&
+            typeof props.screenSoundQualityOverridden === "boolean" &&
+            props.setHostScreenSoundQuality && (
+              <SettingsSectionDetails
+                section="screen-viewing"
+                label="Screen viewing"
+                isOpen={openSection === "screen-viewing"}
+                onToggle={toggleSection}
+              >
+                <ScreenViewingSettingsSection
+                  soundQuality={props.screenSoundQuality}
+                  soundQualityOverridden={props.screenSoundQualityOverridden}
+                  setHostScreenSoundQuality={props.setHostScreenSoundQuality}
+                />
+              </SettingsSectionDetails>
+            )}
 
           <SettingsSectionDetails
             section="trackpad"

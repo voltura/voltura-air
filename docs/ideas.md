@@ -105,7 +105,10 @@ before further design.
 
 Candidates include restoring the last supported mode per PC/client and
 assigning a default Remote mode. Keep theme, keyboard rows, and split placement
-browser-local unless a cross-device workflow justifies host ownership.
+browser-local unless a cross-device workflow justifies host ownership. Screen
+sound quality already has a PC-wide High/Standard/Low default with optional
+per-device overrides; automatic congestion-based switching remains out of scope
+unless real evidence justifies changing that explicit model.
 
 ## Candidate extensions
 

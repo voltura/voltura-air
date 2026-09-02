@@ -203,6 +203,7 @@ Before announcement, confirm:
 - fresh QR pairing and reconnect;
 - when Screen viewing changes: short-QR scan at normal camera distance,
   authenticated first frame, muted-by-default PC sound, local Sound toggle,
+  live High/Standard/Low changes without renegotiation or video/control loss,
   output-device change or audio failure without video/control loss, display
   switch, relative input responsiveness, tray indicator/Stop,
   revocation/disconnect/lock cleanup, slow-client behavior, and no command-channel

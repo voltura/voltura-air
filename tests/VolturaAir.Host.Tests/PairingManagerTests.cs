@@ -337,6 +337,70 @@ public sealed class PairingManagerTests
     }
 
     [Fact]
+    public void DeviceSoundQualityOverrideWinsAndClearingItInheritsTheGlobalDefault()
+    {
+        using var store = new TempPairingStore();
+        using var key = new PairingTestKey();
+        var manager = new PairingManager(store.Store);
+        manager.AcceptPairing("client-a", "Phone", manager.CreatePairingToken(), reconnectPublicKey: key.PublicKey);
+        ScreenViewSoundQuality global = AppScreenViewSettings.LoadSoundQuality();
+
+        Assert.Equal(global, manager.GetDeviceScreenSoundQuality("client-a"));
+        Assert.False(manager.GetDeviceScreenSoundQualityOverridden("client-a"));
+        Assert.False(manager.SetDeviceScreenSoundQualityOverride("client-a", (ScreenViewSoundQuality)999));
+        Assert.True(manager.SetDeviceScreenSoundQualityOverride("client-a", ScreenViewSoundQuality.Low));
+
+        var overridden = Assert.Single(manager.GetDevices());
+        Assert.Equal(ScreenViewSoundQuality.Low, overridden.ScreenSoundQuality);
+        Assert.Equal(ScreenViewSoundQuality.Low, overridden.ScreenSoundQualityOverride);
+        Assert.Equal(ScreenViewSoundQuality.Low, Assert.Single(store.Store.Load()).ScreenSoundQualityOverride);
+
+        Assert.True(manager.SetDeviceScreenSoundQualityOverride("client-a", null));
+
+        Assert.Equal(global, manager.GetDeviceScreenSoundQuality("client-a"));
+        Assert.False(manager.GetDeviceScreenSoundQualityOverridden("client-a"));
+        Assert.Null(Assert.Single(store.Store.Load()).ScreenSoundQualityOverride);
+    }
+
+    [Fact]
+    public void InvalidPersistedDeviceSoundQualityInheritsTheGlobalDefault()
+    {
+        using var store = new TempPairingStore();
+        using var key = new PairingTestKey();
+        store.Store.Save([
+            new PairingRecord(
+                "client-a",
+                key.PublicKey,
+                "Phone",
+                ScreenSoundQualityOverride: (ScreenViewSoundQuality)999)
+        ]);
+
+        var manager = new PairingManager(store.Store);
+
+        Assert.Equal(AppScreenViewSettings.LoadSoundQuality(), manager.GetDeviceScreenSoundQuality("client-a"));
+        Assert.False(manager.GetDeviceScreenSoundQualityOverridden("client-a"));
+        Assert.Null(Assert.Single(manager.GetDevices()).ScreenSoundQualityOverride);
+    }
+
+    [Fact]
+    public void FailedDeviceSoundQualityWritePreservesThePersistedAndEffectiveProfile()
+    {
+        using var store = new TempPairingStore();
+        using var key = new PairingTestKey();
+        var manager = new PairingManager(store.Store);
+        manager.AcceptPairing("client-a", "Phone", manager.CreatePairingToken(), reconnectPublicKey: key.PublicKey);
+        ScreenViewSoundQuality global = AppScreenViewSettings.LoadSoundQuality();
+        store.Store.BeforeReplaceForTests = () => throw new IOException("injected replace failure");
+
+        Assert.Throws<IOException>(() =>
+            manager.SetDeviceScreenSoundQualityOverride("client-a", ScreenViewSoundQuality.Low));
+
+        Assert.Equal(global, manager.GetDeviceScreenSoundQuality("client-a"));
+        Assert.False(manager.GetDeviceScreenSoundQualityOverridden("client-a"));
+        Assert.Null(Assert.Single(store.Store.Load()).ScreenSoundQualityOverride);
+    }
+
+    [Fact]
     public void DisconnectDeviceRemovesOnlySelectedDevice()
     {
         using var store = new TempPairingStore();

@@ -117,7 +117,7 @@
         </article>
         <article>
           <h2>View PC screen from a touch device</h2>
-          <p>View one selected Windows display and its system sound live on a phone or tablet. Sound starts muted and uses a local Sound control. Use touch gestures for cursor movement, local zoom and pan, and scrolling, with a separate Click control for precise clicks. Capture the watched display as a native PNG and save or share it from the device.</p>
+          <p>View one selected Windows display and its system sound live on a phone or tablet. Sound starts muted and offers High, Standard, and Low quality choices with a PC default and optional setting for each device. Use touch gestures for cursor movement, local zoom and pan, and scrolling, with a separate Click control for precise clicks. Capture the watched display as a native PNG and save or share it from the device.</p>
         </article>
         <article>
           <h2>Switch between open apps</h2>
@@ -307,7 +307,7 @@
               </tr>
               <tr>
                 <th scope="row">Screen viewing and control</th>
-                <td class="comparison-voltura"><strong class="comparison-status">Encrypted live viewing with muted-by-default PC sound and browser mouse/keyboard control over Direct LAN or Cloud relay</strong>; one selected Windows display and one authorized viewer at a time, with adaptive media streaming</td>
+                <td class="comparison-voltura"><strong class="comparison-status">Encrypted live viewing with muted-by-default PC sound, High/Standard/Low sound choices, and browser mouse/keyboard control over Direct LAN or Cloud relay</strong>; one selected Windows display and one authorized viewer at a time, with adaptive media streaming</td>
                 <td><strong class="comparison-status">Not documented</strong> as a current core feature</td>
                 <td>Real-time PC screen sharing and remote viewing</td>
               </tr>

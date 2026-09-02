@@ -96,6 +96,12 @@ internal sealed class PairedDeviceRegistry
 
     public bool GetDeviceAccentColorOverridden(string clientId) => Find(clientId)?.AccentColorOverride is not null;
 
+    public ScreenViewSoundQuality GetDeviceScreenSoundQuality(string clientId) =>
+        GetEffectiveScreenSoundQuality(Find(clientId));
+
+    public bool GetDeviceScreenSoundQualityOverridden(string clientId) =>
+        Find(clientId)?.ScreenSoundQualityOverride is not null;
+
     public CustomScreenViewport? GetCustomScreenViewport(string clientId) => Find(clientId)?.CustomScreenViewport;
 
     public void UpsertAndSave(PairingRecord record)
@@ -306,6 +312,20 @@ internal sealed class PairedDeviceRegistry
                 : existing with { AccentColorOverride = accentColor });
     }
 
+    public bool SetScreenSoundQualityOverride(string clientId, ScreenViewSoundQuality? soundQuality)
+    {
+        if (soundQuality is not null && !Enum.IsDefined(soundQuality.Value))
+        {
+            return false;
+        }
+
+        return UpdateRecord(
+            clientId,
+            existing => existing.ScreenSoundQualityOverride == soundQuality
+                ? null
+                : existing with { ScreenSoundQualityOverride = soundQuality });
+    }
+
     public bool SetCustomScreenViewport(string clientId, CustomScreenViewport viewport)
     {
         var index = FindIndex(clientId);
@@ -418,6 +438,8 @@ internal sealed class PairedDeviceRegistry
             GetEffectiveControlDepth(record),
             record.AccentColorOverride,
             GetEffectiveAccentColor(record),
+            record.ScreenSoundQualityOverride,
+            GetEffectiveScreenSoundQuality(record),
             record.CustomScreenViewport,
             record.LastConnectionMethod);
     })];
@@ -505,6 +527,9 @@ internal sealed class PairedDeviceRegistry
 
     private static string? GetEffectiveAccentColor(PairingRecord? record) =>
         record?.AccentColorOverride ?? AppAppearanceSettings.DeviceAccentColor();
+
+    private static ScreenViewSoundQuality GetEffectiveScreenSoundQuality(PairingRecord? record) =>
+        record?.ScreenSoundQualityOverride ?? AppScreenViewSettings.LoadSoundQuality();
 
     private static string SummarizeDevices(IEnumerable<string> deviceNames)
     {

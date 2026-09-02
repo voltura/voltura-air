@@ -8,6 +8,7 @@ create one. Keep the shared notices in
 
 ## v1.2.2
 
+- Added **High**, **Standard**, and **Low** sound quality choices to **View PC screen**, with a PC default and optional per-device settings for clearer sound or lower bandwidth use.
 - Added **Take photo** to **Files on PC**, letting you take a picture on your
   phone and save it directly to the open PC folder.
 - Improved **File operations** with clearer history controls, easier-to-read

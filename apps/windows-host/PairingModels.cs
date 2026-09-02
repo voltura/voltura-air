@@ -34,6 +34,7 @@ public sealed record PairingRecord(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ShowModeButtonsOverride = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ControlDepthOverride = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? AccentColorOverride = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ScreenViewSoundQuality? ScreenSoundQualityOverride = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CustomScreenViewport? CustomScreenViewport = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] DeviceConnectionMethod LastConnectionMethod = DeviceConnectionMethod.Unknown);
 
@@ -60,6 +61,8 @@ public sealed record PairedDeviceStatus(
     bool ControlDepth,
     string? AccentColorOverride,
     string? AccentColor,
+    ScreenViewSoundQuality? ScreenSoundQualityOverride,
+    ScreenViewSoundQuality ScreenSoundQuality,
     CustomScreenViewport? CustomScreenViewport,
     DeviceConnectionMethod LastConnectionMethod)
 {

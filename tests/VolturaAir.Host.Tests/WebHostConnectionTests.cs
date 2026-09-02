@@ -260,6 +260,51 @@ public sealed class WebHostConnectionTests : WebHostServiceTestBase
     }
 
     [Fact]
+    public async Task WebSocketAdvertisesAndUpdatesEffectiveScreenSoundQualityWithoutAHealthChange()
+    {
+        AppScreenViewSettings.SaveSoundQuality(ScreenViewSoundQuality.Standard);
+        await using var fixture = await WebHostFixture.StartAsync();
+        using var key = new PairingTestKey();
+        var clientId = $"client-{Guid.NewGuid():N}";
+        using var socket = await ConnectAsync(fixture.WebHost);
+
+        var paired = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.hello",
+            clientId,
+            deviceName = "Phone",
+            pairToken = fixture.Manager.CreatePairingToken(),
+            reconnectPublicKey = key.PublicKey
+        });
+        JsonElement initialHost = paired.GetProperty("host");
+        Assert.Equal("standard", initialHost.GetProperty("screenSoundQuality").GetString());
+        Assert.False(initialHost.GetProperty("screenSoundQualityOverridden").GetBoolean());
+        JsonElement systemAudio = paired.GetProperty("capabilities").GetProperty("screenView").GetProperty("systemAudio");
+        Assert.Equal(["channels", "codec", "sampleRate"], systemAudio.EnumerateObject().Select(property => property.Name).Order());
+
+        await SendAsync(socket, new
+        {
+            type = "screen.view.sound-quality.set",
+            soundQuality = "low"
+        });
+        using var lowStatus = JsonDocument.Parse(await ReceiveTextAsync(socket));
+        JsonElement lowHost = lowStatus.RootElement.GetProperty("host");
+        Assert.Equal("low", lowHost.GetProperty("screenSoundQuality").GetString());
+        Assert.True(lowHost.GetProperty("screenSoundQualityOverridden").GetBoolean());
+
+        using var clearMessage = JsonDocument.Parse(
+            """{ "type": "screen.view.sound-quality.set", "soundQuality": null }""");
+        await SendAsync(socket, clearMessage.RootElement);
+        using var inheritedStatus = JsonDocument.Parse(await ReceiveTextAsync(socket));
+        JsonElement inheritedHost = inheritedStatus.RootElement.GetProperty("host");
+        Assert.Equal("standard", inheritedHost.GetProperty("screenSoundQuality").GetString());
+        Assert.False(inheritedHost.GetProperty("screenSoundQualityOverridden").GetBoolean());
+
+        var health = await SendAndReceiveAsync(socket, new { type = "health.ping" });
+        Assert.Equal("health.pong", health.GetProperty("type").GetString());
+    }
+
+    [Fact]
     public async Task WebSocketRejectsReconnectProofReplayedAgainstAnotherSession()
     {
         using var store = new TempPairingStore();

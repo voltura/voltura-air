@@ -78,9 +78,16 @@ appears only in the Direct view because Relay always includes those features.
 
 Preferences owns Direct Screen View quality. Automatic is the recommended
 adaptive default and preserves the Windows-scaling-derived readability floor.
-Quality keeps the selected display's full resolution while adapting frame rate.
-Data saver provides the explicit 4 Mbps mode and may use dimensions below the
-readability floor. Changes apply to newly started views without a host restart.
+Full resolution keeps the selected display at native dimensions while adapting
+frame rate. Data saver provides the explicit 4 Mbps mode and may use dimensions
+below the readability floor. Changes apply to newly started views without a host
+restart.
+
+The same **Screen viewing** Preferences section owns the global **Sound quality**
+default: High, Standard, or Low, defaulting to High. Devices adds one nested
+**Screen viewing** disclosure whose selector offers **Use global** plus the three
+values and states the effective choice. A change applies to an active Direct or
+Relay view without a host restart or media-session restart.
 
 ## Phone webcam
 
@@ -127,7 +134,7 @@ color is not the sole meaning.
 
 Devices is a full-width virtualized accordion list with one open device.
 Collapsed headers retain name, connection status, access profile, and recent activity. Metadata
-follows the header; Appearance, Trackpad profile, and Permissions form a
+follows the header; Appearance, Screen viewing, Trackpad profile, and Permissions form a
 single-open nested group and start collapsed. Collapsing a device collapses its
 children. Disclosure state lasts only for the current page visit.
 
@@ -146,7 +153,8 @@ open one device by stable ID, reveal Permissions, and focus the profile selector
 
 Trackpad **Save speed** and **Use global** preserve both open disclosures.
 Appearance offers **Use global**, **Show**, and **Hide** for the mobile mode
-button.
+button. Screen viewing offers **Use global**, **High**, **Standard**, and **Low**
+for that device's PC-sound quality.
 
 Removal revokes pairing and requires setup again. Use **Remove** and
 **Remove all**, with confirmation stating the re-pairing consequence.

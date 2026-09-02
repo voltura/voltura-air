@@ -46,6 +46,7 @@ internal static class ClientMessageValidator
             ["appearance.mode-buttons.set"] = Fields("type", "showModeButtons"),
             ["appearance.control-depth.set"] = Fields("type", "controlDepth"),
             ["appearance.accent-color.set"] = Fields("type", "accentColor"),
+            ["screen.view.sound-quality.set"] = Fields("type", "soundQuality"),
             ["custom.pointer.set"] = Fields("type", "enabled"),
             ["device.viewport.set"] = Fields("type", "width", "height", "orientation"),
             ["custom.screen.get"] = Fields("type", "operationId", "screenId"),
@@ -255,6 +256,11 @@ internal static class ClientMessageValidator
                 root.TryGetProperty("accentColor", out var accentColor) &&
                 (accentColor.ValueKind == JsonValueKind.Null ||
                  accentColor.ValueKind == JsonValueKind.String && AccentColor.IsCanonical(accentColor.GetString())),
+            "screen.view.sound-quality.set" =>
+                root.TryGetProperty("soundQuality", out var screenSoundQuality) &&
+                (screenSoundQuality.ValueKind == JsonValueKind.Null ||
+                 screenSoundQuality.ValueKind == JsonValueKind.String &&
+                 ScreenViewSoundQualityProfile.TryParseProtocolId(screenSoundQuality.GetString(), out _)),
             "custom.pointer.set" => root.TryGetProperty("enabled", out var customPointerEnabled) && customPointerEnabled.ValueKind is JsonValueKind.True or JsonValueKind.False,
             "device.viewport.set" =>
                 TryGetNumber(root, "width", CustomScreenLimits.MinViewportWidth, CustomScreenLimits.MaxViewportWidth, out _) &&

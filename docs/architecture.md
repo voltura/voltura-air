@@ -150,7 +150,13 @@ desktop bounds, and owns held-button cleanup. The existing input dispatcher and
 Screen media uses H.264 and Opus RTP tracks on one peer. `ScreenViewCoordinator`
 owns one session-scoped WASAPI loopback/Concentus pipeline for the current default
 multimedia output, follows endpoint changes through notifications, and isolates
-audio failure from video. Cursor/status/audio availability uses the `screen-events` data channel, so media backpressure cannot
+audio failure from video. `AppScreenViewSettings` owns the separate exact-shape
+global sound preset; the pairing record owns its optional per-device override.
+The coordinator resolves override then global default into one lock-free cached
+active-session value. The existing encoder reads it between audio frames and
+updates Opus bitrate/channel mode in place, without capture restart, a new peer,
+track replacement, negotiation, mute changes, or video-budget changes.
+Cursor/status/audio availability uses the `screen-events` data channel, so media backpressure cannot
 consume the command socket's serialized send queue.
 
 Apps follows the lazy mobile boundary but is not part of the Screen or Files

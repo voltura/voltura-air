@@ -61,6 +61,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         AppTextDestinationSettings.Changed += OnStatusChanged;
         AppPointerSettings.Changed += OnStatusChanged;
         AppAppearanceSettings.Changed += OnStatusChanged;
+        AppScreenViewSettings.SoundQualityChanged += OnStatusChanged;
         _workstationLockPolicy.Changed += OnStatusChanged;
         _awakeService.StateChanged += OnStatusChanged;
         presentationLaserPointer.StateChanged += OnStatusChanged;
@@ -103,6 +104,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         AppTextDestinationSettings.Changed -= OnStatusChanged;
         AppPointerSettings.Changed -= OnStatusChanged;
         AppAppearanceSettings.Changed -= OnStatusChanged;
+        AppScreenViewSettings.SoundQualityChanged -= OnStatusChanged;
         _workstationLockPolicy.Changed -= OnStatusChanged;
         _awakeService.StateChanged -= OnStatusChanged;
         _presentationLaserPointer.StateChanged -= OnStatusChanged;

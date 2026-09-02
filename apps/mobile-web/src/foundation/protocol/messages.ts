@@ -61,6 +61,13 @@ export interface AppearanceAccentColorSetMessage {
   accentColor: string | null;
 }
 
+export type ScreenViewSoundQuality = "high" | "standard" | "low";
+
+export interface ScreenViewSoundQualitySetMessage {
+  type: "screen.view.sound-quality.set";
+  soundQuality: ScreenViewSoundQuality | null;
+}
+
 export interface CustomPointerSetMessage {
   type: "custom.pointer.set";
   enabled: boolean;
@@ -1197,6 +1204,8 @@ export interface HostStatusMetadata {
   controlDepth?: boolean | undefined;
   accentColor?: string | null | undefined;
   accentColorOverridden?: boolean | undefined;
+  screenSoundQuality?: ScreenViewSoundQuality | undefined;
+  screenSoundQualityOverridden?: boolean | undefined;
   customPointerEnabled?: boolean | undefined;
   inputBlockedByElevation?: boolean | undefined;
   selectedAdapterName?: string | undefined;
@@ -1642,6 +1651,7 @@ export type ClientMessage =
   | AppearanceModeButtonsSetMessage
   | AppearanceControlDepthSetMessage
   | AppearanceAccentColorSetMessage
+  | ScreenViewSoundQualitySetMessage
   | CustomPointerSetMessage
   | DeviceViewportSetMessage
   | CustomScreenGetMessage

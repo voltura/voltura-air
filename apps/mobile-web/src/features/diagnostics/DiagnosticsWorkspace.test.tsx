@@ -111,9 +111,11 @@ describe("DiagnosticsWorkspace", () => {
   });
 
   it("renders the successful host snapshot including the primary display", () => {
-    render(<DiagnosticsWorkspace {...baseProps} />);
+    render(<DiagnosticsWorkspace {...baseProps} screenSoundQuality="standard" />);
     expect(screen.getByText("Computer")).toBeTruthy();
     expect(screen.getByText("3840 × 2160 at 60 Hz")).toBeTruthy();
+    expect(screen.getByText("Sound quality")).toBeTruthy();
+    expect(screen.getByText("Standard")).toBeTruthy();
     expect(screen.queryByText(/user profile/i)).toBeNull();
   });
 
@@ -126,6 +128,16 @@ describe("DiagnosticsWorkspace", () => {
       );
     });
     expect(baseProps.onCopyFeedback).toHaveBeenCalledWith("Primary display copied.", "success");
+  });
+
+  it("copies sound quality from authenticated host status", async () => {
+    render(<DiagnosticsWorkspace {...baseProps} screenSoundQuality="low" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy Sound quality" }));
+
+    await waitFor(() => {
+      expect(copyTextToClipboard).toHaveBeenCalledExactlyOnceWith("Sound quality: Low");
+    });
   });
 
   it("copies exactly the visible rows in displayed order", async () => {

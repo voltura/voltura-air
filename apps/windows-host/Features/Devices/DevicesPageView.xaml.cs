@@ -18,6 +18,7 @@ public partial class DevicesPageView : WpfUserControl
         Action<string> deviceCollapsed,
         Func<string, bool?, (bool? Override, bool Effective)?> setShowModeButtons,
         Func<string, bool?, (bool? Override, bool Effective)?> setControlDepth,
+        Func<string, ScreenViewSoundQuality?, (ScreenViewSoundQuality? Override, ScreenViewSoundQuality Effective)?> setScreenSoundQuality,
         Func<string, int, bool> savePointerSpeed,
         Func<string, int?> useGlobalPointerSpeed,
         Func<string, DeviceAccessProfile, DeviceAccessViewState?> setAccessProfile,
@@ -33,6 +34,7 @@ public partial class DevicesPageView : WpfUserControl
         _deviceCollapsed = deviceCollapsed;
         _setShowModeButtons = setShowModeButtons;
         _setControlDepth = setControlDepth;
+        _setScreenSoundQuality = setScreenSoundQuality;
         _savePointerSpeed = savePointerSpeed;
         _useGlobalPointerSpeed = useGlobalPointerSpeed;
         _setAccessProfile = setAccessProfile;
@@ -49,6 +51,7 @@ public partial class DevicesPageView : WpfUserControl
     private readonly Action<string> _deviceCollapsed;
     private readonly Func<string, bool?, (bool? Override, bool Effective)?> _setShowModeButtons;
     private readonly Func<string, bool?, (bool? Override, bool Effective)?> _setControlDepth;
+    private readonly Func<string, ScreenViewSoundQuality?, (ScreenViewSoundQuality? Override, ScreenViewSoundQuality Effective)?> _setScreenSoundQuality;
     private readonly Func<string, int, bool> _savePointerSpeed;
     private readonly Func<string, int?> _useGlobalPointerSpeed;
     private readonly Func<string, DeviceAccessProfile, DeviceAccessViewState?> _setAccessProfile;
@@ -161,6 +164,31 @@ public partial class DevicesPageView : WpfUserControl
         if (sender is Expander { DataContext: DeviceListItem device })
         {
             device.OpenPermissions();
+        }
+    }
+
+    private void OnScreenViewingExpanded(object sender, RoutedEventArgs eventArgs)
+    {
+        if (sender is Expander { DataContext: DeviceListItem device })
+        {
+            device.OpenScreenViewing();
+        }
+    }
+
+    private void OnScreenSoundQualityChanged(object sender, SelectionChangedEventArgs eventArgs)
+    {
+        if (sender is not WpfComboBox
+            {
+                DataContext: DeviceListItem device,
+                SelectedItem: DeviceSoundQualityChoice choice
+            } || device.ScreenSoundQualityOverride == choice.Quality)
+        {
+            return;
+        }
+
+        if (_setScreenSoundQuality(device.ClientId, choice.Quality) is { } profile)
+        {
+            device.ApplyScreenSoundQuality(profile.Override, profile.Effective);
         }
     }
 

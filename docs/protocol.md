@@ -395,6 +395,8 @@ Success:
     "controlDepth": true,
     "accentColor": null,
     "accentColorOverridden": false,
+    "screenSoundQuality": "high",
+    "screenSoundQualityOverridden": false,
     "inputBlockedByElevation": false
   }
 }
@@ -438,6 +440,9 @@ Authenticated metadata is not authentication state:
   `accentColor` is the effective canonical uppercase `#RRGGBB` seed or `null`
   for the built-in palette; `accentColorOverridden` reports whether the
   authenticated device overrides the host's global device default.
+  `screenSoundQuality` is the effective `high`, `standard`, or `low` Screen View
+  PC-sound preset; `screenSoundQualityOverridden` reports whether this pairing
+  overrides the PC default. Older hosts omit both optional fields.
   `inputBlockedByElevation`: higher-integrity foreground block.
 - `webClientBuildId`: the client bundle served by a Direct host, independent of
   `hostVersion`. It can refresh only a Direct host-served PWA. Relay opens the
@@ -451,7 +456,9 @@ Authenticated metadata is not authentication state:
   selected adaptive profile bounds the actual stream. Supporting hosts also set
   `receiverQualityFeedback: true` so current controllers can report aggregate
   WebRTC decoder health. `systemAudio` is exactly `{ codec: "opus", sampleRate:
-48000, channels: 2 }` and uses the same **View PC screen** authorization.
+48000, channels: 2 }` and uses the same **View PC screen** authorization. Sound
+  quality support is advertised by the two optional host-status fields above; the
+  exact `systemAudio` capability is unchanged.
 
 Adapter metadata may reveal local hardware and appears only in explicit redacted
 diagnostics.
@@ -604,7 +611,19 @@ use the authenticated `/ws` session:
 { "type": "screen.view.quality", "operationId": "screen-start-1", "width": 3840, "height": 2160, "framesPerSecond": 30, "framesDecoded": 60, "framesDropped": 0, "freezeCount": 0, "packetsLost": 0 }
 { "type": "screen.view.source.set", "operationId": "screen-source-1", "displayId": "display-1-2" }
 { "type": "screen.view.stop", "operationId": "screen-stop-1" }
+{ "type": "screen.view.sound-quality.set", "soundQuality": "standard" }
+{ "type": "screen.view.sound-quality.set", "soundQuality": null }
 ```
+
+`screen.view.sound-quality.set` has exactly `type` and `soundQuality`. The value
+is lowercase `high`, `standard`, or `low`; `null` clears this pairing's override
+and inherits the PC default. Wrong case, other strings, other types, duplicate
+properties, missing properties, and extra properties are rejected as invalid
+authenticated messages. Accepted changes are persisted with the pairing and
+reflected through the ordinary pushed status; the client keeps the prior value
+until that authoritative status arrives, and there is no separate result. If
+pairing persistence fails, the host keeps the prior value, returns that status,
+and leaves the authenticated connection and active Screen View intact.
 
 The quality message is sent only while its exact operation is active. Counts are
 non-negative interval deltas bounded to 1,000,000; dimensions are 0..16384 and
@@ -651,6 +670,17 @@ the answer contains matching receive-only media. Missing, extra, wrong-codec,
 disabled, or wrong-direction media is rejected. Both SDP hashes therefore bind
 the complete two-track contract without a separate audio command. Device mute is
 browser-local and starts enabled for each new peer.
+
+Capture remains 48 kHz stereo for all presets. The host configures Opus
+constrained VBR as High = nominal 96 kbps stereo, Standard = nominal 64 kbps
+stereo, and Low = nominal 48 kbps with encoder stereo-to-mono downmix. Nominal
+bitrate is an encoder configuration, not exact instantaneous network traffic;
+VBR packet sizes vary with content. An active encoder applies a changed bitrate
+and channel mode before its next frame without replacing media, renegotiating,
+or changing local mute. Video budgeting always subtracts the same fixed 128 kbps
+transport allowance for High audio and protocol overhead, so a preset change
+never changes the video encoder's budget. No sound-preset logic reads or alters
+receiver-quality feedback, health ping/pong, timers, or connection liveness.
 
 `screen-events` binary record type `7` is non-terminal audio availability. It is
 `type:u8 = 7`, `available:u8` (0 or 1), `codeLength:u8`,
@@ -736,10 +766,10 @@ the source aspect ratio, and permits up to 60 frames per second. With level
 asymmetry enabled, the answer's receive level is not used as a sender-resolution
 ceiling. Direct starts at native resolution and 30 fps.
 Automatic derives its minimum readable dimensions from physical display pixels
-and effective Windows DPI; Quality keeps native dimensions; Data saver may use
-smaller dimensions. Relay uses Automatic or Data saver within its 8/4/2 Mbps
-ceiling. The RTP sender supports sender reports, NACK retransmission, and receiver
-keyframe requests. A monotonic capture pacer
+and effective Windows DPI; Full resolution keeps native dimensions; Data saver
+may use smaller dimensions. Relay uses Automatic or Data saver within its 8/4/2
+Mbps ceiling. The RTP sender supports sender reports, NACK retransmission, and
+receiver keyframe requests. A monotonic capture pacer
 drops desktop presents that arrive before the selected profile's next frame slot.
 Receiver-health reports and sustained sender backpressure move one profile at a
 time; healthy decoding permits reversible upward probes. Buffered media and event

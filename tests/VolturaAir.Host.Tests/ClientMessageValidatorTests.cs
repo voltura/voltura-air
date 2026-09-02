@@ -101,6 +101,28 @@ public sealed class ClientMessageValidatorTests
     }
 
     [Theory]
+    [InlineData("""{ "type": "screen.view.sound-quality.set", "soundQuality": "high" }""", true)]
+    [InlineData("""{ "type": "screen.view.sound-quality.set", "soundQuality": "standard" }""", true)]
+    [InlineData("""{ "type": "screen.view.sound-quality.set", "soundQuality": "low" }""", true)]
+    [InlineData("""{ "type": "screen.view.sound-quality.set", "soundQuality": null }""", true)]
+    [InlineData("""{ "type": "screen.view.sound-quality.set", "soundQuality": "High" }""", false)]
+    [InlineData("""{ "type": "screen.view.sound-quality.set", "soundQuality": "medium" }""", false)]
+    [InlineData("""{ "type": "screen.view.sound-quality.set", "soundQuality": 64 }""", false)]
+    [InlineData("""{ "type": "screen.view.sound-quality.set" }""", false)]
+    [InlineData("""{ "type": "screen.view.sound-quality.set", "soundQuality": "high", "extra": true }""", false)]
+    [InlineData("""{ "type": "screen.view.sound-quality.set", "soundQuality": "high", "soundQuality": "low" }""", false)]
+    public void ValidatesExactScreenSoundQualityMessages(string json, bool expected)
+    {
+        using var document = JsonDocument.Parse(json);
+
+        Assert.Equal(
+            expected,
+            ClientMessageValidator.IsValidAuthenticatedMessage(
+                document.RootElement,
+                "screen.view.sound-quality.set"));
+    }
+
+    [Theory]
     [InlineData("""{ "type": "screen.view.quality", "operationId": "screen-1", "width": 3840, "height": 2160, "framesPerSecond": 29.97, "framesDecoded": 60, "framesDropped": 1, "freezeCount": 0, "packetsLost": 0 }""", true)]
     [InlineData("""{ "type": "screen.view.quality", "operationId": "screen-1", "width": 3840, "height": 2160, "framesPerSecond": 29.97, "framesDecoded": 60, "framesDropped": 1, "freezeCount": 0, "packetsLost": 0, "detail": "forbidden" }""", false)]
     [InlineData("""{ "type": "screen.view.quality", "operationId": "screen-1", "width": 3840, "height": 2160, "framesPerSecond": 29.97, "framesDecoded": -1, "framesDropped": 1, "freezeCount": 0, "packetsLost": 0 }""", false)]

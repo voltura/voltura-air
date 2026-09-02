@@ -57,6 +57,8 @@ describe("connection protocol policy", () => {
         webClientBuildId: " build-a ",
         pointerSpeed: 500,
         selectedPort: Number.NaN,
+        screenSoundQuality: "medium" as never,
+        screenSoundQualityOverridden: "yes" as never,
       }),
     ).toEqual({
       defaultRemoteMode: "standard",
@@ -67,6 +69,18 @@ describe("connection protocol policy", () => {
       inputBlockedByElevation: true,
       webClientBuildId: "build-a",
       pointerSpeed: 100,
+    });
+  });
+
+  it("normalizes the optional screen sound quality status contract", () => {
+    expect(
+      normalizeHostStatus({
+        screenSoundQuality: "low",
+        screenSoundQualityOverridden: true,
+      }),
+    ).toMatchObject({
+      screenSoundQuality: "low",
+      screenSoundQualityOverridden: true,
     });
   });
 
@@ -423,6 +437,30 @@ describe("connection protocol policy", () => {
 });
 
 describe("parseServerMessage", () => {
+  it("accepts supported or absent screen sound status and rejects invalid values", () => {
+    for (const host of [
+      {},
+      { screenSoundQuality: "high", screenSoundQualityOverridden: false },
+      { screenSoundQuality: "standard", screenSoundQualityOverridden: true },
+      { screenSoundQuality: "low", screenSoundQualityOverridden: true },
+    ]) {
+      expect(
+        parseServerMessage(JSON.stringify({ type: "status", connected: true, host })),
+      ).not.toBeNull();
+    }
+
+    for (const host of [
+      { screenSoundQuality: "High", screenSoundQualityOverridden: false },
+      { screenSoundQuality: "medium", screenSoundQualityOverridden: false },
+      { screenSoundQuality: 64, screenSoundQualityOverridden: false },
+      { screenSoundQuality: "high", screenSoundQualityOverridden: "yes" },
+    ]) {
+      expect(
+        parseServerMessage(JSON.stringify({ type: "status", connected: true, host })),
+      ).toBeNull();
+    }
+  });
+
   it("accepts exact protocol string limits and rejects one character over", () => {
     const cases = [
       [

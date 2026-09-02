@@ -22,7 +22,8 @@ networks that block inbound PC connections.
   cursor movement, scrolling, and up to 10× local zoom. Direct viewing adapts up
   to the display, hardware, receiving device, and network capabilities; Relay
   offers High, Standard, and Data saver quality choices under the existing usage
-  protections. A camera action captures the watched display as a native,
+  protections. PC sound has High, Standard, and Low choices, with a PC default
+  and an optional setting for each paired device. A camera action captures the watched display as a native,
   cursor-free PNG and opens the device's existing Save/Share flow.
 - Use a selected paired-phone camera as `Voltura Air Webcam` in Windows apps.
   Enhanced Direct is free and unlimited; Relay initially shares the existing
@@ -194,7 +195,9 @@ trusted device.
 The optional **View PC screen** tool requires the **View PC screen** permission
 on the PC before a paired phone, tablet, or browser can use it. Direct physical
 mouse and keyboard control from another computer also requires Pointer and
-keyboard permission. **Files** separately requires Browse and open files
+keyboard permission. Set its default sound quality under **Preferences → Screen
+viewing**, or override it for one pairing from **Devices** or the paired device's
+**Menu → Settings → Screen viewing**. **Files** separately requires Browse and open files
 permission; file-changing actions also require Change files permission, and
 one-file transfers require Transfer files permission. **Apps** requires Control
 open applications; static previews additionally require View PC screen, while

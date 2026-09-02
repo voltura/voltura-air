@@ -161,11 +161,22 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   displays are selectable before or during viewing; another device receives a
   busy result. Leaving the workspace stops viewing.
 - The same authorized session captures the current default Windows multimedia
-  output and sends 48 kHz stereo Opus beside the video. Device playback starts
+  output at 48 kHz stereo and sends Opus beside the video. **High** uses a
+  configured nominal 96 kbps in stereo, **Standard** 64 kbps in stereo, and
+  **Low** 48 kbps with encoder downmix to mono while retaining the negotiated
+  `Opus/48000/2` media contract. Opus constrained VBR means instantaneous packet
+  traffic varies with the audio. Device playback starts
   muted on every new peer and a visible local **Sound** action enables or mutes
   it. Display switching retains that local mute state. Audio unavailability or
   output-device changes are reported in the live view and never stop video;
   local PC playback continues normally.
+- **Preferences → Screen viewing** owns the High default. Each paired device may
+  inherit it or select High, Standard, or Low from Windows **Devices → Screen
+  viewing** or mobile **Menu → Settings → Screen viewing**. A supporting host
+  advertises the effective value and whether it is overridden; older hosts omit
+  those fields and mobile hides the selector. Changes update the active encoder
+  before its next audio frame without restarting capture, replacing tracks,
+  renegotiating WebRTC, changing local mute, or interrupting video.
 - While a display is live, a camera action can copy one cursor-free frame at the
   selected display's native orientation and resolution, encode it as lossless
   PNG, and send it through the existing one-file Save/Share flow. It requires
@@ -192,17 +203,23 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   healthy receiver decoding probes one profile upward, and a failed probe rolls
   back and cools down before retry. An encoder-rejected profile uses the same
   bounded fallback and later becomes eligible again.
-- Direct Screen View has **Automatic**, **Quality**, and **Data saver** host
-  settings. Quality retains the full selected-display resolution while adapting
-  frame rate. Data saver is limited to 4 Mbps and starts within 1920 x 1080; it is
-  the explicit mode allowed to cross the readability floor. Relay uses the same
-  adaptive engine within the selected 8/4/2 Mbps ceiling. The mobile view shows
-  its actual received resolution, frame rate, and bitrate from WebRTC statistics
-  and sends bounded aggregate decoder-health counters while viewing.
+- Direct Screen View has **Automatic**, **Full resolution**, and **Data saver** host
+  settings. Full resolution retains the selected display's native dimensions
+  while adapting frame rate. Data saver is limited to 4 Mbps and starts within
+  1920 x 1080; it is the explicit mode allowed to cross the readability floor.
+  Relay uses the same adaptive engine within the selected 8/4/2 Mbps ceiling.
+  The mobile view shows its actual received resolution, frame rate, and bitrate
+  from WebRTC statistics and sends bounded aggregate decoder-health counters
+  while viewing.
 - Screen media is independent of the JSON command socket, so a slow viewer
   cannot delay trackpad or keyboard commands. The WebRTC sender bounds queued
   media, supports packet retransmission and receiver keyframe requests, and
   starts capture only after its video track and event channel connect.
+- Every video budget retains the same fixed 128 kbps transport allowance for
+  96 kbps sound plus protocol overhead. Selecting a lower sound preset does not
+  increase or otherwise change the video encoder budget. Sound quality is
+  explicit only: there is no congestion detector, automatic preset switching,
+  polling, timer, or health-check interaction.
 - One-finger movement controls the relative pointer. The compact two-finger
   switch defaults to **Zoom**, where spread/pinch locally magnifies the mirror
   from 1× to 10× around the
@@ -544,6 +561,9 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   drawer. It always shows the web-client version, browser, display mode, and
   connection state; a connected PC can add a freshly generated host and computer
   snapshot when the device has **View diagnostics** access.
+- The Voltura Air group shows the effective **Sound quality** from authenticated
+  host status when the connected host supports it. This does not add the value
+  to the exact diagnostics response or trigger background diagnostics work.
 - My device allows View diagnostics, Remote controls blocks it, and Custom stores
   an explicit Allow or Block value. The host checks the effective permission
   before collecting any computer information and returns no partial snapshot when

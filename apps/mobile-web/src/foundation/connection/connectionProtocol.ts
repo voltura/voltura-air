@@ -122,6 +122,16 @@ export function normalizeHostStatus(
       typeof metadata.accentColorOverridden === "boolean"
         ? metadata.accentColorOverridden
         : undefined,
+    screenSoundQuality:
+      metadata.screenSoundQuality === "high" ||
+      metadata.screenSoundQuality === "standard" ||
+      metadata.screenSoundQuality === "low"
+        ? metadata.screenSoundQuality
+        : undefined,
+    screenSoundQualityOverridden:
+      typeof metadata.screenSoundQualityOverridden === "boolean"
+        ? metadata.screenSoundQualityOverridden
+        : undefined,
     customPointerEnabled:
       typeof metadata.customPointerEnabled === "boolean"
         ? metadata.customPointerEnabled
@@ -1305,7 +1315,11 @@ function isHostStatusMetadata(value: unknown): boolean {
       value,
       "textTransferTarget",
       (candidate) => normalizeTextTransferTarget(candidate) !== undefined,
-    )
+    ) &&
+    isOptional(value, "screenSoundQuality", (candidate) =>
+      isOneOf(candidate, ["high", "standard", "low"]),
+    ) &&
+    isOptional(value, "screenSoundQualityOverridden", isBoolean)
   );
 }
 

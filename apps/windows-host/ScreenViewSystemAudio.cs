@@ -22,6 +22,7 @@ internal interface IScreenViewSystemAudioCapture : IAsyncDisposable
     Task RunAsync(
         Func<ScreenViewEncodedAudioFrame, bool> send,
         Action<ScreenViewAudioAvailability> reportAvailability,
+        Func<ScreenViewSoundQuality> getSoundQuality,
         CancellationToken cancellationToken);
 }
 
@@ -44,9 +45,11 @@ internal sealed class UnavailableScreenViewSystemAudioCaptureFactory : IScreenVi
         public async Task RunAsync(
             Func<ScreenViewEncodedAudioFrame, bool> send,
             Action<ScreenViewAudioAvailability> reportAvailability,
+            Func<ScreenViewSoundQuality> getSoundQuality,
             CancellationToken cancellationToken)
         {
             _ = send;
+            _ = getSoundQuality;
             reportAvailability(new(false, "audio-unavailable", "PC sound is unavailable in isolated test mode."));
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
         }
@@ -60,7 +63,7 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
     internal const int SampleRate = 48_000;
     internal const int Channels = 2;
     internal const int FrameSamples = 960;
-    internal const int BitrateReservation = 128_000;
+    internal const int TransportAllowance = 128_000;
     private const int FrameBytes = FrameSamples * Channels * sizeof(short);
     private const int MaximumQueuedFrames = 5;
     private const int MaximumOpusPacketBytes = 1275;
@@ -68,13 +71,31 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
         new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropOldest, SingleReader = true });
     private int _disposed;
 
+    internal static IOpusEncoder CreateEncoder(ScreenViewSoundQuality soundQuality)
+    {
+        IOpusEncoder encoder = OpusCodecFactory.CreateEncoder(SampleRate, Channels, OpusApplication.OPUS_APPLICATION_AUDIO);
+        encoder.UseVBR = true;
+        encoder.UseConstrainedVBR = true;
+        ApplyEncodingProfile(encoder, soundQuality);
+        return encoder;
+    }
+
+    internal static void ApplyEncodingProfile(IOpusEncoder encoder, ScreenViewSoundQuality soundQuality)
+    {
+        ScreenViewSoundEncodingProfile profile = ScreenViewSoundQualityProfile.Encoding(soundQuality);
+        encoder.Bitrate = profile.Bitrate;
+        encoder.ForceChannels = profile.Channels;
+    }
+
     public async Task RunAsync(
         Func<ScreenViewEncodedAudioFrame, bool> send,
         Action<ScreenViewAudioAvailability> reportAvailability,
+        Func<ScreenViewSoundQuality> getSoundQuality,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(send);
         ArgumentNullException.ThrowIfNull(reportAvailability);
+        ArgumentNullException.ThrowIfNull(getSoundQuality);
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
 
         using var enumerator = new MMDeviceEnumerator();
@@ -92,6 +113,7 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
                         enumerator,
                         send,
                         reportAvailability,
+                        getSoundQuality,
                         recovered,
                         cancellationToken)
                         .ConfigureAwait(false);
@@ -124,10 +146,15 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
         MMDeviceEnumerator enumerator,
         Func<ScreenViewEncodedAudioFrame, bool> send,
         Action<ScreenViewAudioAvailability> reportAvailability,
+        Func<ScreenViewSoundQuality> getSoundQuality,
         bool recovered,
         CancellationToken cancellationToken)
     {
-        await using CaptureRun capture = await CaptureRun.CreateAsync(enumerator, send, cancellationToken).ConfigureAwait(false);
+        await using CaptureRun capture = await CaptureRun.CreateAsync(
+            enumerator,
+            send,
+            getSoundQuality,
+            cancellationToken).ConfigureAwait(false);
         reportAvailability(new(true, recovered ? "audio-recovered" : "audio-ready",
             recovered ? "PC sound is available again." : "PC sound is available."));
 
@@ -188,7 +215,12 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
         private int _dropped;
         private int _disposed;
 
-        private CaptureRun(MMDevice endpoint, WasapiRecorder recorder, Func<ScreenViewEncodedAudioFrame, bool> send, CancellationToken cancellationToken)
+        private CaptureRun(
+            MMDevice endpoint,
+            WasapiRecorder recorder,
+            Func<ScreenViewEncodedAudioFrame, bool> send,
+            Func<ScreenViewSoundQuality> getSoundQuality,
+            CancellationToken cancellationToken)
         {
             _endpoint = endpoint;
             _recorder = recorder;
@@ -201,7 +233,7 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
             });
             _recorder.DataAvailable += OnDataAvailable;
             _recorder.RecordingStopped += OnRecordingStopped;
-            Completion = EncodeAsync(send, _stop.Token);
+            Completion = EncodeAsync(send, getSoundQuality, _stop.Token);
         }
 
         public Task Completion { get; }
@@ -209,6 +241,7 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
         public static async Task<CaptureRun> CreateAsync(
             MMDeviceEnumerator enumerator,
             Func<ScreenViewEncodedAudioFrame, bool> send,
+            Func<ScreenViewSoundQuality> getSoundQuality,
             CancellationToken cancellationToken)
         {
             MMDevice endpoint = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
@@ -224,7 +257,7 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
                     .WithBufferLength(20)
                     .BuildAsync()
                     .ConfigureAwait(false);
-                var run = new CaptureRun(endpoint, recorder, send, cancellationToken);
+                var run = new CaptureRun(endpoint, recorder, send, getSoundQuality, cancellationToken);
                 recorder.StartRecording();
                 return run;
             }
@@ -258,9 +291,13 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
             _blocks.Writer.TryComplete(args.Exception);
         }
 
-        private async Task EncodeAsync(Func<ScreenViewEncodedAudioFrame, bool> send, CancellationToken cancellationToken)
+        private async Task EncodeAsync(
+            Func<ScreenViewEncodedAudioFrame, bool> send,
+            Func<ScreenViewSoundQuality> getSoundQuality,
+            CancellationToken cancellationToken)
         {
-            using IOpusEncoder encoder = CreateEncoder();
+            ScreenViewSoundQuality appliedSoundQuality = getSoundQuality();
+            using IOpusEncoder encoder = CreateEncoder(appliedSoundQuality);
             byte[] pending = new byte[FrameBytes * MaximumQueuedFrames];
             int pendingLength = 0;
             uint timestamp = NonZeroRandomTimestamp();
@@ -286,6 +323,12 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
 
                 while (pendingLength >= FrameBytes)
                 {
+                    ScreenViewSoundQuality soundQuality = getSoundQuality();
+                    if (soundQuality != appliedSoundQuality)
+                    {
+                        ApplyEncodingProfile(encoder, soundQuality);
+                        appliedSoundQuality = soundQuality;
+                    }
                     short[] pcm = new short[FrameSamples * Channels];
                     Buffer.BlockCopy(pending, 0, pcm, 0, FrameBytes);
                     byte[] packet = new byte[MaximumOpusPacketBytes];
@@ -301,15 +344,6 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
                 }
             }
             await _recordingStopped.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        private static IOpusEncoder CreateEncoder()
-        {
-            IOpusEncoder encoder = OpusCodecFactory.CreateEncoder(SampleRate, Channels, OpusApplication.OPUS_APPLICATION_AUDIO);
-            encoder.Bitrate = 96_000;
-            encoder.UseVBR = true;
-            encoder.UseConstrainedVBR = true;
-            return encoder;
         }
 
         private static uint TimestampFromPosition(long qpcPosition)

@@ -1,7 +1,11 @@
 import { useCallback, useRef, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { getDefaultDeviceName } from "../platform/clientEnvironment";
 import { createPcProfile, forgetPcProfile, renamePcProfile, type PcProfile } from "./pcProfiles";
-import type { ClientMessage, HostStatusMetadata } from "../protocol/messages";
+import type {
+  ClientMessage,
+  HostStatusMetadata,
+  ScreenViewSoundQuality,
+} from "../protocol/messages";
 import { deviceNameKey, normalizeDeviceNameInput } from "./clientIdentity";
 import { getDisplayPcName, normalizePointerSpeed } from "./connectionProtocol";
 import type { ConnectionError, ConnectionState, PairingAttempt } from "./connectionTypes";
@@ -319,6 +323,15 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     [send, setHostStatus, state],
   );
 
+  const setHostScreenSoundQuality = useCallback(
+    (soundQuality: ScreenViewSoundQuality | null) => {
+      if (state === "paired") {
+        send({ type: "screen.view.sound-quality.set", soundQuality });
+      }
+    },
+    [send, state],
+  );
+
   const setHostCustomPointer = useCallback(
     (enabled: boolean) => {
       setHostStatus((current) =>
@@ -343,6 +356,7 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     selectPc,
     setHostCustomPointer,
     setHostAccentColor,
+    setHostScreenSoundQuality,
     setHostControlDepth,
     setHostShowModeButtons,
     setHostPointerSpeed,

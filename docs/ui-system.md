@@ -209,6 +209,11 @@ except during activation. If PC sound becomes unavailable, video and controls
 remain active and an accessible in-stage notice remains visible in expanded
 mode. The bottom zoom-mode and magnification-reset actions share a top edge in
 landscape; resetting magnification does not change the selected two-finger mode.
+Mobile **Menu → Settings → Screen viewing** shows Sound quality only when the
+connected host advertises the effective value and override state. Its selector
+uses **Use PC default**, High, Standard, and Low, with concise outcome-focused
+descriptions. Diagnostics reuses the authenticated effective value as one
+copyable **Sound quality** row; it does not request or poll for that setting.
 
 Phone webcam keeps its header, camera controls, and current status fixed and
 assigns remaining height to the camera view without making the workspace scroll.

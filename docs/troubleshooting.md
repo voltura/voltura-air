@@ -47,6 +47,14 @@ Choose **Sound** in the live view to begin playback. If the browser blocks
 playback, choose **Sound** again. This control changes only playback on the viewing
 device; it does not mute or change volume on the PC.
 
+If sound breaks up or loses detail while video remains usable, choose **Standard**
+or **Low** under the paired device's **Menu → Settings → Screen viewing**. Low
+uses mono and the least network capacity; Standard keeps stereo with lower use;
+High keeps the best detail. The PC default is under **Preferences → Screen
+viewing**, and Windows **Devices → Screen viewing** can override it for one
+pairing. Changing the choice does not restart the screen view, and returning to
+**Use PC default** resumes the PC setting.
+
 ## Device cannot reach the PC
 
 Confirm:

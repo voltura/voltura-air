@@ -42,8 +42,10 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         _powerController = powerController;
         pairingManager.PairingRevoked += OnPairingRevoked;
         pairingManager.PermissionsChanged += OnPermissionsChanged;
+        pairingManager.DeviceProfileChanged += OnSoundQualityChanged;
         AppPermissionSettings.Changed += OnPermissionsChanged;
         AppDeveloperSettings.Changed += OnDeveloperSettingsChanged;
+        AppScreenViewSettings.SoundQualityChanged += OnSoundQualityChanged;
     }
 
     public event EventHandler<ScreenViewActivityChangedEventArgs>? ActivityChanged;
@@ -220,6 +222,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             {
                 if (ReferenceEquals(_answering, pending) && !pending.StopRequested && _active is null)
                 {
+                    ScreenViewSoundQuality soundQuality = _pairingManager.GetDeviceScreenSoundQuality(clientId);
                     active = new ActiveView(
                         pending.ClientId,
                         pending.OperationId,
@@ -227,7 +230,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                         pending.VirtualDesktop,
                         pending.Peer,
                         pending.DirectQuality,
-                        pending.MaximumBitrate);
+                        pending.MaximumBitrate,
+                        soundQuality);
                     _answering = null;
                     pending.DetachPeer();
                     _active = active;
@@ -524,6 +528,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                         availability.Available,
                         availability.Code,
                         availability.Message)),
+                    () => active.SoundQuality,
                     linked.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (active.AudioStop.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
@@ -725,6 +730,12 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
 
     private void OnPermissionsChanged(object? sender, EventArgs e) => StopUnauthorized();
     private void OnDeveloperSettingsChanged(object? sender, EventArgs e) => StopUnauthorized();
+    private void OnSoundQualityChanged(object? sender, EventArgs e)
+    {
+        ActiveView? active;
+        lock (_gate) active = _active;
+        active?.SetSoundQuality(_pairingManager.GetDeviceScreenSoundQuality(active.ClientId));
+    }
 
     private void StopUnauthorized()
     {
@@ -754,8 +765,10 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _pairingManager.PairingRevoked -= OnPairingRevoked;
         _pairingManager.PermissionsChanged -= OnPermissionsChanged;
+        _pairingManager.DeviceProfileChanged -= OnSoundQualityChanged;
         AppPermissionSettings.Changed -= OnPermissionsChanged;
         AppDeveloperSettings.Changed -= OnDeveloperSettingsChanged;
+        AppScreenViewSettings.SoundQualityChanged -= OnSoundQualityChanged;
         ActiveView? active;
         PendingView? answering;
         lock (_gate)
@@ -857,7 +870,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         VirtualDesktopBounds virtualDesktop,
         IScreenViewWebRtcPeer peer,
         DirectScreenQualityMode directQuality,
-        int? maximumBitrate)
+        int? maximumBitrate,
+        ScreenViewSoundQuality soundQuality)
     {
         private ScreenViewSource _source = source;
         private VirtualDesktopBounds _virtualDesktop = virtualDesktop;
@@ -866,9 +880,10 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             source,
             directQuality,
             maximumBitrate,
-            ScreenViewSystemAudioCapture.BitrateReservation);
+            ScreenViewSystemAudioCapture.TransportAllowance);
         private readonly Lock _stopGate = new();
         private int _forceKeyFrame = 1;
+        private int _soundQuality = (int)soundQuality;
         private int _released;
         private bool _hostStopClaimed;
         public string ClientId { get; } = clientId;
@@ -881,6 +896,10 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         public CancellationTokenSource Stop { get; } = new();
         public CancellationTokenSource AudioStop { get; } = new();
         public Task? Runner { get; set; }
+        public ScreenViewSoundQuality SoundQuality =>
+            (ScreenViewSoundQuality)Volatile.Read(ref _soundQuality);
+        public void SetSoundQuality(ScreenViewSoundQuality value) =>
+            Interlocked.Exchange(ref _soundQuality, (int)value);
         public void SetSource(ScreenViewSource source, VirtualDesktopBounds virtualDesktop)
         {
             Volatile.Write(ref _source, source);

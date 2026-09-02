@@ -771,7 +771,11 @@ describe("useVolturaAirConnection", () => {
         clientId: "client-a",
         pcName: "PC",
         paired: true,
-        host: { pointerSpeed: 65 },
+        host: {
+          pointerSpeed: 65,
+          screenSoundQuality: "high",
+          screenSoundQualityOverridden: false,
+        },
       }),
     });
 
@@ -813,6 +817,21 @@ describe("useVolturaAirConnection", () => {
     });
     expect(socket.send).toHaveBeenCalledWith(
       JSON.stringify({ type: "appearance.accent-color.set", accentColor: "#5FC8B4" }),
+    );
+
+    act(() => {
+      result.current.setHostScreenSoundQuality("low");
+    });
+
+    expect(socket.send).toHaveBeenCalledWith(
+      JSON.stringify({ type: "screen.view.sound-quality.set", soundQuality: "low" }),
+    );
+
+    act(() => {
+      result.current.setHostScreenSoundQuality(null);
+    });
+    expect(socket.send).toHaveBeenCalledWith(
+      JSON.stringify({ type: "screen.view.sound-quality.set", soundQuality: null }),
     );
   });
 

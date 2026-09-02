@@ -33,6 +33,11 @@
   subscriptions, bounded PCM/Opus work, and audio cancellation. Audio capture or
   track failure reports sound unavailable and must not cancel video or the
   authenticated command session.
+- Screen View sound quality resolves one validated per-device override over the
+  separate validated global setting. The active session caches that closed value;
+  the encoder applies bitrate/channel changes between frames without restarting
+  capture or the peer. Its fixed 128 kbps transport allowance remains independent
+  of the selected sound preset and health/keepalive logic remains unchanged.
 - Prefer event-driven work. Polling or lifetime allocations require measured
   justification.
 

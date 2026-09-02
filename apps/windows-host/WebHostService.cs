@@ -1101,6 +1101,8 @@ internal sealed record HostStatusMetadata(
     bool ControlDepth,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? AccentColor,
     bool AccentColorOverridden,
+    string ScreenSoundQuality,
+    bool ScreenSoundQualityOverridden,
     bool DeveloperMode,
     string? DeveloperSessionId,
     bool InputBlockedByElevation);

@@ -577,6 +577,28 @@ internal sealed class WebSocketSessionHandler(
                     clientId,
                     accentColor.ValueKind == JsonValueKind.Null ? null : accentColor.GetString());
                 return true;
+            case "screen.view.sound-quality.set":
+                var soundQuality = root.GetProperty("soundQuality");
+                try
+                {
+                    pairingManager.SetDeviceScreenSoundQualityOverride(
+                        clientId,
+                        soundQuality.ValueKind == JsonValueKind.Null
+                            ? null
+                            : ScreenViewSoundQualityProfile.ParseProtocolId(soundQuality.GetString()));
+                }
+                catch (Exception exception) when (
+                    exception is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+                {
+                    appLog.Write(new AppLogEntry(
+                        "screen_view",
+                        "windows_host",
+                        Action: "sound_quality_save_failed",
+                        Outcome: "failed",
+                        Code: exception.GetType().Name));
+                    await transport.SendAsync(socket, statusFactory.CreateConnectedStatus(clientId), cancellationToken);
+                }
+                return true;
             case "custom.pointer.set":
                 ApplyCustomPointer(clientId, root.GetProperty("enabled").GetBoolean());
                 return true;

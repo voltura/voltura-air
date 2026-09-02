@@ -5,6 +5,7 @@ using VolturaAir.Host.Ui;
 namespace VolturaAir.Host.Features.Devices;
 
 internal sealed record DeviceAccessProfileChoice(DeviceAccessProfile Profile, string DisplayName);
+internal sealed record DeviceSoundQualityChoice(ScreenViewSoundQuality? Quality, string DisplayName);
 
 internal sealed class DeviceListItem(
     string clientId,
@@ -20,6 +21,8 @@ internal sealed class DeviceListItem(
     bool showModeButtons,
     bool? controlDepthOverride,
     bool controlDepth,
+    ScreenViewSoundQuality? screenSoundQualityOverride,
+    ScreenViewSoundQuality screenSoundQuality,
     DeviceAccessProfile accessProfile,
     IReadOnlyList<DevicePermissionItem> permissions,
     ProtectedFileFilterItem protectedFileFilter,
@@ -38,9 +41,12 @@ internal sealed class DeviceListItem(
     private bool _showModeButtons = showModeButtons;
     private bool? _controlDepthOverride = controlDepthOverride;
     private bool _controlDepth = controlDepth;
+    private ScreenViewSoundQuality? _screenSoundQualityOverride = screenSoundQualityOverride;
+    private ScreenViewSoundQuality _screenSoundQuality = screenSoundQuality;
     private DeviceAccessProfile _accessProfile = accessProfile;
     private bool _isExpanded = isExpanded;
     private bool _isAppearanceExpanded;
+    private bool _isScreenViewingExpanded;
     private bool _isTrackpadExpanded;
     private bool _isPermissionsExpanded;
 
@@ -58,6 +64,13 @@ internal sealed class DeviceListItem(
     public string AccessProfileDisplayName => DeviceAccessProfiles.GetDisplayName(AccessProfile);
     public IReadOnlyList<DevicePermissionItem> Permissions { get; } = permissions;
     public ProtectedFileFilterItem ProtectedFileFilter { get; } = protectedFileFilter;
+    public IReadOnlyList<DeviceSoundQualityChoice> ScreenSoundQualityChoices { get; } =
+    [
+        new(null, "Use global"),
+        new(ScreenViewSoundQuality.High, "High"),
+        new(ScreenViewSoundQuality.Standard, "Standard"),
+        new(ScreenViewSoundQuality.Low, "Low")
+    ];
 
     public int PointerSpeed
     {
@@ -103,6 +116,13 @@ internal sealed class DeviceListItem(
     public string UseGlobalControlDepthLabel => IsControlDepthInherited ? "\u2713 Use global" : "Use global";
     public string EnableControlDepthLabel => IsControlDepthExplicitlyEnabled || (IsControlDepthInherited && ControlDepth) ? "\u2713 Enable" : "Enable";
     public string DisableControlDepthLabel => IsControlDepthExplicitlyDisabled || (IsControlDepthInherited && !ControlDepth) ? "\u2713 Disable" : "Disable";
+    public ScreenViewSoundQuality? ScreenSoundQualityOverride => _screenSoundQualityOverride;
+    public ScreenViewSoundQuality ScreenSoundQuality => _screenSoundQuality;
+    public DeviceSoundQualityChoice SelectedScreenSoundQualityChoice =>
+        ScreenSoundQualityChoices.First(choice => choice.Quality == ScreenSoundQualityOverride);
+    public string ScreenSoundQualityHint => ScreenSoundQualityOverride is null
+        ? $"Using global default: {ScreenViewSoundQualityProfile.DisplayName(ScreenSoundQuality)}."
+        : $"Override active: {ScreenViewSoundQualityProfile.DisplayName(ScreenSoundQuality)}.";
 
     public bool IsExpanded
     {
@@ -133,6 +153,17 @@ internal sealed class DeviceListItem(
         {
             if (_isAppearanceExpanded == value) return;
             _isAppearanceExpanded = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsScreenViewingExpanded
+    {
+        get => _isScreenViewingExpanded;
+        set
+        {
+            if (_isScreenViewingExpanded == value) return;
+            _isScreenViewingExpanded = value;
             OnPropertyChanged();
         }
     }
@@ -202,9 +233,22 @@ internal sealed class DeviceListItem(
             nameof(UseGlobalControlDepthLabel), nameof(EnableControlDepthLabel), nameof(DisableControlDepthLabel));
     }
 
+    public void ApplyScreenSoundQuality(
+        ScreenViewSoundQuality? overrideValue,
+        ScreenViewSoundQuality effectiveValue)
+    {
+        if (_screenSoundQualityOverride == overrideValue && _screenSoundQuality == effectiveValue) return;
+        _screenSoundQualityOverride = overrideValue;
+        _screenSoundQuality = effectiveValue;
+        NotifyProperties(
+            nameof(ScreenSoundQualityOverride), nameof(ScreenSoundQuality),
+            nameof(SelectedScreenSoundQualityChoice), nameof(ScreenSoundQualityHint));
+    }
+
     public void OpenAppearance()
     {
         IsTrackpadExpanded = false;
+        IsScreenViewingExpanded = false;
         IsPermissionsExpanded = false;
         IsAppearanceExpanded = true;
     }
@@ -212,6 +256,7 @@ internal sealed class DeviceListItem(
     public void OpenTrackpad()
     {
         IsAppearanceExpanded = false;
+        IsScreenViewingExpanded = false;
         IsPermissionsExpanded = false;
         IsTrackpadExpanded = true;
     }
@@ -220,13 +265,23 @@ internal sealed class DeviceListItem(
     {
         IsAppearanceExpanded = false;
         IsTrackpadExpanded = false;
+        IsScreenViewingExpanded = false;
         IsPermissionsExpanded = true;
+    }
+
+    public void OpenScreenViewing()
+    {
+        IsAppearanceExpanded = false;
+        IsTrackpadExpanded = false;
+        IsPermissionsExpanded = false;
+        IsScreenViewingExpanded = true;
     }
 
     public void CollapseChildren()
     {
         IsAppearanceExpanded = false;
         IsTrackpadExpanded = false;
+        IsScreenViewingExpanded = false;
         IsPermissionsExpanded = false;
     }
 

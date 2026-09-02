@@ -138,12 +138,11 @@ unless real evidence justifies changing that explicit model.
    device** explicit, permission-scoped actions; define image transfer, item and
    byte limits, expiry, clearing, sensitive-content behavior, and disconnect
    cleanup before implementation.
-5. **Session recording and annotated screenshots**
-   Extend the existing native-PNG screen capture with optional annotations and
-   short recordings of the live mirror, including an optional laser-pointer or
-   drawing overlay. Keep captures transient until the user explicitly saves them
-   on the device or uploads one through the existing one-file transfer, with
-   browser support, duration, memory, cancellation, and cleanup limits.
+5. **Capture annotations**
+   Consider optional laser-pointer or drawing annotations for the existing
+   screenshots and device-local recordings. Keep the exported capture transient
+   until the user explicitly saves it, and define touch ownership, undo, memory,
+   cancellation, and cleanup limits before implementation.
 
 ### Quality-of-life and power-user features
 

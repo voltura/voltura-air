@@ -72,6 +72,7 @@
 
 .screen-view-fullscreen-toggle,
 .screen-view-camera-action,
+.screen-view-record-action,
 .screen-view-sound-action {
   display: grid;
   width: 2.5rem;
@@ -86,9 +87,21 @@
 
 .screen-view-fullscreen-toggle svg,
 .screen-view-camera-action svg,
+.screen-view-record-action svg,
 .screen-view-sound-action svg {
   width: 1.1rem;
   height: 1.1rem;
+}
+
+.screen-view-record-action[aria-disabled="true"] {
+  opacity: 0.5;
+}
+
+.screen-view-record-action.active {
+  border-color: color-mix(in srgb, var(--danger) 75%, var(--border));
+  background: var(--danger);
+  box-shadow: 0 0 1rem color-mix(in srgb, var(--danger) 50%, transparent);
+  color: var(--on-accent);
 }
 
 .screen-view-sound-action[aria-pressed="true"]:not(:active) {
@@ -150,7 +163,8 @@
   right: max(0.4rem, env(safe-area-inset-right));
 }
 
-.screen-view-screenshot-transfer {
+.screen-view-screenshot-transfer,
+.screen-view-recording-panel {
   position: absolute;
   z-index: 5;
   right: 0.5rem;
@@ -166,54 +180,69 @@
   gap: 0.5rem;
 }
 
-.screen-view-screenshot-transfer > div:first-child {
+.screen-view-screenshot-transfer > div:first-child,
+.screen-view-recording-panel > div:first-child {
   display: grid;
   min-width: 0;
   gap: 0.15rem;
 }
 
 .screen-view-screenshot-transfer strong,
-.screen-view-screenshot-transfer span {
+.screen-view-screenshot-transfer span,
+.screen-view-recording-panel strong,
+.screen-view-recording-panel span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.screen-view-screenshot-transfer span {
+.screen-view-screenshot-transfer span,
+.screen-view-recording-panel span {
   color: var(--text-muted);
   font-size: 0.8rem;
 }
 
-.screen-view-screenshot-transfer progress {
+.screen-view-screenshot-transfer progress,
+.screen-view-recording-panel progress {
   width: 100%;
 }
 
-.screen-view-screenshot-ready-actions {
+.screen-view-screenshot-ready-actions,
+.screen-view-recording-actions {
   display: flex;
   justify-content: flex-end;
   gap: 0.4rem;
 }
 
-.screen-view-screenshot-ready-actions button {
+.screen-view-screenshot-ready-actions button,
+.screen-view-recording-actions button {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
 }
 
-.screen-view-screenshot-icon-action {
+.screen-view-screenshot-icon-action,
+.screen-view-recording-icon-action {
   width: 2.25rem;
   min-width: 2.25rem;
   min-height: 2.25rem;
   padding: 0;
 }
 
+.screen-view-recording-panel > .screen-view-recording-icon-action {
+  justify-self: end;
+}
+
 .screen-view-screenshot-icon-action svg,
-.screen-view-screenshot-ready-actions svg {
+.screen-view-screenshot-ready-actions svg,
+.screen-view-recording-icon-action svg,
+.screen-view-recording-actions svg {
   width: 1rem;
   height: 1rem;
 }
 
-.screen-view-workspace.is-immersive .screen-view-screenshot-transfer {
+.screen-view-workspace.is-immersive .screen-view-screenshot-transfer,
+.screen-view-workspace.is-immersive .screen-view-recording-panel {
   right: max(0.5rem, env(safe-area-inset-right));
   bottom: max(0.5rem, env(safe-area-inset-bottom));
 }

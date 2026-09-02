@@ -102,12 +102,12 @@ When the optional Screen tool is enabled and permitted, selected-display video
 and current Windows system-output audio travel on WebRTC DTLS-SRTP media tracks;
 cursor/status/audio-availability updates use a DTLS-protected WebRTC data channel.
 Screen pixels, display contents, system-audio samples, negotiated session keys,
-SDP, cursor coordinates, and encoded media are neither logged nor persisted.
-Captured GPU frames, loopback audio, and encoded media exist only in bounded
-memory until sent or replaced by newer work. Capture uses the same **View PC
-screen** permission, starts with the session, and does not capture a microphone
-or a selected application. Device playback starts muted and local PC playback
-continues normally.
+SDP, cursor coordinates, and encoded media are not logged or persisted by the
+Windows host or transport services. Captured GPU frames, loopback audio, and
+encoded media exist there only in bounded memory until sent or replaced by newer
+work. Capture uses the same **View PC screen** permission, starts with the
+session, and does not capture a microphone or a selected application. Device
+playback starts muted and local PC playback continues normally.
 
 When Apps is opened and **Control open applications** is permitted, the PC
 returns bounded titles, application display names, state flags, and random
@@ -156,6 +156,17 @@ receiving browser uses the same per-tab temporary storage and Save/Share cleanup
 rules as a PC-file download. Official Relay admission conservatively estimates
 three times the PNG size plus 1 MiB against aggregate monthly usage; those
 analytics may lag and concurrent sessions are not reserved.
+
+On supporting browsers, the user can also explicitly record up to five minutes
+of the received screen video on that device. PC sound is included only when the
+local Sound control is on at the start. The recording contains the clean PC
+picture without the cursor and device controls, is written in bounded chunks to
+one per-tab temporary browser-storage file, and is never uploaded or copied back
+to the PC. Screen stop, stream loss, the five-minute limit, or foreground loss
+finalizes the available partial for Save/Share or Discard. Successful Save/Share
+or Discard removes it; navigation, page exit, reload, or a later page-start sweep
+removes an abandoned partial. Voltura Air keeps no recording history or recovery
+catalog.
 
 When Phone webcam is enabled and permitted, selected phone camera video and optional,
 explicitly enabled microphone audio travel on WebRTC DTLS-SRTP media tracks to the

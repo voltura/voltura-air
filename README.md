@@ -24,7 +24,10 @@ networks that block inbound PC connections.
   offers High, Standard, and Data saver quality choices under the existing usage
   protections. PC sound has High, Standard, and Low choices, with a PC default
   and an optional setting for each paired device. A camera action captures the watched display as a native,
-  cursor-free PNG and opens the device's existing Save/Share flow.
+  cursor-free PNG and opens the device's existing Save/Share flow. On supported
+  devices, a Record action captures up to five minutes of the clean PC picture
+  locally, includes PC sound when Sound is on at the start, and then offers the
+  same Save/Share flow in the browser-selected MP4 or WebM format.
 - Use a selected paired-phone camera as `Voltura Air Webcam` in Windows apps.
   Enhanced Direct is free and unlimited; Relay initially shares the existing
   service usage limits. Optional microphone audio is off by default, can be muted

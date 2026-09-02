@@ -11,7 +11,7 @@ for a Windows 11 PC.
   landscape split mode.
 - Live viewing of one selected Windows display over Direct LAN or optional Cloud
   relay, with touch or physical mouse and keyboard control, local zoom, and a
-  native PNG Save/Share action.
+  native PNG Save/Share action plus five-minute device-local MP4/WebM recording.
 - A circular Apps deck for previewing and switching between eligible open PC
   windows, closing them normally, and opening applications defined on the PC.
 - An interactive Windows PowerShell Terminal over Direct LAN or Cloud relay,
@@ -43,7 +43,7 @@ for a Windows 11 PC.
 - Host-controlled permissions for paired devices and disruptive PC actions.
 - QR pairing with saved reconnect over Direct LAN or optional end-to-end
   encrypted Cloud relay.
-- View PC screen carries one selected display and Windows system sound over encrypted WebRTC; each new device session starts muted and exposes a local Sound control. PC sound offers High, Standard, and Low quality choices with a PC default and optional per-device override.
+- View PC screen carries one selected display and Windows system sound over encrypted WebRTC; each new device session starts muted and exposes a local Sound control. PC sound offers High, Standard, and Low quality choices with a PC default and optional per-device override. Supporting browsers can save a clean screenshot or record up to five minutes of clean PC video locally, with PC sound included only when Sound is on at the start, then Save/Share the browser-selected MP4 or WebM file.
 - Cloud relay makes the Windows PC and mobile device connect outward, avoids an
   incoming PC firewall exception, and supports encrypted commands plus live
   screen viewing with High, Standard, and Data saver quality choices under the

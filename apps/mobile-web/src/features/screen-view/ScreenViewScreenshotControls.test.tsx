@@ -24,18 +24,53 @@ const transfer = vi.hoisted(() => ({
 const useFileTransferMock = vi.hoisted(() =>
   vi.fn((..._arguments: [unknown, string, boolean, unknown, unknown?, unknown?]) => transfer),
 );
+const recording = vi.hoisted(() => ({
+  busy: false,
+  discard: vi.fn(() => Promise.resolve()),
+  lockSound: false,
+  presentation: {
+    elapsedMs: 0,
+    fileName: "",
+    includesSound: false,
+    message: "",
+    phase: "idle" as "idle" | "recording" | "finalizing" | "ready" | "error",
+  },
+  reportAudioUnavailable: vi.fn(),
+  saveReadyFile: vi.fn(() => Promise.resolve()),
+  start: vi.fn(() => Promise.resolve(true)),
+  stop: vi.fn(),
+  supported: true,
+  unsupportedReason: "",
+}));
 
 vi.mock("../../foundation/file-transfer/fileTransferDeviceStorage", () => ({
-  supportsDeviceTransferStorage: () => true,
+  supportsDeviceFileStorage: () => true,
 }));
 
 vi.mock("../../foundation/file-transfer/useFileTransfer", () => ({
   useFileTransfer: useFileTransferMock,
 }));
 
+vi.mock("./useScreenViewRecording", () => ({
+  useScreenViewRecording: () => recording,
+}));
+
 describe("Screen View screenshot controls", () => {
   beforeEach(() => {
+    transfer.presentation.active = false;
+    transfer.presentation.readyToSave = true;
+    recording.busy = false;
+    recording.lockSound = false;
+    recording.presentation.phase = "idle";
     vi.stubGlobal("RTCPeerConnection", class {});
+    vi.stubGlobal(
+      "MediaRecorder",
+      class {
+        static isTypeSupported() {
+          return true;
+        }
+      },
+    );
   });
 
   afterEach(() => {
@@ -75,6 +110,11 @@ describe("Screen View screenshot controls", () => {
     );
 
     const save = screen.getByRole("button", { name: "Save / Share" });
+    const camera = screen.getByRole("button", { name: "Capture PC screenshot" });
+    const record = screen.getByRole("button", { name: "Start screen recording" });
+    expect(camera.getAttribute("title")).toContain("screenshot");
+    expect(record.hasAttribute("disabled")).toBe(true);
+    expect(record.getAttribute("title")).toContain("screenshot");
     expect(fireEvent.touchStart(save, { targetTouches: [{ identifier: 1 }] })).toBe(true);
     expect(fireEvent.touchEnd(save, { targetTouches: [] })).toBe(true);
     fireEvent.click(save);
@@ -85,6 +125,46 @@ describe("Screen View screenshot controls", () => {
     expect(fireEvent.touchEnd(discard, { targetTouches: [] })).toBe(true);
     fireEvent.click(discard);
     expect(transfer.discardReadyFile).toHaveBeenCalledOnce();
+  });
+
+  it("explains that a recording must finish before taking a screenshot", () => {
+    transfer.presentation.readyToSave = false;
+    recording.busy = true;
+    recording.presentation.phase = "ready";
+
+    render(
+      <ScreenViewWorkspace
+        activePc={{ customName: false, id: "preview", name: "PC", url: "http://127.0.0.1" }}
+        browserPreviewState="active"
+        capability={{
+          enabled: true,
+          permissionGranted: true,
+          canView: true,
+          requiresRepair: false,
+          encrypted: true,
+          maxWidth: 1920,
+          maxHeight: 1080,
+          maxFramesPerSecond: 30,
+          systemAudio: { codec: "opus", sampleRate: 48_000, channels: 2 },
+          screenshot: {
+            transferPermissionGranted: true,
+            format: "image/png",
+            maxPixels: 33_177_600,
+            maxBytes: 67_108_864,
+          },
+        }}
+        clientId="preview-client"
+        onBack={vi.fn()}
+        onOpenKeyboard={vi.fn()}
+        send={vi.fn()}
+        state="paired"
+        trackpadSettings={defaultTrackpadSettings}
+      />,
+    );
+
+    const camera = screen.getByRole("button", { name: "Capture PC screenshot" });
+    expect(camera.hasAttribute("disabled")).toBe(true);
+    expect(camera.getAttribute("title")).toContain("recording");
   });
 
   it("disables screenshot storage when Screen viewing permission is revoked", () => {

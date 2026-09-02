@@ -201,11 +201,13 @@ Files uses one panel below 640 CSS pixels and two equal panels at or above that 
 Files distinguishes **Open** (launch on the PC and remain in Files) from **View** (launch, then enter PC Screen after host success). This reuses the existing toolbar space and avoids a hidden long-press action competing with Properties. Permission or trust failures remain in Files with direct guidance; Screen Back restores Files.
 
 Screen viewing keeps its responsive stage as the working region. Sound,
-screenshot, and expand/restore actions form one top-right overlay group with
+screenshot, record/stop, and expand/restore actions form one top-right overlay group with
 stable ordering and safe-area offsets; their spacing is owned by that
 composition. Sound starts muted for every peer and changes only browser-local
 playback. Its active state retains the neutral neighboring-control treatment
-except during activation. If PC sound becomes unavailable, video and controls
+except during activation. Record changes to a clear red Stop state and uses one
+compact artifact panel for elapsed time, finalization, Save/Share, and Discard.
+Sound is locked while a recording is active. If PC sound becomes unavailable, video and controls
 remain active and an accessible in-stage notice remains visible in expanded
 mode. The bottom zoom-mode and magnification-reset actions share a top edge in
 landscape; resetting magnification does not change the selected two-finger mode.

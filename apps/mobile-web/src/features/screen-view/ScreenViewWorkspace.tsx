@@ -10,6 +10,7 @@ import {
 import {
   ChevronLeft,
   Camera,
+  Circle,
   Keyboard,
   Maximize2,
   Minimize2,
@@ -57,7 +58,7 @@ import {
   type ScreenViewTransform,
 } from "./screenViewTransform";
 import { useScreenViewFullscreen } from "./useScreenViewFullscreen";
-import { supportsDeviceTransferStorage } from "../../foundation/file-transfer/fileTransferDeviceStorage";
+import { supportsDeviceFileStorage } from "../../foundation/file-transfer/fileTransferDeviceStorage";
 import { useFileTransfer } from "../../foundation/file-transfer/useFileTransfer";
 import {
   screenViewQualityFromStats,
@@ -65,6 +66,8 @@ import {
   type ScreenViewQualitySample,
 } from "./screenViewQuality";
 import { hasExpectedScreenMedia } from "./screenViewSdp";
+import { ScreenViewRecordingPanel } from "./ScreenViewRecordingPanel";
+import { useScreenViewRecording } from "./useScreenViewRecording";
 import "./screen-view.css";
 
 interface Props {
@@ -192,7 +195,8 @@ export default function ScreenViewWorkspace({
     undefined,
     onTransferNotice,
   );
-  const supportsScreenshotStorage = supportsDeviceTransferStorage();
+  const recording = useScreenViewRecording(onTransferNotice);
+  const supportsScreenshotStorage = supportsDeviceFileStorage();
   const screenshotBusy =
     screenshotTransfer.presentation.active || screenshotTransfer.presentation.readyToSave;
 
@@ -621,6 +625,10 @@ export default function ScreenViewWorkspace({
   }
 
   async function toggleSound() {
+    if (recording.lockSound) {
+      setAudioNotice("Sound is fixed until this recording stops.");
+      return;
+    }
     const video = videoRef.current;
     if (!video || !audioAvailable || !audioTrackReady) {
       setAudioNotice("PC sound is unavailable. Video is still available.");
@@ -905,6 +913,7 @@ export default function ScreenViewWorkspace({
         setAudioAvailable(record.available);
         setAudioNotice(record.message);
         if (!record.available) {
+          recording.reportAudioUnavailable();
           if (videoRef.current) {
             videoRef.current.muted = true;
           }
@@ -992,6 +1001,7 @@ export default function ScreenViewWorkspace({
   }
 
   function closeStream() {
+    recording.stop("Screen viewing ended. Recording is ready.");
     activeOperationRef.current = null;
     negotiationGenerationRef.current += 1;
     disableDirectPointer();
@@ -1217,7 +1227,12 @@ export default function ScreenViewWorkspace({
         <button
           type="button"
           className="screen-view-icon-button"
-          onClick={onBack}
+          onClick={() => {
+            if (recording.busy) {
+              void recording.discard();
+            }
+            onBack();
+          }}
           aria-label="Back"
         >
           <ChevronLeft />
@@ -1248,16 +1263,18 @@ export default function ScreenViewWorkspace({
               onTouchMove={stopScreenGesture}
               onTouchEnd={stopScreenGesture}
               onTouchCancel={stopScreenGesture}
-              disabled={!audioAvailable || !audioTrackReady}
+              disabled={!audioAvailable || !audioTrackReady || recording.lockSound}
               onClick={() => void toggleSound()}
               aria-label={soundOn ? "Mute PC sound" : "Play PC sound"}
               aria-pressed={soundOn}
               title={
-                !audioAvailable || !audioTrackReady
-                  ? "PC sound is unavailable"
-                  : soundOn
-                    ? "Mute PC sound"
-                    : "Play PC sound"
+                recording.lockSound
+                  ? "Sound is fixed until this recording stops"
+                  : !audioAvailable || !audioTrackReady
+                    ? "PC sound is unavailable"
+                    : soundOn
+                      ? "Mute PC sound"
+                      : "Play PC sound"
               }
             >
               {soundOn ? <Volume2 aria-hidden="true" /> : <VolumeX aria-hidden="true" />}
@@ -1272,6 +1289,7 @@ export default function ScreenViewWorkspace({
                 onTouchCancel={stopScreenGesture}
                 disabled={
                   screenshotBusy ||
+                  recording.busy ||
                   !supportsScreenshotStorage ||
                   !capability.screenshot.transferPermissionGranted
                 }
@@ -1290,12 +1308,63 @@ export default function ScreenViewWorkspace({
                     ? "Allow Transfer files for this device on the PC"
                     : !supportsScreenshotStorage
                       ? "This browser cannot stage a screenshot for Save or Share"
-                      : "Capture this PC display"
+                      : screenshotBusy
+                        ? "Save or discard the current screenshot first"
+                        : recording.busy
+                          ? "Finish or discard the current recording first"
+                          : "Capture this PC display"
                 }
               >
                 <Camera aria-hidden="true" />
               </button>
             )}
+            <button
+              type="button"
+              className={`screen-view-record-action${recording.presentation.phase === "recording" ? " active" : ""}`}
+              onTouchStart={stopScreenGesture}
+              onTouchMove={stopScreenGesture}
+              onTouchEnd={stopScreenGesture}
+              onTouchCancel={stopScreenGesture}
+              disabled={
+                recording.presentation.phase !== "recording" && (screenshotBusy || recording.busy)
+              }
+              aria-disabled={!recording.supported}
+              aria-label={
+                recording.presentation.phase === "recording"
+                  ? "Stop screen recording"
+                  : "Start screen recording"
+              }
+              aria-pressed={recording.presentation.phase === "recording"}
+              title={
+                recording.presentation.phase === "recording"
+                  ? "Stop recording"
+                  : recording.unsupportedReason ||
+                    (screenshotBusy
+                      ? "Finish or discard the screenshot first"
+                      : recording.busy
+                        ? "Save or discard the current recording first"
+                        : soundOn
+                          ? "Record PC video with sound"
+                          : "Record PC video")
+              }
+              onClick={() => {
+                if (!recording.supported) {
+                  setStatus(recording.unsupportedReason);
+                  return;
+                }
+                if (recording.presentation.phase === "recording") {
+                  recording.stop();
+                  return;
+                }
+                void recording.start(remoteStreamRef.current, soundOn);
+              }}
+            >
+              {recording.presentation.phase === "recording" ? (
+                <Square aria-hidden="true" />
+              ) : (
+                <Circle aria-hidden="true" />
+              )}
+            </button>
             <button
               type="button"
               className="screen-view-fullscreen-toggle"
@@ -1509,6 +1578,11 @@ export default function ScreenViewWorkspace({
             )}
           </div>
         )}
+        <ScreenViewRecordingPanel
+          presentation={recording.presentation}
+          onDiscard={() => void recording.discard()}
+          onSave={() => void recording.saveReadyFile()}
+        />
       </div>
       <div className="screen-view-controls">
         {sources.length > 1 && (

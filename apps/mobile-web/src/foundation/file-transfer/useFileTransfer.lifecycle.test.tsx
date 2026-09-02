@@ -36,11 +36,11 @@ vi.mock("../webrtc/sessionCrypto", () => ({
   verifyHostSessionSignature: () => true,
 }));
 vi.mock("./fileTransferDeviceStorage", () => ({
-  prepareDeviceTransferStorage: storage.prepare,
-  removeDeviceTransferFile: storage.remove,
-  saveOrShareDeviceTransfer: storage.save,
-  supportsDeviceTransferStorage: () => true,
-  sweepDeviceTransferStorage: () => Promise.resolve(),
+  ensureDeviceFileStorageInitialized: () => Promise.resolve(),
+  prepareDeviceFileStorage: storage.prepare,
+  removeDeviceFile: storage.remove,
+  saveOrShareDeviceFile: storage.save,
+  supportsDeviceFileStorage: () => true,
 }));
 
 import { useFileTransfer, type FileTransferTarget } from "./useFileTransfer";

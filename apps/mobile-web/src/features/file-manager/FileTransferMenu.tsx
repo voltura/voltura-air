@@ -3,7 +3,7 @@ import { ArrowRightLeft, Camera, Download, Share2, Upload, X } from "lucide-reac
 import type { PcProfile } from "../../foundation/connection/pcProfiles";
 import type { ClientMessage } from "../../foundation/protocol/messages";
 import { ModalDialog } from "../../ui/overlays/ModalDialog";
-import { supportsDeviceTransferStorage } from "../../foundation/file-transfer/fileTransferDeviceStorage";
+import { supportsDeviceFileStorage } from "../../foundation/file-transfer/fileTransferDeviceStorage";
 import {
   useFileTransfer,
   type FileTransferTarget,
@@ -44,7 +44,7 @@ export function FileTransferMenu({
     onUploadCompleted,
     onTransferNotice,
   );
-  const supportsDownload = supportsDeviceTransferStorage();
+  const supportsDownload = supportsDeviceFileStorage();
   const canDownload = supportsDownload && target.entry?.kind === "file";
   const busy = transfer.presentation.active || transfer.presentation.readyToSave;
   const uploadSelectedFile = (input: HTMLInputElement) => {

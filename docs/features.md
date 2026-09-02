@@ -15,7 +15,9 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   traffic stays on the selected private LAN. The optional Cloud Relay connects
   over the internet without opening an inbound connection to the PC.
 - **View PC screen** lets a paired device view one selected Windows display;
-  touch devices use its touch controls, while another computer can use direct mouse and keyboard control.
+  touch devices use its touch controls, while another computer can use direct
+  mouse and keyboard control. Supporting browsers can save screenshots or
+  five-minute device-local recordings of the clean PC picture.
 - **Phone webcam** turns a selected paired-phone camera into an optional-audio
   `Voltura Air Webcam` virtual camera for Windows applications.
 - It is not a file-sync, backup, notification-sync, or cloud clipboard service.
@@ -185,6 +187,23 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   temporary file or history, and keeps the live mirror running on success or
   failure. The device keeps only the existing per-tab OPFS partial until Save,
   Share, Discard, cancellation, navigation, disconnect, reload, or failure.
+- On browsers with MediaRecorder and writable OPFS support, a separate Record
+  action captures the received PC video directly on the viewing device for up to
+  five minutes. It records the clean incoming picture, without the PC cursor
+  overlay, device controls, or local zoom. PC sound is included only when Sound is
+  on at the start; Sound stays fixed until recording stops. If that live audio
+  ends, video recording continues and reports that later sound is unavailable.
+  The browser selects supported MP4/H.264/AAC or WebM/VP8/Opus output, with
+  8 Mbps requested for video and 96 kbps for included audio.
+- Recording requires at least 512 MiB of confirmed available browser storage,
+  writes one-second chunks to the existing tab-owned OPFS staging directory,
+  stops near 480 MiB, and never exceeds 512 MiB or 16 MiB of queued writes.
+  Recording and screenshot staging are mutually exclusive. The five-minute
+  limit, Screen View stop, stream loss, or foreground loss finalizes the usable
+  partial for Save/Share or Discard; leaving the workspace or page discards it.
+  A canceled native share remains ready to retry, while successful Save/Share or
+  Discard removes the staged file. No recording history, upload, background
+  recorder, PC-side copy, permission, protocol, host, or Relay behavior is added.
 - Windows Desktop Duplication supplies GPU display frames and cursor metadata.
   D3D11 converts frames to NV12 and a capability-selected hardware Media
   Foundation transform encodes baseline H.264 using the selected display's
@@ -231,8 +250,9 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   remains expanded across orientation changes; its explicit exit action restores
   the normal workspace.
   Compact Sound, Click, keyboard, display, and Stop controls sit around the responsive
-  canvas. Screen View excludes microphone/per-app capture, recording, absolute touch, windows,
-  all-monitor composition, multiple viewers, and game optimization.
+  canvas. Screen View excludes microphone/per-app capture, recording pause or
+  editing, annotations, absolute touch, windows, all-monitor composition,
+  multiple viewers, and game optimization.
 - On browsers with an available fine hovering pointer, supported hosts add a
   session-only mouse-and-keyboard icon action beside **Scroll/Zoom**. It starts
   inactive and directly maps movement, left/right click, drag, and wheel over

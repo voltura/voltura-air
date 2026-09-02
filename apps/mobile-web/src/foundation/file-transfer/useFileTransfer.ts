@@ -19,11 +19,11 @@ import {
   parseFileTransferRecord,
 } from "./fileTransferRecords";
 import {
-  prepareDeviceTransferStorage,
-  removeDeviceTransferFile,
-  saveOrShareDeviceTransfer,
-  supportsDeviceTransferStorage,
-  sweepDeviceTransferStorage,
+  ensureDeviceFileStorageInitialized,
+  prepareDeviceFileStorage,
+  removeDeviceFile,
+  saveOrShareDeviceFile,
+  supportsDeviceFileStorage,
 } from "./fileTransferDeviceStorage";
 import {
   createFileTransferAnswerTranscript,
@@ -55,20 +55,15 @@ export function useFileTransfer(
   onUploadCompleted?: (panel: "left" | "right", fileName: string) => void,
   onTransferNotice?: (message: string, tone: "success" | "error" | "neutral") => void,
 ) {
-  const canSaveToDevice = supportsDeviceTransferStorage();
+  const canSaveToDevice = supportsDeviceFileStorage();
   const [presentation, setPresentation] = useState(() => idlePresentation());
   const runtimeRef = useRef<TransferRuntime | null>(null);
-  const initialSweepRef = useRef<Promise<void> | null>(null);
-  const ensureInitialSweep = useCallback(() => {
-    initialSweepRef.current ??= canSaveToDevice ? sweepDeviceTransferStorage() : Promise.resolve();
-    return initialSweepRef.current;
-  }, [canSaveToDevice]);
 
   const removeStoredFile = useCallback(async (runtime: TransferRuntime) => {
     if (!runtime.directory || !runtime.storedName) {
       return;
     }
-    await removeDeviceTransferFile(runtime.directory, runtime.storedName);
+    await removeDeviceFile(runtime.directory, runtime.storedName);
     runtime.handle = null;
     runtime.storedName = "";
   }, []);
@@ -91,7 +86,7 @@ export function useFileTransfer(
         try {
           await removeStoredFile(runtime);
         } catch {
-          /* The next Files start retries the sweep. */
+          /* The next page initialization retries the owner sweep. */
         }
       }
     },
@@ -264,8 +259,7 @@ export function useFileTransfer(
       if (!canSaveToDevice) {
         throw new Error("Saving files is unsupported in this browser.");
       }
-      await ensureInitialSweep();
-      const storage = await prepareDeviceTransferStorage(runtime.declaredSize, runtime.transferId);
+      const storage = await prepareDeviceFileStorage(runtime.declaredSize, runtime.transferId);
       if (runtimeRef.current !== runtime) {
         try {
           await storage.writable.abort();
@@ -273,9 +267,9 @@ export function useFileTransfer(
           /* The abandoned partial is removed below. */
         }
         try {
-          await removeDeviceTransferFile(storage.directory, storage.storedName);
+          await removeDeviceFile(storage.directory, storage.storedName);
         } catch {
-          /* The next Files start retries the sweep. */
+          /* The next page initialization retries the owner sweep. */
         }
         throw new DOMException("File transfer canceled.", "AbortError");
       }
@@ -284,7 +278,7 @@ export function useFileTransfer(
       runtime.storedName = storage.storedName;
       runtime.writable = storage.writable;
     },
-    [canSaveToDevice, ensureInitialSweep],
+    [canSaveToDevice],
   );
 
   const acceptOffer = useCallback(
@@ -529,7 +523,9 @@ export function useFileTransfer(
   );
 
   useEffect(() => {
-    void ensureInitialSweep();
+    if (canSaveToDevice) {
+      void ensureDeviceFileStorageInitialized();
+    }
     return () => {
       const runtime = runtimeRef.current;
       runtimeRef.current = null;
@@ -540,7 +536,7 @@ export function useFileTransfer(
         void closeRuntime(runtime, true);
       }
     };
-  }, [closeRuntime, ensureInitialSweep, send]);
+  }, [canSaveToDevice, closeRuntime, send]);
 
   useEffect(() => {
     if (enabled) {
@@ -764,7 +760,7 @@ export function useFileTransfer(
       return;
     }
     try {
-      const result = await saveOrShareDeviceTransfer(runtime.readyFile, runtime.fileName);
+      const result = await saveOrShareDeviceFile(runtime.readyFile, runtime.fileName);
       if (result === "shared") {
         runtimeRef.current = null;
         await closeRuntime(runtime, true);

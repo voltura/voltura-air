@@ -6,6 +6,12 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.2.3
+
+- Added local recording to **View PC screen**. Record up to five minutes of the
+  clean PC picture, include PC sound when Sound is on at the start, then save or
+  share the browser-selected MP4 or WebM recording from your device.
+
 ## v1.2.2
 
 - Added **High**, **Standard**, and **Low** sound quality choices to **View PC screen**, with a PC default and optional per-device settings for clearer sound or lower bandwidth use.

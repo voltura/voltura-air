@@ -58,6 +58,7 @@ interface SecureSocketAttachment {
   role: SecureSocketRole;
   routeId: string;
   authenticated?: boolean;
+  source?: string;
   publicKey?: string;
   challenge?: string;
   authenticationExpiresAt?: number;
@@ -479,8 +480,14 @@ export class SecureDirectRoomObject extends DurableObject<Environment> {
       return new Response("Invalid route", { status: 400 });
 
     const host = this.authenticatedHost();
-    if (role === "secure-host" && this.pendingSecureHostCount() >= maximumPendingHostCandidates)
+    const hostSource = request.headers?.get("CF-Connecting-IP") ?? "unknown";
+    if (
+      role === "secure-host" &&
+      (this.pendingSecureHostCount() >= maximumPendingHostCandidates ||
+        this.pendingSecureHostCount(hostSource) >= maximumPendingHostCandidatesPerSource)
+    ) {
       return new Response("Host authentication is busy", { status: 409 });
+    }
     if (role === "secure-device" && !host) return new Response("Host unavailable", { status: 503 });
     if (role === "secure-device" && (!source || !/^[A-Za-z0-9_-]{22}$/u.test(source)))
       return new Response("Invalid source", { status: 400 });
@@ -508,9 +515,10 @@ export class SecureDirectRoomObject extends DurableObject<Environment> {
     const client = pair[0];
     const server = pair[1];
     const attachment: SecureSocketAttachment = { role, routeId };
-    if (role === "secure-host")
+    if (role === "secure-host") {
+      attachment.source = hostSource;
       attachment.authenticationExpiresAt = Date.now() + hostAuthenticationTimeoutMs;
-    else {
+    } else {
       attachment.sessionId = Array.from(crypto.getRandomValues(new Uint8Array(16)));
       attachment.sourceKey = Array.from(sourceBytes!);
       attachment.phase = "awaiting-offer";
@@ -712,14 +720,15 @@ export class SecureDirectRoomObject extends DurableObject<Environment> {
     );
   }
 
-  private pendingSecureHostCount(): number {
-    return this.ctx
-      .getWebSockets("secure-host")
-      .filter(
-        (socket) =>
-          socket.readyState === WebSocket.OPEN &&
-          (socket.deserializeAttachment() as SecureSocketAttachment).authenticated !== true,
-      ).length;
+  private pendingSecureHostCount(source?: string): number {
+    return this.ctx.getWebSockets("secure-host").filter((socket) => {
+      const attachment = socket.deserializeAttachment() as SecureSocketAttachment;
+      return (
+        socket.readyState === WebSocket.OPEN &&
+        attachment.authenticated !== true &&
+        (source === undefined || attachment.source === source)
+      );
+    }).length;
   }
 
   private pendingSecureDeviceCount(sourceKey?: number[]): number {

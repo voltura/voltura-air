@@ -217,17 +217,33 @@ describe("Secure Direct room", () => {
     expect(context.storage.deleteAlarm).toHaveBeenCalled();
   });
 
-  it("lets the proven route owner replace a stale authenticated signaling host", async () => {
+  it("limits candidate sources while letting the route owner replace a stale signaling host", async () => {
     const { room, context, host, routeId, keys } = await authenticatedRoom();
     await room.fetch(internalRequest("secure-device", routeId));
     const staleDevice = context.getWebSockets("secure-device")[0]!;
 
-    expect((await room.fetch(internalRequest("secure-host", routeId))).status).toBe(101);
-    const replacement = context.getWebSockets("secure-host")[1]!;
+    expect((await room.fetch(internalRequest("secure-host", routeId, "203.0.113.1"))).status).toBe(
+      101,
+    );
+    expect((await room.fetch(internalRequest("secure-host", routeId, "203.0.113.1"))).status).toBe(
+      101,
+    );
+    const competingCandidates = context.getWebSockets("secure-host").slice(1);
+    expect((await room.fetch(internalRequest("secure-host", routeId, "203.0.113.1"))).status).toBe(
+      409,
+    );
+
+    expect((await room.fetch(internalRequest("secure-host", routeId, "203.0.113.2"))).status).toBe(
+      101,
+    );
+    const replacement = context.getWebSockets("secure-host")[3]!;
     await authenticateRoomHost(room, replacement, routeId, keys);
 
     expect(host.closeCode).toBe(relayClose.conflict);
     expect(staleDevice.closeCode).toBe(relayClose.unavailable);
+    expect(
+      competingCandidates.every((candidate) => candidate.closeCode === relayClose.conflict),
+    ).toBe(true);
     expect(replacement.readyState).toBe(TestSocket.OPEN);
 
     await room.fetch(internalRequest("secure-device", routeId));
@@ -447,10 +463,15 @@ async function authenticateRoomHost(
   });
 }
 
-function internalRequest(role: "secure-host" | "secure-device", routeId: string): Request {
+function internalRequest(
+  role: "secure-host" | "secure-device",
+  routeId: string,
+  hostSource?: string,
+): Request {
   const source = role === "secure-device" ? `&source=${"B".repeat(22)}` : "";
   return {
     url: `https://relay.internal/secure-connect?role=${role}&route=${routeId}${source}`,
+    ...(hostSource ? { headers: new Headers({ "CF-Connecting-IP": hostSource }) } : {}),
   } as Request;
 }
 

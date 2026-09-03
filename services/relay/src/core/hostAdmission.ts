@@ -17,21 +17,11 @@ export function nextHostAuthenticationDeadline(
   return pending.length === 0 ? null : Math.min(...pending);
 }
 
-export function canAcceptHostCandidate(hasAuthenticatedHost: boolean): boolean {
-  return !hasAuthenticatedHost;
-}
-
 export function canClaimHostCandidate(
-  hasAuthenticatedHost: boolean,
   isCurrentCandidate: boolean,
   isOpen: boolean,
   authenticationExpiresAt: number,
   now: number = Date.now(),
 ): boolean {
-  return (
-    !hasAuthenticatedHost &&
-    isCurrentCandidate &&
-    isOpen &&
-    !isHostAuthenticationExpired(authenticationExpiresAt, now)
-  );
+  return isCurrentCandidate && isOpen && !isHostAuthenticationExpired(authenticationExpiresAt, now);
 }

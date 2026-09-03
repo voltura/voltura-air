@@ -216,6 +216,25 @@ describe("Secure Direct room", () => {
     expect(remaining.closeCode).toBe(relayClose.unavailable);
     expect(context.storage.deleteAlarm).toHaveBeenCalled();
   });
+
+  it("lets the proven route owner replace a stale authenticated signaling host", async () => {
+    const { room, context, host, routeId, keys } = await authenticatedRoom();
+    await room.fetch(internalRequest("secure-device", routeId));
+    const staleDevice = context.getWebSockets("secure-device")[0]!;
+
+    expect((await room.fetch(internalRequest("secure-host", routeId))).status).toBe(101);
+    const replacement = context.getWebSockets("secure-host")[1]!;
+    await authenticateRoomHost(room, replacement, routeId, keys);
+
+    expect(host.closeCode).toBe(relayClose.conflict);
+    expect(staleDevice.closeCode).toBe(relayClose.unavailable);
+    expect(replacement.readyState).toBe(TestSocket.OPEN);
+
+    await room.fetch(internalRequest("secure-device", routeId));
+    const replacementDevice = context.getWebSockets("secure-device")[0]!;
+    await room.webSocketClose(host as unknown as WebSocket);
+    expect(replacementDevice.readyState).toBe(TestSocket.OPEN);
+  });
 });
 
 describe("Worker route isolation", () => {
@@ -258,6 +277,55 @@ describe("Worker route isolation", () => {
       protocol: 1,
     });
     expect(second.closeCode).toBe(relayClose.conflict);
+  });
+
+  it("lets only the proven route owner replace a stale authenticated Relay host", async () => {
+    const keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
+      "sign",
+      "verify",
+    ]);
+    const publicKey = encodeBase64Url(
+      new Uint8Array(await crypto.subtle.exportKey("raw", keys.publicKey)),
+    );
+    const routeId = await deriveRouteId(publicKey);
+    const context = new TestContext();
+    const room = new worker.RelayRoomObject(context as never, {} as never);
+
+    expect((await room.fetch(relayHostRequest(routeId, "203.0.113.1"))).status).toBe(101);
+    const staleHost = context.getWebSockets("host")[0]!;
+    await authenticateRoomHost(room, staleHost, routeId, keys);
+    expect((await room.fetch(relayDeviceRequest(routeId))).status).toBe(101);
+    const staleDevice = context.getWebSockets("device")[0]!;
+
+    expect((await room.fetch(relayHostRequest(routeId, "203.0.113.2"))).status).toBe(101);
+    const invalidCandidate = context.getWebSockets("host")[1]!;
+    const wrongKeys = await crypto.subtle.generateKey(
+      { name: "ECDSA", namedCurve: "P-256" },
+      true,
+      ["sign", "verify"],
+    );
+    const wrongPublicKey = encodeBase64Url(
+      new Uint8Array(await crypto.subtle.exportKey("raw", wrongKeys.publicKey)),
+    );
+    await room.webSocketMessage(
+      invalidCandidate as unknown as WebSocket,
+      JSON.stringify({ type: "relay.host.hello", routeId, publicKey: wrongPublicKey }),
+    );
+    expect(invalidCandidate.closeCode).toBe(relayClose.unauthorized);
+    expect(staleHost.readyState).toBe(TestSocket.OPEN);
+
+    expect((await room.fetch(relayHostRequest(routeId, "203.0.113.2"))).status).toBe(101);
+    const replacement = context.getWebSockets("host")[1]!;
+    await authenticateRoomHost(room, replacement, routeId, keys);
+
+    expect(staleHost.closeCode).toBe(relayClose.conflict);
+    expect(staleDevice.closeCode).toBe(relayClose.unavailable);
+    expect(replacement.readyState).toBe(TestSocket.OPEN);
+
+    expect((await room.fetch(relayDeviceRequest(routeId))).status).toBe(101);
+    const replacementDevice = context.getWebSockets("device")[0]!;
+    await room.webSocketClose(staleHost as unknown as WebSocket);
+    expect(replacementDevice.readyState).toBe(TestSocket.OPEN);
   });
 
   it("rejects oversized Relay host authentication before parsing", async () => {
@@ -341,7 +409,42 @@ async function authenticatedRoom() {
     type: "relay.host.accepted",
     protocol: 1,
   });
-  return { room, context, host, routeId };
+  return { room, context, host, routeId, keys };
+}
+
+async function authenticateRoomHost(
+  room: {
+    webSocketMessage(socket: WebSocket, message: ArrayBuffer | string): Promise<void>;
+  },
+  host: TestSocket,
+  routeId: string,
+  keys: CryptoKeyPair,
+): Promise<void> {
+  const publicKey = encodeBase64Url(
+    new Uint8Array(await crypto.subtle.exportKey("raw", keys.publicKey)),
+  );
+  await room.webSocketMessage(
+    host as unknown as WebSocket,
+    JSON.stringify({ type: "relay.host.hello", routeId, publicKey }),
+  );
+  const challenge = JSON.parse(host.sent.pop() as string) as { challenge: string };
+  const signature = encodeBase64Url(
+    new Uint8Array(
+      await crypto.subtle.sign(
+        { name: "ECDSA", hash: "SHA-256" },
+        keys.privateKey,
+        Uint8Array.from(createHostTranscript(routeId, challenge.challenge)).buffer,
+      ),
+    ),
+  );
+  await room.webSocketMessage(
+    host as unknown as WebSocket,
+    JSON.stringify({ type: "relay.host.proof", signature }),
+  );
+  expect(JSON.parse(host.sent.pop() as string)).toEqual({
+    type: "relay.host.accepted",
+    protocol: 1,
+  });
 }
 
 function internalRequest(role: "secure-host" | "secure-device", routeId: string): Request {
@@ -355,6 +458,12 @@ function relayHostRequest(routeId: string, source: string): Request {
   return {
     url: `https://relay.internal/connect?role=host&route=${routeId}`,
     headers: new Headers({ "CF-Connecting-IP": source }),
+  } as Request;
+}
+
+function relayDeviceRequest(routeId: string): Request {
+  return {
+    url: `https://relay.internal/connect?role=device&route=${routeId}&source=${"B".repeat(22)}`,
   } as Request;
 }
 

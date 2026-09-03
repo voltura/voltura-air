@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  canAcceptHostCandidate,
   canClaimHostCandidate,
   createHostTranscript,
   decodeEnvelope,
@@ -61,13 +60,11 @@ describe("relay route identity", () => {
     expect(accepted.kind).toBe("accepted");
   });
 
-  it("does not let an unauthenticated host candidate reserve the route", () => {
-    expect(canAcceptHostCandidate(false)).toBe(true);
-    expect(canAcceptHostCandidate(true)).toBe(false);
-    expect(canClaimHostCandidate(false, true, true, 11_000, 1_000)).toBe(true);
-    expect(canClaimHostCandidate(false, false, true, 11_000, 1_000)).toBe(false);
-    expect(canClaimHostCandidate(false, true, true, 999, 1_000)).toBe(false);
-    expect(canClaimHostCandidate(false, true, true, 1_000, 1_000)).toBe(false);
+  it("lets only a current, open, unexpired host candidate claim the route", () => {
+    expect(canClaimHostCandidate(true, true, 11_000, 1_000)).toBe(true);
+    expect(canClaimHostCandidate(false, true, 11_000, 1_000)).toBe(false);
+    expect(canClaimHostCandidate(true, true, 999, 1_000)).toBe(false);
+    expect(canClaimHostCandidate(true, true, 1_000, 1_000)).toBe(false);
   });
 
   it("expires idle host authentication and schedules only the next live deadline", () => {

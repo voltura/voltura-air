@@ -35,9 +35,11 @@ unverifiable selected addresses remain rejected. Relay mode never uses this
 controller DataChannel.
 
 An unauthenticated relay host candidate never owns the route. A bounded set of
-candidates has ten seconds to prove the routing key; the first valid proof
-claims the route and the other candidates are closed. Only the authenticated
-socket blocks another host. A device Connected envelope carries
+candidates has ten seconds to prove the routing key. A valid proof claims the
+route, closes the superseded host and its device sessions, and closes the other
+candidates; devices then reconnect through the new host. This authenticated
+replacement lets the current host recover when an earlier socket remains open
+at the relay after losing its client-side connection. A device Connected envelope carries
 a 16-byte route-scoped source key derived by the relay for host pairing-rate
 isolation. Hosts accept an empty payload from earlier relay adapters and isolate
 that connection by session ID; other Connected payload lengths are rejected.

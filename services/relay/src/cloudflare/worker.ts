@@ -3,7 +3,6 @@ import {
   decodeEnvelope,
   encodeEnvelope,
   consumeRelayRate,
-  canAcceptHostCandidate,
   canClaimHostCandidate,
   decodeBase64Url,
   maximumDevicesPerRoom,
@@ -141,8 +140,7 @@ export class RelayRoomObject extends DurableObject<Environment> {
     const hostSource = request.headers?.get("CF-Connecting-IP") ?? "unknown";
     if (
       role === "host" &&
-      (!canAcceptHostCandidate(host !== null) ||
-        this.pendingHostCount() >= maximumPendingHostCandidates ||
+      (this.pendingHostCount() >= maximumPendingHostCandidates ||
         this.pendingHostCount(hostSource) >= maximumPendingHostCandidatesPerSource)
     ) {
       return new Response("Host authentication is busy", { status: 409 });
@@ -276,14 +274,10 @@ export class RelayRoomObject extends DurableObject<Environment> {
       }
       socket.serializeAttachment(attachment);
       if (result.kind === "accepted") {
-        for (const pending of this.ctx.getWebSockets("host")) {
-          if (
-            pending !== socket &&
-            (pending.deserializeAttachment() as SocketAttachment).authenticated !== true
-          ) {
-            pending.close(relayClose.conflict, "Host authentication superseded");
-          }
-        }
+        for (const device of this.ctx.getWebSockets("device"))
+          device.close(relayClose.unavailable, "Host replaced");
+        for (const host of this.ctx.getWebSockets("host"))
+          if (host !== socket) host.close(relayClose.conflict, "Host authentication superseded");
       }
       if (result.kind === "accepted") await this.ctx.storage.deleteAlarm();
       socket.send(result.response);
@@ -359,6 +353,8 @@ export class RelayRoomObject extends DurableObject<Environment> {
         await this.scheduleHostAuthenticationAlarm();
         return;
       }
+      const replacement = this.authenticatedHost();
+      if (replacement && replacement !== socket) return;
       for (const device of this.ctx.getWebSockets("device"))
         device.close(relayClose.unavailable, "Host disconnected");
       return;
@@ -434,7 +430,6 @@ export class RelayRoomObject extends DurableObject<Environment> {
       return candidate.readyState === WebSocket.OPEN && candidateAttachment.authenticated !== true;
     });
     return canClaimHostCandidate(
-      this.authenticatedHost() !== null,
       openCandidates.includes(socket),
       socket.readyState === WebSocket.OPEN,
       attachment.authenticationExpiresAt ?? 0,
@@ -484,11 +479,7 @@ export class SecureDirectRoomObject extends DurableObject<Environment> {
       return new Response("Invalid route", { status: 400 });
 
     const host = this.authenticatedHost();
-    if (
-      role === "secure-host" &&
-      (!canAcceptHostCandidate(host !== null) ||
-        this.pendingSecureHostCount() >= maximumPendingHostCandidates)
-    )
+    if (role === "secure-host" && this.pendingSecureHostCount() >= maximumPendingHostCandidates)
       return new Response("Host authentication is busy", { status: 409 });
     if (role === "secure-device" && !host) return new Response("Host unavailable", { status: 503 });
     if (role === "secure-device" && (!source || !/^[A-Za-z0-9_-]{22}$/u.test(source)))
@@ -573,14 +564,10 @@ export class SecureDirectRoomObject extends DurableObject<Environment> {
       }
       socket.serializeAttachment(attachment);
       if (result.kind === "accepted") {
-        for (const pending of this.ctx.getWebSockets("secure-host")) {
-          if (
-            pending !== socket &&
-            (pending.deserializeAttachment() as SecureSocketAttachment).authenticated !== true
-          ) {
-            pending.close(relayClose.conflict, "Host authentication superseded");
-          }
-        }
+        for (const device of this.ctx.getWebSockets("secure-device"))
+          device.close(relayClose.unavailable, "Host replaced");
+        for (const host of this.ctx.getWebSockets("secure-host"))
+          if (host !== socket) host.close(relayClose.conflict, "Host authentication superseded");
       }
       socket.send(result.response);
       await this.scheduleAlarm();
@@ -667,6 +654,11 @@ export class SecureDirectRoomObject extends DurableObject<Environment> {
     const attachment = socket.deserializeAttachment() as SecureSocketAttachment;
     if (attachment.role === "secure-host") {
       if (attachment.authenticated === true) {
+        const replacement = this.authenticatedHost();
+        if (replacement && replacement !== socket) {
+          await this.scheduleAlarm();
+          return;
+        }
         for (const device of this.ctx.getWebSockets("secure-device"))
           device.close(relayClose.unavailable, "Host unavailable");
       }
@@ -748,7 +740,6 @@ export class SecureDirectRoomObject extends DurableObject<Environment> {
       return candidate.readyState === WebSocket.OPEN && value.authenticated !== true;
     });
     return canClaimHostCandidate(
-      this.authenticatedHost() !== null,
       candidates.includes(socket),
       socket.readyState === WebSocket.OPEN,
       attachment.authenticationExpiresAt ?? 0,

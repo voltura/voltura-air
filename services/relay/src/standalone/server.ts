@@ -5,7 +5,6 @@ import {
   decodeEnvelope,
   encodeEnvelope,
   consumeRelayRate,
-  canAcceptHostCandidate,
   canClaimHostCandidate,
   deriveRelaySourceKey,
   hostAuthenticationTimeoutMs,
@@ -109,8 +108,7 @@ async function handleUpgrade(
   };
   if (
     role === "host" &&
-    (!canAcceptHostCandidate(room.host?.authenticated === true) ||
-      pendingHostCount(room) >= maximumPendingHostCandidates ||
+    (pendingHostCount(room) >= maximumPendingHostCandidates ||
       pendingHostCount(room, source) >= maximumPendingHostCandidatesPerSource)
   ) {
     socket.destroy();
@@ -286,9 +284,15 @@ async function authenticateHost(
     host.publicKey = result.hello.publicKey;
     host.challenge = result.challenge;
   } else {
+    const supersededHost = room.host;
+    for (const device of room.devices.values())
+      device.socket.close(relayClose.unavailable, "Host replaced");
+    room.devices.clear();
     host.authenticated = true;
     room.host = host;
     room.pendingHosts.delete(host);
+    if (supersededHost && supersededHost !== host)
+      supersededHost.socket.close(relayClose.conflict, "Host authentication superseded");
     for (const pending of room.pendingHosts)
       pending.socket.close(relayClose.conflict, "Host authentication superseded");
     room.pendingHosts.clear();
@@ -301,7 +305,6 @@ async function authenticateHost(
 
 function canUseHostCandidate(room: RoomState, host: HostState): boolean {
   return canClaimHostCandidate(
-    room.host?.authenticated === true,
     room.pendingHosts.has(host),
     host.socket.readyState === NodeWebSocket.OPEN,
     host.authenticationExpiresAt,

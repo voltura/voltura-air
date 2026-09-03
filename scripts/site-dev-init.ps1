@@ -235,9 +235,13 @@ try {
         if ($schemaResult.ExitCode -ne 0) { throw 'Could not create the development catalog tables.' }
     }
 
-    $currentSchemaResult = Invoke-MariaDb $maria $databaseArguments 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ("air_screen_users", "air_screen_packages", "air_screen_reports", "air_screen_ratings", "air_screen_verification_tokens", "air_screen_rate_buckets", "air_screen_cleanup_jobs");'
+    $catalogUpgrade = Get-Content -LiteralPath (Join-Path $repoRoot 'apps\public-site\screens\schema-upgrade.sql') -Raw
+    $catalogUpgradeResult = Invoke-MariaDb $maria $databaseArguments $catalogUpgrade
+    if ($catalogUpgradeResult.ExitCode -ne 0) { throw 'Could not apply the additive development catalog schema upgrade.' }
+
+    $currentSchemaResult = Invoke-MariaDb $maria $databaseArguments 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ("air_screen_users", "air_screen_packages", "air_screen_reports", "air_screen_ratings", "air_screen_verification_tokens", "air_screen_rate_buckets", "air_screen_cleanup_jobs", "air_screen_maintenance");'
     if ($currentSchemaResult.ExitCode -ne 0) { throw 'Could not inspect the development catalog schema.' }
-    if ([int]$currentSchemaResult.Output.Trim() -ne 7) {
+    if ([int]$currentSchemaResult.Output.Trim() -ne 8) {
         throw 'The development catalog uses a superseded schema. Clear the development database explicitly, then rerun site:dev:init.'
     }
 

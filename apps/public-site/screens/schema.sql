@@ -28,9 +28,13 @@ CREATE TABLE air_screen_packages (
     official_id VARCHAR(64) NULL,
     is_official BOOLEAN NOT NULL DEFAULT FALSE,
     official_metadata JSON NULL,
+    removed_at DATETIME NULL,
     FOREIGN KEY (owner_id) REFERENCES air_screen_users(id),
     INDEX idx_air_screen_search (status, name),
     INDEX idx_air_screen_popularity (status, downloads),
+    INDEX idx_air_screen_owner_capacity (owner_id, status, created_at),
+    INDEX idx_air_screen_storage (storage_basename),
+    INDEX idx_air_screen_removed (status, removed_at),
     UNIQUE KEY uq_air_screen_official (official_source, official_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -39,7 +43,8 @@ CREATE TABLE air_screen_verification_tokens (
     token_hash CHAR(64) NOT NULL UNIQUE,
     expires_at DATETIME NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES air_screen_users(id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES air_screen_users(id) ON DELETE CASCADE,
+    INDEX idx_air_screen_token_expiry (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE air_screen_rate_buckets (
@@ -48,7 +53,8 @@ CREATE TABLE air_screen_rate_buckets (
     window_started DATETIME NOT NULL,
     attempts INT UNSIGNED NOT NULL,
     blocked_until DATETIME NULL,
-    PRIMARY KEY (scope, bucket_key)
+    PRIMARY KEY (scope, bucket_key),
+    INDEX idx_air_screen_rate_window (window_started)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE air_screen_cleanup_jobs (
@@ -66,7 +72,10 @@ CREATE TABLE air_screen_reports (
     reason VARCHAR(1000) NOT NULL,
     status ENUM('open', 'resolved') NOT NULL DEFAULT 'open',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (package_id) REFERENCES air_screen_packages(id)
+    FOREIGN KEY (package_id) REFERENCES air_screen_packages(id),
+    INDEX idx_air_screen_report_email_time (reporter_email, created_at),
+    INDEX idx_air_screen_report_package_email_time (package_id, reporter_email, created_at),
+    INDEX idx_air_screen_report_retention (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE air_screen_ratings (
@@ -81,3 +90,11 @@ CREATE TABLE air_screen_ratings (
     INDEX idx_air_screen_rating (package_id, rating),
     CONSTRAINT chk_air_screen_rating CHECK (rating BETWEEN 1 AND 5)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE air_screen_maintenance (
+    singleton_id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+    next_run_at DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO air_screen_maintenance (singleton_id, next_run_at)
+VALUES (1, CURRENT_TIMESTAMP);

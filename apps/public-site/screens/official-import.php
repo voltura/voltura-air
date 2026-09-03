@@ -138,12 +138,7 @@ try {
     $existingStatement = $db->query("SELECT id, official_id, storage_basename FROM air_screen_packages WHERE official_source = 'voltura' AND official_id IS NOT NULL");
     $existing = [];
     foreach ($existingStatement->fetchAll() as $row) { $existing[(string)$row['official_id']] = $row; }
-    $collision = $db->prepare("SELECT id FROM air_screen_packages WHERE screen_id = :screenId AND (official_source IS NULL OR official_source <> 'voltura') LIMIT 1");
     foreach ($validated as &$item) {
-        $collision->execute(['screenId' => $item['officialId']]);
-        if ($collision->fetchColumn() !== false) {
-            throw new RuntimeException('An official screen identifier collides with a user-owned package.');
-        }
         $item['id'] = isset($existing[$item['officialId']]) ? (string)$existing[$item['officialId']]['id'] : air_screen_uuid();
         $existingBasename = isset($existing[$item['officialId']])
             ? (string)$existing[$item['officialId']]['storage_basename']
@@ -189,13 +184,16 @@ try {
 } catch (Throwable $exception) {
     if ($db->inTransaction()) {
         try {
-            air_screen_official_import_failure('db_rollback');
             $db->rollBack();
+            air_screen_official_import_failure('db_rollback');
         } catch (Throwable $rollbackException) {
             error_log('Voltura Air official import rollback failed: ' . $rollbackException->getMessage());
         }
     }
-    try { air_screen_drain_cleanup_jobs(); }
+    try {
+        air_screen_drain_cleanup_jobs(100);
+        air_screen_drain_cleanup_jobs(100);
+    }
     catch (Throwable $cleanupException) { error_log('Voltura Air official import cleanup drain failed: ' . $cleanupException::class); }
     if ($lockAcquired) {
         try { $db->query("SELECT RELEASE_LOCK('voltura_air_official_import')"); $lockAcquired = false; }

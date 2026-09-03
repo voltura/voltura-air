@@ -6,8 +6,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = strtolower(trim((string)($_POST['email'] ?? '')));
     try {
         if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $emailAllowed = air_screen_rate_consume('resend_email', air_screen_email_bucket_key($email), 3, 3600);
             $sourceAllowed = air_screen_rate_consume('resend_source', air_screen_source_bucket_key(), 10, 3600);
+            if ($sourceAllowed) {
+                $emailAllowed = air_screen_rate_consume('resend_email', air_screen_email_bucket_key($email), 3, 3600);
+            }
         }
         if (($emailAllowed ?? false) && ($sourceAllowed ?? false)) {
             $database = air_screen_db();
@@ -31,6 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($database) && $database->inTransaction()) $database->rollBack();
         error_log('Custom-screen verification resend failed: ' . $error::class);
     }
+    air_screen_maybe_maintain_catalog();
     $message = 'If that address has a pending account, a new verification link has been sent.';
 }
 $body = ($message !== '' ? '<p>' . air_screen_h($message) . '</p>' : '')

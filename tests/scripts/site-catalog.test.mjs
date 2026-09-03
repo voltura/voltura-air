@@ -19,10 +19,16 @@ test("catalog ratings require an authenticated user and CSRF token", () => {
 
 test("fresh schema enforces one bounded vote per account and screen", () => {
   const schema = read("apps/public-site/screens/schema.sql");
+  const upgrade = read("apps/public-site/screens/schema-upgrade.sql");
   assert.match(schema, /PRIMARY KEY \(package_id, user_id\)/u);
   assert.match(schema, /CHECK \(rating BETWEEN 1 AND 5\)/u);
   assert.match(schema, /REFERENCES air_screen_packages\(id\) ON DELETE CASCADE/u);
   assert.match(schema, /REFERENCES air_screen_users\(id\) ON DELETE CASCADE/u);
+  assert.match(schema, /removed_at DATETIME NULL/u);
+  assert.match(schema, /CREATE TABLE air_screen_maintenance/u);
+  assert.match(upgrade, /ADD COLUMN IF NOT EXISTS removed_at/u);
+  assert.match(upgrade, /CREATE INDEX IF NOT EXISTS idx_air_screen_report_email_time/u);
+  assert.doesNotMatch(upgrade, /DROP\s+(?:TABLE|DATABASE)|TRUNCATE/iu);
 });
 
 test("catalog access rules deny credentials, SQL, and screen packages", () => {
@@ -38,6 +44,8 @@ test("catalog downloads stay inside configured package storage and count complet
   assert.match(endpoint, /is_file\(\$packagePath\)/u);
   assert.match(endpoint, /fpassthru\(\$package\)/u);
   assert.ok(endpoint.indexOf("fpassthru") < endpoint.indexOf("downloads = downloads + 1"));
+  assert.match(endpoint, /download_package/u);
+  assert.match(endpoint, /air_screen_scoped_bucket_key\('download-package'/u);
 });
 
 test("local site development is isolated from production configuration", () => {
@@ -50,6 +58,10 @@ test("local site development is isolated from production configuration", () => {
   assert.match(packageJson.scripts["site:dev:init"], /site-dev-init\.ps1/u);
   assert.match(packageJson.scripts["site:dev"], /site-dev\.ps1/u);
   assert.match(packageJson.scripts["site:dev:admin"], /site-dev-admin\.ps1/u);
+  assert.match(
+    packageJson.scripts["test:site-catalog-integration"],
+    /site-catalog-maintenance-integration\.php/u,
+  );
   assert.match(initializer, /PHP\.PHP\.8\.5/u);
   assert.match(initializer, /MariaDB\.Server/u);
   assert.match(initializer, /Finish the MariaDB installer completely/u);
@@ -58,6 +70,8 @@ test("local site development is isolated from production configuration", () => {
   assert.match(initializer, /Start-Process -FilePath \$Executable/u);
   assert.match(initializer, /-RedirectStandardError \$errorPath/u);
   assert.match(initializer, /voltura_air_dev/u);
+  assert.match(initializer, /schema-upgrade\.sql/u);
+  assert.match(initializer, /additive development catalog schema upgrade/u);
   assert.match(launcher, /VOLTURA_AIR_SCREENS_CONFIG/u);
   assert.match(launcher, /VOLTURA_AIR_SITE_DEV/u);
   assert.match(admin, /site-dev-admin\.php/u);
@@ -209,12 +223,13 @@ test("submission history uses linked rows, status pills, and an empty state", ()
   assert.match(upload, /status <> 'removed'/u);
   assert.match(upload, /Remove rejected \(' \. \$rejectedCount/u);
   assert.match(upload, /class="catalog-remove-rejected-dialog"/u);
-  assert.match(upload, /Their stored records will not be permanently deleted\./u);
+  assert.match(upload, /permanently deleted after 30 days\./u);
   assert.match(upload, /rejectedRemoved/u);
   assert.match(endpoint, /air_screen_require_user\(\)/u);
   assert.match(endpoint, /air_screen_require_csrf\(\)/u);
   assert.match(endpoint, /owner_id = :owner AND status = 'rejected'/u);
   assert.match(endpoint, /status = 'removed'/u);
+  assert.match(endpoint, /removed_at = CURRENT_TIMESTAMP/u);
   assert.match(endpoint, /rejectedRemoved=' \. \$statement->rowCount\(\)/u);
   assert.match(script, /data-remove-rejected-dialog-open/u);
   assert.match(script, /data-remove-rejected-dialog-close/u);
@@ -348,14 +363,32 @@ test("catalog sessions and daily abuse limits are enforced by current database o
   assert.match(library, /SELECT GET_LOCK\(:name, :timeout\)/u);
   assert.match(library, /SELECT RELEASE_LOCK\(:name\)/u);
   assert.match(upload, /air_screen_acquire_advisory_lock\(\$database, 'upload'/u);
+  assert.match(upload, /air_screen_acquire_advisory_lock\(\$database, 'upload_user'/u);
   assert.match(upload, /finally/u);
+  assert.match(upload, /air_screen_require_user_package_id/u);
+  assert.match(upload, /The account storage limit has been reached\./u);
+  assert.match(upload, /The catalog storage limit has been reached\./u);
   assert.match(report, /strtolower\(trim/u);
   assert.match(report, /air_screen_acquire_advisory_lock\(\$database, 'report'/u);
+  assert.match(report, /report_source/u);
+  assert.match(report, /report_service/u);
+  assert.ok(
+    report.indexOf("SELECT name FROM air_screen_packages") < report.indexOf("report_service"),
+  );
   assert.match(report, /finally/u);
   assert.match(login, /session_regenerate_id\(true\)/u);
   assert.match(login, /air_screen_rate_consume\('login_email'/u);
+  assert.match(login, /air_screen_acquire_advisory_lock\(\$database, 'login_source'/u);
+  assert.match(login, /air_screen_acquire_advisory_lock\(\$database, 'login_email'/u);
+  assert.match(login, /login_attempt_service/u);
+  assert.match(login, /10000, 86400/u);
+  assert.ok(login.indexOf("$sourceLock") < login.indexOf("$emailLock"));
   assert.match(login, /verified_at/u);
   assert.match(register, /air_screen_rate_consume\('register_email'/u);
+  assert.ok(
+    register.indexOf("air_screen_rate_consume('register_source'") <
+      register.indexOf("air_screen_rate_consume('register_email'"),
+  );
   assert.match(register, /air_screen_verification_tokens/u);
   assert.match(register, /If that address can be registered/u);
 });
@@ -378,6 +411,35 @@ test("screen reports are emailed to Voltura Air after persistence", () => {
   assert.match(endpoint, /&reported=1/u);
   assert.match(view, /air_screen_toast\('Screen has been reported'\)/u);
   assert.match(previewScript, /url\.searchParams\.delete\("reported"\)/u);
+});
+
+test("catalog retention is leased, bounded, indexed, and queues package files", () => {
+  const library = read("apps/public-site/screens/lib.php");
+  const schema = read("apps/public-site/screens/schema.sql");
+  const maintenance = read("apps/public-site/screens/maintenance.php");
+  assert.match(library, /AIR_SCREEN_MAINTENANCE_LIMIT = 500/u);
+  assert.match(library, /AIR_SCREEN_RATE_ROW_DAILY_LIMIT = 100000/u);
+  assert.match(library, /AIR_SCREEN_MAINTENANCE_INTERVAL_MINUTES = 5/u);
+  assert.ok((24 * 60 * 500) / 5 > 100000, "catalog cleanup must outrun new rate rows");
+  assert.match(library, /AIR_SCREEN_REPORT_RETENTION_DAYS = 180/u);
+  assert.match(library, /AIR_SCREEN_UNVERIFIED_ACCOUNT_RETENTION_DAYS = 30/u);
+  assert.match(library, /AIR_SCREEN_REMOVED_PACKAGE_RETENTION_DAYS = 30/u);
+  assert.match(library, /ORDER BY removed_at LIMIT ' \. \$bounded \. ' FOR UPDATE/u);
+  assert.match(library, /air_screen_enqueue_cleanup\(\$database, \$basename/u);
+  assert.match(library, /\$scope !== 'catalog_service'/u);
+  assert.match(library, /air_screen_catalog_maintenance_failure\('after_delete'\)/u);
+  assert.match(library, /air_screen_catalog_maintenance_failure\('rollback'\)/u);
+  assert.doesNotMatch(
+    library.slice(
+      library.indexOf("function air_screen_maybe_maintain_catalog"),
+      library.indexOf("function air_screen_catalog_maintenance_failure"),
+    ),
+    /unlink\(/u,
+  );
+  assert.match(schema, /idx_air_screen_report_retention \(created_at\)/u);
+  assert.match(schema, /idx_air_screen_rate_window \(window_started\)/u);
+  assert.match(schema, /idx_air_screen_removed \(status, removed_at\)/u);
+  assert.match(maintenance, /air_screen_maybe_maintain_catalog\(\$limit, true\)/u);
 });
 
 test("moderation emails approval or rejection status to the submitter", () => {
@@ -489,7 +551,8 @@ test("admins can atomically bulk-import the generated official screen bundle", (
   assert.match(importer, /\$db->rollBack\(\)/u);
   assert.match(importer, /air_screen_official_import_failure\('db_rollback'\)/u);
   assert.match(importer, /official_source = 'voltura'/u);
-  assert.match(importer, /screen_id = :screenId/u);
+  assert.doesNotMatch(importer, /collides with a user-owned package/u);
+  assert.match(importer, /screen_id = VALUES\(screen_id\)/u);
   assert.match(importer, /air_screen_enqueue_cleanup/u);
   assert.match(
     importer,
@@ -543,6 +606,44 @@ test("the PHP package boundary executes the current semantic contract", () => {
     );
   };
   assert.equal(run(source).status, 0);
+  const library = fileURLToPath(new URL("../../apps/public-site/screens/lib.php", import.meta.url))
+    .replaceAll("\\", "/")
+    .replaceAll("'", "\\'");
+  const ordinaryReserved = spawnSync(
+    "php",
+    [
+      "-d",
+      "display_errors=1",
+      "-r",
+      `require '${library}'; try { $package = air_screen_validate_package(file_get_contents('php://stdin')); air_screen_require_user_package_id($package['screen']['id']); echo 'accepted'; } catch (Throwable $error) { fwrite(STDERR, $error->getMessage()); exit(2); }`,
+    ],
+    {
+      encoding: "utf8",
+      input: stableJson({ packageVersion: 1, format: "voltura-air.custom-screen", screen: source }),
+    },
+  );
+  assert.equal(ordinaryReserved.status, 2);
+  assert.match(ordinaryReserved.stderr, /reserved for Voltura Air/u);
+  const ordinary = structuredClone(source);
+  ordinary.id = "community.integration";
+  const ordinaryAccepted = spawnSync(
+    "php",
+    [
+      "-d",
+      "display_errors=1",
+      "-r",
+      `require '${library}'; $package = air_screen_validate_package(file_get_contents('php://stdin')); air_screen_require_user_package_id($package['screen']['id']); echo 'accepted';`,
+    ],
+    {
+      encoding: "utf8",
+      input: stableJson({
+        packageVersion: 1,
+        format: "voltura-air.custom-screen",
+        screen: ordinary,
+      }),
+    },
+  );
+  assert.equal(ordinaryAccepted.status, 0);
   const gyro = structuredClone(source);
   gyro.sections[0].trackpadGyroControl = true;
   assert.equal(run(gyro).status, 0);

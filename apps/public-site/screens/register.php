@@ -13,9 +13,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $emailKey = air_screen_email_bucket_key($email);
         $sourceKey = air_screen_source_bucket_key();
-        $emailAllowed = air_screen_rate_consume('register_email', $emailKey, 3, 86400);
         $sourceAllowed = air_screen_rate_consume('register_source', $sourceKey, 5, 3600);
-        if (!$emailAllowed || !$sourceAllowed) {
+        if (!$sourceAllowed) {
+            throw new RuntimeException('limited');
+        }
+        $emailAllowed = air_screen_rate_consume('register_email', $emailKey, 3, 86400);
+        if (!$emailAllowed) {
             throw new RuntimeException('limited');
         }
         $database = air_screen_db();
@@ -57,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             error_log('Custom-screen account registration failed: ' . $error::class);
         }
     }
+    air_screen_maybe_maintain_catalog();
     $message = $generic;
 }
 $body = ($message !== '' ? '<p>' . air_screen_h($message) . '</p>' : '')

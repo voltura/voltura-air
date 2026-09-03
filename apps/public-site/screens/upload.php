@@ -5,9 +5,11 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     air_screen_require_csrf();
     $database = air_screen_db();
-    $lockName = null;
+    $serviceLock = null;
+    $userLock = null;
     try {
-        $lockName = air_screen_acquire_advisory_lock($database, 'upload', (string)$user['id']);
+        $serviceLock = air_screen_acquire_advisory_lock($database, 'upload', 'service');
+        $userLock = air_screen_acquire_advisory_lock($database, 'upload_user', (string)$user['id']);
         $quota = $database->prepare('SELECT COUNT(*) FROM air_screen_packages WHERE owner_id = :owner AND created_at > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY)');
         $quota->execute(['owner' => $user['id']]);
         if ((int)$quota->fetchColumn() >= 10) {
@@ -19,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $json = file_get_contents($_FILES['package']['tmp_name']);
         $package = air_screen_validate_package($json);
         $screen = $package['screen'];
+        air_screen_require_user_package_id((string)$screen['id']);
         $name = trim((string)$screen['name']);
         $description = trim((string)($_POST['description'] ?? ''));
         $tags = trim((string)($_POST['tags'] ?? ''));
@@ -27,6 +30,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $id = air_screen_uuid();
         $storedJson = json_encode($package, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        $ownerCapacity = $database->prepare(
+            "SELECT COUNT(*) AS package_count, COALESCE(SUM(OCTET_LENGTH(screen_json)), 0) AS package_bytes "
+            . 'FROM air_screen_packages WHERE owner_id = :owner AND official_source IS NULL');
+        $ownerCapacity->execute(['owner' => $user['id']]);
+        $ownerUsage = $ownerCapacity->fetch();
+        if (!is_array($ownerUsage) || (int)$ownerUsage['package_count'] >= 100 ||
+            (int)$ownerUsage['package_bytes'] + strlen($storedJson) > 64 * 1024 * 1024) {
+            throw new RuntimeException('The account storage limit has been reached.');
+        }
+        $serviceCapacity = $database->query(
+            "SELECT COUNT(*) AS package_count, COALESCE(SUM(OCTET_LENGTH(screen_json)), 0) AS package_bytes "
+            . 'FROM air_screen_packages WHERE official_source IS NULL')->fetch();
+        if (!is_array($serviceCapacity) || (int)$serviceCapacity['package_count'] >= 10000 ||
+            (int)$serviceCapacity['package_bytes'] + strlen($storedJson) > 1024 * 1024 * 1024) {
+            throw new RuntimeException('The catalog storage limit has been reached.');
+        }
         $sha256 = hash('sha256', $storedJson);
         $basename = $sha256 . '.volturascreen';
         $path = air_screen_package_path($basename);
@@ -58,8 +77,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ->execute(['basename' => $basename, 'hash' => $sha256]);
         $database->commit();
         air_screen_drain_cleanup_jobs();
-        air_screen_release_advisory_lock($database, $lockName);
-        $lockName = null;
+        air_screen_maybe_maintain_catalog();
+        air_screen_release_advisory_lock($database, $userLock);
+        $userLock = null;
+        air_screen_release_advisory_lock($database, $serviceLock);
+        $serviceLock = null;
         air_screen_notify_moderators(
             $id,
             $name,
@@ -75,7 +97,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($exception instanceof InvalidArgumentException ||
             ($exception instanceof RuntimeException && in_array($exception->getMessage(), [
                 'The daily upload limit has been reached.',
-                'The package could not be stored.'
+                'The package could not be stored.',
+                'The account storage limit has been reached.',
+                'The catalog storage limit has been reached.'
             ], true))) {
             $error = $exception->getMessage();
         } else {
@@ -83,9 +107,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'The screen could not be submitted. Try again later.';
         }
     } finally {
-        if ($lockName !== null) {
-            air_screen_release_advisory_lock($database, $lockName);
-        }
+        if ($userLock !== null) air_screen_release_advisory_lock($database, $userLock);
+        if ($serviceLock !== null) air_screen_release_advisory_lock($database, $serviceLock);
     }
 }
 $message = isset($_GET['submitted'])
@@ -98,7 +121,7 @@ $mine->execute(['owner' => $user['id']]);
 $submissions = $mine->fetchAll();
 $rejectedCount = count(array_filter($submissions, static fn(array $item): bool => strtolower((string)$item['status']) === 'rejected'));
 $removeRejected = $rejectedCount > 0
-    ? '<button class="catalog-remove-rejected-open" type="button" data-remove-rejected-dialog-open>Remove rejected (' . $rejectedCount . ')</button><dialog class="catalog-remove-rejected-dialog"><form method="post" action="remove-rejected.php"><input type="hidden" name="csrf" value="' . air_screen_h(air_screen_csrf()) . '"><span class="catalog-remove-rejected-icon" aria-hidden="true"></span><h2>Remove ' . $rejectedCount . ' rejected submission' . ($rejectedCount === 1 ? '' : 's') . '?</h2><p>Their stored records will not be permanently deleted.</p><div class="catalog-remove-rejected-dialog-actions"><button class="catalog-remove-rejected-cancel" type="button" data-remove-rejected-dialog-close>Cancel</button><button class="catalog-remove-rejected-button" type="submit">Remove rejected</button></div></form></dialog>'
+    ? '<button class="catalog-remove-rejected-open" type="button" data-remove-rejected-dialog-open>Remove rejected (' . $rejectedCount . ')</button><dialog class="catalog-remove-rejected-dialog"><form method="post" action="remove-rejected.php"><input type="hidden" name="csrf" value="' . air_screen_h(air_screen_csrf()) . '"><span class="catalog-remove-rejected-icon" aria-hidden="true"></span><h2>Remove ' . $rejectedCount . ' rejected submission' . ($rejectedCount === 1 ? '' : 's') . '?</h2><p>They disappear now and are permanently deleted after 30 days.</p><div class="catalog-remove-rejected-dialog-actions"><button class="catalog-remove-rejected-cancel" type="button" data-remove-rejected-dialog-close>Cancel</button><button class="catalog-remove-rejected-button" type="submit">Remove rejected</button></div></form></dialog>'
     : '';
 $owned = '<section class="catalog-submissions" id="submissions" aria-labelledby="catalog-submissions-heading"><header><h2 id="catalog-submissions-heading">Your submissions</h2>' . $removeRejected . '</header>';
 if (!$submissions) {

@@ -93,10 +93,44 @@ try {
         strtolower((string)$row['installation_hex']),
         'The stored installation pseudonym does not use the required domain-separated HMAC.'
     );
+    $storedBatchStatement = $database->prepare(
+        'SELECT HEX(batch_id) FROM ' . $batchesTable . ' WHERE installation_hash = :hash');
+    $storedBatchStatement->bindValue('hash', $installationHash, PDO::PARAM_LOB);
+    $storedBatchStatement->execute();
+    $storedBatchId = strtolower((string)$storedBatchStatement->fetchColumn());
+    assertSame(
+        bin2hex(substr(air_telemetry_hmac('telemetry-batch-v1:', strtolower($batch['batchId'])), 0, 16)),
+        $storedBatchId,
+        'The stored batch pseudonym does not use the required domain-separated HMAC.'
+    );
+    assertTrue(
+        $storedBatchId !== str_replace('-', '', strtolower($batch['batchId'])),
+        'The raw reversible batch UUID was stored.'
+    );
 
     assertSame('accepted', air_telemetry_ingest($database, $batch, $source), 'A duplicate batch was not idempotently accepted.');
     $duplicate = fetchDaily($database, $installationHash, '1.0.5');
     assertSame(2, (int)$duplicate['features_trackpad'], 'A duplicate batch changed daily counters.');
+
+    $legacyBatch = makeBatch(installationId: randomTelemetryUuid(), batchId: randomTelemetryUuid());
+    $legacyInstallationHash = air_telemetry_hmac('telemetry-install-v1:', $legacyBatch['installationId']);
+    $legacyBatchBytes = hex2bin(str_replace('-', '', $legacyBatch['batchId']));
+    $legacyInsert = $database->prepare(
+        'INSERT INTO ' . $batchesTable . ' (installation_hash, batch_id, received_at) '
+        . 'VALUES (:installation, :batch, UTC_TIMESTAMP(6))');
+    $legacyInsert->bindValue('installation', $legacyInstallationHash, PDO::PARAM_LOB);
+    $legacyInsert->bindValue('batch', $legacyBatchBytes, PDO::PARAM_LOB);
+    $legacyInsert->execute();
+    assertSame(
+        'accepted',
+        air_telemetry_ingest($database, $legacyBatch, 'telemetry-integration-legacy-' . $runToken),
+        'A retry matching a retained legacy raw batch UUID was not deduplicated.'
+    );
+    assertSame(
+        0,
+        countRowsForHash($database, 'air_telemetry_daily', $legacyInstallationHash),
+        'A legacy duplicate changed daily counters.'
+    );
 
     $database->prepare(
         'UPDATE ' . $dailyTable .
@@ -231,6 +265,19 @@ try {
         (int)$sourceRejectedRateRows->fetchColumn(),
         'A rejected source created an installation rate-bucket row.'
     );
+
+    $requestCapSource = 'telemetry-integration-request-cap-' . $runToken;
+    $requestCapHash = air_telemetry_hmac('telemetry-source-rate-v1:', $requestCapSource);
+    $database->prepare(
+        'UPDATE ' . $ingestTable . ' SET accepted = 0, duplicate = 0, invalid = :cap, '
+        . 'rate_limited = 0, server_failed = 0 WHERE activity_date = :date')
+        ->execute(['cap' => AIR_TELEMETRY_SERVICE_REQUEST_DAILY_LIMIT, 'date' => $today]);
+    assertSame(false, air_telemetry_record_invalid($requestCapSource), 'The total-request daily cap did not fail closed.');
+    $requestCapRows = $database->prepare(
+        "SELECT COUNT(*) FROM {$ratesTable} WHERE bucket_kind = 'source_hourly' AND bucket_hash = :hash");
+    $requestCapRows->bindValue('hash', $requestCapHash, PDO::PARAM_LOB);
+    $requestCapRows->execute();
+    assertSame(0, (int)$requestCapRows->fetchColumn(), 'A service-capped invalid request created a source bucket.');
 
     $oldHash = air_telemetry_hmac('telemetry-install-v1:', randomTelemetryUuid());
     $insertOld = $database->prepare(

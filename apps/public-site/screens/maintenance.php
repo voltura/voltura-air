@@ -7,6 +7,8 @@ if (PHP_SAPI !== 'cli') {
 }
 
 require_once __DIR__ . '/lib.php';
-$limit = isset($argv[1]) ? (int)$argv[1] : 100;
-$completed = air_screen_drain_cleanup_jobs($limit);
-fwrite(STDOUT, "Completed {$completed} catalog cleanup job(s).\n");
+$limit = isset($argv[1]) ? (int)$argv[1] : AIR_SCREEN_MAINTENANCE_LIMIT;
+$counts = air_screen_maybe_maintain_catalog($limit, true);
+foreach ($counts as $owner => $completed) {
+    fwrite(STDOUT, "Completed {$completed} {$owner} cleanup item(s).\n");
+}

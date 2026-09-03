@@ -125,10 +125,11 @@ at least one count is positive. There is no client timestamp: the successful
 MariaDB UTC receipt date owns daily attribution. Retrying across midnight moves
 that batch to its successful receipt day.
 
-The server derives separate HMAC-SHA-256 installation, installation-rate, and
-source-rate keys. It permits 24 requests per installation UUID per UTC day, 240
-per source HMAC per UTC hour, and at most 50,000 accepted new batches per UTC
-day. Deduplication by installation pseudonym and batch UUID and the daily
+The server derives separate HMAC-SHA-256 installation, installation-rate,
+source-rate, and batch-deduplication keys. It permits 24 requests per installation
+UUID per UTC day, 240 per source HMAC per UTC hour, at most 50,000 accepted new
+batches per UTC day, and at most 100,000 total requests per UTC day. Deduplication
+by installation pseudonym and the truncated batch-ID HMAC and the daily
 counter upsert occur in one transaction. The source IP is used only to derive
 the short-lived rate HMAC; User-Agent is ignored. The endpoint stores no raw
 UUID, IP address, request JSON, or event history.

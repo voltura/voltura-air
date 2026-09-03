@@ -6,6 +6,7 @@ const AIR_TELEMETRY_RESPONSE_MAX_BYTES = 1024;
 const AIR_TELEMETRY_INSTALLATION_DAILY_LIMIT = 24;
 const AIR_TELEMETRY_SOURCE_HOURLY_LIMIT = 240;
 const AIR_TELEMETRY_SERVICE_DAILY_LIMIT = 50000;
+const AIR_TELEMETRY_SERVICE_REQUEST_DAILY_LIMIT = 100000;
 const AIR_TELEMETRY_COUNTER_MAX = 65535;
 const AIR_TELEMETRY_CLEANUP_LIMIT = 500;
 
@@ -223,6 +224,15 @@ function air_telemetry_ensure_ingest_day(PDO $database, string $date): void
     $statement->execute(['date' => $date]);
 }
 
+function air_telemetry_request_total(PDO $database, string $date): int
+{
+    $statement = $database->prepare(
+        'SELECT accepted + duplicate + invalid + rate_limited + server_failed FROM '
+        . air_telemetry_table('ingest') . ' WHERE activity_date = :date FOR UPDATE');
+    $statement->execute(['date' => $date]);
+    return (int)$statement->fetchColumn();
+}
+
 function air_telemetry_database_clock(PDO $database): array
 {
     $clock = $database->query(
@@ -310,15 +320,22 @@ function air_telemetry_ingest(PDO $database, array $batch, string $source): stri
     $installationHash = air_telemetry_hmac('telemetry-install-v1:', $batch['installationId']);
     $installationRateHash = air_telemetry_hmac('telemetry-install-rate-v1:', $batch['installationId']);
     $sourceRateHash = air_telemetry_hmac('telemetry-source-rate-v1:', $source);
-    $batchId = hex2bin(str_replace('-', '', $batch['batchId']));
-    if ($batchId === false || strlen($batchId) !== 16) {
+    $legacyBatchId = hex2bin(str_replace('-', '', $batch['batchId']));
+    if ($legacyBatchId === false || strlen($legacyBatchId) !== 16) {
         throw new InvalidArgumentException('Invalid batch identifier.');
     }
+    $batchId = substr(air_telemetry_hmac('telemetry-batch-v1:', strtolower($batch['batchId'])), 0, 16);
     $database->beginTransaction();
     try {
         air_telemetry_lock_data_writes($database);
         $clock = air_telemetry_database_clock($database);
         $date = $clock['activityDate'];
+        air_telemetry_ensure_ingest_day($database, $date);
+        if (air_telemetry_request_total($database, $date) >= AIR_TELEMETRY_SERVICE_REQUEST_DAILY_LIMIT) {
+            air_telemetry_increment_health($database, $date, 'rate_limited');
+            $database->commit();
+            return 'rate-limited';
+        }
         $sourceAllowed = air_telemetry_consume_rate(
             $database,
             'source_hourly',
@@ -326,7 +343,6 @@ function air_telemetry_ingest(PDO $database, array $batch, string $source): stri
             $clock['hourStart'],
             AIR_TELEMETRY_SOURCE_HOURLY_LIMIT
         );
-        air_telemetry_ensure_ingest_day($database, $date);
         if (!$sourceAllowed) {
             air_telemetry_increment_health($database, $date, 'rate_limited');
             $database->commit();
@@ -338,9 +354,11 @@ function air_telemetry_ingest(PDO $database, array $batch, string $source): stri
         $health->execute(['date' => $date]);
         $acceptedToday = (int)$health->fetchColumn();
         $duplicate = $database->prepare(
-            'SELECT 1 FROM ' . air_telemetry_table('batches') . ' WHERE installation_hash = :installation AND batch_id = :batch');
+            'SELECT 1 FROM ' . air_telemetry_table('batches')
+            . ' WHERE installation_hash = :installation AND batch_id IN (:batch, :legacy_batch)');
         $duplicate->bindValue('installation', $installationHash, PDO::PARAM_LOB);
         $duplicate->bindValue('batch', $batchId, PDO::PARAM_LOB);
+        $duplicate->bindValue('legacy_batch', $legacyBatchId, PDO::PARAM_LOB);
         $duplicate->execute();
         if ($duplicate->fetchColumn() !== false) {
             $installationAllowed = air_telemetry_consume_rate(
@@ -405,6 +423,17 @@ function air_telemetry_record_invalid(string $source): ?bool
         air_telemetry_lock_data_writes($database);
         $clock = air_telemetry_database_clock($database);
         $date = $clock['activityDate'];
+        air_telemetry_ensure_ingest_day($database, $date);
+        if (air_telemetry_request_total($database, $date) >= AIR_TELEMETRY_SERVICE_REQUEST_DAILY_LIMIT) {
+            air_telemetry_increment_health($database, $date, 'rate_limited');
+            $database->commit();
+            try {
+                air_telemetry_maybe_cleanup($database);
+            } catch (Throwable) {
+                error_log('Voltura Air telemetry maintenance failed.');
+            }
+            return false;
+        }
         $allowed = air_telemetry_consume_rate(
             $database,
             'source_hourly',
@@ -412,10 +441,14 @@ function air_telemetry_record_invalid(string $source): ?bool
             $clock['hourStart'],
             AIR_TELEMETRY_SOURCE_HOURLY_LIMIT
         );
-        air_telemetry_ensure_ingest_day($database, $date);
         air_telemetry_increment_health($database, $date, $allowed ? 'invalid' : 'rate_limited');
         air_telemetry_test_failure('record_invalid_before_commit');
         $database->commit();
+        try {
+            air_telemetry_maybe_cleanup($database);
+        } catch (Throwable) {
+            error_log('Voltura Air telemetry maintenance failed.');
+        }
         return $allowed;
     } catch (Throwable) {
         air_telemetry_best_effort_rollback(
@@ -488,7 +521,7 @@ function air_telemetry_maybe_cleanup(PDO $database): array
         air_telemetry_lock_data_writes($database);
         $lease = $database->prepare(
             'UPDATE ' . air_telemetry_table('maintenance') . ' '
-            . 'SET next_cleanup_at = TIMESTAMPADD(HOUR, 1, UTC_TIMESTAMP(6)) '
+            . 'SET next_cleanup_at = TIMESTAMPADD(MINUTE, 1, UTC_TIMESTAMP(6)) '
             . 'WHERE singleton_id = 1 AND next_cleanup_at <= UTC_TIMESTAMP(6)');
         $lease->execute();
         $counts = $lease->rowCount() === 1

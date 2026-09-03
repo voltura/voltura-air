@@ -300,8 +300,9 @@ not store request JSON, raw UUIDs, raw IP addresses, or User-Agent values.
 The receiving PHP service immediately derives a domain-separated HMAC-SHA-256
 pseudonym from the UUID using a server-side secret. Daily rows contain that
 binary pseudonym, the received host version, UTC receipt date, and approved
-counters. Separate operational rows contain the random batch ID paired with the
-installation pseudonym for deduplication; domain-separated installation/source
+counters. Separate operational rows contain a truncated domain-separated HMAC of
+the random batch ID paired with the installation pseudonym for deduplication;
+domain-separated installation/source
 rate-bucket HMACs with their window and bounded request count; delivery-health
 totals; and one non-identifying cleanup-lease timestamp. The raw UUID exists in
 the HTTPS request because it is needed to derive the pseudonym but is never
@@ -401,9 +402,12 @@ feedback, ratings, download counts, and reports submitted with a reporter email
 address. Each submitted report is also emailed to `air@voltura.se` for review.
 Submitted packages are held for moderation; approved package contents,
 author identity, notes, tags, ratings, and download counts are public.
-Withdrawing a submission removes it from the public catalog but does not delete
-its stored record. A catalog administrator can permanently delete an approved
-submission and its package, ratings, and reports. Catalog accounts and data do
+Withdrawing a submission removes it from the public catalog immediately. Removed
+submissions and their reports, ratings, and unreferenced package files are deleted
+after 30 days. Reports expire after 180 days; expired verification tokens have a
+seven-day cleanup grace, and never-verified accounts expire after 30 days when
+they have no live token or package. A catalog administrator can permanently delete
+an approved submission and its package, ratings, and reports. Catalog accounts and data do
 not grant access to a Windows host or its paired devices.
 
 When Presentation control is enabled, the Windows host may read bounded

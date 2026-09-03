@@ -6,6 +6,10 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.2.4
+
+- Shared screens site and database sequrity hardening
+
 ## v1.2.3
 
 - Added local recording to **View PC screen**. Record up to five minutes of the

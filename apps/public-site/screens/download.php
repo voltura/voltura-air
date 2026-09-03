@@ -21,7 +21,18 @@ $bytesSent = fpassthru($package);
 fclose($package);
 if ($bytesSent === $metadata['size']) {
     try {
-        air_screen_db()->prepare('UPDATE air_screen_packages SET downloads = downloads + 1 WHERE id = :id')->execute(['id' => $item['id']]);
+        $source = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+        $serviceAllowed = air_screen_rate_consume(
+            'download_service', air_screen_scoped_bucket_key('download-service', 'v1'), 50000, 86400);
+        $sourceAllowed = $serviceAllowed && air_screen_rate_consume(
+            'download_source', air_screen_scoped_bucket_key('download-source', $source), 100, 86400);
+        $downloadAllowed = $sourceAllowed && air_screen_rate_consume(
+            'download_package', air_screen_scoped_bucket_key('download-package', (string)$item['id'], $source), 1, 86400);
+        if ($downloadAllowed) {
+            air_screen_db()->prepare('UPDATE air_screen_packages SET downloads = downloads + 1 WHERE id = :id')
+                ->execute(['id' => $item['id']]);
+        }
+        air_screen_maybe_maintain_catalog();
     } catch (Throwable $error) {
         error_log('Custom-screen download counter update failed: ' . $error::class);
     }

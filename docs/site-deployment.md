@@ -20,9 +20,11 @@ credentialed `/d`-only publication command.
 ## Custom-screen catalog
 
 The catalog lives under `apps/public-site/screens` and requires PHP sessions plus a
-MySQL database. This release requires a fresh database created from
-`apps/public-site/screens/schema.sql`; application code has no schema migration
-or legacy-format reader. Configure the ignored hosting-only
+MySQL database. Create a fresh database from `apps/public-site/screens/schema.sql`.
+For an existing catalog, apply the forward-only, idempotent
+`apps/public-site/screens/schema-upgrade.sql` before publishing matching PHP; it
+adds retention timestamps, cleanup state, and supporting indexes without dropping
+or rewriting existing catalog content. Configure the ignored hosting-only
 `apps/public-site/config.php` with `dsn`, `username`, `password`, `storage_path`,
 and a high-entropy `catalog_secret`. The secret HMACs persistent email/source
 rate-bucket keys and must remain stable. The site `.htaccess` blocks direct access
@@ -31,11 +33,21 @@ uploads `.htaccess` before the full directory, including the ignored config
 file. Never commit database credentials or uploaded package files.
 
 Accounts require email verification through one hashed 24-hour pending token.
-Login, registration, and resend limits use persistent HMAC-keyed buckets and
-`REMOTE_ADDR`; forwarded headers are not trusted. Catalog package files are
+Login, registration, resend, report, and download-count limits use persistent
+HMAC-keyed buckets and `REMOTE_ADDR`; forwarded headers are not trusted. Login
+failures are serialized by source and account, and a correct verified-account
+password can clear a targeted account bucket when the source itself is allowed.
+A fixed 100,000-operation daily gate is consumed before attacker-keyed rate rows,
+and login password checks have a separate 10,000-attempt daily ceiling. Report
+mail capacity is consumed only after the screen, reporter, and duplicate checks.
+Catalog package files are
 content-addressed. Upload/delete/import transactions enqueue exact-basename and
 SHA-256 cleanup jobs; ordinary mutations drain a bounded number. Schedule or run
-`php apps/public-site/screens/maintenance.php` for larger idempotent drains.
+`php apps/public-site/screens/maintenance.php` for larger idempotent drains. The
+same bounded maintenance obtains a five-minute lease during public rate-controlled
+traffic. It expires report rows after 180 days, expired verification tokens after
+a seven-day grace, never-verified accounts after 30 days without a live token or
+package, and removed packages after 30 days through the durable package-file queue.
 Missing files complete a job; referenced or hash-mismatched files remain intact.
 
 Create the first administrator by changing the account's `role` to `admin`
@@ -49,7 +61,8 @@ uploads `artifacts/custom-screens/voltura-official-screens.zip` through
 **Moderate** and explicitly confirms that matrix. The importer validates the
 whole manifest and every exact-format package before one locked reconciliation;
 any failure rejects the bundle. Provenance is unique by source/official ID,
-user-owned screen-ID collisions reject the import, and stable official rows
+ordinary uploads cannot claim the reserved `official.` namespace, and legacy
+user-owned screen IDs do not block reconciliation. Stable official rows
 preserve package IDs, ratings, and download counters. Only absent rows carrying
 Voltura provenance are removed, with superseded files passed to the cleanup queue.
 
@@ -60,8 +73,8 @@ Usage statistics use the additive, idempotent
 only `air_telemetry_daily`, `air_telemetry_batches`,
 `air_telemetry_rate_buckets`, `air_telemetry_ingest_daily`, and
 `air_telemetry_maintenance`; it neither changes nor drops Custom Screens tables.
-This schema is independent of the catalog's fresh-schema-only rule. There is no
-production migration runner and no destructive down migration.
+This schema is independent of the catalog upgrade. There is no production
+migration runner and no destructive down migration.
 
 The PHP endpoint reuses the existing ignored `dsn`, `username`, `password`, and
 stable `catalog_secret`. Domain-separated HMAC inputs prevent a telemetry
@@ -93,7 +106,9 @@ rebuilding or advancing the version.
 
 Daily aggregate and delivery-health rows expire after 180 days; batch and rate
 buckets expire after 24 hours. Ingest and administrator GET access acquire a
-singleton hourly lease and delete at most 500 eligible rows per table per pass.
+singleton one-minute lease and delete at most 500 eligible rows per table per pass.
+The 50,000 accepted-batch and 100,000 total-request daily ceilings keep maximum
+public row creation below that automatic cleanup capacity.
 After complete service inactivity, expired rows remain excluded from dashboard
 queries and physical cleanup resumes on the next ingest or administrator
 access. Administrator retention/date/delete-all actions preview exact counts,
@@ -119,7 +134,8 @@ The initializer installs missing PHP and MariaDB packages through `winget`.
 MariaDB installation is interactive so the developer controls its local root
 password. Finish that installer before returning to the initializer, then enter
 the same root password when prompted. The command creates the `voltura_air_dev` database and restricted
-development user, verifies or applies the current fresh catalog schema, and
+development user, creates the catalog schema when absent, applies its additive
+upgrade when present, and
 writes ignored configuration and package storage under `.site-dev`. It is safe
 to rerun. Pass a non-default MariaDB port when needed with
 `npm run site:dev:init -- -Port 3307`.
@@ -149,8 +165,10 @@ Use `npm run site:dev -- -Port 8766` to select another web port. Production
 continues to require Secure session cookies and `apps/public-site/config.php`.
 
 After initializing the isolated local catalog, run
-`npm run test:site-import-integration`. It exercises all official-import write
-and rollback boundaries against local MariaDB, verifies stable row IDs plus
+`npm run test:site-catalog-integration` and
+`npm run test:site-import-integration`. The first verifies bounded retention,
+rollback, and durable file cleanup; the second exercises all official-import
+write and rollback boundaries against local MariaDB, verifies stable row IDs plus
 download/rating preservation, and removes its test rows and files.
 
 The initializer applies and verifies the additive telemetry schema on every

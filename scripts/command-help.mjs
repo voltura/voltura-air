@@ -104,6 +104,8 @@ export const commandDescriptions = {
   "test:scripts": "Run tests for repository automation scripts.",
   "test:site-import-integration":
     "Exercise official-screen import success, rollback boundaries, and stable updates against isolated local MariaDB.",
+  "test:site-catalog-integration":
+    "Exercise catalog retention rollback and durable package cleanup against isolated local MariaDB.",
   "test:site-telemetry-integration":
     "Exercise telemetry ingest, retention, cleanup, and catalog isolation against the configured local MariaDB database.",
   "test:ui": "Run the isolated browser device-mode smoke test through the real pairing flow.",

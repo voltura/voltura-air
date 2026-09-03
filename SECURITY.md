@@ -202,9 +202,9 @@ The optional Usage statistics ingest endpoint is public and spoofable; an
 open-source host cannot safely embed an authentication secret. Telemetry is
 therefore directional product evidence only, never billing, entitlement,
 security, or exact-user truth. The endpoint accepts one exact 4 KiB JSON schema,
-uses fixed prepared statements, deduplicates batch UUIDs, and rate-limits by
-domain-separated installation and transient source-IP HMACs plus a service-wide
-daily cap. It ignores User-Agent and stores neither raw UUIDs, IP addresses,
+uses fixed prepared statements, deduplicates domain-separated batch-ID HMACs, and
+rate-limits by domain-separated installation and transient source-IP HMACs plus
+accepted-batch and total-request daily caps. It ignores User-Agent and stores neither raw UUIDs, IP addresses,
 request bodies, nor event history. The shared catalog database credential is a
 known blast-radius limitation; purpose-built PHP files, telemetry-only tables,
 fixed SQL, and the absence of a generic query or cleanup entry point contain it.

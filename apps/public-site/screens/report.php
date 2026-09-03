@@ -7,6 +7,8 @@ $email = strtolower(trim((string)($_POST['email'] ?? '')));
 $reason = trim((string)($_POST['reason'] ?? ''));
 if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $id === '' || $reason === '' || strlen($reason) > 1000) { http_response_code(400); exit('Invalid report.'); }
 $database = air_screen_db();
+$sourceAllowed = air_screen_rate_consume('report_source', air_screen_source_bucket_key(), 20, 3600);
+if (!$sourceAllowed) { http_response_code(429); exit('Report limit reached.'); }
 try {
     $lockName = air_screen_acquire_advisory_lock($database, 'report', $email);
 } catch (Throwable $error) {
@@ -29,8 +31,14 @@ try {
     $duplicateStatement->execute(['id' => $id, 'email' => $email]);
     if ($rejection === null && (int)$duplicateStatement->fetchColumn() > 0) { $rejection = [429, 'This screen was already reported recently.']; }
     if ($rejection === null) {
-        $stmt = $database->prepare('INSERT INTO air_screen_reports (package_id, reporter_email, reason) VALUES (:id, :email, :reason)');
-        $stmt->execute(['id' => $id, 'email' => $email, 'reason' => $reason]);
+        $serviceAllowed = air_screen_rate_consume(
+            'report_service', air_screen_scoped_bucket_key('report-service', 'v1'), 500, 86400);
+        if (!$serviceAllowed) {
+            $rejection = [429, 'Report limit reached.'];
+        } else {
+            $stmt = $database->prepare('INSERT INTO air_screen_reports (package_id, reporter_email, reason) VALUES (:id, :email, :reason)');
+            $stmt->execute(['id' => $id, 'email' => $email, 'reason' => $reason]);
+        }
     }
 } finally {
     air_screen_release_advisory_lock($database, $lockName);

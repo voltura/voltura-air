@@ -4,6 +4,13 @@ declare(strict_types=1);
 const AIR_SCREEN_MAX_BYTES = 8 * 1024 * 1024;
 const AIR_SCREEN_ORIGIN = 'https://voltura.se/air';
 const AIR_SCREEN_MAX_BUTTON_ROWS = 6;
+const AIR_SCREEN_RATE_ROW_DAILY_LIMIT = 100000;
+const AIR_SCREEN_MAINTENANCE_LIMIT = 500;
+const AIR_SCREEN_MAINTENANCE_INTERVAL_MINUTES = 5;
+const AIR_SCREEN_REPORT_RETENTION_DAYS = 180;
+const AIR_SCREEN_EXPIRED_TOKEN_GRACE_DAYS = 7;
+const AIR_SCREEN_UNVERIFIED_ACCOUNT_RETENTION_DAYS = 30;
+const AIR_SCREEN_REMOVED_PACKAGE_RETENTION_DAYS = 30;
 
 session_set_cookie_params([
     'httponly' => true,
@@ -119,6 +126,14 @@ function air_screen_email_bucket_key(string $email): string
     return air_screen_bucket_key(strtolower(trim($email)));
 }
 
+function air_screen_scoped_bucket_key(string $scope, string ...$values): string
+{
+    if (!preg_match('/^[a-z0-9_-]{1,40}$/D', $scope)) {
+        throw new InvalidArgumentException('Invalid catalog bucket domain.');
+    }
+    return air_screen_bucket_key($scope . ":\0" . implode("\0", $values));
+}
+
 function air_screen_storage_basename(string $basename): string
 {
     if (!preg_match('/^[a-f0-9]{64}\.volturascreen$/D', $basename)) {
@@ -194,10 +209,21 @@ function air_screen_rate_consume(
     if ($limit < 1 || $windowSeconds < 1 || $windowSeconds > 86400 || $blockSeconds < 0 || $blockSeconds > 86400) {
         throw new InvalidArgumentException('Invalid rate limits.');
     }
+    if ($scope !== 'catalog_service') {
+        $serviceAllowed = air_screen_rate_consume(
+            'catalog_service',
+            air_screen_scoped_bucket_key('catalog-rate-rows', 'v1'),
+            AIR_SCREEN_RATE_ROW_DAILY_LIMIT,
+            86400
+        );
+        if (!$serviceAllowed) {
+            return false;
+        }
+    }
     $database = air_screen_db();
     $statement = $database->prepare(
         'INSERT INTO air_screen_rate_buckets (scope, bucket_key, window_started, attempts) VALUES (:scope, :key, CURRENT_TIMESTAMP, 1) '
-        . 'ON DUPLICATE KEY UPDATE attempts = IF(window_started <= TIMESTAMPADD(SECOND, -' . $windowSeconds . ', CURRENT_TIMESTAMP), 1, attempts + 1), '
+        . 'ON DUPLICATE KEY UPDATE attempts = IF(window_started <= TIMESTAMPADD(SECOND, -' . $windowSeconds . ', CURRENT_TIMESTAMP), 1, IF(attempts < 4294967295, attempts + 1, attempts)), '
         . 'window_started = IF(window_started <= TIMESTAMPADD(SECOND, -' . $windowSeconds . ', CURRENT_TIMESTAMP), CURRENT_TIMESTAMP, window_started), '
         . 'blocked_until = IF(blocked_until IS NOT NULL AND blocked_until > CURRENT_TIMESTAMP, blocked_until, NULL)');
     $statement->execute(['scope' => $scope, 'key' => $bucketKey]);
@@ -208,6 +234,9 @@ function air_screen_rate_consume(
     if (!$allowed && $blockSeconds > 0) {
         $block = $database->prepare('UPDATE air_screen_rate_buckets SET blocked_until = TIMESTAMPADD(SECOND, ' . $blockSeconds . ', CURRENT_TIMESTAMP) WHERE scope = :scope AND bucket_key = :key');
         $block->execute(['scope' => $scope, 'key' => $bucketKey]);
+    }
+    if ($scope === 'catalog_service') {
+        air_screen_maybe_maintain_catalog();
     }
     return $allowed;
 }
@@ -224,6 +253,103 @@ function air_screen_rate_clear(string $scope, string $bucketKey): void
 {
     $statement = air_screen_db()->prepare('DELETE FROM air_screen_rate_buckets WHERE scope = :scope AND bucket_key = :key');
     $statement->execute(['scope' => $scope, 'key' => $bucketKey]);
+}
+
+function air_screen_maybe_maintain_catalog(int $limit = AIR_SCREEN_MAINTENANCE_LIMIT, bool $force = false): array
+{
+    $bounded = max(1, min(AIR_SCREEN_MAINTENANCE_LIMIT, $limit));
+    $database = air_screen_db();
+    $counts = [];
+    try {
+        $database->exec(
+            'INSERT IGNORE INTO air_screen_maintenance (singleton_id, next_run_at) '
+            . 'VALUES (1, CURRENT_TIMESTAMP)');
+        $database->beginTransaction();
+        $leaseSql = 'UPDATE air_screen_maintenance '
+            . 'SET next_run_at = TIMESTAMPADD(MINUTE, ' . AIR_SCREEN_MAINTENANCE_INTERVAL_MINUTES . ', CURRENT_TIMESTAMP) '
+            . 'WHERE singleton_id = 1';
+        if (!$force) {
+            $leaseSql .= ' AND next_run_at <= CURRENT_TIMESTAMP';
+        }
+        $lease = $database->prepare($leaseSql);
+        $lease->execute();
+        if ($lease->rowCount() !== 1) {
+            $database->commit();
+            return [];
+        }
+
+        $counts['air_screen_reports'] = $database->exec(
+            'DELETE FROM air_screen_reports WHERE created_at < TIMESTAMPADD(DAY, -'
+            . AIR_SCREEN_REPORT_RETENTION_DAYS . ', CURRENT_TIMESTAMP) ORDER BY created_at LIMIT ' . $bounded);
+        $counts['air_screen_rate_buckets'] = $database->exec(
+            'DELETE FROM air_screen_rate_buckets WHERE window_started < TIMESTAMPADD(DAY, -1, CURRENT_TIMESTAMP) '
+            . 'AND (blocked_until IS NULL OR blocked_until <= CURRENT_TIMESTAMP) ORDER BY window_started LIMIT ' . $bounded);
+        $counts['air_screen_verification_tokens'] = $database->exec(
+            'DELETE FROM air_screen_verification_tokens WHERE expires_at < TIMESTAMPADD(DAY, -'
+            . AIR_SCREEN_EXPIRED_TOKEN_GRACE_DAYS . ', CURRENT_TIMESTAMP) ORDER BY expires_at LIMIT ' . $bounded);
+        $counts['air_screen_users'] = $database->exec(
+            'DELETE FROM air_screen_users WHERE verified_at IS NULL '
+            . 'AND created_at < TIMESTAMPADD(DAY, -' . AIR_SCREEN_UNVERIFIED_ACCOUNT_RETENTION_DAYS . ', CURRENT_TIMESTAMP) '
+            . 'AND NOT EXISTS (SELECT 1 FROM air_screen_verification_tokens t '
+            . 'WHERE t.user_id = air_screen_users.id AND t.expires_at > CURRENT_TIMESTAMP) '
+            . 'AND NOT EXISTS (SELECT 1 FROM air_screen_packages p WHERE p.owner_id = air_screen_users.id) '
+            . 'ORDER BY created_at LIMIT ' . $bounded);
+
+        $removed = $database->query(
+            "SELECT id, storage_basename FROM air_screen_packages WHERE status = 'removed' "
+            . 'AND removed_at < TIMESTAMPADD(DAY, -' . AIR_SCREEN_REMOVED_PACKAGE_RETENTION_DAYS . ', CURRENT_TIMESTAMP) '
+            . 'ORDER BY removed_at LIMIT ' . $bounded . ' FOR UPDATE')->fetchAll();
+        foreach ($removed as $package) {
+            $basename = air_screen_storage_basename((string)$package['storage_basename']);
+            $database->prepare('DELETE FROM air_screen_reports WHERE package_id = :id')
+                ->execute(['id' => $package['id']]);
+            $database->prepare("DELETE FROM air_screen_packages WHERE id = :id AND status = 'removed'")
+                ->execute(['id' => $package['id']]);
+            air_screen_enqueue_cleanup($database, $basename, substr($basename, 0, 64));
+        }
+        $counts['air_screen_packages'] = count($removed);
+        air_screen_catalog_maintenance_failure('after_delete');
+        air_screen_catalog_maintenance_failure('before_commit');
+        $database->commit();
+        air_screen_catalog_maintenance_failure('commit');
+    } catch (Throwable $error) {
+        if ($database->inTransaction()) {
+            try {
+                air_screen_catalog_maintenance_failure('rollback');
+                $database->rollBack();
+            } catch (Throwable $rollbackError) {
+                error_log('Custom-screen maintenance rollback outcome is unknown: ' . $rollbackError::class);
+            }
+        }
+        if ($force) {
+            throw $error;
+        }
+        error_log('Custom-screen maintenance failed: ' . $error::class);
+        return [];
+    }
+
+    try {
+        $counts['air_screen_cleanup_jobs'] = air_screen_drain_cleanup_jobs($bounded);
+    } catch (Throwable $error) {
+        error_log('Custom-screen package cleanup drain failed: ' . $error::class);
+        $counts['air_screen_cleanup_jobs'] = 0;
+    }
+    return $counts;
+}
+
+function air_screen_catalog_maintenance_failure(string $boundary): void
+{
+    $failures = array_filter(array_map('trim', explode(',', (string)getenv('VOLTURA_AIR_CATALOG_MAINTENANCE_FAIL'))));
+    if (getenv('VOLTURA_AIR_SITE_DEV') === '1' && in_array($boundary, $failures, true)) {
+        throw new RuntimeException('Injected catalog maintenance failure at ' . $boundary . '.');
+    }
+}
+
+function air_screen_require_user_package_id(string $screenId): void
+{
+    if (str_starts_with(strtolower($screenId), 'official.')) {
+        throw new InvalidArgumentException('Screen IDs beginning with official. are reserved for Voltura Air.');
+    }
 }
 
 function air_screen_send_verification(string $email, string $displayName, string $token): void

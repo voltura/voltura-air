@@ -83,6 +83,10 @@ test("public ingest has a closed schema, fixed HMAC domains, and no browser tele
   assert.match(library, /telemetry-install-v1:/u);
   assert.match(library, /telemetry-install-rate-v1:/u);
   assert.match(library, /telemetry-source-rate-v1:/u);
+  assert.match(library, /telemetry-batch-v1:/u);
+  assert.match(library, /AIR_TELEMETRY_SERVICE_REQUEST_DAILY_LIMIT = 100000/u);
+  assert.match(library, /substr\(air_telemetry_hmac\('telemetry-batch-v1:'/u);
+  assert.match(library, /batch_id IN \(:batch, :legacy_batch\)/u);
   assert.match(library, /function air_telemetry_database_clock/u);
   assert.match(library, /function air_telemetry_best_effort_rollback/u);
   assert.match(library, /record_invalid_rollback/u);
@@ -103,6 +107,11 @@ test("telemetry retention and cleanup use only fixed telemetry tables and bounde
   const publicLibrary = read("apps/public-site/telemetry/v1/lib.php");
   const adminLibrary = read("apps/public-site/telemetry/admin.php");
   assert.match(publicLibrary, /AIR_TELEMETRY_CLEANUP_LIMIT = 500/u);
+  assert.match(publicLibrary, /TIMESTAMPADD\(MINUTE, 1, UTC_TIMESTAMP\(6\)\)/u);
+  assert.ok(
+    24 * 60 * 500 > 2 * 100000,
+    "telemetry cleanup must outrun source and installation rate rows",
+  );
   assert.match(publicLibrary, /received_at < UTC_TIMESTAMP\(6\) - INTERVAL 1 DAY/u);
   assert.match(publicLibrary, /activity_date < UTC_DATE\(\) - INTERVAL 180 DAY/u);
   assert.match(publicLibrary, /function air_telemetry_lock_data_writes/u);

@@ -15,6 +15,7 @@ $prefix = 'official.integration.';
 $storage = air_screen_storage_path();
 $beforeFiles = glob($storage . DIRECTORY_SEPARATOR . '*.volturascreen') ?: [];
 $createdUserIds = [];
+$legacyCollisionId = null;
 $bundle = tempnam(sys_get_temp_dir(), 'voltura-official-integration-');
 $wrapper = tempnam(sys_get_temp_dir(), 'voltura-official-wrapper-');
 if ($bundle === false || $wrapper === false) { throw new RuntimeException('Could not create integration test files.'); }
@@ -23,6 +24,17 @@ try {
     cleanupRows($db, $prefix);
     $adminId = ensureUser($db, 'admin', $createdUserIds);
     $ratingUserId = ensureUser($db, 'user', $createdUserIds);
+    $legacyCollisionId = air_screen_uuid();
+    $legacyCollision = $db->prepare(
+        "INSERT INTO air_screen_packages (id, owner_id, name, description, tags, package_version, screen_json, "
+        . "storage_basename, status, screen_id, removed_at) VALUES "
+        . "(:id, :owner, 'Legacy collision', '', '', 1, '{}', :basename, 'removed', :screen_id, CURRENT_TIMESTAMP)");
+    $legacyCollision->execute([
+        'id' => $legacyCollisionId,
+        'owner' => $ratingUserId,
+        'basename' => str_repeat('b', 64) . '.volturascreen',
+        'screen_id' => $prefix . '0',
+    ]);
     buildBundle($root, $bundle, $prefix);
     file_put_contents($wrapper, <<<'PHP'
 <?php
@@ -45,6 +57,9 @@ PHP);
 
     runImport($wrapper, $bundle, $root, $adminId, '');
     assertSame(14, countRows($db, $prefix), 'Successful import did not publish all 14 rows.');
+    $legacyStillPresent = $db->prepare('SELECT COUNT(*) FROM air_screen_packages WHERE id = :id');
+    $legacyStillPresent->execute(['id' => $legacyCollisionId]);
+    assertSame(1, (int)$legacyStillPresent->fetchColumn(), 'Official import changed a legacy user-owned collision row.');
     $row = $db->query("SELECT id FROM air_screen_packages WHERE official_id LIKE 'official.integration.%' ORDER BY official_id LIMIT 1")->fetch();
     if (!$row) { throw new RuntimeException('Imported integration row is missing.'); }
     $packageId = (string)$row['id'];
@@ -62,6 +77,9 @@ PHP);
     echo "Official importer MariaDB integration passed.\n";
 } finally {
     cleanupRows($db, $prefix);
+    if ($legacyCollisionId !== null) {
+        $db->prepare('DELETE FROM air_screen_packages WHERE id = :id')->execute(['id' => $legacyCollisionId]);
+    }
     foreach (glob($storage . DIRECTORY_SEPARATOR . '*.volturascreen') ?: [] as $file) {
         if (!in_array($file, $beforeFiles, true)) { @unlink($file); }
     }

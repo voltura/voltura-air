@@ -84,4 +84,52 @@ public sealed class WindowWorkAreaPlacementTests
 
         Assert.Equal(new Point(0, 0), position);
     }
+
+    [Fact]
+    public void AutomaticallyConstrainedWindowReturnsToPreferredSizeWhenWorkAreaRecovers()
+    {
+        var size = WindowWorkAreaPlacement.CalculateSizeAfterWorkAreaChange(
+            new WpfSize(1160, 760),
+            new WpfSize(853, 459),
+            new WpfSize(853, 459),
+            new WpfSize(1920, 1032));
+
+        Assert.Equal(new WpfSize(1160, 760), size);
+    }
+
+    [Fact]
+    public void AutomaticallyConstrainedWindowTracksAnotherLimitedWorkArea()
+    {
+        var size = WindowWorkAreaPlacement.CalculateSizeAfterWorkAreaChange(
+            new WpfSize(1160, 760),
+            new WpfSize(853, 459),
+            new WpfSize(853, 459),
+            new WpfSize(1000, 700));
+
+        Assert.Equal(new WpfSize(1000, 700), size);
+    }
+
+    [Fact]
+    public void PreferredWindowIsConstrainedWhenWorkAreaShrinks()
+    {
+        var size = WindowWorkAreaPlacement.CalculateSizeAfterWorkAreaChange(
+            new WpfSize(1160, 760),
+            null,
+            new WpfSize(1160, 760),
+            new WpfSize(853, 459));
+
+        Assert.Equal(new WpfSize(853, 459), size);
+    }
+
+    [Fact]
+    public void ManuallyResizedWindowIsNotRestoredAutomatically()
+    {
+        var size = WindowWorkAreaPlacement.CalculateSizeAfterWorkAreaChange(
+            new WpfSize(1160, 760),
+            new WpfSize(853, 459),
+            new WpfSize(700, 420),
+            new WpfSize(1920, 1032));
+
+        Assert.Equal(new WpfSize(700, 420), size);
+    }
 }

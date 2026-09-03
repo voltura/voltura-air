@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -10,20 +11,30 @@ namespace VolturaAir.Host;
 internal static partial class WindowWorkAreaPlacement
 {
     private const int WindowMessageDisplayChange = 0x007E;
+    private const int WindowMessageDpiChanged = 0x02E0;
     private const uint MonitorDefaultToNearest = 0x00000002;
     private const uint SetWindowPositionNoSize = 0x0001;
     private const uint SetWindowPositionNoZOrder = 0x0004;
     private const uint SetWindowPositionNoActivate = 0x0010;
+    private const double DipsPerInch = 96;
+    private const double SizeComparisonTolerance = 1;
+    private static readonly ConditionalWeakTable<Window, PlacementState> PlacementStates = [];
 
     public static void ConstrainAndCenterOnFirstLoad(Window window)
     {
         ArgumentNullException.ThrowIfNull(window);
+        var state = PlacementStates.GetValue(
+            window,
+            static currentWindow => new PlacementState(new WpfSize(currentWindow.Width, currentWindow.Height)));
         window.Loaded += OnLoaded;
 
         void OnLoaded(object sender, RoutedEventArgs eventArgs)
         {
             window.Loaded -= OnLoaded;
-            Apply(window, SystemParameters.WorkArea);
+            var bounds = Apply(window, SystemParameters.WorkArea, state.PreferredSize);
+            state.LastAutomaticallyConstrainedSize = SizesMatch(bounds.Size, state.PreferredSize)
+                ? null
+                : bounds.Size;
         }
     }
 
@@ -39,6 +50,9 @@ internal static partial class WindowWorkAreaPlacement
     public static void KeepVisibleAfterDisplayChanges(Window window)
     {
         ArgumentNullException.ThrowIfNull(window);
+        var state = PlacementStates.GetValue(
+            window,
+            static currentWindow => new PlacementState(new WpfSize(currentWindow.Width, currentWindow.Height)));
         HwndSource? source = null;
         DispatcherOperation? pendingPlacement = null;
 
@@ -54,11 +68,11 @@ internal static partial class WindowWorkAreaPlacement
 
         nint FilterWindowMessage(nint windowHandle, int message, nint wordParameter, nint longParameter, ref bool handled)
         {
-            if (message == WindowMessageDisplayChange &&
+            if ((message == WindowMessageDisplayChange || message == WindowMessageDpiChanged) &&
                 pendingPlacement?.Status is not DispatcherOperationStatus.Pending and not DispatcherOperationStatus.Executing)
             {
                 pendingPlacement = window.Dispatcher.InvokeAsync(
-                    () => EnsureVisible(window, windowHandle),
+                    () => EnsureVisible(window, windowHandle, state),
                     DispatcherPriority.ContextIdle);
             }
 
@@ -83,8 +97,27 @@ internal static partial class WindowWorkAreaPlacement
         var windowHandle = new WindowInteropHelper(window).Handle;
         if (windowHandle != 0)
         {
-            EnsureVisible(window, windowHandle);
+            var state = PlacementStates.GetValue(
+                window,
+                static currentWindow => new PlacementState(new WpfSize(currentWindow.Width, currentWindow.Height)));
+            EnsureVisible(window, windowHandle, state);
         }
+    }
+
+    internal static WpfSize CalculateSizeAfterWorkAreaChange(
+        WpfSize preferredSize,
+        WpfSize? lastAutomaticallyConstrainedSize,
+        WpfSize currentSize,
+        WpfSize workAreaSize)
+    {
+        if (!IsManagedSize(preferredSize, lastAutomaticallyConstrainedSize, currentSize))
+        {
+            return currentSize;
+        }
+
+        return new WpfSize(
+            Math.Min(preferredSize.Width, workAreaSize.Width),
+            Math.Min(preferredSize.Height, workAreaSize.Height));
     }
 
     internal static WpfPoint CalculateVisibleTopLeft(Rect windowBounds, Rect workArea)
@@ -98,16 +131,17 @@ internal static partial class WindowWorkAreaPlacement
         return new WpfPoint(left, top);
     }
 
-    private static void Apply(Window window, Rect workArea)
+    private static Rect Apply(Window window, Rect workArea, WpfSize requestedSize)
     {
-        var bounds = CalculateBounds(workArea, new WpfSize(window.Width, window.Height));
+        var bounds = CalculateBounds(workArea, requestedSize);
         window.Width = bounds.Width;
         window.Height = bounds.Height;
         window.Left = bounds.Left;
         window.Top = bounds.Top;
+        return bounds;
     }
 
-    private static void EnsureVisible(Window window, nint windowHandle)
+    private static void EnsureVisible(Window window, nint windowHandle, PlacementState state)
     {
         if (window.WindowState != WindowState.Normal ||
             !GetWindowRect(windowHandle, out var windowRect))
@@ -121,6 +155,12 @@ internal static partial class WindowWorkAreaPlacement
             Size = (uint)Marshal.SizeOf<MonitorInfo>()
         };
         if (monitor == 0 || !GetMonitorInfo(monitor, ref monitorInfo))
+        {
+            return;
+        }
+
+        UpdateManagedSizeForWorkArea(window, windowHandle, monitorInfo.WorkArea, state);
+        if (!GetWindowRect(windowHandle, out windowRect))
         {
             return;
         }
@@ -140,6 +180,64 @@ internal static partial class WindowWorkAreaPlacement
             0,
             0,
             SetWindowPositionNoSize | SetWindowPositionNoZOrder | SetWindowPositionNoActivate);
+    }
+
+    private static void UpdateManagedSizeForWorkArea(
+        Window window,
+        nint windowHandle,
+        NativeRect workArea,
+        PlacementState state)
+    {
+        var dpi = GetDpiForWindow(windowHandle);
+        if (dpi == 0)
+        {
+            return;
+        }
+
+        var currentSize = new WpfSize(window.Width, window.Height);
+        var workAreaSize = new WpfSize(
+            (workArea.Right - workArea.Left) * DipsPerInch / dpi,
+            (workArea.Bottom - workArea.Top) * DipsPerInch / dpi);
+        if (!IsManagedSize(state.PreferredSize, state.LastAutomaticallyConstrainedSize, currentSize))
+        {
+            state.LastAutomaticallyConstrainedSize = null;
+            return;
+        }
+
+        var recoveredSize = CalculateSizeAfterWorkAreaChange(
+            state.PreferredSize,
+            state.LastAutomaticallyConstrainedSize,
+            currentSize,
+            workAreaSize);
+
+        if (!SizesMatch(recoveredSize, currentSize))
+        {
+            window.Width = recoveredSize.Width;
+            window.Height = recoveredSize.Height;
+        }
+
+        state.LastAutomaticallyConstrainedSize = SizesMatch(recoveredSize, state.PreferredSize)
+            ? null
+            : recoveredSize;
+    }
+
+    private static bool IsManagedSize(
+        WpfSize preferredSize,
+        WpfSize? lastAutomaticallyConstrainedSize,
+        WpfSize currentSize) =>
+        lastAutomaticallyConstrainedSize is WpfSize constrainedSize
+            ? SizesMatch(currentSize, constrainedSize)
+            : SizesMatch(currentSize, preferredSize);
+
+    private static bool SizesMatch(WpfSize left, WpfSize right) =>
+        Math.Abs(left.Width - right.Width) <= SizeComparisonTolerance &&
+        Math.Abs(left.Height - right.Height) <= SizeComparisonTolerance;
+
+    private sealed class PlacementState(WpfSize preferredSize)
+    {
+        public WpfSize PreferredSize { get; } = preferredSize;
+
+        public WpfSize? LastAutomaticallyConstrainedSize { get; set; }
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -165,6 +263,9 @@ internal static partial class WindowWorkAreaPlacement
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool GetWindowRect(nint windowHandle, out NativeRect rectangle);
+
+    [LibraryImport("user32.dll")]
+    private static partial uint GetDpiForWindow(nint windowHandle);
 
     [LibraryImport("user32.dll")]
     private static partial nint MonitorFromRect(in NativeRect rectangle, uint flags);

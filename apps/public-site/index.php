@@ -110,11 +110,9 @@
 
       <section id="watch" class="video-showcase" aria-labelledby="watch-heading">
         <div class="section-heading video-showcase-heading">
-          <p class="eyebrow">Watch</p>
           <h2 id="watch-heading">See Voltura Air in action</h2>
           <p id="watch-description">
-            See how your phone becomes a fast, flexible Windows remote and webcam in 60 seconds.
-            The demo uses on-screen text and music, with no narration.
+            Your phone as a Windows remote and webcam—in 60 seconds.
           </p>
         </div>
         <div class="video-showcase-frame">

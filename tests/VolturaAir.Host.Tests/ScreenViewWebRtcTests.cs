@@ -2,6 +2,20 @@ namespace VolturaAir.Host.Tests;
 
 public sealed class ScreenViewWebRtcTests
 {
+    [Theory]
+    [InlineData((int)LibDataChannelNative.PeerState.New, false)]
+    [InlineData((int)LibDataChannelNative.PeerState.Connecting, false)]
+    [InlineData((int)LibDataChannelNative.PeerState.Connected, false)]
+    [InlineData((int)LibDataChannelNative.PeerState.Disconnected, false)]
+    [InlineData((int)LibDataChannelNative.PeerState.Failed, true)]
+    [InlineData((int)LibDataChannelNative.PeerState.Closed, true)]
+    public void TransientDisconnectDoesNotStopTheScreenPeer(int state, bool shouldStop)
+    {
+        Assert.Equal(
+            shouldStop,
+            ScreenViewWebRtcPeer.ShouldStopForPeerState((LibDataChannelNative.PeerState)state));
+    }
+
     [Fact]
     public void BundledPeerAcceptsTheOfficialRelayConfiguration()
     {

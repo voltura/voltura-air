@@ -233,7 +233,9 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - Screen media is independent of the JSON command socket, so a slow viewer
   cannot delay trackpad or keyboard commands. The WebRTC sender bounds queued
   media, supports packet retransmission and receiver keyframe requests, and
-  starts capture only after its video track and event channel connect.
+  starts capture only after its video track and event channel connect. A
+  transient WebRTC `disconnected` state may recover without replacing the
+  Screen View peer; terminal `failed` or `closed` states stop the stream.
 - Every video budget retains the same fixed 128 kbps transport allowance for
   96 kbps sound plus protocol overhead. Selecting a lower sound preset does not
   increase or otherwise change the video encoder budget. Sound quality is

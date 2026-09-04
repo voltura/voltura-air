@@ -425,12 +425,15 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
                 owner.TryCompleteConnected();
             }
         }
-        else if (state is LibDataChannelNative.PeerState.Disconnected or LibDataChannelNative.PeerState.Failed or LibDataChannelNative.PeerState.Closed)
+        else if (ShouldStopForPeerState(state))
         {
             owner._connected.TrySetException(new ScreenViewWebRtcException("The WebRTC screen connection stopped."));
             owner.Stopped?.Invoke(owner, EventArgs.Empty);
         }
     }
+
+    internal static bool ShouldStopForPeerState(LibDataChannelNative.PeerState state) =>
+        state is LibDataChannelNative.PeerState.Failed or LibDataChannelNative.PeerState.Closed;
 
     private static void OnGathering(int peer, LibDataChannelNative.GatheringState state, nint pointer)
     {

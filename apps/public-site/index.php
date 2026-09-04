@@ -86,7 +86,7 @@
           </p>
           <div class="actions">
             <a class="button primary" href="https://github.com/voltura/voltura-air/releases/latest">Download for Windows</a>
-            <a class="button secondary" href="#watch">Watch 28-second demo</a>
+            <a class="button secondary" href="#watch">Watch 45-second demo</a>
             <a class="button secondary" href="#features">Explore features</a>
             <a class="button secondary" href="#screens">See screenshots</a>
           </div>
@@ -113,7 +113,7 @@
           <p class="eyebrow">Watch</p>
           <h2 id="watch-heading">See Voltura Air in action</h2>
           <p id="watch-description">
-            See how your phone becomes a fast, flexible Windows remote in 28 seconds.
+            See how your phone becomes a fast, flexible Windows remote and webcam in 45 seconds.
             The demo uses on-screen text and music, with no narration.
           </p>
         </div>
@@ -122,17 +122,17 @@
             controls
             playsinline
             preload="none"
-            poster="./assets/voltura-air-demo-poster.png"
-            aria-label="28-second Voltura Air product demo"
+            poster="./assets/voltura-air-demo-poster.png?v=20260904-webcam"
+            aria-label="45-second Voltura Air product demo, including Phone Webcam"
             aria-describedby="watch-description"
           >
-            <source src="./assets/voltura-air-demo.mp4" type="video/mp4">
-            <a href="./assets/voltura-air-demo.mp4">Open or download the Voltura Air demo video.</a>
+            <source src="./assets/voltura-air-demo.mp4?v=20260904-webcam" type="video/mp4">
+            <a href="./assets/voltura-air-demo.mp4?v=20260904-webcam">Open or download the Voltura Air demo video.</a>
           </video>
         </div>
         <p class="video-showcase-fallback">
           Trouble playing the video?
-          <a href="./assets/voltura-air-demo.mp4">Open or download the MP4.</a>
+          <a href="./assets/voltura-air-demo.mp4?v=20260904-webcam">Open or download the MP4.</a>
         </p>
       </section>
 

@@ -55,6 +55,7 @@
         <span>Voltura Air</span>
       </a>
       <nav aria-label="Page sections">
+        <a href="#watch">Watch</a>
         <a href="#features">Features</a>
         <a href="#compare">Compare</a>
         <a href="#screens">Screenshots</a>
@@ -85,6 +86,7 @@
           </p>
           <div class="actions">
             <a class="button primary" href="https://github.com/voltura/voltura-air/releases/latest">Download for Windows</a>
+            <a class="button secondary" href="#watch">Watch 28-second demo</a>
             <a class="button secondary" href="#features">Explore features</a>
             <a class="button secondary" href="#screens">See screenshots</a>
           </div>
@@ -104,6 +106,34 @@
           <h2>Completely free</h2>
           <p>No account, subscription, trial, or locked features. Open source under the MIT License.</p>
         </article>
+      </section>
+
+      <section id="watch" class="video-showcase" aria-labelledby="watch-heading">
+        <div class="section-heading video-showcase-heading">
+          <p class="eyebrow">Watch</p>
+          <h2 id="watch-heading">See Voltura Air in action</h2>
+          <p id="watch-description">
+            See how your phone becomes a fast, flexible Windows remote in 28 seconds.
+            The demo uses on-screen text and music, with no narration.
+          </p>
+        </div>
+        <div class="video-showcase-frame">
+          <video
+            controls
+            playsinline
+            preload="none"
+            poster="./assets/voltura-air-demo-poster.png"
+            aria-label="28-second Voltura Air product demo"
+            aria-describedby="watch-description"
+          >
+            <source src="./assets/voltura-air-demo.mp4" type="video/mp4">
+            <a href="./assets/voltura-air-demo.mp4">Open or download the Voltura Air demo video.</a>
+          </video>
+        </div>
+        <p class="video-showcase-fallback">
+          Trouble playing the video?
+          <a href="./assets/voltura-air-demo.mp4">Open or download the MP4.</a>
+        </p>
       </section>
 
       <section id="features" class="feature-band" aria-label="Core features">

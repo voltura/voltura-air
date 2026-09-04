@@ -537,6 +537,7 @@ h2 {
 }
 
 .feature-band,
+.video-showcase,
 .assistant-showcase,
 .comparison-section,
 .screen-section,
@@ -554,6 +555,57 @@ h2 {
 
 #promise {
   padding-bottom: 18px;
+}
+
+.video-showcase {
+  border-top: 1px solid var(--border);
+}
+
+.video-showcase-heading {
+  max-width: 680px;
+  margin-inline: auto;
+  text-align: center;
+}
+
+.video-showcase-heading > p:last-child {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+
+.video-showcase-frame {
+  width: min(960px, 100%);
+  margin: 0 auto;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, var(--accent));
+  border-radius: 18px;
+  padding: clamp(7px, 1vw, 11px);
+  background: linear-gradient(145deg, var(--surface-raised), var(--surface));
+  box-shadow: 0 24px 64px var(--shadow);
+}
+
+.video-showcase video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  display: block;
+  border-radius: 10px;
+  background: #07090b;
+  object-fit: cover;
+}
+
+.video-showcase-fallback {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.video-showcase-fallback a {
+  color: var(--text);
+  font-weight: 700;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 0.18em;
 }
 
 #features {
@@ -2836,6 +2888,15 @@ footer a:hover {
 
   .actions {
     display: grid;
+  }
+
+  .video-showcase-frame {
+    border-radius: 12px;
+    padding: 5px;
+  }
+
+  .video-showcase video {
+    border-radius: 8px;
   }
 
   .screen-grid {

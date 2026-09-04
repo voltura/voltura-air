@@ -8,7 +8,7 @@ create one. Keep the shared notices in
 
 ## v1.2.5
 
-- Improved Relay connection stability.
+- Improved **Relay connection** stability.
 
 ## v1.2.4
 

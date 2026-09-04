@@ -46,7 +46,7 @@
     <link rel="icon" href="./favicon-16.png" sizes="16x16" type="image/png">
     <link rel="icon" href="./favicon.ico" sizes="any">
     <link rel="apple-touch-icon" href="./apple-touch-icon.png">
-    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./styles.css?v=20260904-watch">
   </head>
   <body>
     <header class="site-header">

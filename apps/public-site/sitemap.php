@@ -41,7 +41,8 @@
           <p>Learn about the Windows 11 remote, its features, setup, privacy, and downloads.</p>
           <ul>
             <li><a href="./">Product overview</a></li>
-            <li><a href="./#features">Features</a></li>
+            <li><a href="./#features">Feature overview</a></li>
+            <li><a href="./feature-explorer/">Interactive feature explorer</a></li>
             <li><a href="./#compare">Product comparison</a></li>
             <li><a href="./#screens">Screenshots</a></li>
             <li><a href="./#setup">Setup</a></li>

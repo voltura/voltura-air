@@ -74,6 +74,13 @@ license text and copyright notices.
 | React, React DOM, and Scheduler | 19.2.8 / 0.27.0 | Mobile user interface runtime | [MIT; facebook/react](https://github.com/facebook/react) |
 | xterm.js and FitAddon | 6.0.0 / 0.11.0 | Mobile Terminal rendering and responsive sizing | [MIT; xtermjs/xterm.js](https://github.com/xtermjs/xterm.js) |
 
+## Public feature explorer
+
+The standalone feature explorer includes a vendored SVG subset of
+[Lucide icons](https://github.com/lucide-icons/lucide), including Feather-derived
+icons. The ISC and MIT notices are shipped beside `icons.mjs` in
+[`apps/public-site/feature-explorer/THIRD-PARTY-NOTICES.txt`](apps/public-site/feature-explorer/THIRD-PARTY-NOTICES.txt).
+
 ## Relay service
 
 The Cloudflare relay implementation is Voltura Air source. Cloudflare is the

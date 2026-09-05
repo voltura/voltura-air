@@ -6,6 +6,10 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.2.7
+
+- Added feature explorer to public site.
+
 ## v1.2.6
 
 - Improved **View PC screen** with more natural colors and fewer brief

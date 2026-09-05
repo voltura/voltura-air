@@ -354,6 +354,7 @@ export class RelayRoomObject extends DurableObject<Environment> {
         await this.scheduleHostAuthenticationAlarm();
         return;
       }
+      logRelayClose("relay_host_close", socket);
       const replacement = this.authenticatedHost();
       if (replacement && replacement !== socket) return;
       for (const device of this.ctx.getWebSockets("device"))
@@ -663,6 +664,7 @@ export class SecureDirectRoomObject extends DurableObject<Environment> {
     const attachment = socket.deserializeAttachment() as SecureSocketAttachment;
     if (attachment.role === "secure-host") {
       if (attachment.authenticated === true) {
+        logRelayClose("secure_relay_host_close", socket);
         const replacement = this.authenticatedHost();
         if (replacement && replacement !== socket) {
           await this.scheduleAlarm();
@@ -819,4 +821,12 @@ function logRelayError(event: string, socket: WebSocket): void {
     // The socket may already be closed and no longer have readable metadata.
   }
   console.error({ event, authenticated, readyState: socket.readyState });
+}
+
+function logRelayClose(event: string, socket: WebSocket): void {
+  console.log({
+    event,
+    authenticated: true,
+    readyState: socket.readyState,
+  });
 }

@@ -373,6 +373,7 @@ export class RelayRoomObject extends DurableObject<Environment> {
   }
 
   async webSocketError(socket: WebSocket): Promise<void> {
+    logRelayError("relay_websocket_error", socket);
     await this.webSocketClose(socket);
   }
 
@@ -686,6 +687,7 @@ export class SecureDirectRoomObject extends DurableObject<Environment> {
   }
 
   async webSocketError(socket: WebSocket): Promise<void> {
+    logRelayError("secure_relay_websocket_error", socket);
     await this.webSocketClose(socket);
   }
 
@@ -799,6 +801,22 @@ function sendBounded(socket: WebSocket, value: string | ArrayBuffer | Uint8Array
     socket.close(relayClose.overloaded, "Relay backpressure limit exceeded");
     return false;
   }
-  socket.send(value);
+  try {
+    socket.send(value);
+  } catch (error) {
+    logRelayError("relay_send_error", socket);
+    throw error;
+  }
   return true;
+}
+
+function logRelayError(event: string, socket: WebSocket): void {
+  let authenticated = false;
+  try {
+    const attachment = socket.deserializeAttachment() as { authenticated?: unknown };
+    authenticated = attachment.authenticated === true;
+  } catch {
+    // The socket may already be closed and no longer have readable metadata.
+  }
+  console.error({ event, authenticated, readyState: socket.readyState });
 }

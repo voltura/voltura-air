@@ -660,7 +660,8 @@ internal sealed class WebSocketSessionHandler(
                     ProtocolMessageFields.GetString(root, "operationId"),
                     ProtocolMessageFields.GetString(root, "displayId"),
                     ProtocolMessageFields.GetString(root, "clientSignature"),
-                    cancellationToken);
+                    cancellationToken,
+                    root.TryGetProperty("renewalOf", out var screenRenewalOf) ? screenRenewalOf.GetString() : null);
                 return true;
             case "screen.view.answer":
                 await screenViewCommands.AnswerAsync(

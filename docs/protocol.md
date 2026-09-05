@@ -672,7 +672,7 @@ send-only Opus/48000/2 audio media section, and the `screen-events` data channel
 the answer contains matching receive-only media. Missing, extra, wrong-codec,
 disabled, or wrong-direction media is rejected. Both SDP hashes therefore bind
 the complete two-track contract without a separate audio command. Device mute is
-browser-local and starts enabled for each new peer.
+browser-local and starts enabled for each new viewing session; renewal preserves it.
 
 Capture remains 48 kHz stereo for all presets. The host configures Opus
 constrained VBR as High = nominal 96 kbps stereo, Standard = nominal 64 kbps
@@ -721,8 +721,29 @@ oversized signaling is rejected and releases the pending peer.
 
 Direct mode uses host ICE candidates without STUN or TURN. Relay mode requests
 a signed, single-use 15-minute TURN credential from the active route and uses
-relay-only ICE. Mobile renews before expiry by stopping the old peer and
-performing a fresh signed WebRTC negotiation. The start result may include
+relay-only ICE. Hosts advertise `screenView.relayRenewal: true`. Mobile starts a
+replacement negotiation one minute before expiry, using the existing
+`screen.view.start` with optional `renewalOf` naming the original active start
+operation. This field has the operation-ID bounds and must differ from the new
+operation ID. Both start and offer signing transcripts append
+`:renew:<renewalOf>`; the answer transcript is unchanged. Empty, null, stale,
+cross-device, non-Relay, or unsigned renewal context never replaces a session.
+An ordinary start with no renewal context still receives `busy` while viewing.
+Old hosts reject the additional field; controllers use the existing stop/start
+renewal when the capability is absent.
+
+Only one replacement can be pending. The host retains the original session ID,
+capture, encoder, audio run, display and quality controller, waits at most 15
+seconds after the answer for connection readiness and a keyframe, then sends
+subsequent frames only through the replacement. Native teardown runs outside
+the capture and command loops. Retired callbacks cannot stop the new transport.
+The browser keeps its current stream until the replacement video track receives
+media, preserving mute, fullscreen and input state. Failed preparation releases
+only the candidate; an unsuccessful renewal falls back to stop/start five seconds
+before expiry. A changed provider bitrate ceiling rejects the handover and is
+applied by that fresh start. No expired credentials are intentionally reused.
+
+The start result may include
 bounded `iceServers`, `turnExpiresAt`, `relayUsageBytes`,
 `relayUsageCheckedAt`, and `relayScreenQuality`; direct results omit them.
 `relayScreenQuality` is `High`, `Standard`, or `DataSaver`, representing an

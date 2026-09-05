@@ -147,7 +147,14 @@ browser-local; `ScreenViewCoordinator` authorizes the active viewer/display,
 maps normalized positions through cached host monitor rotation and virtual-
 desktop bounds, and owns held-button cleanup. The existing input dispatcher and
 `SendInputInjector` perform guarded atomic absolute position/action batches.
-Screen media uses H.264 and Opus RTP tracks on one peer. `ScreenViewCoordinator`
+Screen media uses H.264 and Opus RTP tracks on one sending peer. For Relay
+credential renewal, the existing coordinator and mobile workspace prepare one
+bounded replacement through signed start/answer messages. The active session ID,
+capture/encoder, quality controller and audio run survive the handover; the
+capture loop switches at a keyframe after the candidate connects. It never sends
+duplicate media, and retired native teardown is awaited outside that loop.
+Failed candidates leave the current session intact until bounded expiry recovery.
+`ScreenViewCoordinator`
 owns one session-scoped WASAPI loopback/Concentus pipeline for the current default
 multimedia output, follows endpoint changes through notifications, and isolates
 audio failure from video. `AppScreenViewSettings` owns the separate exact-shape
@@ -229,7 +236,21 @@ durable transcript of its own.
 
 The capture owner uses Desktop Duplication GPU frames and cursor metadata. A
 D3D11 conversion stage supplies NV12 GPU surfaces to a capability-selected
-hardware Media Foundation H.264 transform. A bundled libdatachannel peer sends
+hardware Media Foundation H.264 transform. The capture session owns format-aware
+duplication, cached Windows SDR reference-white metadata and its display-setting
+subscriptions, the converter's latest GPU surface, and encoder continuity state.
+Floating-point scRGB is normalized and tone mapped to SDR; BGRA bypasses that
+stage. Explicit BT.709 limited-range conversion is paired with sRGB transfer
+signaling. The encoder normalizes only SPS color-description fields because
+hardware transforms may omit requested color attributes; picture data, timing,
+profile, and all other SPS fields remain intact.
+Capability-checked ICodecAPI controls request keyframes and update bitrate without
+replacing the transform where supported. Rejected controls, ignored keyframe
+requests, or format changes use the existing replacement path. Recovery remains
+pending until a keyframe is encoded and can use the converter-owned surface after
+a capture timeout; no acquired DXGI frame is retained. Optional low-latency and
+peak-constrained rate controls preserve existing budgets and driver fallback.
+A bundled libdatachannel peer sends
 the Annex-B access units as H.264 RTP and owns DTLS-SRTP, direct or relay-only ICE,
 sender reports, NACK retransmission, and keyframe requests. The controller sends
 bounded aggregate receiver-health counters over the authenticated command path.

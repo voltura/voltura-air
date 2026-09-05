@@ -148,11 +148,16 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   that support it and explains whether the effective **View PC screen** permission
   or a fresh identity-pinning pairing is required.
 - Direct viewing uses LAN ICE. Relay viewing uses relay-only TURN candidates,
-  15-minute credentials renewed with a fresh negotiation, and **High** (8 Mbps),
+  15-minute credentials renewed while the current mirror remains active, and **High** (8 Mbps),
   **Standard** (4 Mbps), or **Data saver** (2 Mbps). At 750 GB estimated monthly
   TURN transfer the service forces Data saver; at 850 GB it stops issuing
   credentials while command relay remains available. The host shows the
   provider's current used-versus-remaining allowance and thresholds on Connection.
+- Relay renewal preserves the display, sound setting, fullscreen and picture
+  quality. If renewal fails or the service changes its quality ceiling, viewing
+  reconnects before the existing credentials expire. Before a recording that
+  could overlap renewal, the connection renews first so the five-minute recording
+  can use one uninterrupted received track.
 - The bundled Windows libdatachannel peer retains libjuice as its ICE and TURN
   owner. In relay mode a bounded loopback bridge carries libjuice's TURN
   messages over certificate-validated TLS/TCP 443, including the stream framing
@@ -205,6 +210,12 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   Discard removes the staged file. No recording history, upload, background
   recorder, PC-side copy, permission, protocol, host, or Relay behavior is added.
 - Windows Desktop Duplication supplies GPU display frames and cursor metadata.
+  HDR-capable capture preserves floating-point scRGB when available and tone maps
+  it on the GPU using the selected display's Windows SDR reference white. The
+  outgoing stream remains SDR: limited-range BT.709 YCbCr with explicit sRGB
+  transfer metadata. SDR capture bypasses tone mapping. Unsupported capture
+  configurations retain the original BGRA fallback; this does not provide true
+  HDR playback or reproduce a TV's own picture processing.
   D3D11 converts frames to NV12 and a capability-selected hardware Media
   Foundation transform encodes baseline H.264 using the selected display's
   native aspect ratio and resolution/frame-rate combinations within the sender's
@@ -234,6 +245,11 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   cannot delay trackpad or keyboard commands. The WebRTC sender bounds queued
   media, supports packet retransmission and receiver keyframe requests, and
   starts capture only after its video track and event channel connect. A
+  keyframe request uses the running hardware encoder when supported, including
+  recovery on an unchanged desktop. Bitrate-only changes likewise use live encoder
+  controls when available; rejected controls and dimension/frame-rate changes
+  retain encoder replacement. Pending recovery survives capture timeouts and
+  frame pacing. A
   transient WebRTC `disconnected` state may recover without replacing the
   Screen View peer; terminal `failed` or `closed` states stop the stream.
 - Every video budget retains the same fixed 128 kbps transport allowance for
@@ -580,9 +596,12 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 ### Diagnostics
 
 - **Diagnostics** is a standalone Support destination in the mobile settings
-  drawer. It always shows the web-client version, browser, display mode, and
+  drawer. It always shows the web app (Development, Stable, or PC-hosted),
+  web-client version, browser, display mode, and
   connection state; a connected PC can add a freshly generated host and computer
   snapshot when the device has **View diagnostics** access.
+  The web-app label comes from the loaded JavaScript build's base path, independently
+  of the saved PC address or connection method, and is included in copied diagnostics.
 - The Voltura Air group shows the effective **Sound quality** from authenticated
   host status when the connected host supports it. This does not add the value
   to the exact diagnostics response or trigger background diagnostics work.

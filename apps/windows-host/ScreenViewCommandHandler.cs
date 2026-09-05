@@ -67,7 +67,8 @@ internal sealed class ScreenViewCommandHandler(
         string operationId,
         string displayId,
         string clientSignature,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? renewalOf = null)
     {
         var duplicate = false;
         lock (_gate)
@@ -92,7 +93,8 @@ internal sealed class ScreenViewCommandHandler(
                     clientId,
                     operationId,
                     displayId,
-                    clientSignature);
+                    clientSignature,
+                    renewalOf);
             }
         }
 
@@ -115,7 +117,8 @@ internal sealed class ScreenViewCommandHandler(
         string clientId,
         string operationId,
         string displayId,
-        string clientSignature)
+        string clientSignature,
+        string? renewalOf)
     {
         await Task.Yield();
         try
@@ -126,6 +129,7 @@ internal sealed class ScreenViewCommandHandler(
                 operationId,
                 displayId,
                 clientSignature,
+                renewalOf,
                 pending.Token).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is OperationCanceledException or WebSocketException or ObjectDisposedException)
@@ -172,6 +176,7 @@ internal sealed class ScreenViewCommandHandler(
         string operationId,
         string displayId,
         string clientSignature,
+        string? renewalOf,
         CancellationToken cancellationToken)
     {
         RelayTurnConfiguration? relay = null;
@@ -192,7 +197,7 @@ internal sealed class ScreenViewCommandHandler(
                 return;
             }
         }
-        var result = await coordinator.StartAsync(clientId, operationId, displayId, clientSignature, cancellationToken, relay).ConfigureAwait(false);
+        var result = await coordinator.StartAsync(clientId, operationId, displayId, clientSignature, cancellationToken, relay, renewalOf: renewalOf).ConfigureAwait(false);
         await transport.SendAsync(socket, new
         {
             type = "screen.view.start.result",

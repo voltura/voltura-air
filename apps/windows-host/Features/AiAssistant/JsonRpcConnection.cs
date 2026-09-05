@@ -32,15 +32,17 @@ internal sealed class JsonRpcConnection : IAsyncDisposable
     internal async Task<JsonElement> RequestAsync(string method, object? parameters, TimeSpan timeout, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(timeout);
         long id = Interlocked.Increment(ref _nextId);
         var completion = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
         if (!_pending.TryAdd(id, new(method, completion))) throw new InvalidOperationException("Could not allocate a request identifier.");
         try
         {
-            await WriteAsync(JsonSerializer.Serialize(new RpcRequest(id, method, parameters), JsonOptions), cancellationToken).ConfigureAwait(false);
-            return await completion.Task.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
+            await WriteAsync(JsonSerializer.Serialize(new RpcRequest(id, method, parameters), JsonOptions), deadline.Token).ConfigureAwait(false);
+            return await completion.Task.WaitAsync(deadline.Token).ConfigureAwait(false);
         }
-        catch (TimeoutException exception)
+        catch (OperationCanceledException exception) when (deadline.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
             throw new CodexCompatibilityException($"Codex method '{method}' timed out.", exception);
         }

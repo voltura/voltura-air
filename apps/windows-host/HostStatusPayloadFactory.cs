@@ -172,6 +172,7 @@ internal sealed class HostStatusPayloadFactory(
             maxHeight = LegacyScreenViewHeightMarker,
             maxFramesPerSecond = LegacyScreenViewFrameRateMarker,
             receiverQualityFeedback = true,
+            relayRenewal = true,
             systemAudio = new
             {
                 codec = "opus",

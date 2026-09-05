@@ -1,3 +1,4 @@
+using System.Numerics;
 using Vortice.D3DCompiler;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
@@ -6,8 +7,8 @@ using Vortice.DXGI;
 namespace VolturaAir.Host;
 
 /// <summary>
-/// Scales Desktop Duplication textures on the GPU and reads back only the
-/// bounded stream-sized BGRA result. The duplicated texture is never retained
+/// Scales and converts Desktop Duplication textures entirely on the GPU.
+/// The duplicated texture is never retained
 /// after the corresponding DXGI frame is released.
 /// </summary>
 internal sealed class D3D11DesktopFrameConverter : IDisposable
@@ -15,6 +16,7 @@ internal sealed class D3D11DesktopFrameConverter : IDisposable
     private const string ShaderSource = """
         Texture2D<float4> Desktop : register(t0);
         SamplerState LinearSampler : register(s0);
+        cbuffer ColorParameters : register(b0) { float4 ColorScale; };
 
         struct VertexOutput
         {
@@ -40,7 +42,7 @@ internal sealed class D3D11DesktopFrameConverter : IDisposable
 
         float3 ToneMapScRgb(float3 value)
         {
-            value = max(value, 0.0);
+            value = max(value * ColorScale.x, 0.0);
             float3 mapped = (value * (2.51 * value + 0.03)) / (value * (2.43 * value + 0.59) + 0.14);
             return LinearToSrgb(saturate(mapped));
         }
@@ -62,7 +64,8 @@ internal sealed class D3D11DesktopFrameConverter : IDisposable
         {
             float4 color = Desktop.SampleLevel(LinearSampler, RotateUv(input.Uv), 0.0);
         #if HDR_INPUT
-            color.rgb = ToneMapScRgb(color.rgb);
+            color.rgb = ColorScale.y > 0.5 ? ToneMapScRgb(color.rgb)
+                : LinearToSrgb(saturate(color.rgb));
         #endif
             return float4(saturate(color.rgb), 1.0);
         }
@@ -74,6 +77,9 @@ internal sealed class D3D11DesktopFrameConverter : IDisposable
     private readonly ID3D11PixelShader _sdrPixelShader;
     private readonly ID3D11PixelShader _hdrPixelShader;
     private readonly ID3D11SamplerState _sampler;
+    private readonly ID3D11Buffer _colorParameters;
+    private float _whiteScale;
+    private bool _toneMapHdr;
     private readonly ID3D11VideoDevice _videoDevice;
     private readonly ID3D11VideoContext _videoContext;
     private ID3D11Texture2D? _shaderInput;
@@ -93,43 +99,57 @@ internal sealed class D3D11DesktopFrameConverter : IDisposable
     {
         _device = device;
         _context = context;
-        _videoDevice = device.QueryInterface<ID3D11VideoDevice>();
-        _videoContext = context.QueryInterface<ID3D11VideoContext>();
-        int rotationValue = rotation switch
+        try
         {
-            ModeRotation.Rotate90 => 1,
-            ModeRotation.Rotate180 => 2,
-            ModeRotation.Rotate270 => 3,
-            _ => 0
-        };
-        ReadOnlyMemory<byte> vertexBytecode = Compiler.Compile(
-            ShaderSource,
-            "VertexMain",
-            "VolturaAirScreenView.hlsl",
-            "vs_5_0",
-            ShaderFlags.OptimizationLevel3);
-        ReadOnlyMemory<byte> sdrBytecode = CompilePixelShader(rotationValue, false);
-        ReadOnlyMemory<byte> hdrBytecode = CompilePixelShader(rotationValue, true);
-        _vertexShader = _device.CreateVertexShader(vertexBytecode.Span);
-        _sdrPixelShader = _device.CreatePixelShader(sdrBytecode.Span);
-        _hdrPixelShader = _device.CreatePixelShader(hdrBytecode.Span);
-        _sampler = _device.CreateSamplerState(new SamplerDescription(
-            Filter.MinMagMipLinear,
-            TextureAddressMode.Clamp,
-            0,
-            1,
-            ComparisonFunction.Always,
-            0,
-            float.MaxValue));
+            _videoDevice = device.QueryInterface<ID3D11VideoDevice>();
+            _videoContext = context.QueryInterface<ID3D11VideoContext>();
+            int rotationValue = rotation switch
+            {
+                ModeRotation.Rotate90 => 1,
+                ModeRotation.Rotate180 => 2,
+                ModeRotation.Rotate270 => 3,
+                _ => 0
+            };
+            ReadOnlyMemory<byte> vertexBytecode = Compiler.Compile(
+                ShaderSource,
+                "VertexMain",
+                "VolturaAirScreenView.hlsl",
+                "vs_5_0",
+                ShaderFlags.OptimizationLevel3);
+            ReadOnlyMemory<byte> sdrBytecode = CompilePixelShader(rotationValue, false);
+            ReadOnlyMemory<byte> hdrBytecode = CompilePixelShader(rotationValue, true);
+            _vertexShader = _device.CreateVertexShader(vertexBytecode.Span);
+            _sdrPixelShader = _device.CreatePixelShader(sdrBytecode.Span);
+            _hdrPixelShader = _device.CreatePixelShader(hdrBytecode.Span);
+            _sampler = _device.CreateSamplerState(new SamplerDescription(
+                Filter.MinMagMipLinear,
+                TextureAddressMode.Clamp,
+                0,
+                1,
+                ComparisonFunction.Always,
+                0,
+                float.MaxValue));
+            _colorParameters = _device.CreateBuffer(new BufferDescription(16, BindFlags.ConstantBuffer, ResourceUsage.Default));
+        }
+        catch { Dispose(); throw; }
     }
 
-    public ID3D11Texture2D RenderNv12(ID3D11Texture2D source, int outputWidth, int outputHeight)
+    public ID3D11Texture2D? LatestSurface => _nv12Target;
+
+    public ID3D11Texture2D RenderNv12(ID3D11Texture2D source, int outputWidth, int outputHeight, float whiteScale = 1f, bool toneMapHdr = true)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(outputWidth, 2);
         ArgumentOutOfRangeException.ThrowIfLessThan(outputHeight, 2);
         Texture2DDescription sourceDescription = source.Description;
         EnsureInputResources(sourceDescription);
         EnsureOutputResources(outputWidth, outputHeight);
+        if (_whiteScale != whiteScale || _toneMapHdr != toneMapHdr)
+        {
+            Vector4 parameters = new(whiteScale, toneMapHdr ? 1 : 0, 0, 0);
+            _context.UpdateSubresource(in parameters, _colorParameters);
+            _whiteScale = whiteScale;
+            _toneMapHdr = toneMapHdr;
+        }
 
         _context.CopyResource(_shaderInput!, source);
         _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
@@ -139,6 +159,7 @@ internal sealed class D3D11DesktopFrameConverter : IDisposable
         _context.PSSetShader(IsScRgb(sourceDescription.Format) ? _hdrPixelShader : _sdrPixelShader);
         _context.PSSetShaderResource(0, _shaderInputView!);
         _context.PSSetSampler(0, _sampler);
+        _context.PSSetConstantBuffer(0, _colorParameters);
         _context.Draw(3, 0);
         _context.PSUnsetShaderResource(0);
         _context.UnsetRenderTargets();
@@ -232,6 +253,13 @@ internal sealed class D3D11DesktopFrameConverter : IDisposable
         if (!inputSupport.HasFlag(VideoProcessorFormatSupport.Input) || !outputSupport.HasFlag(VideoProcessorFormatSupport.Output))
             throw new NotSupportedException("The graphics adapter cannot convert the desktop surface to NV12 video.");
         _videoProcessor = _videoDevice.CreateVideoProcessor(_videoEnumerator, 0);
+        // Full-range sRGB pixels -> limited-range BT.709 YCbCr, independent of
+        // resolution/driver defaults (which otherwise commonly select BT.601).
+        _videoContext.VideoProcessorSetStreamColorSpace(_videoProcessor, 0,
+            new VideoProcessorColorSpace { RGB_Range = 0, YCbCr_Matrix = 1, Nominal_Range = 2 });
+        _videoContext.VideoProcessorSetOutputColorSpace(_videoProcessor,
+            new VideoProcessorColorSpace { YCbCr_Matrix = 1, Nominal_Range = 1 });
+        _videoContext.VideoProcessorSetStreamAutoProcessingMode(_videoProcessor, 0, false);
         var inputViewDescription = new VideoProcessorInputViewDescription
         {
             FourCC = 0,
@@ -259,7 +287,7 @@ internal sealed class D3D11DesktopFrameConverter : IDisposable
         _outputHeight = height;
     }
 
-    private static bool IsScRgb(Format format) => format == Format.R16G16B16A16_Float;
+    internal static bool IsScRgb(Format format) => format == Format.R16G16B16A16_Float;
 
     public void Dispose()
     {
@@ -272,11 +300,12 @@ internal sealed class D3D11DesktopFrameConverter : IDisposable
         _renderTarget?.Dispose();
         _shaderInputView?.Dispose();
         _shaderInput?.Dispose();
-        _sampler.Dispose();
-        _hdrPixelShader.Dispose();
-        _sdrPixelShader.Dispose();
-        _vertexShader.Dispose();
-        _videoContext.Dispose();
-        _videoDevice.Dispose();
+        _sampler?.Dispose();
+        _colorParameters?.Dispose();
+        _hdrPixelShader?.Dispose();
+        _sdrPixelShader?.Dispose();
+        _vertexShader?.Dispose();
+        _videoContext?.Dispose();
+        _videoDevice?.Dispose();
     }
 }

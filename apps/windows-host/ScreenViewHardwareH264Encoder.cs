@@ -7,19 +7,20 @@ using static Vortice.MediaFoundation.MediaFactory;
 
 namespace VolturaAir.Host;
 
-internal sealed class ScreenViewHardwareH264Encoder : IDisposable
+internal sealed class ScreenViewHardwareH264Encoder : IScreenViewFrameEncoder
 {
     private static readonly Guid H264VideoFormat = new(0x34363248, 0x0000, 0x0010, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71);
     private readonly IMFTransform _transform;
     private readonly IMFMediaEventGenerator _events;
     private readonly IMFDXGIDeviceManager _deviceManager;
+    private readonly ScreenViewEncoderControls _controls;
     private readonly long _frameDuration;
     private int _inputRequests;
     private long _nextTimestamp;
     private byte[] _parameterSets = [];
     private bool _disposed;
 
-    public ScreenViewHardwareH264Encoder(ID3D11Device device, int width, int height, int framesPerSecond, int bitrate)
+    public ScreenViewHardwareH264Encoder(ID3D11Device device, int width, int height, int framesPerSecond, int bitrate, bool enableOptionalControls = true)
     {
         ArgumentNullException.ThrowIfNull(device);
         if (width <= 0 || height <= 0 || framesPerSecond is < 1 or > 60 || bitrate <= 0)
@@ -33,23 +34,29 @@ internal sealed class ScreenViewHardwareH264Encoder : IDisposable
         IMFTransform? transform = null;
         IMFMediaEventGenerator? events = null;
         IMFDXGIDeviceManager? manager = null;
+        ScreenViewEncoderControls? controls = null;
         try
         {
             manager = MFCreateDXGIDeviceManager();
             manager.ResetDevice(device).CheckError();
             transform = CreateTransform(manager, Width, Height, framesPerSecond, bitrate);
+            controls = new ScreenViewEncoderControls(transform.NativePointer);
+            if (enableOptionalControls) controls.Configure(bitrate);
             events = transform.QueryInterface<IMFMediaEventGenerator>();
             transform.ProcessMessage(TMessageType.MessageNotifyBeginStreaming, 0);
             transform.ProcessMessage(TMessageType.MessageNotifyStartOfStream, 0);
             _deviceManager = manager;
             _transform = transform;
             _events = events;
+            _controls = controls;
+            controls = null;
             manager = null;
             transform = null;
             events = null;
         }
         catch
         {
+            controls?.Dispose();
             events?.Dispose();
             transform?.Dispose();
             manager?.Dispose();
@@ -61,7 +68,16 @@ internal sealed class ScreenViewHardwareH264Encoder : IDisposable
     public int Width { get; }
     public int Height { get; }
     public int FramesPerSecond { get; }
-    public int Bitrate { get; }
+    public int Bitrate { get; private set; }
+
+    public bool TryRequestKeyFrame() => _controls.TryRequestKeyFrame();
+
+    public bool TrySetBitrate(int bitrate)
+    {
+        if (!_controls.TrySetBitrate(bitrate)) return false;
+        Bitrate = bitrate;
+        return true;
+    }
 
     public ScreenViewEncodedFrame Encode(ID3D11Texture2D source)
     {
@@ -71,6 +87,7 @@ internal sealed class ScreenViewHardwareH264Encoder : IDisposable
         if (description.Width != Width || description.Height != Height)
             throw new ArgumentException("The GPU surface dimensions do not match the H.264 encoder.", nameof(source));
 
+        ScreenViewDevelopmentTrace.Stage("encoder-input");
         WaitForInputRequest();
         using (IMFMediaBuffer buffer = MFCreateDXGISurfaceBuffer(typeof(ID3D11Texture2D).GUID, source, 0, false))
         {
@@ -86,6 +103,7 @@ internal sealed class ScreenViewHardwareH264Encoder : IDisposable
 
         while (true)
         {
+            ScreenViewDevelopmentTrace.Stage("encoder-output");
             using IMFMediaEvent mediaEvent = _events.GetEvent(0);
             mediaEvent.Status.CheckError();
             if (mediaEvent.EventType == MediaEventTypes.TransformNeedInput)
@@ -110,6 +128,7 @@ internal sealed class ScreenViewHardwareH264Encoder : IDisposable
                 using IMFSample encodedSample = output.Sample
                     ?? throw new ScreenViewCaptureException("encoder-failed", "The Windows H.264 encoder returned no video sample.");
                 byte[] bytes = NormalizeToAnnexB(ReadSample(encodedSample));
+                if (ContainsNalType(bytes, 7)) bytes = ScreenViewH264ColorMetadata.Apply(bytes);
                 if (_parameterSets.Length == 0) RefreshParameterSets();
                 bool keyFrame = ContainsNalType(bytes, 5);
                 if (keyFrame && _parameterSets.Length > 0 && !ContainsNalType(bytes, 7))
@@ -119,6 +138,7 @@ internal sealed class ScreenViewHardwareH264Encoder : IDisposable
                     bytes.CopyTo(complete, _parameterSets.Length);
                     bytes = complete;
                 }
+                ScreenViewDevelopmentTrace.Encoded(keyFrame);
                 return new ScreenViewEncodedFrame(bytes, Width, Height, FramesPerSecond, keyFrame);
             }
             finally
@@ -140,6 +160,7 @@ internal sealed class ScreenViewHardwareH264Encoder : IDisposable
         try { _transform.ProcessMessage(TMessageType.MessageNotifyEndStreaming, 0); }
         catch (SharpGenException) { }
         _events.Dispose();
+        _controls.Dispose();
         _transform.Dispose();
         _deviceManager.Dispose();
         MFShutdown();
@@ -167,7 +188,8 @@ internal sealed class ScreenViewHardwareH264Encoder : IDisposable
         {
             return;
         }
-        _parameterSets = ConvertAvcConfiguration(configuration);
+        byte[] parameterSets = ConvertAvcConfiguration(configuration);
+        _parameterSets = parameterSets.Length == 0 ? [] : ScreenViewH264ColorMetadata.Apply(parameterSets);
     }
 
     private static IMFTransform CreateTransform(
@@ -250,6 +272,10 @@ internal sealed class ScreenViewHardwareH264Encoder : IDisposable
         MFSetAttributeRatio(type, MediaTypeAttributeKeys.FrameRate, (uint)framesPerSecond, 1).CheckError();
         MFSetAttributeRatio(type, MediaTypeAttributeKeys.PixelAspectRatio, 1, 1).CheckError();
         type.SetEnumValue(MediaTypeAttributeKeys.InterlaceMode, VideoInterlaceMode.Progressive).CheckError();
+        type.SetEnumValue(MediaTypeAttributeKeys.VideoPrimaries, VideoPrimaries.Bt709).CheckError();
+        type.SetEnumValue(MediaTypeAttributeKeys.TransferFunction, VideoTransferFunction.FuncSRGB).CheckError();
+        type.SetEnumValue(MediaTypeAttributeKeys.YuvMatrix, VideoTransferMatrix.Bt709).CheckError();
+        type.SetEnumValue(MediaTypeAttributeKeys.VideoNominalRange, NominalRange.Range16_235).CheckError();
         if (bitrate > 0)
         {
             type.Set(MediaTypeAttributeKeys.AvgBitrate, (uint)bitrate).CheckError();

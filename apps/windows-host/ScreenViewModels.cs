@@ -2,6 +2,13 @@ using System.Text.Json.Serialization;
 
 namespace VolturaAir.Host;
 
+internal interface IScreenViewFrameEncoder : IDisposable
+{
+    bool TryRequestKeyFrame();
+    bool TrySetBitrate(int bitrate);
+    ScreenViewEncodedFrame Encode(Vortice.Direct3D11.ID3D11Texture2D surface);
+}
+
 internal static class ScreenViewScreenshotLimits
 {
     internal const long MaximumPixels = 7680L * 4320L;

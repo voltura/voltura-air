@@ -67,7 +67,7 @@ export function useAppsPreviews({
   const [previewRefreshVersion, setPreviewRefreshVersion] = useState(0);
   const pairedRef = useRef(state === "paired");
   const [previewChannelVersion, setPreviewChannelVersion] = useState(0);
-  const hasPreviewAccess = state === "paired" && capability.canUse;
+  const hasPreviewAccess = state === "paired" && capability.canUse && capability.previewAvailable;
   const [previousPreviewAccess, setPreviousPreviewAccess] = useState(hasPreviewAccess);
 
   if (previousPreviewAccess !== hasPreviewAccess) {
@@ -185,10 +185,12 @@ export function useAppsPreviews({
     (notifyHost = true) => {
       const previewId = previewIdRef.current;
       previewIdRef.current = null;
-      channelRef.current?.close();
+      const channel = channelRef.current;
       channelRef.current = null;
-      peerRef.current?.close();
+      const peer = peerRef.current;
       peerRef.current = null;
+      channel?.close();
+      peer?.close();
       assemblerRef.current.clear();
       lastPreviewRequestRef.current = "";
       requestedWindowIdsRef.current.clear();
@@ -250,8 +252,8 @@ export function useAppsPreviews({
   const acceptPreviewOffer = useCallback(
     async (offer: AppsPreviewOfferMessage) => {
       if (
-        !capability.previewAvailable ||
-        state !== "paired" ||
+        !hasPreviewAccess ||
+        document.visibilityState === "hidden" ||
         !activePc.hostIdentityPublicKey ||
         isListOperationPending(offer.operationId)
       ) {
@@ -291,7 +293,11 @@ export function useAppsPreviews({
         peerRef.current = peer;
         previewIdRef.current = offer.previewId;
         peer.addEventListener("datachannel", ({ channel }) => {
-          if (channel.label !== "voltura-apps-preview") {
+          if (
+            peerRef.current !== peer ||
+            channelRef.current !== null ||
+            channel.label !== "voltura-apps-preview"
+          ) {
             channel.close();
             return;
           }
@@ -304,10 +310,13 @@ export function useAppsPreviews({
           });
           channel.addEventListener("close", () => {
             if (channelRef.current === channel) {
-              channelRef.current = null;
+              closePreview(false);
             }
           });
           channel.addEventListener("message", (event) => {
+            if (peerRef.current !== peer || channelRef.current !== channel) {
+              return;
+            }
             if (!(event.data instanceof ArrayBuffer)) {
               closePreview();
               return;
@@ -396,12 +405,11 @@ export function useAppsPreviews({
     [
       closePreview,
       activePc,
-      capability.previewAvailable,
+      hasPreviewAccess,
       clientId,
       isListOperationPending,
       send,
       setMessage,
-      state,
       retirePreviewUrl,
       updatePreviewState,
     ],
@@ -414,12 +422,12 @@ export function useAppsPreviews({
   }, [requestVisiblePreviews]);
 
   useEffect(() => {
-    if (state === "paired" && capability.canUse) {
+    if (hasPreviewAccess) {
       return;
     }
     closePreview();
     clearPreviewResources();
-  }, [capability.canUse, clearPreviewResources, closePreview, state]);
+  }, [hasPreviewAccess, clearPreviewResources, closePreview]);
 
   useEffect(() => {
     const visibilityChange = () => {

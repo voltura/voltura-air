@@ -29,6 +29,9 @@
   bounded, validated, and atomically replaced.
 - External failures stop at their owning boundary and are logged without
   secrets, payload contents, typed text, pointer coordinates, or credentials.
+- Relay connection-end diagnostics retain the connection phase, elapsed time,
+  numeric close/native error codes, and local recovery-abort category. They omit
+  exception messages, peer close descriptions, connection URLs, and identifiers.
 - The active Screen View session owns system-output capture, endpoint-change
   subscriptions, bounded PCM/Opus work, and audio cancellation. Audio capture or
   track failure reports sound unavailable and must not cancel video or the

@@ -480,6 +480,7 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
 
     private static void OnPictureLoss(int track, nint pointer)
     {
+        ScreenViewDevelopmentTrace.PictureLoss();
         _ = track;
         ScreenViewWebRtcPeer? owner = From(pointer);
         owner?.KeyFrameRequested?.Invoke(owner, EventArgs.Empty);

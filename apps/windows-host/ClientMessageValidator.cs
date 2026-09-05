@@ -58,7 +58,7 @@ internal static class ClientMessageValidator
                 "buttonId",
                 "enabled"),
             ["screen.view.sources.get"] = Fields("type", "operationId"),
-            ["screen.view.start"] = Fields("type", "operationId", "displayId", "clientSignature"),
+            ["screen.view.start"] = Fields("type", "operationId", "displayId", "clientSignature", "renewalOf"),
             ["screen.view.answer"] = Fields("type", "operationId", "answerSdp", "clientSignature"),
             ["screen.view.quality"] = Fields("type", "operationId", "width", "height", "framesPerSecond", "framesDecoded", "framesDropped", "freezeCount", "packetsLost"),
             ["screen.view.source.set"] = Fields("type", "operationId", "displayId"),
@@ -289,6 +289,9 @@ internal static class ClientMessageValidator
             "screen.view.start" =>
                 TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var screenStartOperationId) &&
                 IsValidOperationId(screenStartOperationId) &&
+                (!root.TryGetProperty("renewalOf", out _) ||
+                    TryGetRequiredString(root, "renewalOf", MaxOperationIdLength, allowEmpty: false, out var renewalOf) &&
+                    IsValidOperationId(renewalOf) && renewalOf != screenStartOperationId) &&
                 TryGetRequiredString(root, "displayId", MaxMetadataLength, allowEmpty: false, out _) &&
                 TryGetRequiredString(root, "clientSignature", MaxCredentialLength, allowEmpty: false, out _),
             "screen.view.answer" =>

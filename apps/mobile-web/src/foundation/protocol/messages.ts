@@ -799,6 +799,7 @@ export interface ScreenViewCapability {
   maxHeight: number;
   maxFramesPerSecond: number;
   receiverQualityFeedback?: true;
+  relayRenewal?: true;
   systemAudio: {
     codec: "opus";
     sampleRate: 48000;
@@ -919,6 +920,7 @@ export interface ScreenViewStartMessage {
   operationId: string;
   displayId: string;
   clientSignature: string;
+  renewalOf?: string;
 }
 export interface ScreenViewAnswerMessage {
   type: "screen.view.answer";

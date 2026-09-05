@@ -91,6 +91,10 @@ public sealed class ClientMessageValidatorTests
 
     [Theory]
     [InlineData("""{ "type": "screen.view.start", "operationId": "screen-1", "displayId": "display-1", "clientSignature": "proof" }""", true)]
+    [InlineData("""{ "type": "screen.view.start", "operationId": "screen-2", "displayId": "display-1", "clientSignature": "proof", "renewalOf": "screen-1" }""", true)]
+    [InlineData("""{ "type": "screen.view.start", "operationId": "screen-1", "displayId": "display-1", "clientSignature": "proof", "renewalOf": "screen-1" }""", false)]
+    [InlineData("""{ "type": "screen.view.start", "operationId": "screen-2", "displayId": "display-1", "clientSignature": "proof", "renewalOf": null }""", false)]
+    [InlineData("""{ "type": "screen.view.start", "operationId": "screen-2", "displayId": "display-1", "clientSignature": "proof", "renewalOf": "" }""", false)]
     [InlineData("""{ "type": "screen.view.start", "operationId": "screen-1", "displayId": "display-1", "clientSignature": "proof", "streamFormats": "image-v1,fmp4-h264" }""", false)]
     [InlineData("""{ "type": "screen.view.start", "operationId": "screen-1", "displayId": "display-1", "clientEphemeralPublicKey": "key", "clientSignature": "proof" }""", false)]
     public void BoundsScreenViewOfferRequests(string json, bool expected)

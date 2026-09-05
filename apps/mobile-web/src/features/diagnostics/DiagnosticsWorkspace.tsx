@@ -197,6 +197,15 @@ export function buildDiagnosticsGroups(
     {
       title: "Voltura Air",
       rows: [
+        {
+          label: "Web app",
+          value:
+            import.meta.env.BASE_URL === "/air/dev-app/"
+              ? "Development"
+              : import.meta.env.BASE_URL === "/air/app/"
+                ? "Stable"
+                : "PC-hosted",
+        },
         { label: "Web client version", value: __APP_VERSION__ },
         ...(snapshot ? [{ label: "Host version", value: snapshot.hostVersion }] : []),
         ...(screenSoundQuality

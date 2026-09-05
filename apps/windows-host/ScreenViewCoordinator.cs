@@ -61,7 +61,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         string clientSignature,
         CancellationToken cancellationToken,
         RelayTurnConfiguration? relay = null,
-        DateTimeOffset? now = null)
+        DateTimeOffset? now = null,
+        string? renewalOf = null)
     {
         if (!CanStart(clientId))
             return Failure("permission-denied", "Screen viewing is disabled for this device.");
@@ -74,8 +75,27 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         VirtualDesktopBounds virtualDesktop = VirtualDesktopBounds.From(discovery.Sources);
 
         string clientTranscript = $"VolturaAir screen-view:start:v2:{clientId}:{operationId}:{displayId}";
+        if (renewalOf is not null) clientTranscript += $":renew:{renewalOf}";
         if (!_pairingManager.VerifyClientSignature(clientId, Encoding.UTF8.GetBytes(clientTranscript), clientSignature))
             return Failure("invalid-proof", "The WebRTC screen-view request could not be authenticated.");
+
+        ActiveView? renewalTarget = null;
+        if (renewalOf is not null)
+        {
+            lock (_gate)
+            {
+                if (_answering is not null || (_pending is not null && _pending.ExpiresAt > (now ?? DateTimeOffset.UtcNow)))
+                    return Failure("busy", "Another screen-view request is already being prepared.");
+                if (relay is not null && _active?.ClientId == clientId &&
+                    _active.OperationId == renewalOf && _active.DisplayId == displayId &&
+                    !_active.Stop.IsCancellationRequested && _active.MaximumBitrate == relay.MaximumBitrate &&
+                    _active.DirectQuality == (relay.EffectiveQuality == RelayScreenQuality.DataSaver
+                        ? DirectScreenQualityMode.DataSaver : DirectScreenQualityMode.Automatic))
+                    renewalTarget = _active;
+            }
+            if (renewalTarget is null)
+                return Failure("renewal-unavailable", "The current screen connection cannot be renewed.");
+        }
 
         IScreenViewWebRtcPeer peer;
         try
@@ -103,13 +123,14 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             createdAt + SignalingLifetime,
             peer,
             directQuality,
-            relay?.MaximumBitrate);
+            relay?.MaximumBitrate,
+            renewalTarget);
         PendingView? expired;
         bool busy;
         lock (_gate)
         {
             expired = TakeExpiredPending(createdAt);
-            busy = _active is not null || _pending is not null;
+            busy = (renewalTarget is null ? _active is not null : !ReferenceEquals(_active, renewalTarget)) || _pending is not null;
             busy = busy || _answering is not null;
             if (!busy)
             {
@@ -140,6 +161,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                 return Failure("offer-expired", "The WebRTC screen offer expired. Start again.");
             }
             string hostTranscript = $"VolturaAir screen-view:offer:v2:{clientId}:{operationId}:{displayId}:{offerHash}";
+            if (renewalOf is not null) hostTranscript += $":renew:{renewalOf}";
             return new ScreenViewStartResult(
                 true,
                 "accepted",
@@ -195,6 +217,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         if (pending is null)
             return new(false, "offer-expired", "The WebRTC screen offer expired. Start again.");
 
+        bool renewalStarted = false;
         try
         {
             string answerHash = HashSdp(answerSdp);
@@ -215,6 +238,13 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                 RemoveAnswering(pending);
                 pending.Release();
                 return new(false, "invalid-answer", "The PC rejected the WebRTC screen answer.");
+            }
+
+            if (pending.RenewalTarget is not null)
+            {
+                renewalStarted = true;
+                _ = Task.Run(() => CompleteRenewalAsync(pending));
+                return new(true, "accepted", "The replacement screen connection is opening.");
             }
 
             ActiveView? active = null;
@@ -251,6 +281,43 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         }
         finally
         {
+            if (!renewalStarted) pending.CompleteAnswerProcessing();
+        }
+    }
+
+    private async Task CompleteRenewalAsync(PendingView pending)
+    {
+        ActiveView active = pending.RenewalTarget!;
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(active.Stop.Token);
+            timeout.CancelAfter(SignalingLifetime);
+            await pending.Peer.Connected.WaitAsync(timeout.Token).ConfigureAwait(false);
+            lock (_gate)
+            {
+                if (!ReferenceEquals(_answering, pending) || !ReferenceEquals(_active, active) ||
+                    pending.StopRequested || active.Stop.IsCancellationRequested) return;
+                active.Renewal = pending;
+                active.RequestKeyFrame();
+            }
+            // The capture loop transfers the existing encoder output at a keyframe.
+            // Native teardown stays off that loop and never delays input processing.
+            await pending.Handover.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ScreenViewWebRtcException or ObjectDisposedException)
+        {
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                if (ReferenceEquals(active.Renewal, pending)) active.Renewal = null;
+            }
+            // A promotion racing the timeout still owns the retired connection.
+            if (pending.Handover.Task.IsCompletedSuccessfully)
+                (await pending.Handover.Task.ConfigureAwait(false)).Dispose();
+            pending.Release();
+            RemoveAnswering(pending);
             pending.CompleteAnswerProcessing();
         }
     }
@@ -401,6 +468,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         {
             active = _active?.ClientId == clientId && _active.OperationId == operationId ? _active : null;
             if (active is null) return;
+            ScreenViewDevelopmentTrace.Report(_appLog, quality);
             previous = active.Quality;
             if (!active.ReportReceiverQuality(quality)) return;
             active.RequestKeyFrame();
@@ -472,9 +540,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
     {
         bool activityStarted = false;
         Task? audioRunner = null;
-        active.Peer.Stopped += active.OnPeerStopped;
-        active.Peer.AudioStopped += active.OnAudioStopped;
-        active.Peer.KeyFrameRequested += active.OnKeyFrameRequested;
+        active.AttachPeer(active.Peer);
         try
         {
             await active.Peer.Connected.WaitAsync(SignalingLifetime, active.Stop.Token).ConfigureAwait(false);
@@ -499,9 +565,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                     _appLog.Write(new AppLogEntry("screen_view", "windows_host", Action: "audio_cleanup_failed", Outcome: "failed", Code: ex.GetType().Name));
                 }
             }
-            active.Peer.Stopped -= active.OnPeerStopped;
-            active.Peer.AudioStopped -= active.OnAudioStopped;
-            active.Peer.KeyFrameRequested -= active.OnKeyFrameRequested;
+            active.DetachPeer(active.Peer);
             _capture.EndCapture();
             ReleaseHeldButtons(active);
             lock (_gate)
@@ -639,12 +703,34 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                     active.TakeForceKeyFrame(),
                     cancellationToken).ConfigureAwait(false);
                 if (!string.Equals(displayId, active.DisplayId, StringComparison.Ordinal)) continue;
+                if (active.Renewal is not null && frame is { IsKeyFrame: true, Bytes.Length: > 0 })
+                {
+                    lock (_gate)
+                    {
+                        PendingView? renewal = active.Renewal;
+                        if (renewal is not null && ReferenceEquals(_answering, renewal) &&
+                            !renewal.StopRequested && !cancellationToken.IsCancellationRequested)
+                        {
+                            IScreenViewWebRtcPeer retired = active.ReplacePeer(renewal.Peer);
+                            renewal.DetachPeer();
+                            active.Renewal = null;
+                            renewal.Handover.TrySetResult(retired);
+                        }
+                    }
+                }
+                else if (active.Renewal is not null) active.RequestKeyFrame();
                 if (frame?.Cursor is not null)
                     active.Peer.TrySendEvent(ScreenViewRecordEncoder.EncodeCursor(++eventSequence, frame.Cursor));
-                if (frame is { Bytes.Length: > 0 } && !active.Peer.TrySendH264(frame.Bytes, frame.FramesPerSecond))
+                if (frame is { Bytes.Length: > 0 })
                 {
-                    active.RequestKeyFrame();
-                    active.ReportBackpressure();
+                    ScreenViewDevelopmentTrace.Stage("send");
+                    bool accepted = active.Peer.TrySendH264(frame.Bytes, frame.FramesPerSecond);
+                    ScreenViewDevelopmentTrace.Sent(accepted);
+                    if (!accepted)
+                    {
+                        active.RequestKeyFrame();
+                        active.ReportBackpressure();
+                    }
                 }
             }
             catch (ScreenViewCaptureException ex)
@@ -828,7 +914,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         DateTimeOffset expiresAt,
         IScreenViewWebRtcPeer peer,
         DirectScreenQualityMode directQuality,
-        int? maximumBitrate)
+        int? maximumBitrate,
+        ActiveView? renewalTarget)
     {
         private IScreenViewWebRtcPeer? _peer = peer;
         public string ClientId { get; } = clientId;
@@ -840,6 +927,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         public IScreenViewWebRtcPeer Peer => Volatile.Read(ref _peer) ?? throw new ObjectDisposedException(nameof(PendingView));
         public DirectScreenQualityMode DirectQuality { get; } = directQuality;
         public int? MaximumBitrate { get; } = maximumBitrate;
+        public ActiveView? RenewalTarget { get; } = renewalTarget;
+        public TaskCompletionSource<IScreenViewWebRtcPeer> Handover { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public string? OfferHash { get; private set; }
         public bool StopRequested { get; set; }
         public CancellationTokenSource ExpiryCancellation { get; } = new();
@@ -892,7 +981,34 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         public string DisplayId => Source.Id;
         public VirtualDesktopBounds VirtualDesktop => Volatile.Read(ref _virtualDesktop);
         public ScreenViewQualityProfile Quality => _quality.Current;
-        public IScreenViewWebRtcPeer Peer { get; } = peer;
+        private IScreenViewWebRtcPeer _peer = peer;
+        public IScreenViewWebRtcPeer Peer => Volatile.Read(ref _peer);
+        public int? MaximumBitrate { get; } = maximumBitrate;
+        public DirectScreenQualityMode DirectQuality { get; } = directQuality;
+        public volatile PendingView? Renewal;
+        public void AttachPeer(IScreenViewWebRtcPeer value)
+        {
+            value.Stopped += OnPeerStopped;
+            value.AudioStopped += OnAudioStopped;
+            value.KeyFrameRequested += OnKeyFrameRequested;
+        }
+        public void DetachPeer(IScreenViewWebRtcPeer value)
+        {
+            value.Stopped -= OnPeerStopped;
+            value.AudioStopped -= OnAudioStopped;
+            value.KeyFrameRequested -= OnKeyFrameRequested;
+        }
+        public IScreenViewWebRtcPeer ReplacePeer(IScreenViewWebRtcPeer value)
+        {
+            lock (_stopGate)
+            {
+                IScreenViewWebRtcPeer previous = Peer;
+                Volatile.Write(ref _peer, value);
+                DetachPeer(previous);
+                AttachPeer(value);
+                return previous;
+            }
+        }
         public CancellationTokenSource Stop { get; } = new();
         public CancellationTokenSource AudioStop { get; } = new();
         public Task? Runner { get; set; }
@@ -923,9 +1039,9 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         }
         public bool TakeForceKeyFrame() => Interlocked.Exchange(ref _forceKeyFrame, 0) != 0;
         public void RequestKeyFrame() => Interlocked.Exchange(ref _forceKeyFrame, 1);
-        public void OnPeerStopped(object? sender, EventArgs e) => RequestStop();
-        public void OnAudioStopped(object? sender, EventArgs e) => RequestAudioStop();
-        public void OnKeyFrameRequested(object? sender, EventArgs e) => RequestKeyFrame();
+        public void OnPeerStopped(object? sender, EventArgs e) { lock (_stopGate) if (ReferenceEquals(sender, Peer)) RequestStop(); }
+        public void OnAudioStopped(object? sender, EventArgs e) { lock (_stopGate) if (ReferenceEquals(sender, Peer)) RequestAudioStop(); }
+        public void OnKeyFrameRequested(object? sender, EventArgs e) { if (ReferenceEquals(sender, Peer)) RequestKeyFrame(); }
         public bool ReportBackpressure() => _quality.ReportBackpressure(DateTimeOffset.UtcNow);
         public bool ReportReceiverQuality(ScreenViewReceiverQuality quality) =>
             _quality.ReportReceiverQuality(quality, DateTimeOffset.UtcNow);

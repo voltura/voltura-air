@@ -68,6 +68,7 @@ import {
 import { hasExpectedScreenMedia } from "./screenViewSdp";
 import { ScreenViewRecordingPanel } from "./ScreenViewRecordingPanel";
 import { useScreenViewRecording } from "./useScreenViewRecording";
+import { screenViewRecordingMaximumDurationMs } from "./screenViewRecording";
 import "./screen-view.css";
 
 interface Props {
@@ -86,6 +87,7 @@ interface Props {
 interface PendingOffer {
   operationId: string;
   displayId: string;
+  renewalOf?: string;
 }
 interface PendingSource {
   operationId: string;
@@ -164,6 +166,9 @@ export default function ScreenViewWorkspace({
   const negotiationGenerationRef = useRef(0);
   const credentialRenewalRef = useRef<number | undefined>(undefined);
   const renewalRestartRef = useRef<number | undefined>(undefined);
+  const renewalRef = useRef<{ operationId: string; peer: RTCPeerConnection | null } | null>(null);
+  const [credentialExpires, setCredentialExpires] = useState(0);
+  const recordAfterRenewalRef = useRef(false);
   const disconnectedRecoveryRef = useRef<number | undefined>(undefined);
   const stopQualityMonitorRef = useRef<(() => void) | null>(null);
   const qualitySampleRef = useRef<ScreenViewQualitySample | null>(null);
@@ -523,7 +528,7 @@ export default function ScreenViewWorkspace({
     pointerInput.cancel();
   }
 
-  function start(displayId = selected) {
+  function start(displayId = selected, renewalOf?: string) {
     if (
       !displayId ||
       !activePc.hostIdentityPublicKey ||
@@ -531,7 +536,8 @@ export default function ScreenViewWorkspace({
       !capability.canView ||
       pendingOfferRef.current ||
       blockingStopRef.current ||
-      peerRef.current
+      (peerRef.current && !renewalOf) ||
+      renewalRef.current
     ) {
       return;
     }
@@ -540,16 +546,26 @@ export default function ScreenViewWorkspace({
       return;
     }
     const operationId = createLocalId();
-    const transcript = `VolturaAir screen-view:start:v2:${clientId}:${operationId}:${displayId}`;
+    const transcript = `VolturaAir screen-view:start:v2:${clientId}:${operationId}:${displayId}${renewalOf ? `:renew:${renewalOf}` : ""}`;
     const signature = signClientPayload(clientId, activePc.id, transcript);
     if (!signature) {
       setStatus("The reconnect key is unavailable. Pair this device again.");
       return;
     }
-    pendingOfferRef.current = { operationId, displayId };
-    setStreaming(true);
-    setStatus("Preparing encrypted WebRTC mirror...");
-    send({ type: "screen.view.start", operationId, displayId, clientSignature: signature });
+    pendingOfferRef.current = { operationId, displayId, ...(renewalOf ? { renewalOf } : {}) };
+    if (renewalOf) {
+      renewalRef.current = { operationId, peer: null };
+    } else {
+      setStreaming(true);
+      setStatus("Preparing encrypted WebRTC mirror...");
+    }
+    send({
+      type: "screen.view.start",
+      operationId,
+      displayId,
+      clientSignature: signature,
+      ...(renewalOf ? { renewalOf } : {}),
+    });
     window.clearTimeout(startResponseTimeoutRef.current);
     startResponseTimeoutRef.current = window.setTimeout(
       () => {
@@ -557,6 +573,10 @@ export default function ScreenViewWorkspace({
           return;
         }
         pendingOfferRef.current = null;
+        if (renewalOf) {
+          abandonRenewal();
+          return;
+        }
         cancelHostCapture(
           "The PC did not respond to the screen-view request. Canceling the pending capture...",
         );
@@ -659,12 +679,24 @@ export default function ScreenViewWorkspace({
     pendingOfferRef.current = null;
     window.clearTimeout(startResponseTimeoutRef.current);
     startResponseTimeoutRef.current = undefined;
+    const renewing = pending.renewalOf !== undefined;
+    const failStart = (text: string) => {
+      if (renewing) {
+        abandonRenewal();
+      } else {
+        cancelHostCapture(text);
+      }
+    };
     if (message.displayId !== pending.displayId) {
       if (message.succeeded) {
-        cancelHostCapture(
+        failStart(
           "The PC returned a screen offer for the wrong display. Canceling the PC capture...",
         );
       } else {
+        if (renewing) {
+          abandonRenewal();
+          return;
+        }
         setStatus("The PC returned a mismatched screen-view response.");
         setStreaming(false);
       }
@@ -677,21 +709,25 @@ export default function ScreenViewWorkspace({
       !activePc.hostIdentityPublicKey
     ) {
       if (message.succeeded) {
-        cancelHostCapture(message.message);
+        failStart(message.message);
       } else {
+        if (renewing) {
+          abandonRenewal();
+          return;
+        }
         setStatus(message.message);
         setStreaming(false);
       }
       return;
     }
     if (!hasExpectedScreenMedia(message.offerSdp, "sendonly")) {
-      cancelHostCapture(
+      failStart(
         "The PC did not offer the expected H.264 video and Opus audio connection. Canceling the PC capture...",
       );
       return;
     }
     const offerHash = hashScreenSdp(message.offerSdp);
-    const hostTranscript = `VolturaAir screen-view:offer:v2:${clientId}:${message.operationId}:${pending.displayId}:${offerHash}`;
+    const hostTranscript = `VolturaAir screen-view:offer:v2:${clientId}:${message.operationId}:${pending.displayId}:${offerHash}${pending.renewalOf ? `:renew:${pending.renewalOf}` : ""}`;
     if (
       !verifyHostScreenSignature(
         activePc.hostIdentityPublicKey,
@@ -699,23 +735,25 @@ export default function ScreenViewWorkspace({
         hostTranscript,
       )
     ) {
-      cancelHostCapture(
+      failStart(
         "The PC identity signature was invalid. Canceling the PC capture; no pixels were rendered.",
       );
       return;
     }
-    activeOperationRef.current = message.operationId;
-    setSoundOn(false);
-    setAudioAvailable(false);
-    setAudioTrackReady(false);
-    setAudioNotice("");
-    if (videoRef.current) {
-      videoRef.current.muted = true;
+    if (!renewing) {
+      activeOperationRef.current = message.operationId;
+      setSoundOn(false);
+      setAudioAvailable(false);
+      setAudioTrackReady(false);
+      setAudioNotice("");
+      if (videoRef.current) {
+        videoRef.current.muted = true;
+      }
     }
 
     const relayMode = activePc.transportMode === "relay";
     if (relayMode && (!message.iceServers || message.iceServers.length === 0)) {
-      cancelHostCapture(
+      failStart(
         "TURN credentials were unavailable. Canceling the PC capture; commands remain connected.",
       );
       return;
@@ -729,18 +767,62 @@ export default function ScreenViewWorkspace({
         rtcpMuxPolicy: "require",
       });
     } catch {
-      cancelHostCapture(
+      failStart(
         "This browser could not create the encrypted screen connection. Canceling the PC capture...",
       );
       return;
     }
-    const negotiationGeneration = ++negotiationGenerationRef.current;
+    const negotiationGeneration = renewing
+      ? negotiationGenerationRef.current
+      : ++negotiationGenerationRef.current;
     const isCurrentNegotiation = () =>
-      peerRef.current === peer && negotiationGenerationRef.current === negotiationGeneration;
+      (peerRef.current === peer || renewalRef.current?.peer === peer) &&
+      negotiationGenerationRef.current === negotiationGeneration;
     let relayCandidateCount = 0;
     let lastIceErrorCode: number | null = null;
-    peerRef.current = peer;
-    startQualityMonitor(peer);
+    const stream = new MediaStream();
+    let events: RTCDataChannel | null = null;
+    if (renewing) {
+      renewalRef.current = { operationId: message.operationId, peer };
+      startResponseTimeoutRef.current = window.setTimeout(() => {
+        if (renewalRef.current?.peer === peer) {
+          abandonRenewal();
+        }
+      }, 30_000);
+    } else {
+      peerRef.current = peer;
+      startQualityMonitor(peer);
+    }
+    const promoteRenewal = () => {
+      if (
+        renewalRef.current?.peer !== peer ||
+        peer.connectionState !== "connected" ||
+        !stream.getVideoTracks().some((track) => !track.muted)
+      ) {
+        return;
+      }
+      const retired = peerRef.current;
+      const retiredEvents = eventsRef.current;
+      peerRef.current = peer;
+      eventsRef.current = events;
+      remoteStreamRef.current = stream;
+      renewalRef.current = null;
+      window.clearTimeout(startResponseTimeoutRef.current);
+      startResponseTimeoutRef.current = undefined;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      retiredEvents?.close();
+      retired?.close();
+      startQualityMonitor(peer);
+      scheduleCredentialRenewal(message.turnExpiresAt);
+      setAudioTrackReady(stream.getAudioTracks().length > 0);
+      void playVideo();
+      if (recordAfterRenewalRef.current) {
+        recordAfterRenewalRef.current = false;
+        void recording.start(stream, videoRef.current?.muted === false);
+      }
+    };
     peer.addEventListener("icecandidate", (event) => {
       if (!isCurrentNegotiation()) {
         return;
@@ -762,15 +844,19 @@ export default function ScreenViewWorkspace({
       if ((event.track.kind !== "video" && event.track.kind !== "audio") || !videoRef.current) {
         return;
       }
-      const stream = remoteStreamRef.current ?? new MediaStream();
       if (stream.getTracks().some((track) => track.kind === event.track.kind)) {
         if (event.track.kind === "video") {
           void playVideo();
         }
         return;
       }
-      remoteStreamRef.current = stream;
       stream.addTrack(event.track);
+      if (renewalRef.current?.peer === peer) {
+        event.track.addEventListener("unmute", promoteRenewal, { once: true });
+        promoteRenewal();
+        return;
+      }
+      remoteStreamRef.current = stream;
       videoRef.current.srcObject = stream;
       if (event.track.kind === "audio") {
         setAudioTrackReady(true);
@@ -788,11 +874,14 @@ export default function ScreenViewWorkspace({
         return;
       }
       const channel = event.channel;
-      if (eventsRef.current) {
+      if (events) {
         channel.close();
         return;
       }
-      eventsRef.current = channel;
+      events = channel;
+      if (peerRef.current === peer) {
+        eventsRef.current = channel;
+      }
       channel.binaryType = "arraybuffer";
       channel.addEventListener("message", (messageEvent) => {
         if (!isCurrentNegotiation() || eventsRef.current !== channel) {
@@ -803,6 +892,16 @@ export default function ScreenViewWorkspace({
     });
     peer.addEventListener("connectionstatechange", () => {
       if (!isCurrentNegotiation()) {
+        return;
+      }
+      if (renewalRef.current?.peer === peer) {
+        promoteRenewal();
+        if (peer.connectionState === "failed" || peer.connectionState === "closed") {
+          abandonRenewal();
+        }
+        return;
+      }
+      if (renewalRef.current) {
         return;
       }
       if (peer.connectionState === "connected") {
@@ -877,19 +976,21 @@ export default function ScreenViewWorkspace({
         answerSdp,
         clientSignature,
       });
-      scheduleCredentialRenewal(message.turnExpiresAt, pending.displayId);
-      setStatus("Connecting encrypted WebRTC mirror...");
+      if (!renewing) {
+        scheduleCredentialRenewal(message.turnExpiresAt);
+        setStatus("Connecting encrypted WebRTC mirror...");
+      }
     } catch (error) {
       if (!isCurrentNegotiation()) {
         peer.close();
         return;
       }
       if (error instanceof IceGatheringTimeoutError) {
-        cancelHostCapture(
+        failStart(
           `Relay candidate gathering timed out (relay candidates: ${relayCandidateCount}, ICE error: ${lastIceErrorCode ?? "none"}). Canceling the PC capture...`,
         );
       } else {
-        cancelHostCapture(
+        failStart(
           "This browser could not negotiate the PC's H.264 and Opus WebRTC stream. Canceling the PC capture...",
         );
       }
@@ -1001,6 +1102,8 @@ export default function ScreenViewWorkspace({
   }
 
   function closeStream() {
+    abandonRenewal();
+    setCredentialExpires(0);
     recording.stop("Screen viewing ended. Recording is ready.");
     activeOperationRef.current = null;
     negotiationGenerationRef.current += 1;
@@ -1081,24 +1184,64 @@ export default function ScreenViewWorkspace({
     });
   }
 
-  function scheduleCredentialRenewal(expiresAt: string | null | undefined, displayId: string) {
-    window.clearTimeout(credentialRenewalRef.current);
-    credentialRenewalRef.current = undefined;
-    if (activePc.transportMode !== "relay" || !expiresAt) {
+  function abandonRenewal() {
+    const renewal = renewalRef.current;
+    renewalRef.current = null;
+    recordAfterRenewalRef.current = false;
+    if (!renewal) {
       return;
     }
-    const expires = Date.parse(expiresAt);
-    if (!Number.isFinite(expires)) {
-      return;
+    renewal.peer?.close();
+    if (pendingOfferRef.current?.operationId === renewal.operationId) {
+      pendingOfferRef.current = null;
     }
-    const delay = Math.max(0, expires - Date.now() - 60_000);
-    credentialRenewalRef.current = window.setTimeout(() => {
-      send({ type: "screen.view.stop", operationId: createLocalId() });
-      closeStream();
-      setStatus("Renewing secure relay credentials...");
-      renewalRestartRef.current = window.setTimeout(() => start(displayId), 250);
-    }, delay);
+    if (pendingAnswerRef.current === renewal.operationId) {
+      pendingAnswerRef.current = null;
+    }
+    window.clearTimeout(startResponseTimeoutRef.current);
+    startResponseTimeoutRef.current = undefined;
   }
+
+  const renewCredentials = useEffectEvent(() => {
+    if (activeOperationRef.current && capability.relayRenewal) {
+      start(selected, activeOperationRef.current);
+    } else {
+      restartExpiredConnection();
+    }
+  });
+
+  const restartExpiredConnection = useEffectEvent(() => {
+    send({ type: "screen.view.stop", operationId: createLocalId() });
+    closeStream();
+    setStatus("Renewing secure relay credentials...");
+    renewalRestartRef.current = window.setTimeout(() => start(selected), 250);
+  });
+
+  function scheduleCredentialRenewal(expiresAt: string | null | undefined) {
+    const expires = expiresAt ? Date.parse(expiresAt) : 0;
+    setCredentialExpires(Number.isFinite(expires) ? expires : 0);
+  }
+
+  useEffect(() => {
+    if (activePc.transportMode !== "relay" || !credentialExpires) {
+      return;
+    }
+    const renewalTimer = window.setTimeout(
+      () => renewCredentials(),
+      Math.max(0, credentialExpires - Date.now() - 60_000),
+    );
+    // Keep the existing bounded recovery if preparation fails; never use expired TURN credentials.
+    const expiryTimer = window.setTimeout(
+      () => restartExpiredConnection(),
+      Math.max(0, credentialExpires - Date.now() - 5_000),
+    );
+    credentialRenewalRef.current = renewalTimer;
+    renewalRestartRef.current = expiryTimer;
+    return () => {
+      window.clearTimeout(renewalTimer);
+      window.clearTimeout(expiryTimer);
+    };
+  }, [activePc.transportMode, credentialExpires]);
 
   const onControlResult = useEffectEvent(
     (message: Parameters<Parameters<typeof subscribeScreenViewResults>[0]>[0]) => {
@@ -1138,6 +1281,10 @@ export default function ScreenViewWorkspace({
         }
         pendingAnswerRef.current = null;
         if (!message.succeeded) {
+          if (renewalRef.current?.operationId === message.operationId) {
+            abandonRenewal();
+            return;
+          }
           closeStream();
           setStatus(message.message);
         }
@@ -1356,7 +1503,17 @@ export default function ScreenViewWorkspace({
                   recording.stop();
                   return;
                 }
-                void recording.start(remoteStreamRef.current, soundOn);
+                if (
+                  capability.relayRenewal &&
+                  activePc.transportMode === "relay" &&
+                  credentialExpires - Date.now() < screenViewRecordingMaximumDurationMs + 120_000
+                ) {
+                  recordAfterRenewalRef.current = true;
+                  start(selected, activeOperationRef.current ?? undefined);
+                  setStatus("Preparing screen recording...");
+                } else {
+                  void recording.start(remoteStreamRef.current, soundOn);
+                }
               }}
             >
               {recording.presentation.phase === "recording" ? (

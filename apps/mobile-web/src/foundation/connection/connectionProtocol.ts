@@ -1005,6 +1005,7 @@ function isScreenViewCapability(value: unknown): boolean {
     value.systemAudio.sampleRate === 48_000 &&
     value.systemAudio.channels === 2 &&
     isOptional(value, "receiverQualityFeedback", (candidate) => candidate === true) &&
+    isOptional(value, "relayRenewal", (candidate) => candidate === true) &&
     isOptional(
       value,
       "screenshot",

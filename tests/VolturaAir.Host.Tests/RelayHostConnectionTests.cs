@@ -9,6 +9,51 @@ namespace VolturaAir.Host.Tests;
 
 public sealed class RelayHostConnectionTests
 {
+    [Fact]
+    public async Task PeerClosePreservesNumericReasonWithoutLoggingPeerDescription()
+    {
+        using var socket = new FragmentedWebSocket(new Frame([], WebSocketMessageType.Close, true))
+        {
+            ReportedCloseStatus = (WebSocketCloseStatus)1011,
+            ReportedCloseDescription = "private route and reconnect proof"
+        };
+        Assert.Null(await RelayHostConnection.ReceiveRelayEnvelopeAsync(socket,
+            new byte[RelayEnvelope.MaximumEncodedBytes], CancellationToken.None));
+
+        AppLogEntry entry = RelayHostConnection.CreateConnectionEndLog(socket, "receive", TimeSpan.FromSeconds(12), null);
+        Assert.Equal("peer-close", entry.Code);
+        Assert.Equal("closed", entry.Action);
+        Assert.Contains("phase=receive ageMs=12000", entry.Detail);
+        Assert.Contains("closeCode=1011", entry.Detail);
+        Assert.DoesNotContain("private", JsonSerializer.Serialize(entry), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AbruptSocketFailurePreservesErrorCategoryWithoutExceptionText()
+    {
+        using var socket = new FragmentedWebSocket();
+        socket.Abort();
+        var error = new WebSocketException(WebSocketError.ConnectionClosedPrematurely, "private token and typed text");
+        AppLogEntry entry = RelayHostConnection.CreateConnectionEndLog(socket, "receive", TimeSpan.FromMinutes(15), error);
+
+        Assert.Equal("websocket", entry.Code);
+        Assert.Equal("failed", entry.Outcome);
+        Assert.Contains("state=Aborted", entry.Detail);
+        Assert.Contains("websocketError=ConnectionClosedPrematurely", entry.Detail);
+        Assert.Contains("ageMs=900000", entry.Detail);
+        Assert.DoesNotContain("private", JsonSerializer.Serialize(entry), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MalformedEnvelopeIsDistinguishedFromNetworkFailure()
+    {
+        using var socket = new FragmentedWebSocket();
+        AppLogEntry entry = RelayHostConnection.CreateConnectionEndLog(socket, "receive", TimeSpan.Zero,
+            new InvalidDataException("private envelope content"));
+        Assert.Equal("protocol-data", entry.Code);
+        Assert.DoesNotContain("private", JsonSerializer.Serialize(entry), StringComparison.Ordinal);
+    }
+
     public static TheoryData<string> MalformedTurnResponses => new()
     {
         "[]",
@@ -300,8 +345,10 @@ public sealed class RelayHostConnectionTests
         private readonly Queue<Frame> _frames = new(frames);
         private WebSocketState _state = WebSocketState.Open;
 
-        public override WebSocketCloseStatus? CloseStatus => null;
-        public override string? CloseStatusDescription => null;
+        public WebSocketCloseStatus? ReportedCloseStatus { get; init; }
+        public string? ReportedCloseDescription { get; init; }
+        public override WebSocketCloseStatus? CloseStatus => ReportedCloseStatus;
+        public override string? CloseStatusDescription => ReportedCloseDescription;
         public override WebSocketState State => _state;
         public override string? SubProtocol => null;
 

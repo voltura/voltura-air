@@ -1,0 +1,8 @@
+DirectoryIndex index.html
+AddType text/javascript .mjs
+
+<IfModule mod_headers.c>
+    <FilesMatch "\.(html|mjs|css)$">
+        Header set Cache-Control "no-cache"
+    </FilesMatch>
+</IfModule>

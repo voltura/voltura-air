@@ -17,6 +17,37 @@ replace `/air/app/`, `/a`, or `/s`. Build it with
 `npm run site:hosted:dev-build`. The private service repository owns its
 credentialed `/d`-only publication command.
 
+## Feature explorer
+
+The public, account-free feature explorer is served at
+`https://voltura.se/air/feature-explorer/` from
+`apps/public-site/feature-explorer`. Its HTML, JavaScript modules and CSS are
+committed static site source. The existing full-site publication includes this
+subdirectory automatically; there is no separate build, server, login or deploy
+step. Hosted-app-only and development-app-only publication do not update it.
+The directory's `.htaccess` selects `index.html`, declares the JavaScript module
+MIME type, and requests cache revalidation after subsequent site publications.
+
+The explorer filters 25 guides by device, connection, goal and access profile.
+`catalog.mjs` owns the reviewed capability content and selection rules; it derives
+no actual browser, permission or PC state from a selection. `app.mjs` owns the
+page interactions, shareable URL selections and copyable setup guides. It never
+connects to a PC or asks for a Voltura or ChatGPT account.
+
+Keep its capabilities, permission distinctions and setup paths aligned with
+[features](features.md) and [network selection](network-and-host-selection.md).
+Update the catalogue's `SOURCE` commit and review date when reviewing changed
+product facts; source links deliberately identify that reviewed snapshot rather
+than claiming live synchronization with GitHub. No private service configuration
+or credentials belong in the public explorer.
+
+Validate content rules and route integration with
+`node --test tests/scripts/feature-explorer.test.mjs`, plus `npm run docs:check`
+and `npm run size:check`. These tests are also picked up by `npm run test:scripts`.
+The existing local site server serves `/feature-explorer/`; production adds the
+`/air/` site prefix. Verify selectors, search, guide recovery actions, modal focus,
+share links, both themes and narrow/wide layouts when changing the explorer UI.
+
 ## Custom-screen catalog
 
 The catalog lives under `apps/public-site/screens` and requires PHP sessions plus a

@@ -75,6 +75,7 @@ portable ZIP.
 ## Authoritative links
 
 - Product page: https://voltura.se/air/
+- Interactive feature explorer: https://voltura.se/air/feature-explorer/
 - Implemented capabilities: https://github.com/voltura/voltura-air/blob/main/docs/features.md
 - Setup: https://github.com/voltura/voltura-air/blob/main/docs/setup.md
 - Security policy: https://github.com/voltura/voltura-air/blob/main/SECURITY.md

@@ -56,7 +56,7 @@
       </a>
       <nav aria-label="Page sections">
         <a href="#watch">Watch</a>
-        <a href="#features">Features</a>
+        <a href="./feature-explorer/">Feature explorer</a>
         <a href="#compare">Compare</a>
         <a href="#screens">Screenshots</a>
         <a href="./screens/">Custom screens</a>
@@ -87,7 +87,7 @@
           <div class="actions">
             <a class="button primary" href="https://github.com/voltura/voltura-air/releases/latest">Download for Windows</a>
             <a class="button secondary" href="#watch">Watch 60-second demo</a>
-            <a class="button secondary" href="#features">Explore features</a>
+            <a class="button secondary" href="./feature-explorer/">Explore features</a>
             <a class="button secondary" href="#screens">See screenshots</a>
           </div>
         </div>

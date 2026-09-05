@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="index,follow" />
+    <link rel="canonical" href="https://voltura.se/air/feature-explorer/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Voltura Air" />
+    <meta property="og:title" content="Feature Explorer · Voltura Air" />
+    <meta
+      property="og:description"
+      content="Choose your device, connection and goal to find capabilities, permissions and setup instructions."
+    />
+    <meta property="og:url" content="https://voltura.se/air/feature-explorer/" />
+    <meta name="theme-color" content="#101418" />
+    <title>Feature Explorer · Voltura Air</title>
+    <meta
+      name="description"
+      content="Find out what Voltura Air can do with your device and connection. Explore capabilities, permissions, limitations and your setup path."
+    />
+    <link rel="icon" href="../favicon-32.png" type="image/png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#results">Skip to capabilities</a>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="../" aria-label="Voltura Air home"
+          ><span class="brand-mark" aria-hidden="true">v<span></span></span
+          ><span>voltura <b>air</b></span></a
+        ><span class="header-divider"></span><span class="product-name">Feature explorer</span>
+        <div class="header-actions">
+          <a
+            href="https://voltura.se/air/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-link"
+            >Product site <i data-icon="arrow-up-right"></i></a
+          ><button id="theme" class="icon-button" aria-label="Switch to light theme">
+            <i data-icon="sun"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+    <main class="page">
+      <noscript
+        ><p class="results-footnote">
+          Enable JavaScript to select your setup, or read the
+          <a href="https://github.com/voltura/voltura-air/blob/main/docs/features.md"
+            >complete feature documentation</a
+          >.
+        </p></noscript
+      >
+      <section class="intro" aria-labelledby="page-title">
+        <div>
+          <div class="eyebrow"><span class="little-line"></span> FIND YOUR WAY AROUND</div>
+          <h1 id="page-title">What can your device <span>do?</span></h1>
+          <p>
+            One Windows PC. Plenty of possibilities.<br class="mobile-break" />
+            Find the features that fit your setup.
+          </p>
+        </div>
+        <div class="intro-note">
+          <i data-icon="monitor-check"></i>
+          <div>
+            <strong>Windows 11 on the PC</strong
+            ><span>A browser on your device. No mobile app required.</span>
+          </div>
+        </div>
+      </section>
+      <div class="explorer-layout">
+        <aside class="config-panel" aria-label="Your setup">
+          <div class="config-title">
+            <h2>Your setup</h2>
+            <button class="subtle-button" id="reset"><i data-icon="rotate-ccw"></i> Reset</button>
+          </div>
+          <fieldset>
+            <legend><span class="step-number">01</span> I’m using</legend>
+            <div class="device-types" id="device-types"></div>
+            <label class="sr-only" for="device-detail">Device and browser</label>
+            <div class="select-wrap">
+              <select id="device-detail"></select
+              ><i data-icon="chevron-down"></i>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend><span class="step-number">02</span> My connection</legend>
+            <div id="connection-options" class="connection-options"></div>
+            <button id="compare" class="text-button">
+              Compare connections <i data-icon="arrow-up-right"></i>
+            </button>
+          </fieldset>
+          <fieldset>
+            <legend><span class="step-number">03</span> I want to</legend>
+            <div id="goal-options" class="goal-options"></div>
+          </fieldset>
+          <div class="access-box">
+            <label for="profile"><i data-icon="shield-check"></i> Device access profile</label>
+            <div class="select-wrap">
+              <select id="profile">
+                <option value="my">My device</option>
+                <option value="remote">Remote controls</option>
+                <option value="custom">Custom</option></select
+              ><i data-icon="chevron-down"></i>
+            </div>
+            <p id="profile-note"></p>
+          </div>
+          <button class="mobile-results-button primary-button" id="show-results">
+            See matching capabilities <i data-icon="arrow-down"></i>
+          </button>
+          <div class="sidebar-note">
+            <i data-icon="info"></i>
+            <p>This explorer explains your choices. It doesn’t connect to or change your PC.</p>
+          </div>
+        </aside>
+        <section class="results" id="results" aria-labelledby="result-title" tabindex="-1">
+          <div class="connection-summary" id="connection-summary"></div>
+          <div class="results-heading">
+            <div>
+              <div class="eyebrow small">MADE FOR YOUR SETUP</div>
+              <h2 id="result-title">Explore your capabilities <span id="result-count"></span></h2>
+            </div>
+            <button id="copy-config" class="subtle-button">
+              <i data-icon="link"></i><span>Copy setup link</span>
+            </button>
+          </div>
+          <div class="results-toolbar">
+            <div class="search-wrap">
+              <i data-icon="search"></i
+              ><label class="sr-only" for="search">Search capabilities</label
+              ><input
+                id="search"
+                type="search"
+                placeholder="Find a feature, action or permission…"
+                autocomplete="off"
+              />
+            </div>
+            <label class="available-toggle"
+              ><input id="hide-blocked" type="checkbox" /><span>Hide unavailable</span></label
+            >
+          </div>
+          <div class="legend">
+            <span><b class="status-dot available"></b> Available</span
+            ><span><b class="status-dot conditional"></b> Check requirements</span
+            ><span><b class="status-dot blocked"></b> Setup change needed</span>
+          </div>
+          <p id="result-announcement" class="sr-only" role="status" aria-live="polite"></p>
+          <div class="feature-grid" id="feature-grid"></div>
+          <div class="results-footnote">
+            <i data-icon="info"></i>
+            <p>
+              Availability follows the documented product rules. Your actual browser support,
+              installed PC components and permissions are checked by Voltura Air when you connect.
+            </p>
+          </div>
+        </section>
+      </div>
+      <footer>
+        <span>Built around the way Voltura Air works.</span>
+        <div>
+          <a
+            id="source-link"
+            href="https://github.com/voltura/voltura-air/tree/95d1816a9f4f1cb4a33873c81c9d3987bad7b8f3"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Repository snapshot <i data-icon="github"></i></a
+          ><span>05 SEP 2026 <b>·</b> 95d1816</span>
+        </div>
+      </footer>
+    </main>
+    <dialog id="feature-dialog" class="feature-dialog" aria-labelledby="feature-title">
+      <div class="dialog-header">
+        <span class="eyebrow">FEATURE GUIDE</span
+        ><button class="icon-button close-dialog" aria-label="Close feature guide">
+          <i data-icon="x"></i>
+        </button>
+      </div>
+      <div id="feature-detail" class="dialog-body"></div>
+    </dialog>
+    <dialog id="compare-dialog" class="compare-dialog" aria-labelledby="compare-title">
+      <div class="dialog-header">
+        <span class="eyebrow">FIND THE RIGHT CONNECTION</span
+        ><button class="icon-button close-dialog" aria-label="Close connection comparison">
+          <i data-icon="x"></i>
+        </button>
+      </div>
+      <div class="dialog-body">
+        <h2 id="compare-title">Three ways to connect.</h2>
+        <p class="lead">Choose the route that fits where you and your PC are.</p>
+        <div id="comparison-content"></div>
+      </div>
+    </dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="app.mjs"></script>
+  </body>
+</html>

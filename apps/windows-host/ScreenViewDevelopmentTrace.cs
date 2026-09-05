@@ -16,6 +16,30 @@ internal static class ScreenViewDevelopmentTrace
     private static long _rejected;
     private static long _pictureLoss;
     private static long _nextReport;
+    private static int _firstEncoded;
+
+    [Conditional("DEBUG")]
+    public static void SessionStarted(IAppLogWriter log)
+    {
+        if (!Enabled) return;
+        Interlocked.Exchange(ref _firstEncoded, 0);
+        Stage("session-start");
+        log.Write(new AppLogEntry("screen_view", "windows_host", Action: "trace_session_started", Outcome: "accepted"));
+    }
+
+    [Conditional("DEBUG")]
+    public static void NegotiationEvent(IAppLogWriter log, string action)
+    {
+        if (!Enabled) return;
+        log.Write(new AppLogEntry("screen_view", "windows_host", Action: action, Outcome: "accepted"));
+    }
+
+    [Conditional("DEBUG")]
+    public static void FirstEncoded(IAppLogWriter log)
+    {
+        if (!Enabled || Interlocked.Exchange(ref _firstEncoded, 1) != 0) return;
+        log.Write(new AppLogEntry("screen_view", "windows_host", Action: "trace_first_frame_encoded", Outcome: "accepted"));
+    }
 
     [Conditional("DEBUG")]
     public static void Stage(string stage)
@@ -51,6 +75,18 @@ internal static class ScreenViewDevelopmentTrace
     public static void PictureLoss()
     {
         if (Enabled) Interlocked.Increment(ref _pictureLoss);
+    }
+
+    [Conditional("DEBUG")]
+    public static void QualityChanged(IAppLogWriter log, ScreenViewQualityProfile previous, ScreenViewQualityProfile current)
+    {
+        if (!Enabled) return;
+        log.Write(new AppLogEntry(
+            "screen_view",
+            "windows_host",
+            Action: current.RequiredBitrate < previous.RequiredBitrate ? "quality_reduced" : "quality_increased",
+            Outcome: "accepted",
+            Code: $"{current.Width}x{current.Height}@{current.FramesPerSecond}"));
     }
 
     // Called by the existing receiver feedback, serialized by the coordinator.

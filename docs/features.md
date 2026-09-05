@@ -374,7 +374,9 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - Optional JSON Lines application logging is off by default, retained 1–30 days
   (2 days by default), and omits typed text, URLs, pointer coordinates, and
   pairing credentials. Diagnostics provides filters, copy, folder, delete, and
-  session-only automatic refresh.
+  session-only automatic refresh. Routine Screen View quality adjustments are
+  recorded only with the opt-in debug trace described in [setup](setup.md);
+  failures and connection recovery remain available with ordinary logging.
 
 ### Usage statistics
 

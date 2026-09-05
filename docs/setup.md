@@ -29,6 +29,17 @@ production settings so the human validates real device/configuration behavior.
 Restart the flow after source edits. It does not replace the risk-appropriate
 checks below.
 
+For detailed Screen View troubleshooting, enable **Write application log** in
+the host and set `$env:VOLTURA_SCREEN_TRACE = "1"` before starting `npm run dev:quick`.
+The debug host reads this flag once at startup. It adds quality-change entries
+and aggregate capture/encoder/receiver progress about every ten seconds while
+receiver feedback arrives. `dev:quick` does not set the flag itself, and the
+Developer mode checkbox does not control it. Remove it with
+`Remove-Item Env:VOLTURA_SCREEN_TRACE -ErrorAction SilentlyContinue` before the
+next launch to return to ordinary logging. Release builds omit these trace calls.
+The development mobile client also writes event-only Screen View WebRTC state
+transitions to the browser console; it never logs frames or payloads.
+
 Direct Vite LAN client:
 
 ```powershell

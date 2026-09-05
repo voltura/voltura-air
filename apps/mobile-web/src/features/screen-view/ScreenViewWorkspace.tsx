@@ -205,6 +205,10 @@ export default function ScreenViewWorkspace({
   const screenshotBusy =
     screenshotTransfer.presentation.active || screenshotTransfer.presentation.readyToSave;
 
+  function traceScreenView(event: string, detail?: string) {
+    if (import.meta.env.DEV) console.debug(`[screen_view] ${event}`, detail ?? "");
+  }
+
   function applyViewTransform(next: ScreenViewTransform) {
     viewTransformRef.current = next;
     setViewTransform(next);
@@ -546,6 +550,7 @@ export default function ScreenViewWorkspace({
       return;
     }
     const operationId = createLocalId();
+    traceScreenView(renewalOf ? "renewal_requested" : "start_requested");
     const transcript = `VolturaAir screen-view:start:v2:${clientId}:${operationId}:${displayId}${renewalOf ? `:renew:${renewalOf}` : ""}`;
     const signature = signClientPayload(clientId, activePc.id, transcript);
     if (!signature) {
@@ -626,11 +631,13 @@ export default function ScreenViewWorkspace({
     }
     try {
       await video.play();
+      traceScreenView("playback_started");
       if (videoRef.current !== video || video.srcObject !== source || !peerRef.current) {
         return;
       }
       setPlaybackBlocked(false);
     } catch (error) {
+      traceScreenView("playback_failed", error instanceof Error ? error.name : "unknown");
       if (videoRef.current !== video || video.srcObject !== source || !peerRef.current) {
         return;
       }
@@ -766,6 +773,7 @@ export default function ScreenViewWorkspace({
         bundlePolicy: "max-bundle",
         rtcpMuxPolicy: "require",
       });
+      traceScreenView("peer_created", relayMode ? "relay" : "direct");
     } catch {
       failStart(
         "This browser could not create the encrypted screen connection. Canceling the PC capture...",
@@ -844,6 +852,7 @@ export default function ScreenViewWorkspace({
       if ((event.track.kind !== "video" && event.track.kind !== "audio") || !videoRef.current) {
         return;
       }
+      traceScreenView("remote_track_received", event.track.kind);
       if (stream.getTracks().some((track) => track.kind === event.track.kind)) {
         if (event.track.kind === "video") {
           void playVideo();
@@ -894,6 +903,7 @@ export default function ScreenViewWorkspace({
       if (!isCurrentNegotiation()) {
         return;
       }
+      traceScreenView("connection_state", peer.connectionState);
       if (renewalRef.current?.peer === peer) {
         promoteRenewal();
         if (peer.connectionState === "failed" || peer.connectionState === "closed") {
@@ -913,6 +923,7 @@ export default function ScreenViewWorkspace({
         setStatus("Live - Encrypted WebRTC");
       }
       if (peer.connectionState === "disconnected") {
+        traceScreenView("reconnect_started");
         window.clearTimeout(disconnectedRecoveryRef.current);
         setViewing(false);
         setStatus("Screen video interrupted. Reconnecting for up to 8 seconds...");
@@ -924,6 +935,7 @@ export default function ScreenViewWorkspace({
         }, disconnectedRecoveryMs);
       }
       if (peer.connectionState === "failed" || peer.connectionState === "closed") {
+        traceScreenView("connection_lost", peer.connectionState);
         if (peerRef.current === peer) {
           closeStream();
           setStatus("Screen video connection was lost. Tap Start to reconnect.");
@@ -1102,6 +1114,7 @@ export default function ScreenViewWorkspace({
   }
 
   function closeStream() {
+    traceScreenView("stream_closed");
     abandonRenewal();
     setCredentialExpires(0);
     recording.stop("Screen viewing ended. Recording is ready.");
@@ -1620,6 +1633,7 @@ export default function ScreenViewWorkspace({
             muted={!soundOn}
             playsInline
             onLoadedData={() => {
+              traceScreenView("first_frame_rendered", "loadeddata");
               hasVisualFrameRef.current = true;
               setViewing(true);
               setPlaybackBlocked(false);
@@ -1627,6 +1641,7 @@ export default function ScreenViewWorkspace({
               requestAnimationFrame(positionCursor);
             }}
             onPlaying={() => {
+              traceScreenView("first_frame_rendered", "playing");
               hasVisualFrameRef.current = true;
               setViewing(true);
               setPlaybackBlocked(false);

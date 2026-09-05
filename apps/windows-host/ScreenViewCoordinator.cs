@@ -66,6 +66,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
     {
         if (!CanStart(clientId))
             return Failure("permission-denied", "Screen viewing is disabled for this device.");
+        ScreenViewDevelopmentTrace.SessionStarted(_appLog);
         ScreenViewSourcesResult discovery = DiscoverSources(clientId);
         if (!discovery.Succeeded)
             return Failure(discovery.Code, discovery.Message);
@@ -232,6 +233,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             try
             {
                 pending.Peer.ApplyAnswer(answerSdp);
+                ScreenViewDevelopmentTrace.NegotiationEvent(_appLog, "trace_answer_applied");
             }
             catch (Exception ex) when (ex is ScreenViewWebRtcException or ObjectDisposedException)
             {
@@ -473,13 +475,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             if (!active.ReportReceiverQuality(quality)) return;
             active.RequestKeyFrame();
         }
-        ScreenViewQualityProfile current = active.Quality;
-        _appLog.Write(new AppLogEntry(
-            "screen_view",
-            "windows_host",
-            Action: current.RequiredBitrate < previous.RequiredBitrate ? "quality_reduced" : "quality_increased",
-            Outcome: "accepted",
-            Code: $"{current.Width}x{current.Height}@{current.FramesPerSecond}"));
+        ScreenViewDevelopmentTrace.QualityChanged(_appLog, previous, active.Quality);
     }
 
     public ScreenPointerDispatchResult DispatchPointer(
@@ -723,6 +719,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                     active.Peer.TrySendEvent(ScreenViewRecordEncoder.EncodeCursor(++eventSequence, frame.Cursor));
                 if (frame is { Bytes.Length: > 0 })
                 {
+                    ScreenViewDevelopmentTrace.FirstEncoded(_appLog);
                     ScreenViewDevelopmentTrace.Stage("send");
                     bool accepted = active.Peer.TrySendH264(frame.Bytes, frame.FramesPerSecond);
                     ScreenViewDevelopmentTrace.Sent(accepted);

@@ -78,17 +78,19 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
             using var inputInjector = new SendInputInjector();
             var manager = new PairingManager(store.Store);
             var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), isolatedTestMode: true);
-            var window = new MainWindow(manager, webHost, clientUrl: null)
-            {
-                Width = 640,
-                Height = 480
-            };
+            var window = new MainWindow(manager, webHost, clientUrl: null);
             try
             {
                 window.Show();
+                WaitForWpf(() => window.IsLoaded, "initial window placement");
+                // First-load placement restores the preferred size before a user can resize.
+                window.Width = 640;
+                window.Height = 480;
                 window.ShowPage(HostPage.Connect);
                 window.UpdateLayout();
 
+                Assert.Equal(640, window.ActualWidth);
+                Assert.Equal(480, window.ActualHeight);
                 Assert.Equal(480, window.MinWidth);
                 Assert.Equal(360, window.MinHeight);
                 Assert.Equal(920, window.WindowDesignSurface.MinWidth);

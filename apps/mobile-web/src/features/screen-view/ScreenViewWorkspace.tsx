@@ -206,7 +206,9 @@ export default function ScreenViewWorkspace({
     screenshotTransfer.presentation.active || screenshotTransfer.presentation.readyToSave;
 
   function traceScreenView(event: string, detail?: string) {
-    if (import.meta.env.DEV) console.debug(`[screen_view] ${event}`, detail ?? "");
+    if (import.meta.env.DEV) {
+      globalThis.console?.debug(`[screen_view] ${event}`, detail ?? "");
+    }
   }
 
   function applyViewTransform(next: ScreenViewTransform) {

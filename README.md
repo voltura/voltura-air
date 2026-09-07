@@ -12,6 +12,10 @@ on Direct LAN, enhanced device features can add sensor-powered controls while
 established traffic stays local. An optional Cloud relay is available for
 networks that block inbound PC connections.
 
+Watch setup and Cloud relay walkthroughs on the official
+[Voltura Air YouTube channel](https://www.youtube.com/@voltura-air), including how
+to use View PC screen while away from home.
+
 ## What you can do
 
 - Use a phone or tablet as a wireless touch trackpad and keyboard—or point the

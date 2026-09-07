@@ -132,6 +132,12 @@
           Trouble playing the video?
           <a href="./assets/voltura-air-demo.mp4?v=20260905-extended">Open or download the MP4.</a>
         </p>
+        <div class="video-showcase-heading">
+          <p>
+            Watch step-by-step guides to getting started, Cloud relay, and viewing your PC screen away from home.
+          </p>
+          <a class="button secondary" href="https://www.youtube.com/@voltura-air">Watch guides on YouTube</a>
+        </div>
       </section>
 
       <section id="features" class="feature-band" aria-label="Core features">
@@ -606,6 +612,7 @@
     <footer>
       <a href="https://voltura.se/" aria-label="Voltura AB home">Voltura AB</a>
       <a href="https://github.com/voltura/voltura-air">GitHub</a>
+      <a href="https://www.youtube.com/@voltura-air">YouTube</a>
       <a href="./stats.html">Code statistics</a>
       <a href="./sitemap.php">Sitemap</a>
       <a href="https://github.com/voltura/voltura-air/blob/main/PRIVACY.md">Privacy</a>

@@ -80,8 +80,15 @@ export default function AiAssistantWorkspace({
     setQuestion((current) => truncateQuestion(`${current}${text}`));
   }, []);
   const dictationEnabled = opened && state === "paired" && !working && !pending;
-  const { canUseSpeech, isListening, isStarting, speechError, speechNotice, startSpeech, stopSpeech } =
-    useSpeechDictation(appendDictationText, dictationEnabled);
+  const {
+    canUseSpeech,
+    isListening,
+    isStarting,
+    speechError,
+    speechNotice,
+    startSpeech,
+    stopSpeech,
+  } = useSpeechDictation(appendDictationText, dictationEnabled);
 
   const resizeQuestion = useCallback(() => {
     const input = questionRef.current;
@@ -421,11 +428,17 @@ export default function AiAssistantWorkspace({
       <p className={`ai-assistant-status ${speechError ? "error" : ""}`} aria-live="polite">
         {speechError ?? (isListening ? "Listening…" : isStarting ? "Starting microphone…" : status)}
       </p>
-      {speechNotice && <p className="ai-assistant-status" role="status">{speechNotice}</p>}
+      {speechNotice && (
+        <p className="ai-assistant-status" role="status">
+          {speechNotice}
+        </p>
+      )}
       {canUseSpeech && (
-        <p className="ai-assistant-status">Pause stops text input, not the microphone. Speech recognition
-          stays active across screens; the browser may still process speech. Close the app or browser
-          to release the microphone.</p>
+        <p className="ai-assistant-status">
+          Pause stops text input, not the microphone. Speech recognition stays active across
+          screens; the browser may still process speech. Close the app or browser to release the
+          microphone.
+        </p>
       )}
     </section>
   );

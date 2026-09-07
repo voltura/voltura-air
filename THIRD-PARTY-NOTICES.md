@@ -70,7 +70,7 @@ license text and copyright notices.
 | --- | --- | --- | --- |
 | noble-curves and noble-hashes | 2.3.0 | Pairing and relay-session cryptography fallback | [MIT; paulmillr/noble-curves](https://github.com/paulmillr/noble-curves) and [paulmillr/noble-hashes](https://github.com/paulmillr/noble-hashes) |
 | jsQR | 1.4.0 | Pairing QR decoding | [Apache 2.0; cozmo/jsQR](https://github.com/cozmo/jsQR) |
-| Lucide React | 1.34.0 | User-interface icons | [ISC and derived Feather icons under MIT; lucide-icons/lucide](https://github.com/lucide-icons/lucide) |
+| Lucide React | 1.40.0 | User-interface icons | [ISC and derived Feather icons under MIT; lucide-icons/lucide](https://github.com/lucide-icons/lucide) |
 | React, React DOM, and Scheduler | 19.2.8 / 0.27.0 | Mobile user interface runtime | [MIT; facebook/react](https://github.com/facebook/react) |
 | xterm.js and FitAddon | 6.0.0 / 0.11.0 | Mobile Terminal rendering and responsive sizing | [MIT; xtermjs/xterm.js](https://github.com/xtermjs/xterm.js) |
 

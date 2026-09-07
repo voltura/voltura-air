@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -343,8 +343,11 @@ describe("TextTransferMode", () => {
     render(<TextTransferHarness />);
     const editor = screen.getByLabelText("Text to send") as HTMLTextAreaElement;
 
-    fireEvent.click(screen.getByRole("button", { name: "Paste from this device's clipboard" }));
-    await waitFor(() => expect(editor.value.length).toBe(4096));
+    // Finish the first paste's render and draft revision effect before starting another read.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Paste from this device's clipboard" }));
+    });
+    expect(editor.value.length).toBe(4096);
     editor.setSelectionRange(4096, 4096);
     fireEvent.click(screen.getByRole("button", { name: "Paste from this device's clipboard" }));
 

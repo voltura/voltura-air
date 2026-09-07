@@ -1261,7 +1261,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------
-lucide-react 1.34.0
+lucide-react 1.40.0
 License: ISC
 Source: https://github.com/lucide-icons/lucide
 ------------------------------------------------------------------------

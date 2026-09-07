@@ -60,10 +60,17 @@ export function DictationMode({
                 : "Use your phone keyboard dictation in the text box, then send."}
             </p>
           )}
-          {speechNotice && <p className="dictation-feedback" role="status">{speechNotice}</p>}
+          {speechNotice && (
+            <p className="dictation-feedback" role="status">
+              {speechNotice}
+            </p>
+          )}
           {canUseSpeech && (
-            <p>Pause stops text input, not the microphone. Speech recognition stays active across screens;
-              the browser may still process speech. Close the app or browser to release the microphone.</p>
+            <p>
+              Pause stops text input, not the microphone. Speech recognition stays active across
+              screens; the browser may still process speech. Close the app or browser to release the
+              microphone.
+            </p>
           )}
         </div>
       </div>

@@ -1,0 +1,16 @@
+1
+00:00:00,100 --> 00:00:03,477
+Away from home, or away from your PC?
+
+2
+00:00:03,427 --> 00:00:11,662
+Cloud relay through Voltura lets your paired phone, tablet, or another computer connect to your Windows PC over the internet.
+
+3
+00:00:11,662 --> 00:00:16,327
+You can use View PC screen to see and work on that PC remotely.
+
+4
+00:00:16,327 --> 00:00:19,020
+Let's set it up before you leave.
+

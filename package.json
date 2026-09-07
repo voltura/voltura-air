@@ -18,6 +18,7 @@
     "branch:sync": "node scripts/sync-branch.mjs",
     "build": "npm run ui:tokens:check && npm run build --workspace apps/mobile-web && dotnet build VolturaAir.slnx -p:RestoreLockedMode=true",
     "branding:generate": "npm run icons:generate && npm run screenshots:site",
+    "branding:youtube": "node scripts/generate-youtube-branding.mjs",
     "cache:purge": "node scripts/purge-windows-icon-cache.mjs",
     "clean:git": "git gc --prune=now",
     "clean:temp": "git clean -fdX -e !/.vs/ -e !/.vs/** -e !/.vscode/settings.json",

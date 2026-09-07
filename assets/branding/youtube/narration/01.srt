@@ -1,0 +1,12 @@
+1
+00:00:00,100 --> 00:00:02,640
+Welcome to Voltura Air.
+
+2
+00:00:02,590 --> 00:00:08,659
+In this guide, we'll connect your phone to your Windows PC and try the trackpad and keyboard.
+
+3
+00:00:08,659 --> 00:00:12,255
+You don't need a mobile app or a Voltura account.
+

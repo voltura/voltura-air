@@ -1,0 +1,12 @@
+1
+00:00:00,100 --> 00:00:05,333
+Run the installer, follow its setup prompts, then open Voltura Air.
+
+2
+00:00:05,283 --> 00:00:08,466
+Phone Webcam is an optional component.
+
+3
+00:00:08,466 --> 00:00:12,371
+You don't need it for this trackpad and keyboard walkthrough.
+

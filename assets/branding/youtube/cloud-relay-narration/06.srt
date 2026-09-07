@@ -1,0 +1,20 @@
+1
+00:00:00,100 --> 00:00:06,738
+On your phone, scan the current QR code from the PC's Connect page and open the detected link.
+
+2
+00:00:06,688 --> 00:00:11,546
+Cloud relay opens the secure controller at voltura dot S E.
+
+3
+00:00:11,546 --> 00:00:14,884
+The code shown here is only a demonstration.
+
+4
+00:00:14,884 --> 00:00:19,407
+Always scan your own PC's fresh code after switching to Relay.
+
+5
+00:00:19,407 --> 00:00:23,350
+If it expires, choose New code and scan again.
+

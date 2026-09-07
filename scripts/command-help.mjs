@@ -22,6 +22,8 @@ export const commandDescriptions = {
   build: "Run the full cross-runtime production build gate for broad/shared or release work.",
   "branding:generate":
     "Generate application icons, NSIS installer artwork, and public-site screenshots.",
+  "branding:youtube":
+    "Generate YouTube banner and thumbnails from the branding master and public screenshots.",
   "cache:purge": "Clear stale Windows icon cache entries and restart Explorer.",
   "clean:git": "Compact the local Git object database and prune unreachable objects.",
   "clean:temp": "Remove ignored build and cache files while preserving local editor settings.",

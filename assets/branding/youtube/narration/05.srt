@@ -1,0 +1,16 @@
+1
+00:00:00,100 --> 00:00:06,751
+Use your phone's camera to scan the QR code shown on your own PC, then open the detected link.
+
+2
+00:00:06,701 --> 00:00:09,600
+The controller opens in your browser.
+
+3
+00:00:09,600 --> 00:00:13,002
+The code in this video is only an example.
+
+4
+00:00:13,002 --> 00:00:16,030
+Always scan your own PC's code.
+

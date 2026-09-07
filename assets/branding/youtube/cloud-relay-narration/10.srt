@@ -1,0 +1,16 @@
+1
+00:00:00,100 --> 00:00:04,908
+On the connected device, open Menu and choose View PC screen.
+
+2
+00:00:04,858 --> 00:00:07,628
+Select the display you want to view.
+
+3
+00:00:07,628 --> 00:00:13,904
+You can now see your Windows PC over the internet while you're away from home or away from the computer.
+
+4
+00:00:13,904 --> 00:00:19,793
+The preview here uses a fictional desktop inside the real Voltura Air interface.
+

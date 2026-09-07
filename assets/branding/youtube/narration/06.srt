@@ -1,0 +1,16 @@
+1
+00:00:00,100 --> 00:00:04,070
+Once connected, keep Touch selected on the trackpad.
+
+2
+00:00:04,020 --> 00:00:07,603
+Slide one finger to move the PC's pointer.
+
+3
+00:00:07,603 --> 00:00:11,327
+Tap to click, or use the Left and Right buttons.
+
+4
+00:00:11,327 --> 00:00:13,930
+Drag two fingers to scroll.
+

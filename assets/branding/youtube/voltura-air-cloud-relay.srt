@@ -1,0 +1,259 @@
+1
+00:00:00,100 --> 00:00:03,427
+Away from home, or away from your PC?
+
+2
+00:00:03,427 --> 00:00:11,662
+Cloud relay through Voltura lets your paired
+phone, tablet, or another computer connect to
+your Windows PC over the internet.
+
+3
+00:00:11,662 --> 00:00:16,327
+You can use View PC screen to see and work on
+that PC remotely.
+
+4
+00:00:16,327 --> 00:00:19,020
+Let's set it up before you leave.
+
+5
+00:00:19,900 --> 00:00:25,263
+Keep the PC powered, connected to the internet,
+and running Voltura Air.
+
+6
+00:00:25,263 --> 00:00:30,624
+In its tray menu, open Keep awake and choose an
+interval or Indefinitely.
+
+7
+00:00:30,624 --> 00:00:34,632
+Keep screen on and simulated activity are
+optional.
+
+8
+00:00:34,632 --> 00:00:42,261
+Keep awake prevents idle sleep while the host
+runs; it cannot override manual Sleep or
+closing a laptop lid.
+
+9
+00:00:43,167 --> 00:00:47,087
+In Voltura Air on your PC, open Connection.
+
+10
+00:00:47,087 --> 00:00:51,520
+Under Connection method, select Cloud relay
+through Voltura.
+
+11
+00:00:51,520 --> 00:00:59,226
+Both devices connect outward through Voltura,
+so you don't need to open an incoming router
+port or firewall exception.
+
+12
+00:00:59,226 --> 00:01:04,188
+Leave Custom relay endpoint unchanged to use
+Voltura's service.
+
+13
+00:01:05,067 --> 00:01:07,776
+Choose your screen relay quality.
+
+14
+00:01:07,776 --> 00:01:11,487
+Standard uses up to four megabits per second.
+
+15
+00:01:11,487 --> 00:01:16,294
+Data saver lowers that to two; High quality
+allows up to eight.
+
+16
+00:01:16,294 --> 00:01:21,088
+Lower quality uses less data, which helps on a
+mobile connection.
+
+17
+00:01:21,088 --> 00:01:27,299
+Screen relay is subject to the service's
+available allowance, shown on the Connection
+page.
+
+18
+00:01:28,167 --> 00:01:30,567
+Click Save and restart.
+
+19
+00:01:30,567 --> 00:01:34,523
+Selecting Cloud relay alone does not activate
+it.
+
+20
+00:01:34,523 --> 00:01:40,064
+Wait for Voltura Air to reopen, then check the
+relay status on Connection.
+
+21
+00:01:40,064 --> 00:01:45,644
+Next, open Connect on the PC to pair your
+device using the new relay route.
+
+22
+00:01:46,533 --> 00:01:53,121
+On your phone, scan the current QR code from
+the PC's Connect page and open the detected
+link.
+
+23
+00:01:53,121 --> 00:01:57,979
+Cloud relay opens the secure controller at
+voltura dot S E.
+
+24
+00:01:57,979 --> 00:02:01,317
+The code shown here is only a demonstration.
+
+25
+00:02:01,317 --> 00:02:05,840
+Always scan your own PC's fresh code after
+switching to Relay.
+
+26
+00:02:05,840 --> 00:02:09,783
+If it expires, choose New code and scan again.
+
+27
+00:02:10,667 --> 00:02:14,948
+The controller asks you to confirm or edit your
+device name.
+
+28
+00:02:14,948 --> 00:02:18,066
+Tap Pair, then wait for the connection.
+
+29
+00:02:18,066 --> 00:02:21,559
+Relay may take up to ten seconds to start.
+
+30
+00:02:21,559 --> 00:02:24,471
+The connected controller is shown here.
+
+31
+00:02:24,471 --> 00:02:32,615
+Use this same browser or installed web app
+later: it remembers the pairing unless its data
+is cleared or the device is removed.
+
+32
+00:02:33,467 --> 00:02:38,521
+Before leaving, open Devices on the PC and
+select your paired device.
+
+33
+00:02:38,521 --> 00:02:41,769
+Check that View PC screen is allowed.
+
+34
+00:02:41,769 --> 00:02:49,385
+The Remote controls profile blocks screen
+viewing; use the device's Custom permissions to
+allow the access you need.
+
+35
+00:02:49,385 --> 00:02:53,998
+Pointer and keyboard permission is also needed
+to control the PC.
+
+36
+00:02:54,867 --> 00:02:59,225
+Now try your phone on mobile data or another
+internet connection.
+
+37
+00:02:59,225 --> 00:03:04,689
+Reopen the same paired controller; keep its tab
+or bookmark it after pairing.
+
+38
+00:03:04,689 --> 00:03:08,852
+Choose your saved PC and Try reconnect if
+prompted.
+
+39
+00:03:08,852 --> 00:03:14,109
+Both devices need internet, but they no longer
+need the same home network.
+
+40
+00:03:14,109 --> 00:03:18,207
+An old Direct LAN bookmark is not the Relay
+controller.
+
+41
+00:03:19,067 --> 00:03:23,825
+On the connected device, open Menu and choose
+View PC screen.
+
+42
+00:03:23,825 --> 00:03:26,595
+Select the display you want to view.
+
+43
+00:03:26,595 --> 00:03:32,871
+You can now see your Windows PC over the
+internet while you're away from home or away
+from the computer.
+
+44
+00:03:32,871 --> 00:03:38,760
+The preview here uses a fictional desktop
+inside the real Voltura Air interface.
+
+45
+00:03:39,633 --> 00:03:46,156
+Use the touch controls, or a mouse and keyboard
+from another computer, with the required
+permissions.
+
+46
+00:03:46,156 --> 00:03:50,576
+Sound starts muted; enable it if you want PC
+audio.
+
+47
+00:03:50,576 --> 00:03:53,875
+One device can view a display at a time.
+
+48
+00:03:53,875 --> 00:03:57,161
+Leave View PC screen to stop viewing.
+
+49
+00:03:57,161 --> 00:04:02,831
+Commands, screen pixels, and PC audio remain
+encrypted through the relay.
+
+50
+00:04:03,700 --> 00:04:11,203
+If the PC is unavailable, check that it's
+awake, online, and still running Voltura Air in
+Relay mode.
+
+51
+00:04:11,203 --> 00:04:16,009
+Check internet or work-network restrictions,
+then try reconnecting.
+
+52
+00:04:16,009 --> 00:04:19,734
+A sleeping or shut-down PC cannot be reached.
+
+53
+00:04:19,734 --> 00:04:27,414
+Pair and test before leaving, and find the
+documentation and troubleshooting guide at
+voltura.se/air.

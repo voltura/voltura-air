@@ -1,0 +1,82 @@
+[
+  {
+    "title": ["Your first", "connection."],
+    "lines": ["A guided start with Voltura Air", "Windows 11 · Phone or tablet"],
+    "screen": "voltura-air-iphone-dark.png",
+    "narration": "Welcome to Voltura Air. In this guide, we'll connect your phone to your Windows PC and try the trackpad and keyboard. You don't need a mobile app or a Voltura account.",
+    "note": "Real product UI · Demonstration screens"
+  },
+  {
+    "title": ["Download", "for Windows."],
+    "lines": [
+      "Visit voltura.se/air on your PC",
+      "Choose the full Windows installer",
+      "Windows 11, 64-bit required"
+    ],
+    "screen": "",
+    "narration": "On your Windows eleven PC, visit voltura dot S E slash air. Follow the download link and choose the full installer. It includes the required dot net runtimes. You'll need a sixty-four-bit Windows PC.",
+    "note": "Official downloads: voltura.se/air"
+  },
+  {
+    "title": ["Install.", "Open Voltura Air."],
+    "lines": ["Run the full installer", "Follow the setup prompts", "Phone Webcam is optional"],
+    "screen": "voltura-air-host-dark.png",
+    "narration": "Run the installer, follow its setup prompts, then open Voltura Air. Phone Webcam is an optional component. You don't need it for this trackpad and keyboard walkthrough.",
+    "note": "Windows host · Connect page"
+  },
+  {
+    "title": ["Same network.", "Ready to pair."],
+    "lines": [
+      "Put both devices on your private network",
+      "Your PC can use Ethernet or Wi-Fi",
+      "Direct LAN is the default"
+    ],
+    "screen": "voltura-air-host-dark.png",
+    "narration": "Connect your phone and PC to the same private home network. Your PC can use Ethernet or Wi-Fi. Direct LAN is the default connection mode. On the PC, open the Connect page.",
+    "note": "Windows host · Connect page"
+  },
+  {
+    "title": ["Scan your", "PC's QR code."],
+    "lines": [
+      "Use your phone's camera",
+      "Open the detected link",
+      "The controller opens in your browser"
+    ],
+    "screen": "voltura-air-host-dark.png",
+    "narration": "Use your phone's camera to scan the QR code shown on your own PC, then open the detected link. The controller opens in your browser. The code in this video is only an example. Always scan your own PC's code.",
+    "note": "Example QR only — scan the code on your own PC"
+  },
+  {
+    "title": ["Move.", "Click. Scroll."],
+    "lines": [
+      "Keep Touch selected",
+      "Slide one finger to move the pointer",
+      "Tap to click · Two fingers to scroll"
+    ],
+    "screen": "voltura-air-iphone-dark.png",
+    "narration": "Once connected, keep Touch selected on the trackpad. Slide one finger to move the PC's pointer. Tap to click, or use the Left and Right buttons. Drag two fingers to scroll.",
+    "note": "Phone controller · Touch trackpad"
+  },
+  {
+    "title": ["Type from", "your device."],
+    "lines": [
+      "Focus a text field on your PC",
+      "Choose Keyboard on the controller",
+      "Try a short line of text"
+    ],
+    "screen": "voltura-air-split.png",
+    "narration": "Click a text field on your PC, then choose Keyboard on the controller and try a short line of text. On a wide tablet, the keyboard and trackpad can sit side by side.",
+    "note": "Tablet controller · Keyboard and trackpad"
+  },
+  {
+    "title": ["You're", "connected."],
+    "lines": [
+      "Manage access in Devices on your PC",
+      "Explore more features at your own pace",
+      "Help and downloads: voltura.se/air"
+    ],
+    "screen": "voltura-air-iphone-dark.png",
+    "narration": "You're ready to go. Manage trusted devices and their permissions from Devices on the PC. If pairing fails, check that both devices are on the same private network. Find help, downloads, and more features at voltura dot S E slash air.",
+    "note": "Voltura Air · Free and open source"
+  }
+]

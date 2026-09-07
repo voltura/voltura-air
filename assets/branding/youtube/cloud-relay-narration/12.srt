@@ -1,0 +1,16 @@
+1
+00:00:00,100 --> 00:00:07,653
+If the PC is unavailable, check that it's awake, online, and still running Voltura Air in Relay mode.
+
+2
+00:00:07,603 --> 00:00:12,409
+Check internet or work-network restrictions, then try reconnecting.
+
+3
+00:00:12,409 --> 00:00:16,134
+A sleeping or shut-down PC cannot be reached.
+
+4
+00:00:16,134 --> 00:00:23,814
+Pair and test before leaving, and find the documentation and troubleshooting guide at voltura dot S E slash air.
+

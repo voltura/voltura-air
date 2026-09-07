@@ -1,0 +1,127 @@
+1
+00:00:00,100 --> 00:00:02,590
+Welcome to Voltura Air.
+
+2
+00:00:02,590 --> 00:00:08,659
+In this guide, we'll connect your phone to your
+Windows PC and try the trackpad and keyboard.
+
+3
+00:00:08,659 --> 00:00:12,255
+You don't need a mobile app or a Voltura
+account.
+
+4
+00:00:13,133 --> 00:00:18,303
+On your Windows 11 PC, visit voltura.se/air.
+
+5
+00:00:18,303 --> 00:00:22,002
+Follow the download link and choose the full
+installer.
+
+6
+00:00:22,002 --> 00:00:25,623
+It includes the required .NET runtimes.
+
+7
+00:00:25,623 --> 00:00:28,973
+You'll need a 64-bit Windows PC.
+
+8
+00:00:29,867 --> 00:00:35,050
+Run the installer, follow its setup prompts,
+then open Voltura Air.
+
+9
+00:00:35,050 --> 00:00:38,233
+Phone Webcam is an optional component.
+
+10
+00:00:38,233 --> 00:00:42,138
+You don't need it for this trackpad and
+keyboard walkthrough.
+
+11
+00:00:43,000 --> 00:00:47,268
+Connect your phone and PC to the same private
+home network.
+
+12
+00:00:47,268 --> 00:00:50,670
+Your PC can use Ethernet or Wi-Fi.
+
+13
+00:00:50,670 --> 00:00:53,995
+Direct LAN is the default connection mode.
+
+14
+00:00:53,995 --> 00:00:57,294
+On the PC, open the Connect page.
+
+15
+00:00:58,167 --> 00:01:04,768
+Use your phone's camera to scan the QR code
+shown on your own PC, then open the detected
+link.
+
+16
+00:01:04,768 --> 00:01:07,667
+The controller opens in your browser.
+
+17
+00:01:07,667 --> 00:01:11,069
+The code in this video is only an example.
+
+18
+00:01:11,069 --> 00:01:14,097
+Always scan your own PC's code.
+
+19
+00:01:14,967 --> 00:01:18,887
+Once connected, keep Touch selected on the
+trackpad.
+
+20
+00:01:18,887 --> 00:01:22,470
+Slide one finger to move the PC's pointer.
+
+21
+00:01:22,470 --> 00:01:26,194
+Tap to click, or use the Left and Right
+buttons.
+
+22
+00:01:26,194 --> 00:01:28,797
+Drag two fingers to scroll.
+
+23
+00:01:29,667 --> 00:01:36,268
+Click a text field on your PC, then choose
+Keyboard on the controller and try a short line
+of text.
+
+24
+00:01:36,268 --> 00:01:41,461
+On a wide tablet, the keyboard and trackpad can
+sit side by side.
+
+25
+00:01:42,333 --> 00:01:44,217
+You're ready to go.
+
+26
+00:01:44,217 --> 00:01:49,269
+Manage trusted devices and their permissions
+from Devices on the PC.
+
+27
+00:01:49,269 --> 00:01:54,501
+If pairing fails, check that both devices are
+on the same private network.
+
+28
+00:01:54,501 --> 00:02:00,184
+Find help, downloads, and more features at
+voltura.se/air.

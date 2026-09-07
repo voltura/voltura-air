@@ -1,0 +1,16 @@
+1
+00:00:00,100 --> 00:00:02,550
+Click Save and restart.
+
+2
+00:00:02,500 --> 00:00:06,456
+Selecting Cloud relay alone does not activate it.
+
+3
+00:00:06,456 --> 00:00:11,997
+Wait for Voltura Air to reopen, then check the relay status on Connection.
+
+4
+00:00:11,997 --> 00:00:17,577
+Next, open Connect on the PC to pair your device using the new relay route.
+

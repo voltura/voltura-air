@@ -1,0 +1,20 @@
+1
+00:00:00,100 --> 00:00:02,859
+Choose your screen relay quality.
+
+2
+00:00:02,809 --> 00:00:06,520
+Standard uses up to four megabits per second.
+
+3
+00:00:06,520 --> 00:00:11,327
+Data saver lowers that to two; High quality allows up to eight.
+
+4
+00:00:11,327 --> 00:00:16,121
+Lower quality uses less data, which helps on a mobile connection.
+
+5
+00:00:16,121 --> 00:00:22,332
+Screen relay is subject to the service's available allowance, shown on the Connection page.
+

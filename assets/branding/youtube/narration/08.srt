@@ -1,0 +1,16 @@
+1
+00:00:00,100 --> 00:00:02,034
+You're ready to go.
+
+2
+00:00:01,984 --> 00:00:07,036
+Manage trusted devices and their permissions from Devices on the PC.
+
+3
+00:00:07,036 --> 00:00:12,268
+If pairing fails, check that both devices are on the same private network.
+
+4
+00:00:12,268 --> 00:00:17,951
+Find help, downloads, and more features at voltura dot S E slash air.
+

@@ -1,0 +1,16 @@
+1
+00:00:00,100 --> 00:00:05,513
+Keep the PC powered, connected to the internet, and running Voltura Air.
+
+2
+00:00:05,463 --> 00:00:10,824
+In its tray menu, open Keep awake and choose an interval or Indefinitely.
+
+3
+00:00:10,824 --> 00:00:14,832
+Keep screen on and simulated activity are optional.
+
+4
+00:00:14,832 --> 00:00:22,461
+Keep awake prevents idle sleep while the host runs; it cannot override manual Sleep or closing a laptop lid.
+

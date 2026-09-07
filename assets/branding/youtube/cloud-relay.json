@@ -1,0 +1,132 @@
+[
+  {
+    "title": ["Your PC.", "Away from home."],
+    "lines": [
+      "Connect remotely over the internet",
+      "Cloud relay through Voltura",
+      "Use View PC screen from your device"
+    ],
+    "screen": "voltura-air-screen-view.png",
+    "narration": "Away from home, or away from your PC? Cloud relay through Voltura lets your paired phone, tablet, or another computer connect to your Windows PC over the internet. You can use View PC screen to see and work on that PC remotely. Let's set it up before you leave.",
+    "note": "Real product screens · Illustrated desktop"
+  },
+  {
+    "title": ["Keep your", "PC available."],
+    "lines": [
+      "Leave Voltura Air running and online",
+      "Tray menu → Keep awake",
+      "Choose an interval or Indefinitely"
+    ],
+    "imagePath": "assets/branding/youtube/cloud-relay-sources/keep-awake.png",
+    "narration": "Keep the PC powered, connected to the internet, and running Voltura Air. In its tray menu, open Keep awake and choose an interval or Indefinitely. Keep screen on and simulated activity are optional. Keep awake prevents idle sleep while the host runs; it cannot override manual Sleep or closing a laptop lid.",
+    "note": "Prepare before leaving · Voltura Air cannot wake a sleeping PC"
+  },
+  {
+    "title": ["Choose", "Cloud relay."],
+    "lines": [
+      "Open Connection on the PC",
+      "Select Cloud relay through Voltura",
+      "No incoming router port to configure"
+    ],
+    "imagePath": "assets/branding/youtube/cloud-relay-sources/connection.png",
+    "crop": { "left": 558, "top": 325, "width": 1771, "height": 425 },
+    "narration": "In Voltura Air on your PC, open Connection. Under Connection method, select Cloud relay through Voltura. Both devices connect outward through Voltura, so you don't need to open an incoming router port or firewall exception. Leave Custom relay endpoint unchanged to use Voltura's service.",
+    "note": "Connection → Cloud relay through Voltura"
+  },
+  {
+    "title": ["Choose screen", "relay quality."],
+    "lines": ["Standard: up to 4 Mbps", "Data saver: up to 2 Mbps", "High quality: up to 8 Mbps"],
+    "imagePath": "assets/branding/youtube/cloud-relay-sources/connection.png",
+    "crop": { "left": 563, "top": 785, "width": 1766, "height": 270 },
+    "narration": "Choose your screen relay quality. Standard uses up to four megabits per second. Data saver lowers that to two; High quality allows up to eight. Lower quality uses less data, which helps on a mobile connection. Screen relay is subject to the service's available allowance, shown on the Connection page.",
+    "note": "The example has High quality selected · Choose for your connection"
+  },
+  {
+    "title": ["Save.", "Restart."],
+    "lines": [
+      "Click Save and restart",
+      "Wait for Voltura Air to reopen",
+      "The selected method must become active"
+    ],
+    "imagePath": "assets/branding/youtube/cloud-relay-sources/connection.png",
+    "crop": { "left": 557, "top": 1422, "width": 1230, "height": 221 },
+    "narration": "Click Save and restart. Selecting Cloud relay alone does not activate it. Wait for Voltura Air to reopen, then check the relay status on Connection. Next, open Connect on the PC to pair your device using the new relay route.",
+    "note": "Connection changes take effect after the restart"
+  },
+  {
+    "title": ["Scan a fresh", "pairing code."],
+    "lines": [
+      "PC: open Connect after restarting",
+      "Phone: scan the current QR code",
+      "Open the secure voltura.se link"
+    ],
+    "screen": "voltura-air-host-dark.png",
+    "crop": { "left": 254, "top": 116, "width": 543, "height": 617 },
+    "narration": "On your phone, scan the current QR code from the PC's Connect page and open the detected link. Cloud relay opens the secure controller at voltura dot S E. The code shown here is only a demonstration. Always scan your own PC's fresh code after switching to Relay. If it expires, choose New code and scan again.",
+    "note": "Demonstration QR only · Scan your own PC's fresh Relay code"
+  },
+  {
+    "title": ["Name your", "device. Pair."],
+    "lines": ["Confirm or edit Device name", "Tap Pair", "Wait for the connected controller"],
+    "screen": "voltura-air-iphone-dark.png",
+    "narration": "The controller asks you to confirm or edit your device name. Tap Pair, then wait for the connection. Relay may take up to ten seconds to start. The connected controller is shown here. Use this same browser or installed web app later: it remembers the pairing unless its data is cleared or the device is removed.",
+    "note": "Connected controller shown · No Voltura account required"
+  },
+  {
+    "title": ["Allow screen", "viewing."],
+    "lines": [
+      "PC: Devices → your paired device",
+      "Allow View PC screen",
+      "Allow pointer/keyboard for control"
+    ],
+    "screen": "voltura-air-iphone-dark.png",
+    "narration": "Before leaving, open Devices on the PC and select your paired device. Check that View PC screen is allowed. The Remote controls profile blocks screen viewing; use the device's Custom permissions to allow the access you need. Pointer and keyboard permission is also needed to control the PC.",
+    "note": "Permissions are managed on the PC for each paired device"
+  },
+  {
+    "title": ["Leave home.", "Reconnect."],
+    "lines": [
+      "Use mobile data or another network",
+      "Reopen the same paired controller",
+      "Choose the saved PC if prompted"
+    ],
+    "screen": "voltura-air-iphone-dark.png",
+    "narration": "Now try your phone on mobile data or another internet connection. Reopen the same paired controller; keep its tab or bookmark it after pairing. Choose your saved PC and Try reconnect if prompted. Both devices need internet, but they no longer need the same home network. An old Direct LAN bookmark is not the Relay controller.",
+    "note": "Test the internet connection before relying on remote access"
+  },
+  {
+    "title": ["Open", "View PC screen."],
+    "lines": [
+      "Device: Menu → View PC screen",
+      "Select the display you want to view",
+      "See your PC while away from home"
+    ],
+    "screen": "voltura-air-screen-view.png",
+    "crop": { "left": 60, "top": 940, "width": 1480, "height": 672 },
+    "narration": "On the connected device, open Menu and choose View PC screen. Select the display you want to view. You can now see your Windows PC over the internet while you're away from home or away from the computer. The preview here uses a fictional desktop inside the real Voltura Air interface.",
+    "note": "Real View PC screen controls · Fictional demonstration desktop"
+  },
+  {
+    "title": ["View.", "Work remotely."],
+    "lines": [
+      "Use touch controls or mouse/keyboard",
+      "Sound starts muted: enable if wanted",
+      "Leave View PC screen to stop viewing"
+    ],
+    "screen": "voltura-air-screen-view.png",
+    "crop": { "left": 60, "top": 940, "width": 1480, "height": 672 },
+    "narration": "Use the touch controls, or a mouse and keyboard from another computer, with the required permissions. Sound starts muted; enable it if you want PC audio. One device can view a display at a time. Leave View PC screen to stop viewing. Commands, screen pixels, and PC audio remain encrypted through the relay.",
+    "note": "Remote access depends on the PC, network, permissions, and relay availability"
+  },
+  {
+    "title": ["Ready for", "remote access."],
+    "lines": [
+      "PC awake · Host running · Internet",
+      "Pair before leaving · Test screen view",
+      "Help and downloads: voltura.se/air"
+    ],
+    "imagePath": "assets/branding/youtube/cloud-relay-sources/keep-awake.png",
+    "narration": "If the PC is unavailable, check that it's awake, online, and still running Voltura Air in Relay mode. Check internet or work-network restrictions, then try reconnecting. A sleeping or shut-down PC cannot be reached. Pair and test before leaving, and find the documentation and troubleshooting guide at voltura dot S E slash air.",
+    "note": "Based on Voltura Air's connection, pairing, feature, and troubleshooting docs"
+  }
+]

@@ -1,0 +1,16 @@
+1
+00:00:00,100 --> 00:00:05,320
+On your Windows eleven PC, visit voltura dot S E slash air.
+
+2
+00:00:05,270 --> 00:00:08,969
+Follow the download link and choose the full installer.
+
+3
+00:00:08,969 --> 00:00:12,590
+It includes the required dot net runtimes.
+
+4
+00:00:12,590 --> 00:00:15,940
+You'll need a sixty-four-bit Windows PC.
+

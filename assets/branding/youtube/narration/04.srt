@@ -1,0 +1,16 @@
+1
+00:00:00,100 --> 00:00:04,418
+Connect your phone and PC to the same private home network.
+
+2
+00:00:04,368 --> 00:00:07,770
+Your PC can use Ethernet or Wi-Fi.
+
+3
+00:00:07,770 --> 00:00:11,095
+Direct LAN is the default connection mode.
+
+4
+00:00:11,095 --> 00:00:14,394
+On the PC, open the Connect page.
+

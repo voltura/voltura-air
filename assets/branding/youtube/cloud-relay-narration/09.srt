@@ -1,0 +1,20 @@
+1
+00:00:00,100 --> 00:00:04,508
+Now try your phone on mobile data or another internet connection.
+
+2
+00:00:04,458 --> 00:00:09,922
+Reopen the same paired controller; keep its tab or bookmark it after pairing.
+
+3
+00:00:09,922 --> 00:00:14,085
+Choose your saved PC and Try reconnect if prompted.
+
+4
+00:00:14,085 --> 00:00:19,342
+Both devices need internet, but they no longer need the same home network.
+
+5
+00:00:19,342 --> 00:00:23,440
+An old Direct LAN bookmark is not the Relay controller.
+

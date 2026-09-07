@@ -1,0 +1,16 @@
+1
+00:00:00,100 --> 00:00:05,204
+Before leaving, open Devices on the PC and select your paired device.
+
+2
+00:00:05,154 --> 00:00:08,402
+Check that View PC screen is allowed.
+
+3
+00:00:08,402 --> 00:00:16,018
+The Remote controls profile blocks screen viewing; use the device's Custom permissions to allow the access you need.
+
+4
+00:00:16,018 --> 00:00:20,631
+Pointer and keyboard permission is also needed to control the PC.
+

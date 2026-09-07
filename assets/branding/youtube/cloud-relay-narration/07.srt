@@ -1,0 +1,20 @@
+1
+00:00:00,100 --> 00:00:04,431
+The controller asks you to confirm or edit your device name.
+
+2
+00:00:04,381 --> 00:00:07,499
+Tap Pair, then wait for the connection.
+
+3
+00:00:07,499 --> 00:00:10,992
+Relay may take up to ten seconds to start.
+
+4
+00:00:10,992 --> 00:00:13,904
+The connected controller is shown here.
+
+5
+00:00:13,904 --> 00:00:22,048
+Use this same browser or installed web app later: it remembers the pairing unless its data is cleared or the device is removed.
+

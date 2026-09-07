@@ -1,0 +1,16 @@
+1
+00:00:00,100 --> 00:00:04,070
+In Voltura Air on your PC, open Connection.
+
+2
+00:00:04,020 --> 00:00:08,453
+Under Connection method, select Cloud relay through Voltura.
+
+3
+00:00:08,453 --> 00:00:16,159
+Both devices connect outward through Voltura, so you don't need to open an incoming router port or firewall exception.
+
+4
+00:00:16,159 --> 00:00:21,121
+Leave Custom relay endpoint unchanged to use Voltura's service.
+

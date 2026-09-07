@@ -154,9 +154,11 @@ export function resumeSpeechDestination(destination: SpeechDestination) {
       const target = current.destination;
       if (target) {
         pauseSpeechDestination(target);
-        target.error(event.error === "not-allowed" || event.error === "service-not-allowed"
-          ? "Microphone access was denied. Allow microphone access and try again."
-          : speechRestartGuidance());
+        target.error(
+          event.error === "not-allowed" || event.error === "service-not-allowed"
+            ? "Microphone access was denied. Allow microphone access and try again."
+            : speechRestartGuidance(),
+        );
       }
       current.ending = true;
       session.abort();

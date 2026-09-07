@@ -17,48 +17,48 @@ export function useSpeechDictation(sendText: (text: string) => void, enabled = t
   const activeRef = useRef(false);
   const enabledRef = useRef(enabled);
   const sendTextRef = useRef(sendText);
-  const destinationRef = useRef<SpeechDestination | null>(null);
   const canUseSpeech = Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition);
+
+  const [destination] = useState<SpeechDestination>(() => ({
+    enabled: () => enabledRef.current && activeRef.current,
+    state: (state) => {
+      setIsStarting(state === "starting");
+      setIsListening(state === "listening");
+      if (state === "paused") {
+        activeRef.current = false;
+        setRequested(false);
+        setSpeechNotice(null);
+      }
+    },
+    text: (text) => {
+      setSpeechNotice(null);
+      setProgress((value) => value + 1);
+      setDictationText((current) => `${current}${text}`);
+      sendTextRef.current(text);
+    },
+    error: (message) => {
+      activeRef.current = false;
+      setRequested(false);
+      setSpeechNotice(null);
+      setSpeechError(message);
+    },
+  }));
 
   useLayoutEffect(() => {
     enabledRef.current = enabled;
     sendTextRef.current = sendText;
-    if (!enabled && destinationRef.current) {
-      pauseSpeechDestination(destinationRef.current);
+    if (!enabled) {
+      pauseSpeechDestination(destination);
     }
-  }, [enabled, sendText]);
+  }, [enabled, sendText, destination]);
 
-  if (!destinationRef.current) {
-    destinationRef.current = {
-      enabled: () => enabledRef.current && activeRef.current,
-      state: (state) => {
-        setIsStarting(state === "starting");
-        setIsListening(state === "listening");
-        if (state === "paused") {
-          activeRef.current = false;
-          setRequested(false);
-          setSpeechNotice(null);
-        }
-      },
-      text: (text) => {
-        setSpeechNotice(null);
-        setProgress((value) => value + 1);
-        setDictationText((current) => `${current}${text}`);
-        sendTextRef.current(text);
-      },
-      error: (message) => {
-        activeRef.current = false;
-        setRequested(false);
-        setSpeechNotice(null);
-        setSpeechError(message);
-      },
-    };
-  }
-
-  useLayoutEffect(() => () => {
-    activeRef.current = false;
-    pauseSpeechDestination(destinationRef.current!);
-  }, []);
+  useLayoutEffect(
+    () => () => {
+      activeRef.current = false;
+      pauseSpeechDestination(destination);
+    },
+    [destination],
+  );
 
   // One cancellable inactivity timer, only while the user requests dictation.
   // Audio-start is not evidence that any text reached the app.
@@ -68,7 +68,9 @@ export function useSpeechDictation(sendText: (text: string) => void, enabled = t
     }
     const timer = setTimeout(() => {
       if (activeRef.current && enabledRef.current && document.visibilityState !== "hidden") {
-        setSpeechNotice(`No text received for 15 seconds. If you have been speaking: ${speechRestartGuidance()}`);
+        setSpeechNotice(
+          `No text received for 15 seconds. If you have been speaking: ${speechRestartGuidance()}`,
+        );
       }
     }, 15000);
     return () => clearTimeout(timer);
@@ -82,7 +84,7 @@ export function useSpeechDictation(sendText: (text: string) => void, enabled = t
     setRequested(true);
     setSpeechError(null);
     setSpeechNotice(null);
-    resumeSpeechDestination(destinationRef.current!);
+    resumeSpeechDestination(destination);
   };
 
   return {
@@ -94,6 +96,6 @@ export function useSpeechDictation(sendText: (text: string) => void, enabled = t
     speechError,
     speechNotice,
     startSpeech,
-    stopSpeech: () => pauseSpeechDestination(destinationRef.current!),
+    stopSpeech: () => pauseSpeechDestination(destination),
   };
 }

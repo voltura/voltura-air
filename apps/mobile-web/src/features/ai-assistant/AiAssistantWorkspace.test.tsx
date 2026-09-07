@@ -1,6 +1,7 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { publishAiAssistantResult } from "../../foundation/connection/aiAssistantResultBus";
+import { getActiveSpeechSession } from "../../foundation/input/speechRecognitionSession";
 import type { ClientMessage } from "../../foundation/protocol/messages";
 import AiAssistantWorkspace from "./AiAssistantWorkspace";
 
@@ -34,6 +35,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
+  // A test ends the whole document, unlike a real in-app screen change.
+  getActiveSpeechSession()?.finish(true);
   vi.useRealTimers();
   vi.unstubAllGlobals();
   MockSpeechRecognition.instances = [];

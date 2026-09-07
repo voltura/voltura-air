@@ -49,15 +49,24 @@ class MockSpeechRecognition {
 
 function installMockSpeechRecognition() {
   vi.stubGlobal("SpeechRecognition", MockSpeechRecognition);
-  vi.stubGlobal("matchMedia", (query: string) => ({ matches: query === "(display-mode: browser)" }));
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(display-mode: browser)",
+  }));
 }
 
 function DictationHarness({
   active = true,
   onText = vi.fn(),
 }: { active?: boolean; onText?: (text: string) => void } = {}) {
-  const { dictationText, isListening, isStarting, speechError, speechNotice, startSpeech, stopSpeech } =
-    useSpeechDictation(onText, active);
+  const {
+    dictationText,
+    isListening,
+    isStarting,
+    speechError,
+    speechNotice,
+    startSpeech,
+    stopSpeech,
+  } = useSpeechDictation(onText, active);
 
   return (
     <>
@@ -124,55 +133,82 @@ describe("keep-alive dictation", () => {
     act(() => native.onresult?.({ resultIndex: 2, results: resumed }));
     act(() => native.onresult?.({ resultIndex: 0, results: resumed }));
     expect(onText.mock.calls).toEqual([["first "], ["resumed "]]);
-    expect(getSpeechDiagnostics().events).toContainEqual(expect.objectContaining({ event: "result-discarded" }));
+    expect(getSpeechDiagnostics().events).toContainEqual(
+      expect.objectContaining({ event: "result-discarded" }),
+    );
     expect(JSON.stringify(getSpeechDiagnostics())).not.toContain("private");
   });
 
-  it.each(["disable", "hide", "unmount"])("detaches delivery without killing capture on %s", (action) => {
-    installMockSpeechRecognition();
-    const onText = vi.fn();
-    const view = render(<DictationHarness onText={onText} />);
-    fireEvent.click(screen.getByRole("button", { name: "Start" }));
-    const native = MockSpeechRecognition.instances[0]!;
-    if (action === "disable") view.rerender(<DictationHarness active={false} onText={onText} />);
-    if (action === "unmount") view.unmount();
-    if (action === "hide") {
-      Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
-      fireEvent(document, new Event("visibilitychange"));
-      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
-      fireEvent(document, new Event("visibilitychange"));
-    }
-    act(() => native.onresult?.({ resultIndex: 0, results: [final("ignored")] }));
-    expect(onText).not.toHaveBeenCalled();
-    expect(native.abort).not.toHaveBeenCalled();
-    expect(native.stop).not.toHaveBeenCalled();
-  });
+  it.each(["disable", "hide", "unmount"])(
+    "detaches delivery without killing capture on %s",
+    (action) => {
+      installMockSpeechRecognition();
+      const onText = vi.fn();
+      const view = render(<DictationHarness onText={onText} />);
+      fireEvent.click(screen.getByRole("button", { name: "Start" }));
+      const native = MockSpeechRecognition.instances[0]!;
+      if (action === "disable") {
+        view.rerender(<DictationHarness active={false} onText={onText} />);
+      }
+      if (action === "unmount") {
+        view.unmount();
+      }
+      if (action === "hide") {
+        Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+        fireEvent(document, new Event("visibilitychange"));
+        Object.defineProperty(document, "visibilityState", {
+          configurable: true,
+          value: "visible",
+        });
+        fireEvent(document, new Event("visibilitychange"));
+      }
+      act(() => native.onresult?.({ resultIndex: 0, results: [final("ignored")] }));
+      expect(onText).not.toHaveBeenCalled();
+      expect(native.abort).not.toHaveBeenCalled();
+      expect(native.stop).not.toHaveBeenCalled();
+    },
+  );
 
-  it.each(["browser", "installed"])("shows conditional %s restart guidance after 15 seconds", (mode) => {
-    vi.useFakeTimers();
-    installMockSpeechRecognition();
-    vi.stubGlobal("matchMedia", (query: string) => ({
-      matches: query === (mode === "installed" ? "(display-mode: standalone)" : "(display-mode: browser)"),
-    }));
-    render(<DictationHarness />);
-    fireEvent.click(screen.getByRole("button", { name: "Start" }));
-    act(() => vi.advanceTimersByTime(14999));
-    expect(screen.getByTestId("speech-notice").textContent).toBe("");
-    act(() => vi.advanceTimersByTime(1));
-    expect(screen.getByTestId("speech-notice").textContent).toContain("If you have been speaking");
-    expect(screen.getByTestId("speech-notice").textContent).toContain(
-      mode === "installed" ? "Voltura Air app" : "web browser",
-    );
-    const native = MockSpeechRecognition.instances[0]!;
-    act(() => native.onresult?.({ resultIndex: 0, results: [final("working")] }));
-    expect(screen.getByTestId("speech-notice").textContent).toBe("");
-    act(() => vi.advanceTimersByTime(15000));
-    expect(screen.getByTestId("speech-notice").textContent).not.toBe("");
-    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
-    expect(screen.getByTestId("speech-notice").textContent).toBe("");
-    act(() => vi.advanceTimersByTime(15000));
-    expect(screen.getByTestId("speech-notice").textContent).toBe("");
-  });
+  it.each(["browser", "installed"])(
+    "shows conditional %s restart guidance after 15 seconds",
+    (mode) => {
+      vi.useFakeTimers();
+      installMockSpeechRecognition();
+      vi.stubGlobal("matchMedia", (query: string) => ({
+        matches:
+          query ===
+          (mode === "installed" ? "(display-mode: standalone)" : "(display-mode: browser)"),
+      }));
+      render(<DictationHarness />);
+      fireEvent.click(screen.getByRole("button", { name: "Start" }));
+      act(() => {
+        vi.advanceTimersByTime(14999);
+      });
+      expect(screen.getByTestId("speech-notice").textContent).toBe("");
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(screen.getByTestId("speech-notice").textContent).toContain(
+        "If you have been speaking",
+      );
+      expect(screen.getByTestId("speech-notice").textContent).toContain(
+        mode === "installed" ? "Voltura Air app" : "web browser",
+      );
+      const native = MockSpeechRecognition.instances[0]!;
+      act(() => native.onresult?.({ resultIndex: 0, results: [final("working")] }));
+      expect(screen.getByTestId("speech-notice").textContent).toBe("");
+      act(() => {
+        vi.advanceTimersByTime(15000);
+      });
+      expect(screen.getByTestId("speech-notice").textContent).not.toBe("");
+      fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+      expect(screen.getByTestId("speech-notice").textContent).toBe("");
+      act(() => {
+        vi.advanceTimersByTime(15000);
+      });
+      expect(screen.getByTestId("speech-notice").textContent).toBe("");
+    },
+  );
 
   it("also warns when audio-start never arrives, without restarting capture", () => {
     vi.useFakeTimers();
@@ -180,7 +216,9 @@ describe("keep-alive dictation", () => {
     MockSpeechRecognition.deferStart = true;
     render(<DictationHarness />);
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
-    act(() => vi.advanceTimersByTime(15000));
+    act(() => {
+      vi.advanceTimersByTime(15000);
+    });
     expect(screen.getByTestId("speech-notice").textContent).toContain("restart");
     expect(MockSpeechRecognition.instances[0]!.start).toHaveBeenCalledOnce();
   });
@@ -192,7 +230,9 @@ describe("keep-alive dictation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
     fireEvent(document, new Event("visibilitychange"));
-    act(() => vi.advanceTimersByTime(20000));
+    act(() => {
+      vi.advanceTimersByTime(20000);
+    });
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
     fireEvent(document, new Event("visibilitychange"));
     expect(screen.getByTestId("speech-notice").textContent).toBe("");
@@ -204,7 +244,9 @@ describe("keep-alive dictation", () => {
     render(<DictationHarness />);
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
     act(() => MockSpeechRecognition.instances[0]!.onerror?.({ error: "not-allowed" }));
-    expect(screen.getByTestId("speech-error").textContent).toContain("Microphone access was denied");
+    expect(screen.getByTestId("speech-error").textContent).toContain(
+      "Microphone access was denied",
+    );
     expect(getActiveSpeechSession()).toBeNull();
     expect(MockSpeechRecognition.instances).toHaveLength(1);
   });

@@ -65,7 +65,6 @@ async function banner() {
       <text x="1645" y="889" font-size="23">voltura.se/air</text>
       <rect x="1480" y="606" width="434" height="240" rx="14" fill="#050a0d" stroke="#516970" stroke-width="3"/>
       <path d="M1670 846v22h54v-22m-90 26h126" fill="none" stroke="#516970" stroke-width="9"/>
-      <rect x="1874" y="551" width="146" height="307" rx="23" fill="#080f13" stroke="#779398" stroke-width="3"/>
     `,
         ),
         left: 0,
@@ -80,6 +79,15 @@ async function banner() {
         616,
         8,
       ),
+      {
+        input: svg(
+          2560,
+          1440,
+          '<rect x="1874" y="551" width="146" height="307" rx="23" fill="#080f13" stroke="#779398" stroke-width="3"/>',
+        ),
+        left: 0,
+        top: 0,
+      },
       await image(path.join(screenshots, "voltura-air-iphone-dark.png"), 130, 283, 1882, 563, 15),
     ],
     6 * 1024 * 1024,
@@ -104,7 +112,6 @@ async function thumbnail(name, lines, label) {
       <text x="87" y="606" font-size="24" font-weight="650">${label}</text>
       <rect x="679" y="243" width="524" height="309" rx="20" fill="#050a0d" stroke="#526a70" stroke-width="3"/>
       <path d="M903 552v38h75v-38m-128 45h180" fill="none" stroke="#526a70" stroke-width="13"/>
-      <rect x="1030" y="115" width="186" height="411" rx="30" fill="#080f13" stroke="#92acb0" stroke-width="3"/>
     `,
         ),
         left: 0,
@@ -119,6 +126,15 @@ async function thumbnail(name, lines, label) {
         254,
         10,
       ),
+      {
+        input: svg(
+          1280,
+          720,
+          '<rect x="1030" y="115" width="186" height="411" rx="30" fill="#080f13" stroke="#92acb0" stroke-width="3"/>',
+        ),
+        left: 0,
+        top: 0,
+      },
       await image(path.join(screenshots, "voltura-air-iphone-dark.png"), 168, 373, 1039, 134, 19),
     ],
     2 * 1024 * 1024,

@@ -180,11 +180,13 @@ export function ModeWorkspace({
     canUseSpeech,
     dictationText,
     isListening,
+    isStarting,
     setDictationText,
     speechError,
+    speechNotice,
     startSpeech,
     stopSpeech,
-  } = useSpeechDictation(sendText, tab === "dictation");
+  } = useSpeechDictation(sendText, tab === "dictation" && connection.state === "paired");
   const { requestAudioState, state: connectionState, supportsVolumeControl } = connection;
 
   useEffect(() => {
@@ -360,9 +362,11 @@ export function ModeWorkspace({
         canUseSpeech,
         dictationText,
         isListening,
+        isStarting,
         sendText,
         setDictationText,
         speechError,
+        speechNotice,
         startSpeech,
         stopSpeech,
       }}

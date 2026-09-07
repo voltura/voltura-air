@@ -81,6 +81,15 @@ rollback and shutdown release composition-owned resources in reverse order.
 | Mobile pairing QR capture                   | The pairing feature owns one temporary camera stream and one lazy decoder worker per active scan. Live input is a centered capacity-one frame at a bounded cadence; cancellation, success, hiding, track loss, replacement, or unmount stops every track, timer, listener, and worker. Photo capture uses the same worker and pairing-link parser without retaining frames.                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Cursor recovery                             | Cursor overrides require an independent recovery process. Host exit cannot terminate it. If either process exits, the remaining process restores the Windows cursor scheme.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
+The explicitly started browser dictation session is document-owned by the input
+foundation, shared by Dictation and Assistant. Feature hooks own only a detachable
+text destination and one active-input inactivity timer. Pausing or unmounting a
+destination does not release native recognition; hiding detaches delivery, while
+page departure, native end, or error releases the session and its listeners.
+No microphone is acquired before an explicit gesture, and no automatic restart
+loop runs. This keep-alive session is the explicit exception to disabled-feature
+resource allocation below; the UI discloses ongoing microphone use.
+
 Optional features allocate no feature-specific worker, timer, subscription,
 native resource, or network activity while disabled. Hot input/render paths use
 cached settings and event-driven updates, not registry reads or polling.

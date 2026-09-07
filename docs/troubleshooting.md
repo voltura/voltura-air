@@ -6,6 +6,35 @@ Copy host and mobile diagnostics before changing several settings. They omit
 credentials/client IDs but may contain device names, local addresses/paths,
 adapter details, and browser information; review before sharing publicly.
 
+For Dictation or AI Assistant microphone failures, copy mobile diagnostics before
+reloading the app. They include the latest 48 speech lifecycle events (start,
+audio capture, result type, cancellation, end, and allowlisted error codes), held
+only in memory. They contain no audio, transcribed text, or raw speech-service
+error messages. A microphone indicator alone does not confirm transcription.
+
+Speech recognition uses one shared continuous browser session, without opening an
+additional microphone stream. Pause, leaving a dictation view, or hiding the app
+detaches text delivery without deliberately stopping recognition. Returning does
+not re-enable delivery: press Listen or the Assistant microphone button again.
+The browser can still end capture itself. Page departure and recognition errors
+request cancellation; there is no automatic native restart loop. The microphone
+may stay active while text input is paused, and the browser may process speech.
+Close the app/browser or use its microphone controls to release capture.
+Diagnostics version 4 records text pause/resume and discarded result metadata.
+Paused results and their later final revisions are excluded by result index;
+cumulative old results are not replayed. The API has no audio timestamps, so
+filtering observed result indices does not prove the capture time of a previously
+unseen delayed result. Foreground handoff remains a real-device acceptance check.
+
+After 15 seconds without accepted final text while the user requests dictation,
+both speech screens display conditional restart guidance beside the controls.
+Installed/Home Screen mode says to fully close and reopen Voltura Air; browser
+mode says to fully close and reopen the web browser. This is an inactivity hint,
+not a detected speech-service failure. Incoming final text clears and rearms it;
+Pause, leaving the screen, hiding, unmount, and errors cancel it. Audio-start
+alone does not suppress it. Native failures also show recovery guidance, except
+permission denial, which retains its specific permission message.
+
 ## Voltura Air could not start
 
 Choose **Copy details** before closing.

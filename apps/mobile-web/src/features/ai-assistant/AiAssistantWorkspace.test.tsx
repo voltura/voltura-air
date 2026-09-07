@@ -1,6 +1,7 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { publishAiAssistantResult } from "../../foundation/connection/aiAssistantResultBus";
+import { getActiveSpeechSession } from "../../foundation/input/speechRecognitionSession";
 import type { ClientMessage } from "../../foundation/protocol/messages";
 import AiAssistantWorkspace from "./AiAssistantWorkspace";
 
@@ -11,12 +12,18 @@ class MockSpeechRecognition {
   onresult: ((event: { resultIndex: number; results: ArrayLike<unknown> }) => void) | null = null;
   onend: (() => void) | null = null;
   onerror: ((event: { error?: string }) => void) | null = null;
-  start = vi.fn();
-  stop = vi.fn();
+  abort = vi.fn(() => this.onend?.());
+  onaudiostart: (() => void) | null = null;
+  start = vi.fn(() => this.onaudiostart?.());
+  stop = vi.fn(() => this.onend?.());
 
   constructor() {
     MockSpeechRecognition.instances.push(this);
   }
+}
+
+function installMockSpeechRecognition() {
+  vi.stubGlobal("SpeechRecognition", MockSpeechRecognition);
 }
 
 vi.mock("../../foundation/connection/pairingCredentials", () => ({
@@ -28,6 +35,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
+  // A test ends the whole document, unlike a real in-app screen change.
+  getActiveSpeechSession()?.finish(true);
   vi.useRealTimers();
   vi.unstubAllGlobals();
   MockSpeechRecognition.instances = [];
@@ -227,7 +237,7 @@ describe("AiAssistantWorkspace", () => {
   });
 
   it("adds phone speech recognition to the editable question before sending", async () => {
-    vi.stubGlobal("SpeechRecognition", MockSpeechRecognition);
+    installMockSpeechRecognition();
     const send = vi.fn<(message: ClientMessage) => void>();
     render(workspace(send));
     await waitFor(() =>
@@ -266,7 +276,7 @@ describe("AiAssistantWorkspace", () => {
   });
 
   it("does not split dictated supplementary characters at the question limit", async () => {
-    vi.stubGlobal("SpeechRecognition", MockSpeechRecognition);
+    installMockSpeechRecognition();
     const send = vi.fn<(message: ClientMessage) => void>();
     render(workspace(send));
     await waitFor(() =>
@@ -286,7 +296,7 @@ describe("AiAssistantWorkspace", () => {
     }) as HTMLTextAreaElement;
     fireEvent.change(input, { target: { value: "a".repeat(16 * 1024 - 1) } });
     fireEvent.click(screen.getByRole("button", { name: "Start dictation" }));
-    expect(MockSpeechRecognition.instances).toHaveLength(1);
+    await waitFor(() => expect(MockSpeechRecognition.instances).toHaveLength(1));
     const spoken = Object.assign([{ transcript: "😀" }], { isFinal: true });
     act(() => {
       MockSpeechRecognition.instances.at(0)?.onresult?.({ resultIndex: 0, results: [spoken] });

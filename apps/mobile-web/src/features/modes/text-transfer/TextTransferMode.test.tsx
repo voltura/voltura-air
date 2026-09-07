@@ -337,8 +337,9 @@ describe("TextTransferMode", () => {
   });
 
   it("accepts exactly the text limit and rejects an oversized paste without changing the draft", async () => {
+    const firstPaste = Promise.resolve({ status: "success" as const, text: "x".repeat(4096) });
     vi.mocked(readTextFromDeviceClipboard)
-      .mockResolvedValueOnce({ status: "success", text: "x".repeat(4096) })
+      .mockReturnValueOnce(firstPaste)
       .mockResolvedValueOnce({ status: "success", text: "y" });
     render(<TextTransferHarness />);
     const editor = screen.getByLabelText("Text to send") as HTMLTextAreaElement;
@@ -346,6 +347,7 @@ describe("TextTransferMode", () => {
     // Finish the first paste's render and draft revision effect before starting another read.
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Paste from this device's clipboard" }));
+      await firstPaste;
     });
     expect(editor.value.length).toBe(4096);
     editor.setSelectionRange(4096, 4096);

@@ -80,10 +80,8 @@ export default function AiAssistantWorkspace({
     setQuestion((current) => truncateQuestion(`${current}${text}`));
   }, []);
   const dictationEnabled = opened && state === "paired" && !working && !pending;
-  const { canUseSpeech, isListening, speechError, startSpeech, stopSpeech } = useSpeechDictation(
-    appendDictationText,
-    dictationEnabled,
-  );
+  const { canUseSpeech, isListening, isStarting, speechError, speechNotice, startSpeech, stopSpeech } =
+    useSpeechDictation(appendDictationText, dictationEnabled);
 
   const resizeQuestion = useCallback(() => {
     const input = questionRef.current;
@@ -403,12 +401,12 @@ export default function AiAssistantWorkspace({
           <button
             type="button"
             className="ai-assistant-dictation-button"
-            aria-label={isListening ? "Stop dictation" : "Start dictation"}
-            aria-pressed={isListening}
+            aria-label={isListening || isStarting ? "Pause dictation" : "Start dictation"}
+            aria-pressed={isListening || isStarting}
             disabled={!dictationEnabled}
-            onClick={isListening ? stopSpeech : startSpeech}
+            onClick={isListening || isStarting ? stopSpeech : startSpeech}
           >
-            {isListening ? <Square aria-hidden="true" /> : <Mic aria-hidden="true" />}
+            {isListening || isStarting ? <Square aria-hidden="true" /> : <Mic aria-hidden="true" />}
           </button>
         )}
         <button
@@ -421,8 +419,14 @@ export default function AiAssistantWorkspace({
         </button>
       </form>
       <p className={`ai-assistant-status ${speechError ? "error" : ""}`} aria-live="polite">
-        {speechError ?? (isListening ? "Listening…" : status)}
+        {speechError ?? (isListening ? "Listening…" : isStarting ? "Starting microphone…" : status)}
       </p>
+      {speechNotice && <p className="ai-assistant-status" role="status">{speechNotice}</p>}
+      {canUseSpeech && (
+        <p className="ai-assistant-status">Pause stops text input, not the microphone. Speech recognition
+          stays active across screens; the browser may still process speech. Close the app or browser
+          to release the microphone.</p>
+      )}
     </section>
   );
 }

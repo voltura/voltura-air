@@ -887,6 +887,16 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   result is sent through the normal Windows text path and remains visible in
   the editable field; devices without browser speech recognition can use their
   keyboard's dictation in the field instead.
+- Dictation and the Assistant share a continuous speech session after the first
+  explicit microphone start. **Pause** stops text delivery, not microphone capture.
+  Leaving either screen or hiding the app also pauses delivery; returning requires
+  another explicit Listen/microphone press. Results observed while paused are
+  discarded, including subsequent final revisions, rather than replayed into the
+  next screen. The browser may continue processing audio while paused and can
+  independently end capture. The controls disclose this behavior.
+- If no final text reaches the active speech input for 15 seconds, a conditional
+  message suggests fully closing and reopening the installed app or web browser.
+  It does not treat silence as proof of failure or automatically restart capture.
 - **Send text to PC** handles up to 4,096 characters. Destinations include the
   focused app, clipboard only, configured fresh document/app targets, a new
   text draft, or an email draft. Windows focus determines the target; delivery

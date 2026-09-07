@@ -4,9 +4,11 @@ interface DictationModeProps {
   canUseSpeech: boolean;
   dictationText: string;
   isListening: boolean;
+  isStarting?: boolean;
   sendText: (text: string) => void;
   setDictationText: React.Dispatch<React.SetStateAction<string>>;
   speechError: string | null;
+  speechNotice?: string | null;
   startSpeech: () => void;
   stopSpeech: () => void;
 }
@@ -15,12 +17,15 @@ export function DictationMode({
   canUseSpeech,
   dictationText,
   isListening,
+  isStarting = false,
   sendText,
   setDictationText,
   speechError,
+  speechNotice,
   startSpeech,
   stopSpeech,
 }: DictationModeProps) {
+  const speechActive = isListening || isStarting;
   const sendDictationText = () => {
     sendText(dictationText);
     setDictationText("");
@@ -36,11 +41,13 @@ export function DictationMode({
           <strong>
             {isListening
               ? "Listening"
-              : speechError
-                ? "Try again"
-                : canUseSpeech
-                  ? "Ready to dictate"
-                  : "Speech recognition unavailable"}
+              : isStarting
+                ? "Starting microphone…"
+                : speechError
+                  ? "Try again"
+                  : canUseSpeech
+                    ? "Ready to dictate"
+                    : "Speech recognition unavailable"}
           </strong>
           {speechError ? (
             <p className="dictation-feedback error" role="alert">
@@ -52,6 +59,11 @@ export function DictationMode({
                 ? "Speak to send recognized text to your PC, or type and send it."
                 : "Use your phone keyboard dictation in the text box, then send."}
             </p>
+          )}
+          {speechNotice && <p className="dictation-feedback" role="status">{speechNotice}</p>}
+          {canUseSpeech && (
+            <p>Pause stops text input, not the microphone. Speech recognition stays active across screens;
+              the browser may still process speech. Close the app or browser to release the microphone.</p>
           )}
         </div>
       </div>
@@ -69,11 +81,11 @@ export function DictationMode({
           <button
             type="button"
             className="dictation-listen-button"
-            onClick={isListening ? stopSpeech : startSpeech}
-            aria-pressed={isListening}
+            onClick={speechActive ? stopSpeech : startSpeech}
+            aria-pressed={speechActive}
           >
-            {isListening ? <Power aria-hidden="true" /> : <Mic aria-hidden="true" />}
-            <span>{isListening ? "Stop" : "Listen"}</span>
+            {speechActive ? <Power aria-hidden="true" /> : <Mic aria-hidden="true" />}
+            <span>{speechActive ? "Pause" : "Listen"}</span>
           </button>
         )}
         <button type="button" className="dictation-send-button" onClick={sendDictationText}>

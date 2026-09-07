@@ -8,7 +8,14 @@ create one. Keep the shared notices in
 
 ## v1.2.7
 
-- Added feature explorer to public site.
+- Added a **Feature explorer** to the website, making it easier to find what
+  works with your device, connection, and access settings.
+- Improved speech input in **Dictation** and **AI Assistant** when switching
+  screens or returning to the app.
+- Added **Pause** for speech input, keeping the microphone active so you can
+  resume without restarting it. The app explains when the microphone stays on.
+- Added helpful restart guidance if spoken input stops producing text, tailored
+  to the installed app or web browser.
 
 ## v1.2.6
 

@@ -11,12 +11,18 @@ class MockSpeechRecognition {
   onresult: ((event: { resultIndex: number; results: ArrayLike<unknown> }) => void) | null = null;
   onend: (() => void) | null = null;
   onerror: ((event: { error?: string }) => void) | null = null;
-  start = vi.fn();
-  stop = vi.fn();
+  abort = vi.fn(() => this.onend?.());
+  onaudiostart: (() => void) | null = null;
+  start = vi.fn(() => this.onaudiostart?.());
+  stop = vi.fn(() => this.onend?.());
 
   constructor() {
     MockSpeechRecognition.instances.push(this);
   }
+}
+
+function installMockSpeechRecognition() {
+  vi.stubGlobal("SpeechRecognition", MockSpeechRecognition);
 }
 
 vi.mock("../../foundation/connection/pairingCredentials", () => ({
@@ -227,7 +233,7 @@ describe("AiAssistantWorkspace", () => {
   });
 
   it("adds phone speech recognition to the editable question before sending", async () => {
-    vi.stubGlobal("SpeechRecognition", MockSpeechRecognition);
+    installMockSpeechRecognition();
     const send = vi.fn<(message: ClientMessage) => void>();
     render(workspace(send));
     await waitFor(() =>
@@ -266,7 +272,7 @@ describe("AiAssistantWorkspace", () => {
   });
 
   it("does not split dictated supplementary characters at the question limit", async () => {
-    vi.stubGlobal("SpeechRecognition", MockSpeechRecognition);
+    installMockSpeechRecognition();
     const send = vi.fn<(message: ClientMessage) => void>();
     render(workspace(send));
     await waitFor(() =>
@@ -286,7 +292,7 @@ describe("AiAssistantWorkspace", () => {
     }) as HTMLTextAreaElement;
     fireEvent.change(input, { target: { value: "a".repeat(16 * 1024 - 1) } });
     fireEvent.click(screen.getByRole("button", { name: "Start dictation" }));
-    expect(MockSpeechRecognition.instances).toHaveLength(1);
+    await waitFor(() => expect(MockSpeechRecognition.instances).toHaveLength(1));
     const spoken = Object.assign([{ transcript: "😀" }], { isFinal: true });
     act(() => {
       MockSpeechRecognition.instances.at(0)?.onresult?.({ resultIndex: 0, results: [spoken] });

@@ -1,166 +1,99 @@
-import { useEffect, useRef, useState } from "react";
-
-type SpeechRecognitionConstructor = new () => SpeechRecognition;
-
-interface SpeechRecognition {
-  continuous: boolean;
-  interimResults: boolean;
-  start: () => void;
-  stop: () => void;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  onend: (() => void) | null;
-  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
-}
-
-interface SpeechRecognitionEvent {
-  resultIndex: number;
-  results: ArrayLike<
-    ArrayLike<{ transcript: string } & { isFinal?: boolean }> & { isFinal?: boolean }
-  >;
-}
-
-interface SpeechRecognitionErrorEvent {
-  error?: string;
-}
-
-declare global {
-  interface Window {
-    SpeechRecognition?: SpeechRecognitionConstructor;
-    webkitSpeechRecognition?: SpeechRecognitionConstructor;
-  }
-}
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  pauseSpeechDestination,
+  resumeSpeechDestination,
+  speechRestartGuidance,
+  type SpeechDestination,
+} from "./keepAliveSpeechDictation";
 
 export function useSpeechDictation(sendText: (text: string) => void, enabled = true) {
   const [dictationText, setDictationText] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   const [speechError, setSpeechError] = useState<string | null>(null);
-  const speechRef = useRef<SpeechRecognition | null>(null);
+  const [speechNotice, setSpeechNotice] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [requested, setRequested] = useState(false);
+  const activeRef = useRef(false);
+  const enabledRef = useRef(enabled);
   const sendTextRef = useRef(sendText);
+  const destinationRef = useRef<SpeechDestination | null>(null);
   const canUseSpeech = Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    enabledRef.current = enabled;
     sendTextRef.current = sendText;
-  }, [sendText]);
+    if (!enabled && destinationRef.current) {
+      pauseSpeechDestination(destinationRef.current);
+    }
+  }, [enabled, sendText]);
 
-  useEffect(() => {
-    const stopWhenHidden = () => {
-      if (document.visibilityState === "hidden") {
-        stopRecognition(speechRef, setIsListening);
-      }
+  if (!destinationRef.current) {
+    destinationRef.current = {
+      enabled: () => enabledRef.current && activeRef.current,
+      state: (state) => {
+        setIsStarting(state === "starting");
+        setIsListening(state === "listening");
+        if (state === "paused") {
+          activeRef.current = false;
+          setRequested(false);
+          setSpeechNotice(null);
+        }
+      },
+      text: (text) => {
+        setSpeechNotice(null);
+        setProgress((value) => value + 1);
+        setDictationText((current) => `${current}${text}`);
+        sendTextRef.current(text);
+      },
+      error: (message) => {
+        activeRef.current = false;
+        setRequested(false);
+        setSpeechNotice(null);
+        setSpeechError(message);
+      },
     };
+  }
 
-    document.addEventListener("visibilitychange", stopWhenHidden);
-    return () => {
-      document.removeEventListener("visibilitychange", stopWhenHidden);
-      stopRecognition(speechRef, setIsListening);
-    };
+  useLayoutEffect(() => () => {
+    activeRef.current = false;
+    pauseSpeechDestination(destinationRef.current!);
   }, []);
 
+  // One cancellable inactivity timer, only while the user requests dictation.
+  // Audio-start is not evidence that any text reached the app.
   useEffect(() => {
-    if (!enabled) {
-      stopRecognition(speechRef, setIsListening);
+    if (!requested || !enabled) {
+      return;
     }
-  }, [enabled]);
+    const timer = setTimeout(() => {
+      if (activeRef.current && enabledRef.current && document.visibilityState !== "hidden") {
+        setSpeechNotice(`No text received for 15 seconds. If you have been speaking: ${speechRestartGuidance()}`);
+      }
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [requested, enabled, progress]);
 
   const startSpeech = () => {
-    if (!enabled || speechRef.current) {
+    if (!enabled || activeRef.current || !canUseSpeech || document.visibilityState === "hidden") {
       return;
     }
-
-    const SpeechRecognitionApi = window.SpeechRecognition ?? window.webkitSpeechRecognition;
-    if (!SpeechRecognitionApi) {
-      return;
-    }
-
+    activeRef.current = true;
+    setRequested(true);
     setSpeechError(null);
-    const recognition = new SpeechRecognitionApi();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    const finalizedResultIndexes = new Set<number>();
-    recognition.onresult = (event) => {
-      if (speechRef.current !== recognition) {
-        return;
-      }
-
-      for (const [offset, result] of Array.from(event.results).slice(event.resultIndex).entries()) {
-        const resultIndex = event.resultIndex + offset;
-        if (!result.isFinal || finalizedResultIndexes.has(resultIndex)) {
-          continue;
-        }
-
-        finalizedResultIndexes.add(resultIndex);
-        const text = result[0]?.transcript?.trim() ?? "";
-        if (text.length === 0) {
-          continue;
-        }
-
-        const textToSend = `${text} `;
-        setDictationText((current) => `${current}${textToSend}`);
-        sendTextRef.current(textToSend);
-      }
-    };
-    speechRef.current = recognition;
-    recognition.onend = () => {
-      if (speechRef.current === recognition) {
-        speechRef.current = null;
-        setIsListening(false);
-      }
-    };
-    recognition.onerror = (event) => {
-      if (speechRef.current !== recognition) {
-        return;
-      }
-
-      stopRecognition(speechRef, setIsListening);
-      setSpeechError(getSpeechErrorMessage(event.error));
-    };
-
-    try {
-      recognition.start();
-      setIsListening(true);
-    } catch {
-      if (speechRef.current === recognition) {
-        speechRef.current = null;
-      }
-      setIsListening(false);
-      setSpeechError("Speech recognition could not start. Try again.");
-    }
-  };
-
-  const stopSpeech = () => {
-    stopRecognition(speechRef, setIsListening);
+    setSpeechNotice(null);
+    resumeSpeechDestination(destinationRef.current!);
   };
 
   return {
     canUseSpeech,
     dictationText,
     isListening,
+    isStarting,
     setDictationText,
     speechError,
+    speechNotice,
     startSpeech,
-    stopSpeech,
+    stopSpeech: () => pauseSpeechDestination(destinationRef.current!),
   };
-}
-
-function getSpeechErrorMessage(error: string | undefined): string {
-  if (error === "not-allowed" || error === "service-not-allowed") {
-    return "Microphone access was denied. Allow microphone access and try again.";
-  }
-
-  return "Speech recognition failed. Try again.";
-}
-
-function stopRecognition(
-  speechRef: React.RefObject<SpeechRecognition | null>,
-  setIsListening: React.Dispatch<React.SetStateAction<boolean>>,
-) {
-  const recognition = speechRef.current;
-  speechRef.current = null;
-  setIsListening(false);
-
-  try {
-    recognition?.stop();
-  } catch {
-    // The recognition instance may already be stopped by the browser.
-  }
 }

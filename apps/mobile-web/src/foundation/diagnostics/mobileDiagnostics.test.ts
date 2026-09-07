@@ -34,5 +34,6 @@ describe("buildMobileDiagnostics", () => {
     expect(diagnostics.selectedIp).toBe("192.168.1.10");
     expect(diagnostics.selectedPort).toBeNull();
     expect(diagnostics.currentWebSocketUrl).toBeNull();
+    expect(diagnostics.speechRecognition).toEqual({ lifecycleVersion: 4, events: [] });
   });
 });

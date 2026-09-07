@@ -1343,6 +1343,14 @@ export default function ScreenViewWorkspace({
   const stopLocalStream = useEffectEvent(closeStream);
 
   useEffect(() => {
+    if (!audioNotice) {
+      return;
+    }
+    const timeout = window.setTimeout(() => setAudioNotice(""), 8_000);
+    return () => window.clearTimeout(timeout);
+  }, [audioNotice]);
+
+  useEffect(() => {
     const unsubscribe = subscribeScreenViewResults(onControlResult);
     if (state === "paired" && capability.canView) {
       const operationId = createLocalId();

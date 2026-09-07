@@ -956,14 +956,30 @@ describe("ScreenViewWorkspace", () => {
     new DataView(audioRecord.buffer).setUint16(3, audioMessage.length, false);
     audioRecord.set(audioCode, 5);
     audioRecord.set(audioMessage, 5 + audioCode.length);
+    vi.useFakeTimers();
     act(() => staleMessageListener?.(new MessageEvent("message", { data: audioRecord.buffer })));
-    fireEvent.click(screen.getByRole("button", { name: "View PC screen full screen" }));
-    await waitFor(() =>
-      expect(document.querySelector(".screen-view-workspace")?.classList).toContain("is-immersive"),
+    expect(document.querySelector(".screen-view-audio-notice")?.textContent).toBe(
+      "PC sound stopped. Video is still available.",
     );
+    fireEvent.click(screen.getByRole("button", { name: "View PC screen full screen" }));
+    expect(document.querySelector(".screen-view-workspace")?.classList).toContain("is-immersive");
     expect(document.querySelector(".screen-view-audio-overlay")?.textContent).toBe(
       "PC sound stopped. Video is still available.",
     );
+    act(() => {
+      vi.advanceTimersByTime(7_999);
+    });
+    expect(document.querySelector(".screen-view-audio-overlay")).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(document.querySelector(".screen-view-audio-overlay")).toBeNull();
+    expect(document.querySelector(".screen-view-audio-notice")).toBeNull();
+    expect(video.muted).toBe(true);
+    expect(screen.getByRole("button", { name: "Play PC sound" }).getAttribute("title")).toBe(
+      "PC sound is unavailable",
+    );
+    vi.useRealTimers();
 
     if (!FakePeerConnection.instance) {
       throw new Error("Fake peer connection was not created.");

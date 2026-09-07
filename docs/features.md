@@ -175,7 +175,8 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   traffic varies with the audio. Device playback starts
   muted on every new peer and a visible local **Sound** action enables or mutes
   it. Display switching retains that local mute state. Audio unavailability or
-  output-device changes are reported in the live view and never stop video;
+  output-device changes are reported in the live view and never stop video.
+  Sound notices disappear after eight seconds, including in full screen;
   local PC playback continues normally.
 - **Preferences → Screen viewing** owns the High default. Each paired device may
   inherit it or select High, Standard, or Low from Windows **Devices → Screen

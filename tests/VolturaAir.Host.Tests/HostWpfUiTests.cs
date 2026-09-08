@@ -83,9 +83,15 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
             {
                 window.Show();
                 WaitForWpf(() => window.IsLoaded, "initial window placement");
-                // First-load placement restores the preferred size before a user can resize.
+                // Record an interactive resize so reopening the page retains the small viewport.
+                var handle = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+                _ = PlacementSendMessage(handle, 0x0231, 0, 0); // WM_ENTERSIZEMOVE
+                var sizingRect = new PlacementTestRect { Right = 640, Bottom = 480 };
+                _ = PlacementSendSizingMessage(handle, 0x0214, 8, ref sizingRect);
                 window.Width = 640;
                 window.Height = 480;
+                _ = PlacementSendMessage(handle, 0x0232, 0, 0); // WM_EXITSIZEMOVE
+                FlushPlacementEvents();
                 window.ShowPage(HostPage.Connect);
                 window.UpdateLayout();
 

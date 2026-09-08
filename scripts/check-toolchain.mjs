@@ -73,7 +73,7 @@ for (const runtime of [
 requireVersion(
   "PowerShell",
   commandVersion("pwsh", ["-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"]),
-  [7, 6, 4],
+  [7, 6, 5],
 );
 requireVersion("PHP", commandVersion("php", ["-r", "echo PHP_VERSION;"]), [8, 5, 9], "minimum");
 
@@ -154,5 +154,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  "Toolchain check passed: Node 24.20.0, npm 12.0.2, .NET SDK 10.0.400/runtime 10.0.11, PowerShell 7.6.4, PHP 8.5.9+, Visual Studio 2026 18.9+, and NSIS.",
+  "Toolchain check passed: Node 24.20.0, npm 12.0.2, .NET SDK 10.0.400/runtime 10.0.11, PowerShell 7.6.5, PHP 8.5.9+, Visual Studio 2026 18.9+, and NSIS.",
 );

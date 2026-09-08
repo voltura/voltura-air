@@ -6,6 +6,10 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.2.8
+
+- Correction of host app size that could be wrong after monitor turned off and on.
+
 ## v1.2.7
 
 - Added a **Feature explorer** to the website, making it easier to find what

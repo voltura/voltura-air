@@ -12,6 +12,9 @@ internal static partial class WindowWorkAreaPlacement
 {
     private const int WindowMessageDisplayChange = 0x007E;
     private const int WindowMessageDpiChanged = 0x02E0;
+    private const int WindowMessageEnterSizeMove = 0x0231;
+    private const int WindowMessageSizing = 0x0214;
+    private const int WindowMessageExitSizeMove = 0x0232;
     private const uint MonitorDefaultToNearest = 0x00000002;
     private const uint SetWindowPositionNoSize = 0x0001;
     private const uint SetWindowPositionNoZOrder = 0x0004;
@@ -31,10 +34,7 @@ internal static partial class WindowWorkAreaPlacement
         void OnLoaded(object sender, RoutedEventArgs eventArgs)
         {
             window.Loaded -= OnLoaded;
-            var bounds = Apply(window, SystemParameters.WorkArea, state.PreferredSize);
-            state.LastAutomaticallyConstrainedSize = SizesMatch(bounds.Size, state.PreferredSize)
-                ? null
-                : bounds.Size;
+            Apply(window, SystemParameters.WorkArea, state.PreferredSize);
         }
     }
 
@@ -68,7 +68,28 @@ internal static partial class WindowWorkAreaPlacement
 
         nint FilterWindowMessage(nint windowHandle, int message, nint wordParameter, nint longParameter, ref bool handled)
         {
-            if ((message == WindowMessageDisplayChange || message == WindowMessageDpiChanged) &&
+            // Native/DPI changes also update WPF Width/Height, even while hidden.
+            // Only an interactive resize changes the size we should restore.
+            if (message == WindowMessageEnterSizeMove)
+            {
+                state.IsInSizeMove = true;
+                state.WasResized = false;
+            }
+            else if (message == WindowMessageSizing && state.IsInSizeMove)
+            {
+                state.WasResized = true;
+            }
+            else if (message == WindowMessageExitSizeMove)
+            {
+                if (state.WasResized && window.WindowState == WindowState.Normal)
+                {
+                    state.PreferredSize = new WpfSize(window.Width, window.Height);
+                }
+                state.IsInSizeMove = false;
+                state.WasResized = false;
+            }
+
+            if ((message is WindowMessageDisplayChange or WindowMessageDpiChanged or WindowMessageExitSizeMove) &&
                 pendingPlacement?.Status is not DispatcherOperationStatus.Pending and not DispatcherOperationStatus.Executing)
             {
                 pendingPlacement = window.Dispatcher.InvokeAsync(
@@ -106,15 +127,8 @@ internal static partial class WindowWorkAreaPlacement
 
     internal static WpfSize CalculateSizeAfterWorkAreaChange(
         WpfSize preferredSize,
-        WpfSize? lastAutomaticallyConstrainedSize,
-        WpfSize currentSize,
         WpfSize workAreaSize)
     {
-        if (!IsManagedSize(preferredSize, lastAutomaticallyConstrainedSize, currentSize))
-        {
-            return currentSize;
-        }
-
         return new WpfSize(
             Math.Min(preferredSize.Width, workAreaSize.Width),
             Math.Min(preferredSize.Height, workAreaSize.Height));
@@ -143,6 +157,7 @@ internal static partial class WindowWorkAreaPlacement
 
     private static void EnsureVisible(Window window, nint windowHandle, PlacementState state)
     {
+        if (state.IsInSizeMove) return;
         if (window.WindowState != WindowState.Normal ||
             !GetWindowRect(windowHandle, out var windowRect))
         {
@@ -198,16 +213,8 @@ internal static partial class WindowWorkAreaPlacement
         var workAreaSize = new WpfSize(
             (workArea.Right - workArea.Left) * DipsPerInch / dpi,
             (workArea.Bottom - workArea.Top) * DipsPerInch / dpi);
-        if (!IsManagedSize(state.PreferredSize, state.LastAutomaticallyConstrainedSize, currentSize))
-        {
-            state.LastAutomaticallyConstrainedSize = null;
-            return;
-        }
-
         var recoveredSize = CalculateSizeAfterWorkAreaChange(
             state.PreferredSize,
-            state.LastAutomaticallyConstrainedSize,
-            currentSize,
             workAreaSize);
 
         if (!SizesMatch(recoveredSize, currentSize))
@@ -215,19 +222,7 @@ internal static partial class WindowWorkAreaPlacement
             window.Width = recoveredSize.Width;
             window.Height = recoveredSize.Height;
         }
-
-        state.LastAutomaticallyConstrainedSize = SizesMatch(recoveredSize, state.PreferredSize)
-            ? null
-            : recoveredSize;
     }
-
-    private static bool IsManagedSize(
-        WpfSize preferredSize,
-        WpfSize? lastAutomaticallyConstrainedSize,
-        WpfSize currentSize) =>
-        lastAutomaticallyConstrainedSize is WpfSize constrainedSize
-            ? SizesMatch(currentSize, constrainedSize)
-            : SizesMatch(currentSize, preferredSize);
 
     private static bool SizesMatch(WpfSize left, WpfSize right) =>
         Math.Abs(left.Width - right.Width) <= SizeComparisonTolerance &&
@@ -235,9 +230,9 @@ internal static partial class WindowWorkAreaPlacement
 
     private sealed class PlacementState(WpfSize preferredSize)
     {
-        public WpfSize PreferredSize { get; } = preferredSize;
-
-        public WpfSize? LastAutomaticallyConstrainedSize { get; set; }
+        public WpfSize PreferredSize { get; set; } = preferredSize;
+        public bool IsInSizeMove { get; set; }
+        public bool WasResized { get; set; }
     }
 
     [StructLayout(LayoutKind.Sequential)]

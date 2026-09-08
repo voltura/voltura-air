@@ -27,6 +27,11 @@ Presentations, Phone webcam, Connection, Preferences, and Diagnostics. Closing h
 window to the notification area. The first close explains that paired devices
 remain active and that the tray icon reopens or exits.
 
+`WindowWorkAreaPlacement` retains the requested logical window size across
+display changes and tray hiding. Only an interactive user resize updates that
+size; native bounds changes do not. Recovery fits the retained size to the
+current monitor's work area, including when reopening a hidden window.
+
 The updater contributes one stateful tray item above **Open product page** and a collapsed **Update** accent button first above navigation only when a verified installer is ready. Both surfaces share the update feature state; neither polls or owns update work.
 
 The topmost startup window appears immediately and is rendered before startup

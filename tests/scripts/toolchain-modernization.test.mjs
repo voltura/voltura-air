@@ -18,6 +18,7 @@ test("repository toolchains are pinned to supported stable releases", () => {
     allowPrerelease: false,
   });
   const toolchainCheck = read("scripts/check-toolchain.mjs");
+  assert.match(toolchainCheck, /"feature-band"/u);
   assert.match(toolchainCheck, /\[7, 6, 5\]/u);
   assert.match(toolchainCheck, /process\.env\.npm_execpath/u);
   assert.match(toolchainCheck, /\[18, 9, 0\], "minimum"/u);

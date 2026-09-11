@@ -44,22 +44,29 @@ function requireVersion(label, actual, expected, comparison = "exact") {
   const valid =
     comparison === "major-minor"
       ? major === expectedMajor && minor === expectedMinor
-      : comparison === "minimum"
-        ? major * 1_000_000 + minor * 1_000 + patch >=
-          expectedMajor * 1_000_000 + expectedMinor * 1_000 + expectedPatch
-        : major === expectedMajor && minor === expectedMinor && patch === expectedPatch;
+      : comparison === "feature-band"
+        ? major === expectedMajor &&
+          minor === expectedMinor &&
+          Math.floor(patch / 100) === Math.floor(expectedPatch / 100) &&
+          patch >= expectedPatch
+        : comparison === "minimum"
+          ? major * 1_000_000 + minor * 1_000 + patch >=
+            expectedMajor * 1_000_000 + expectedMinor * 1_000 + expectedPatch
+          : major === expectedMajor && minor === expectedMinor && patch === expectedPatch;
   const expectation =
     comparison === "major-minor"
       ? `${expected.join(".")}.x`
-      : comparison === "minimum"
-        ? `${expected.join(".")} or newer`
-        : expected.join(".");
+      : comparison === "feature-band"
+        ? `${expectedMajor}.${expectedMinor}.${Math.floor(expectedPatch / 100)}xx feature band or newer`
+        : comparison === "minimum"
+          ? `${expected.join(".")} or newer`
+          : expected.join(".");
   if (!valid) failures.push(`${label} ${actual} does not satisfy ${expectation}.`);
 }
 
 requireVersion("Node.js", process.versions.node, [24, 20, 0]);
 requireVersion("npm", commandVersion("npm", ["--version"]), [12, 0, 2]);
-requireVersion(".NET SDK", commandVersion("dotnet", ["--version"]), [10, 0, 400]);
+requireVersion(".NET SDK", commandVersion("dotnet", ["--version"]), [10, 0, 400], "feature-band");
 const dotnetRuntimes = commandVersion("dotnet", ["--list-runtimes"]);
 for (const runtime of [
   "Microsoft.AspNetCore.App",
@@ -154,5 +161,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  "Toolchain check passed: Node 24.20.0, npm 12.0.2, .NET SDK 10.0.400/runtime 10.0.11, PowerShell 7.6.5, PHP 8.5.9+, Visual Studio 2026 18.9+, and NSIS.",
+  "Toolchain check passed: Node 24.20.0, npm 12.0.2, .NET SDK 10.0.4xx/runtime 10.0.11, PowerShell 7.6.5, PHP 8.5.9+, Visual Studio 2026 18.9+, and NSIS.",
 );

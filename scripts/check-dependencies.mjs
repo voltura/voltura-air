@@ -33,9 +33,9 @@ const unexpectedOutdated = Object.entries(outdatedReport).filter(([name, value])
   const entries = Array.isArray(value) ? value : [value];
   const accepted =
     name === "@types/node"
-      ? "24.13.3"
+      ? "26.4.1"
       : name === "@cloudflare/workers-types"
-        ? "5.20260825.1"
+        ? "5.20260911.1"
         : null;
   return (
     !accepted || entries.some((entry) => entry.current !== accepted || entry.wanted !== accepted)
@@ -50,12 +50,6 @@ if (unexpectedOutdated.length > 0) {
 
 const acceptedUpstreamTestRunnerPackages = new Map([
   ["Microsoft.ApplicationInsights", ["2.23.0", "3.1.2"]],
-  ["Microsoft.Bcl.AsyncInterfaces", ["6.0.0", "10.0.11"]],
-  ["Microsoft.Testing.Extensions.Telemetry", ["1.9.1", "2.3.3"]],
-  ["Microsoft.Testing.Extensions.TrxReport.Abstractions", ["1.9.1", "2.3.3"]],
-  ["Microsoft.Testing.Platform", ["1.9.1", "2.3.3"]],
-  ["Microsoft.Testing.Platform.MSBuild", ["1.9.1", "2.3.3"]],
-  ["System.Numerics.Tensors", ["9.0.0", "10.0.11"]],
 ]);
 
 for (const mode of ["--outdated", "--vulnerable", "--deprecated"]) {

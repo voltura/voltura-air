@@ -164,7 +164,7 @@ async function verifyMaintainedInventory() {
     "Vortice.Mathematics | 2.1.1",
     "SharpGen.Runtime and SharpGen.Runtime.COM | 2.4.2-beta",
     "Concentus | 2.2.2",
-    "NAudio.Wasapi and NAudio.Core | 3.0.1",
+    "NAudio.Wasapi and NAudio.Core | 3.1.0",
     "`ws` 8.21.3",
   ];
   for (const expected of requiredInventoryText) {
@@ -182,7 +182,7 @@ async function verifyMaintainedInventory() {
     ["Vortice.MediaFoundation", "3.8.3"],
     ["Vortice.Mathematics", "2.1.1"],
     ["Concentus", "2.2.2"],
-    ["NAudio.Wasapi", "3.0.1"],
+    ["NAudio.Wasapi", "3.1.0"],
   ];
   for (const [name, version] of directHostPackages) {
     const escapedName = name.replaceAll(".", "\\.");

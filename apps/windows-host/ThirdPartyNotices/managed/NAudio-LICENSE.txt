@@ -1,4 +1,4 @@
-NAudio 2.3.0
+NAudio 3.1.0
 
 MIT License
 

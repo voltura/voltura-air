@@ -231,7 +231,7 @@ MIT License
     SOFTWARE
 
 ------------------------------------------------------------------------
-@types/react 19.2.18
+@types/react 19.3.0
 License: MIT
 Source: https://github.com/DefinitelyTyped/DefinitelyTyped
 ------------------------------------------------------------------------
@@ -1261,7 +1261,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------
-lucide-react 1.40.0
+lucide-react 1.45.0
 License: ISC
 Source: https://github.com/lucide-icons/lucide
 ------------------------------------------------------------------------
@@ -2239,7 +2239,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------
-react 19.2.8
+react 19.3.0
 License: MIT
 Source: https://github.com/react/react
 ------------------------------------------------------------------------
@@ -2267,7 +2267,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------
-react-dom 19.2.8
+react-dom 19.3.0
 License: MIT
 Source: https://github.com/react/react
 ------------------------------------------------------------------------
@@ -2380,9 +2380,9 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------
-scheduler 0.27.0
+scheduler 0.28.0
 License: MIT
-Source: https://github.com/facebook/react
+Source: https://github.com/react/react
 ------------------------------------------------------------------------
 
 MIT License

@@ -6,6 +6,11 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.3.0
+
+- Improved overall reliability and compatibility for a smoother Voltura Air
+  experience.
+
 ## v1.2.9
 
 - Improved the overall reliability of Voltura Air and kept it compatible with

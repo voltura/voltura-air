@@ -382,7 +382,7 @@ public sealed class AiAssistantJsonRpcTests
             itemDispatchStarted.TrySetResult();
             Assert.True(allowItemDispatch.Wait(TimeSpan.FromSeconds(3)));
         };
-        client.TurnCompleted += (_, _, _) => observed.Enqueue("turn");
+        client.TurnCompleted += (_, _, _, _) => observed.Enqueue("turn");
 
         Task<CodexTurnHandle> start = client.StartTurnAsync(
             "assistant-thread",
@@ -416,6 +416,36 @@ public sealed class AiAssistantJsonRpcTests
         await release;
 
         Assert.Equal(["item", "turn"], observed);
+    }
+
+    [Fact]
+    public async Task NonRetryingUsageErrorEndsTheAcceptedTurn()
+    {
+        await using var transport = new FakeTransport();
+        var connection = new JsonRpcConnection(transport);
+        await using var client = new CodexAppServerClient(connection, []);
+        (string Status, string? Message)? completed = null;
+        client.TurnCompleted += (_, _, status, message) => completed = (status, message);
+
+        Task<CodexTurnHandle> start = client.StartTurnAsync(
+            "assistant-thread",
+            "Explain this",
+            TestContext.Current.CancellationToken);
+        long startId = await transport.ReadRequestIdAsync();
+        await transport.ReceiveAsync(
+            """{"method":"error","params":{"error":{"message":"You have no usage left.","codexErrorInfo":{"type":"usageLimitExceeded"}},"willRetry":false,"threadId":"assistant-thread","turnId":"turn-1"}}""");
+        await transport.ReceiveAsync(JsonSerializer.Serialize(new
+        {
+            id = startId,
+            result = new { turn = new { id = "turn-1" } }
+        }));
+
+        _ = await start;
+        Assert.Null(completed);
+        client.ReleaseTurnNotifications("assistant-thread");
+
+        Assert.Equal("failed", completed?.Status);
+        Assert.Equal("You have no usage left.", completed?.Message);
     }
 
     private sealed class FakeTransport : IJsonLineTransport

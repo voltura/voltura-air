@@ -6,6 +6,14 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.3.1
+
+- Fixed **Phone Webcam** failing to start in Safari.
+- Fixed speech input getting stuck while starting in **Dictation** and
+  **AI Assistant**. You can now tap the microphone to retry.
+- Fixed **AI Assistant** staying busy after a failed request, with clearer
+  messages when usage runs out or an answer cannot complete.
+
 ## v1.3.0
 
 - Improved overall reliability and compatibility for a smoother Voltura Air

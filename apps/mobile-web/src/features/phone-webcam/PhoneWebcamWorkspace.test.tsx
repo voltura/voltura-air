@@ -621,9 +621,10 @@ describe("PhoneWebcamWorkspace", () => {
       maximumBitrate: 2_000_000,
     },
   ])(
-    "negotiates $label H.264 and replaces the camera on the same peer",
+    "negotiates $label H.264 after Safari publishes its sender encoding and replaces the camera on the same peer",
     async ({ label, transportMode, policy, candidate, maximumBitrate }) => {
-      const sender = new FakeSender();
+      let senderEncodingAvailable = false;
+      const sender = new FakeSender(() => (senderEncodingAvailable ? 1 : 0));
       class FakePeerConnection {
         static instance: FakePeerConnection | null = null;
         static configuration: RTCConfiguration | undefined;
@@ -654,6 +655,7 @@ describe("PhoneWebcamWorkspace", () => {
         }
         setLocalDescription(description: RTCSessionDescriptionInit) {
           this.localDescription = description;
+          senderEncodingAvailable = true;
           return Promise.resolve();
         }
         getStats() {
@@ -1784,13 +1786,35 @@ function storeReconnectKey() {
 }
 
 class FakeSender {
+  private lastReturnedEncodingCount: number | null = null;
+
+  constructor(private readonly getEncodingCount: () => number = () => 1) {}
+
   readonly replaceTrack = vi
     .fn<(track: MediaStreamTrack | null) => Promise<void>>()
     .mockResolvedValue(undefined);
-  readonly getParameters = vi.fn(() => ({ encodings: [] }) as unknown as RTCRtpSendParameters);
+  readonly getParameters = vi.fn(() => {
+    const encodingCount = this.getEncodingCount();
+    this.lastReturnedEncodingCount = encodingCount;
+    return {
+      encodings: Array.from({ length: encodingCount }, () => ({})),
+      transactionId: "fake-sender-parameters",
+    } as unknown as RTCRtpSendParameters;
+  });
   readonly setParameters = vi
-    .fn<(parameters: RTCRtpSendParameters) => Promise<RTCRtpSendParameters>>()
-    .mockImplementation((parameters) => Promise.resolve(parameters));
+    .fn<(parameters: RTCRtpSendParameters) => Promise<void>>()
+    .mockImplementation((parameters) => {
+      if (
+        this.lastReturnedEncodingCount === null ||
+        parameters.encodings.length !== this.lastReturnedEncodingCount
+      ) {
+        return Promise.reject(
+          new DOMException("parameters are not valid", "InvalidModificationError"),
+        );
+      }
+      this.lastReturnedEncodingCount = null;
+      return Promise.resolve();
+    });
   track: MediaStreamTrack | null = null;
 }
 

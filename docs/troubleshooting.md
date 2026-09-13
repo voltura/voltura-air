@@ -20,14 +20,19 @@ The browser can still end capture itself. Page departure and recognition errors
 request cancellation; there is no automatic native restart loop. The microphone
 may stay active while text input is paused, and the browser may process speech.
 Close the app/browser or use its microphone controls to release capture.
-Diagnostics version 4 records text pause/resume and discarded result metadata.
+If a requested native start produces no audio or result callback for
+15 seconds, Voltura Air cancels that stalled instance, completes bounded cleanup,
+and asks the user to tap the microphone again. It never restarts recognition
+without another explicit user gesture. Diagnostics version 5 also records this
+start-timeout state alongside text pause/resume and discarded result metadata.
 Paused results and their later final revisions are excluded by result index;
 cumulative old results are not replayed. The API has no audio timestamps, so
 filtering observed result indices does not prove the capture time of a previously
 unseen delayed result. Foreground handoff remains a real-device acceptance check.
 
-After 15 seconds without accepted final text while the user requests dictation,
-both speech screens display conditional restart guidance beside the controls.
+After listening begins, 15 seconds without accepted final text while the user
+requests dictation causes both speech screens to display conditional restart
+guidance beside the controls.
 Installed/Home Screen mode says to fully close and reopen Voltura Air; browser
 mode says to fully close and reopen the web browser. This is an inactivity hint,
 not a detected speech-service failure. Incoming final text clears and rearms it;

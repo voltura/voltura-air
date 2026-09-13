@@ -13,6 +13,8 @@ interface SharedDictation {
   destination: SpeechDestination | null;
   capturing: boolean;
   ending: boolean;
+  startupTimer: ReturnType<typeof setTimeout> | undefined;
+  finishMessage: string | null;
   // Results are cumulative. Retain indices only, never paused transcripts.
   finalizedThrough: number;
   observedThrough: number;
@@ -20,6 +22,12 @@ interface SharedDictation {
 }
 
 let shared: SharedDictation | null = null;
+const startupTimeoutMs = 15000;
+
+function clearStartupTimer(current: SharedDictation) {
+  clearTimeout(current.startupTimer);
+  current.startupTimer = undefined;
+}
 
 export function speechRestartGuidance() {
   return getDisplayMode() === "installed"
@@ -82,9 +90,11 @@ export function resumeSpeechDestination(destination: SpeechDestination) {
         pauseSpeechDestination(current.destination);
       }
       current.ending = true;
+      clearStartupTimer(current);
       session.abort();
     };
     const session = createSpeechSession(recognition, () => {
+      clearStartupTimer(current);
       document.removeEventListener("visibilitychange", hidden);
       window.removeEventListener("pagehide", pageHide);
       if (shared === current) {
@@ -94,7 +104,7 @@ export function resumeSpeechDestination(destination: SpeechDestination) {
       current.destination = null;
       target?.state("paused");
       if (target) {
-        target.error(speechRestartGuidance());
+        target.error(current.finishMessage ?? speechRestartGuidance());
       }
     });
     const current: SharedDictation = {
@@ -102,12 +112,24 @@ export function resumeSpeechDestination(destination: SpeechDestination) {
       destination,
       capturing: false,
       ending: false,
+      startupTimer: undefined,
+      finishMessage: null,
       finalizedThrough: -1,
       observedThrough: -1,
       discardThrough: -1,
     };
     shared = current;
+    current.startupTimer = setTimeout(() => {
+      if (shared !== current || current.capturing || current.ending) {
+        return;
+      }
+      current.finishMessage = "Speech input did not start. Tap the microphone to retry.";
+      current.ending = true;
+      session.record("start-timeout");
+      session.abort();
+    }, startupTimeoutMs);
     recognition.onaudiostart = () => {
+      clearStartupTimer(current);
       session.record("audio-start");
       current.capturing = true;
       current.destination?.state("listening");
@@ -116,6 +138,9 @@ export function resumeSpeechDestination(destination: SpeechDestination) {
       if (shared !== current || current.ending) {
         return;
       }
+      clearStartupTimer(current);
+      current.capturing = true;
+      current.destination?.state("listening");
       const target = current.destination;
       const accepting = target?.enabled() && document.visibilityState !== "hidden";
       if (!accepting && target) {
@@ -150,6 +175,10 @@ export function resumeSpeechDestination(destination: SpeechDestination) {
       }
     };
     recognition.onerror = (event) => {
+      if (shared !== current || current.ending) {
+        return;
+      }
+      clearStartupTimer(current);
       session.record("error", event.error);
       const target = current.destination;
       if (target) {

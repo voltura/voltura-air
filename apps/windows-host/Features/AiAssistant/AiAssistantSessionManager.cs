@@ -294,14 +294,14 @@ internal sealed class AiAssistantSessionLease : IAsyncDisposable
             MessageCompleted?.Invoke(itemId, text);
     }
 
-    private void OnTurnCompleted(string threadId, string turnId, string status)
+    private void OnTurnCompleted(string threadId, string turnId, string status, string? message)
     {
         if (threadId != _threadId || turnId != _turnId || Volatile.Read(ref _disposed) != 0) return;
         Volatile.Write(ref _working, 0);
         _turnId = null;
         TurnStateChanged?.Invoke(
             status == "completed" ? "ready" : "failed",
-            status == "completed" ? null : "The Assistant answer did not complete.");
+            status == "completed" ? null : message ?? "The Assistant answer did not complete.");
         _manager.PublishStateChanged();
     }
 

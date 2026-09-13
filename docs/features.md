@@ -895,9 +895,12 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   discarded, including subsequent final revisions, rather than replayed into the
   next screen. The browser may continue processing audio while paused and can
   independently end capture. The controls disclose this behavior.
-- If no final text reaches the active speech input for 15 seconds, a conditional
-  message suggests fully closing and reopening the installed app or web browser.
-  It does not treat silence as proof of failure or automatically restart capture.
+- After listening begins, if no final text reaches the active speech input for 15
+  seconds, a conditional message suggests fully closing and reopening the
+  installed app or web browser. It does not treat silence as proof of failure or
+  automatically restart capture. A native start that produces no audio or result
+  callback for 15 seconds is instead canceled and cleared so another explicit
+  microphone press can retry without closing the app.
 - **Send text to PC** handles up to 4,096 characters. Destinations include the
   focused app, clipboard only, configured fresh document/app targets, a new
   text draft, or an email draft. Windows focus determines the target; delivery

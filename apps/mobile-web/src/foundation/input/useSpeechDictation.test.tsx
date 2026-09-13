@@ -210,17 +210,31 @@ describe("keep-alive dictation", () => {
     },
   );
 
-  it("also warns when audio-start never arrives, without restarting capture", () => {
+  it("clears a native start that never responds and allows a microphone retry", () => {
     vi.useFakeTimers();
     installMockSpeechRecognition();
     MockSpeechRecognition.deferStart = true;
+    MockSpeechRecognition.deferEnd = true;
     render(<DictationHarness />);
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
     act(() => {
-      vi.advanceTimersByTime(15000);
+      vi.advanceTimersByTime(16999);
     });
-    expect(screen.getByTestId("speech-notice").textContent).toContain("restart");
-    expect(MockSpeechRecognition.instances[0]!.start).toHaveBeenCalledOnce();
+    expect(getActiveSpeechSession()).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(getActiveSpeechSession()).toBeNull();
+    expect(screen.getByTestId("speech-error").textContent).toBe(
+      "Speech input did not start. Tap the microphone to retry.",
+    );
+    expect(MockSpeechRecognition.instances[0]!.abort).toHaveBeenCalledOnce();
+
+    MockSpeechRecognition.deferStart = false;
+    MockSpeechRecognition.deferEnd = false;
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    expect(MockSpeechRecognition.instances).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Listening" })).toBeTruthy();
   });
 
   it("cancels the inactivity warning when hidden and requires an explicit resume", () => {

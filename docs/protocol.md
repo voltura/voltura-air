@@ -1502,6 +1502,9 @@ never split between chunks. `ai.assistant.state` is `ready`, `working`, or
 `failed`; only authoritative Codex turn state drives `working`. App-server stdio
 records are capped at 8 MiB, pre-confirmation notifications and outbound actions
 use bounded 64-entry queues, and overflow fails the Assistant session closed.
+An app-server error with `willRetry: false` is a terminal turn result: the host
+clears `working` and publishes its bounded message as the failed state without
+waiting for a separate completion notification.
 Because a timed-out `turn/start` may already have been accepted by Codex, an
 uncertain result also closes the app-server session before another question can
 be accepted. Disconnect, revocation, process exit, close, and host shutdown

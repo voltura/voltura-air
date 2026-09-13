@@ -86,6 +86,8 @@ foundation, shared by Dictation and Assistant. Feature hooks own only a detachab
 text destination and one active-input inactivity timer. Pausing or unmounting a
 destination does not release native recognition; hiding detaches delivery, while
 page departure, native end, or error releases the session and its listeners.
+The shared owner also aborts and clears a start that produces no audio or result
+callback within 15 seconds, with the existing bounded end cleanup as a final backstop.
 No microphone is acquired before an explicit gesture, and no automatic restart
 loop runs. This keep-alive session is the explicit exception to disabled-feature
 resource allocation below; the UI discloses ongoing microphone use.

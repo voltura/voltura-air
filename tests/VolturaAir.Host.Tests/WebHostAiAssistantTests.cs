@@ -72,6 +72,43 @@ public sealed class WebHostAiAssistantTests : WebHostServiceTestBase
     }
 
     [Fact]
+    public async Task NonRetryingCodexErrorEndsMobileWorkingState()
+    {
+        var factory = new FakeAssistantClientFactory();
+        await using var fixture = await WebHostFixture.StartAsync(aiAssistantClientFactory: factory);
+        using var key = new PairingTestKey();
+        using WebSocket socket = await ConnectAsync(fixture.WebHost);
+        await PairAsync(socket, fixture.Manager, key);
+        _ = await SendUntilTypeAsync(socket, new
+        {
+            type = "ai.assistant.open",
+            operationId = "assistant-open-quota",
+            clientSignature = key.SignPayload(AiAssistantProtocol.OpenTranscript(
+                "client-assistant", fixture.Manager.HostIdentity.PublicKey, "assistant-open-quota"))
+        }, "ai.assistant.open.result");
+        _ = await ReceiveUntilTypeAsync(socket, "ai.assistant.snapshot.complete");
+        _ = await ReceiveUntilTypeAsync(socket, "ai.assistant.state");
+
+        const string question = "Can you answer?";
+        _ = await SendUntilTypeAsync(socket, new
+        {
+            type = "ai.assistant.ask",
+            operationId = "assistant-ask-quota",
+            question,
+            clientSignature = key.SignPayload(AiAssistantProtocol.AskTranscript(
+                "client-assistant", fixture.Manager.HostIdentity.PublicKey, "assistant-ask-quota", question))
+        }, "ai.assistant.ask.result");
+        _ = await ReceiveUntilTypeAsync(socket, "ai.assistant.state");
+
+        factory.Client.FailAnswer("You have no usage left.");
+        JsonElement failed = await ReceiveUntilTypeAsync(socket, "ai.assistant.state");
+
+        Assert.Equal("failed", failed.GetProperty("state").GetString());
+        Assert.Equal("You have no usage left.", failed.GetProperty("message").GetString());
+        Assert.False(fixture.WebHost.AiAssistantSessions.IsWorking);
+    }
+
+    [Fact]
     public async Task HostOwnershipChangesAreBroadcastToPairedDevices()
     {
         var factory = new FakeAssistantClientFactory();
@@ -877,7 +914,7 @@ public sealed class WebHostAiAssistantTests : WebHostServiceTestBase
         internal string SnapshotMessageId { get; set; } = "previous-answer";
         internal string? CompleteOnReleaseText { get; set; }
         public event Action<string, string, string, string>? AgentMessageCompleted;
-        public event Action<string, string, string>? TurnCompleted;
+        public event Action<string, string, string, string?>? TurnCompleted;
         public event Action? ConnectionClosed;
 
         public Task<CodexThreadSummary?> FindAssistantAsync(CancellationToken cancellationToken) =>
@@ -931,8 +968,10 @@ public sealed class WebHostAiAssistantTests : WebHostServiceTestBase
         internal void CompleteAnswer(string text, string itemId = "assistant-answer-1")
         {
             AgentMessageCompleted?.Invoke(_threadId, _turnId!, itemId, text);
-            TurnCompleted?.Invoke(_threadId, _turnId!, "completed");
+            TurnCompleted?.Invoke(_threadId, _turnId!, "completed", null);
         }
+        internal void FailAnswer(string message) =>
+            TurnCompleted?.Invoke(_threadId, _turnId!, "failed", message);
         public async ValueTask DisposeAsync()
         {
             Disposed = true;

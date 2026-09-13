@@ -63,7 +63,7 @@ export function useSpeechDictation(sendText: (text: string) => void, enabled = t
   // One cancellable inactivity timer, only while the user requests dictation.
   // Audio-start is not evidence that any text reached the app.
   useEffect(() => {
-    if (!requested || !enabled) {
+    if (!requested || !enabled || isStarting) {
       return;
     }
     const timer = setTimeout(() => {
@@ -74,7 +74,7 @@ export function useSpeechDictation(sendText: (text: string) => void, enabled = t
       }
     }, 15000);
     return () => clearTimeout(timer);
-  }, [requested, enabled, progress]);
+  }, [requested, enabled, isStarting, progress]);
 
   const startSpeech = () => {
     if (!enabled || activeRef.current || !canUseSpeech || document.visibilityState === "hidden") {

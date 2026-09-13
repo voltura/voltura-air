@@ -654,11 +654,20 @@ export default function PhoneWebcamWorkspace({
           peer.close();
           return;
         }
+        negotiationStage = "creating the encrypted media answer";
+        const answer = await peer.createAnswer();
+        if (!isCurrent()) {
+          peer.close();
+          return;
+        }
+        await peer.setLocalDescription(answer);
+        if (!isCurrent()) {
+          peer.close();
+          return;
+        }
+        negotiationStage = "configuring the camera stream";
         senderRef.current = transceiver.sender;
         const parameters = transceiver.sender.getParameters();
-        if (parameters.encodings.length === 0) {
-          parameters.encodings = [{}];
-        }
         const encoding = parameters.encodings[0];
         if (!encoding) {
           throw new Error("Missing sender encoding.");
@@ -667,17 +676,6 @@ export default function PhoneWebcamWorkspace({
         encoding.maxFramerate = preferredFps;
         parameters.degradationPreference = "maintain-resolution";
         await transceiver.sender.setParameters(parameters);
-        if (!isCurrent()) {
-          peer.close();
-          return;
-        }
-        negotiationStage = "creating the encrypted media answer";
-        const answer = await peer.createAnswer();
-        if (!isCurrent()) {
-          peer.close();
-          return;
-        }
-        await peer.setLocalDescription(answer);
         if (!isCurrent()) {
           peer.close();
           return;

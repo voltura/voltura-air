@@ -69,6 +69,27 @@ public sealed class AiAssistantSessionManagerTests
     }
 
     [Fact]
+    public async Task NonRetryingTurnErrorClearsWorkingAndPublishesItsMessage()
+    {
+        var factory = new ManagerClientFactory();
+        await using var manager = new AiAssistantSessionManager(factory);
+        AiAssistantSessionOpenResult opened = await manager.TryOpenAsync(
+            new object(),
+            TestContext.Current.CancellationToken);
+        AiAssistantSessionLease lease = opened.Lease!;
+        (string State, string? Message)? completion = null;
+        lease.TurnStateChanged += (state, message) => completion = (state, message);
+
+        CodexTurnHandle turn = await lease.StartTurnAsync("Question", TestContext.Current.CancellationToken);
+        factory.Clients[0].FailTurn(turn.TurnId, "You have no usage left.");
+
+        Assert.False(lease.IsWorking);
+        Assert.Equal("failed", completion?.State);
+        Assert.Equal("You have no usage left.", completion?.Message);
+        await lease.DisposeAsync();
+    }
+
+    [Fact]
     public async Task ReplaysConnectionCloseThatPrecedesOwnerSubscription()
     {
         var factory = new ManagerClientFactory { CloseWhenConnectionHandlerIsAdded = true };
@@ -149,7 +170,7 @@ public sealed class AiAssistantSessionManagerTests
         internal int ReadCount { get; private set; }
         internal int StartCount { get; private set; }
         public event Action<string, string, string, string>? AgentMessageCompleted;
-        public event Action<string, string, string>? TurnCompleted;
+        public event Action<string, string, string, string?>? TurnCompleted;
         public event Action? ConnectionClosed
         {
             add
@@ -192,7 +213,9 @@ public sealed class AiAssistantSessionManagerTests
 
         public void ReleaseTurnNotifications(string threadId) { }
 
-        internal void CompleteTurn(string turnId) => TurnCompleted?.Invoke("thread", turnId, "completed");
+        internal void CompleteTurn(string turnId) => TurnCompleted?.Invoke("thread", turnId, "completed", null);
+        internal void FailTurn(string turnId, string message) =>
+            TurnCompleted?.Invoke("thread", turnId, "failed", message);
 
         public ValueTask DisposeAsync()
         {

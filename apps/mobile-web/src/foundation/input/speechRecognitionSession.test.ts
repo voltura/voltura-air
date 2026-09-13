@@ -39,7 +39,7 @@ describe("speech session completion", () => {
     session.start();
     expect(api.start).toHaveBeenCalledOnce();
     expect(getUserMedia).not.toHaveBeenCalled();
-    expect(getSpeechDiagnostics().lifecycleVersion).toBe(4);
+    expect(getSpeechDiagnostics().lifecycleVersion).toBe(5);
   });
 
   it("requests normal completion once and waits for end without aborting", async () => {

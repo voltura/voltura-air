@@ -3,7 +3,7 @@ namespace VolturaAir.Host.Features.AiAssistant;
 internal interface IAiAssistantClient : IAsyncDisposable
 {
     event Action<string, string, string, string>? AgentMessageCompleted;
-    event Action<string, string, string>? TurnCompleted;
+    event Action<string, string, string, string?>? TurnCompleted;
     event Action? ConnectionClosed;
 
     Task<CodexThreadSummary?> FindAssistantAsync(CancellationToken cancellationToken);

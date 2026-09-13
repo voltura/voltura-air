@@ -29,6 +29,7 @@ declare global {
 
 type SpeechEvent =
   | "start-requested"
+  | "start-timeout"
   | "started"
   | "audio-start"
   | "audio-end"
@@ -76,7 +77,7 @@ export const getActiveSpeechSession = () => activeSession;
 // Bounded, memory-only metadata. Never store audio, transcripts, or browser messages.
 // Included only when the user requests the existing mobile diagnostics export.
 export function getSpeechDiagnostics() {
-  return { lifecycleVersion: 4, events: events.map((event) => ({ ...event })) };
+  return { lifecycleVersion: 5, events: events.map((event) => ({ ...event })) };
 }
 
 export function createSpeechSession(

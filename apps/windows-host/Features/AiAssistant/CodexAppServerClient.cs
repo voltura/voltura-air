@@ -33,7 +33,7 @@ internal sealed class CodexAppServerClient : IAiAssistantClient
     }
 
     public event Action<string, string, string, string>? AgentMessageCompleted;
-    public event Action<string, string, string>? TurnCompleted;
+    public event Action<string, string, string, string?>? TurnCompleted;
     public event Action? ConnectionClosed;
 
     internal static async Task<CodexAppServerClient> ConnectAsync(CancellationToken cancellationToken)
@@ -366,7 +366,7 @@ internal sealed class CodexAppServerClient : IAiAssistantClient
         {
             if (notificationThread is not null &&
                 _heldNotificationThreads.Contains(notificationThread) &&
-                method is "item/completed" or "turn/completed")
+                method is "item/completed" or "turn/completed" or "error")
             {
                 if (_heldNotifications.Count >= MaximumHeldNotifications)
                     throw new CodexCompatibilityException("Codex produced too many notifications before confirming the turn.");
@@ -394,7 +394,14 @@ internal sealed class CodexAppServerClient : IAiAssistantClient
                 ReadString(parameters, "threadId") is { } completedThread &&
                 parameters.TryGetProperty("turn", out JsonElement turn) && turn.ValueKind == JsonValueKind.Object &&
                 ReadString(turn, "id") is { } completedTurn)
-                TurnCompleted?.Invoke(completedThread, completedTurn, ReadStatus(turn));
+                TurnCompleted?.Invoke(completedThread, completedTurn, ReadStatus(turn), ReadTurnError(turn));
+            else if (method == "error" &&
+                IsFalse(parameters, "willRetry") &&
+                ReadString(parameters, "threadId") is { } failedThread &&
+                ReadString(parameters, "turnId") is { } failedTurn &&
+                parameters.TryGetProperty("error", out JsonElement error) &&
+                error.ValueKind == JsonValueKind.Object)
+                TurnCompleted?.Invoke(failedThread, failedTurn, "failed", ReadErrorMessage(error));
         }
         catch (InvalidOperationException) { }
     }
@@ -430,6 +437,14 @@ internal sealed class CodexAppServerClient : IAiAssistantClient
         turn.TryGetProperty("status", out JsonElement status)
             ? status.ValueKind == JsonValueKind.String ? status.GetString() ?? "unknown" : ReadString(status, "type") ?? "unknown"
             : "unknown";
+    private static string? ReadTurnError(JsonElement turn) =>
+        turn.TryGetProperty("error", out JsonElement error) && error.ValueKind == JsonValueKind.Object
+            ? ReadErrorMessage(error)
+            : null;
+    private static string? ReadErrorMessage(JsonElement error) =>
+        ReadString(error, "message") is { Length: > 0 } message
+            ? AiAssistantProtocol.BoundWithEllipsis(message, 240)
+            : null;
     internal static string BoundText(string value) =>
         AiAssistantProtocol.BoundWithEllipsis(value, AiAssistantProtocol.MaximumMessageCharacters);
     private static string PreviousThreadName() =>

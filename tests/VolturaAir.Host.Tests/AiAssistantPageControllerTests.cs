@@ -140,7 +140,7 @@ public sealed partial class HostUiLayoutTests
         internal ManualResetEventSlim ReadStarted { get; } = new();
         internal ManualResetEventSlim ReadCancelled { get; } = new();
         public event Action<string, string, string, string>? AgentMessageCompleted { add { } remove { } }
-        public event Action<string, string, string>? TurnCompleted { add { } remove { } }
+        public event Action<string, string, string, string?>? TurnCompleted { add { } remove { } }
         public event Action? ConnectionClosed { add { } remove { } }
 
         public Task<CodexThreadSummary?> FindAssistantAsync(CancellationToken cancellationToken) =>

@@ -6,6 +6,10 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.3.2
+
+- Updated the tools used to build and test Voltura Air.
+
 ## v1.3.1
 
 - Fixed **Phone Webcam** failing to start in Safari.

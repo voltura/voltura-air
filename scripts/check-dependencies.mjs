@@ -33,7 +33,7 @@ const unexpectedOutdated = Object.entries(outdatedReport).filter(([name, value])
   const entries = Array.isArray(value) ? value : [value];
   const accepted =
     name === "@types/node"
-      ? "26.4.1"
+      ? "26.5.1"
       : name === "@cloudflare/workers-types"
         ? "5.20260911.1"
         : null;

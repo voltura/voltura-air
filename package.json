@@ -87,8 +87,8 @@
     "ui:tokens:generate": "node scripts/generate-ui-tokens.mjs"
   },
   "devDependencies": {
-    "oxfmt": "0.66.0",
-    "oxlint": "1.81.0",
+    "oxfmt": "0.67.0",
+    "oxlint": "1.82.0",
     "oxlint-tsgolint": "7.0.2001",
     "sharp": "^0.35.4",
     "typescript": "7.0.2"

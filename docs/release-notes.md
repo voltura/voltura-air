@@ -6,9 +6,15 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.3.5
+
+- Screen View now recovers from temporary display changes, such as starting or stopping full-screen video.
+- Fixed connection setup races that could prevent Screen View from starting on the first attempt.
+- Fixed a Relay error that could close the host connection when sending to a web client failed.
+
 ## v1.3.4
 
-- Improved Cloud Relay stability when the phone stays idle on the trackpad screen.
+- Added more frequent connection checks while the web app is open and idle over Cloud Relay.
 - Fixed automatic Relay reconnection and the Windows app showing a connected relay after its connection stopped.
 - Connection diagnostics now retain recent failures after reconnecting.
 

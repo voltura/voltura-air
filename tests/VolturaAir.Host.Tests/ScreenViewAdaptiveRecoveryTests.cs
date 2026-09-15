@@ -8,6 +8,117 @@ namespace VolturaAir.Host.Tests;
 public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
 {
     [Fact]
+    public async Task OfferPreparationDoesNotConsumeTheClientsAnswerWindow()
+    {
+        HostPermissionSet originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true });
+            var capture = new AdaptiveCaptureSource();
+            var peer = new AdaptivePeer(true) { OfferDelay = TimeSpan.FromSeconds(6) };
+            await using var fixture = await WebHostFixture.StartAsync(
+                screenViewCapture: capture, screenViewPeerFactory: new AdaptivePeerFactory(peer));
+            using var key = new PairingTestKey();
+            using WebSocket control = await ConnectAsync(fixture.WebHost);
+            await PairAsync(control, fixture.Manager, key);
+            await StartAndAnswerAsync(control, key, "screen-delayed-offer", TimeSpan.FromSeconds(10));
+            await peer.AcceptedFrame.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await AssertControlHealthyAsync(control);
+        }
+        finally { AppPermissionSettings.Save(originalPermissions); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DisplayTransitionResumesVideoOnTheSamePeer(bool afterFirstFrame)
+    {
+        HostPermissionSet originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true });
+            var capture = new AdaptiveCaptureSource { CaptureFailuresRemaining = afterFirstFrame ? 0 : 3 };
+            var peer = new AdaptivePeer(true);
+            await using var fixture = await WebHostFixture.StartAsync(
+                screenViewCapture: capture, screenViewPeerFactory: new AdaptivePeerFactory(peer));
+            using var key = new PairingTestKey();
+            using WebSocket control = await ConnectAsync(fixture.WebHost);
+            await PairAsync(control, fixture.Manager, key);
+            await StartAndAnswerAsync(control, key, "screen-display-transition");
+            if (afterFirstFrame)
+            {
+                await peer.AcceptedFrame.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                Interlocked.Exchange(ref capture.CaptureFailuresRemaining, 3);
+            }
+            Assert.True(await capture.Recovered.Task.WaitAsync(TimeSpan.FromSeconds(3)));
+            Assert.False(peer.Disposed.Task.IsCompleted);
+            await AssertControlHealthyAsync(control);
+
+            // A second mode change (such as stopping the movie) gets its own recovery.
+            capture.Recovered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            Interlocked.Exchange(ref capture.CaptureFailuresRemaining, 2);
+            Assert.True(await capture.Recovered.Task.WaitAsync(TimeSpan.FromSeconds(3)));
+            Assert.False(peer.Disposed.Task.IsCompleted);
+            _ = await SendUntilTypeAsync(control, new { type = "screen.view.stop", operationId = "screen-transition-stop" }, "screen.view.stop.result");
+            await peer.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally { AppPermissionSettings.Save(originalPermissions); }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DisplayRecoveryStopsOnCancellationOrPermanentFailure(bool recoverable)
+    {
+        HostPermissionSet originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true });
+            var capture = new AdaptiveCaptureSource { CaptureFailuresRemaining = int.MaxValue, RecoverableFailure = recoverable };
+            var peer = new AdaptivePeer(true);
+            await using var fixture = await WebHostFixture.StartAsync(
+                screenViewCapture: capture, screenViewPeerFactory: new AdaptivePeerFactory(peer));
+            using var key = new PairingTestKey();
+            using WebSocket control = await ConnectAsync(fixture.WebHost);
+            await PairAsync(control, fixture.Manager, key);
+            await StartAndAnswerAsync(control, key, "screen-display-stop");
+            await capture.Failed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            if (recoverable)
+                _ = await SendUntilTypeAsync(control, new { type = "screen.view.stop", operationId = "screen-recovery-stop" }, "screen.view.stop.result");
+            await peer.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(peer.AcceptedFrame.Task.IsCompleted);
+            await AssertControlHealthyAsync(control);
+        }
+        finally { AppPermissionSettings.Save(originalPermissions); }
+    }
+
+    [Fact]
+    public async Task DisplayThatNeverReturnsExhaustsRecoveryAndReleasesPeer()
+    {
+        HostPermissionSet originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true });
+            var capture = new AdaptiveCaptureSource { CaptureFailuresRemaining = int.MaxValue };
+            var peer = new AdaptivePeer(true);
+            await using var fixture = await WebHostFixture.StartAsync(
+                screenViewCapture: capture, screenViewPeerFactory: new AdaptivePeerFactory(peer));
+            using var key = new PairingTestKey();
+            using WebSocket control = await ConnectAsync(fixture.WebHost);
+            await PairAsync(control, fixture.Manager, key);
+            await StartAndAnswerAsync(control, key, "screen-display-timeout");
+            await capture.Failed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await AssertControlHealthyAsync(control);
+            await Task.Delay(500);
+            Assert.False(peer.Disposed.Task.IsCompleted);
+            await peer.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(12));
+            Assert.InRange(capture.ForceKeyFrameRequests.Count, 2, 45);
+            await AssertControlHealthyAsync(control);
+        }
+        finally { AppPermissionSettings.Save(originalPermissions); }
+    }
+
+    [Fact]
     public async Task RejectedReplacementFrameKeepsAKeyFramePendingUntilSendRecovers()
     {
         HostPermissionSet originalPermissions = AppPermissionSettings.Load();
@@ -299,7 +410,7 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         Assert.Equal("pair.accepted", accepted.GetProperty("type").GetString());
     }
 
-    private static async Task StartAndAnswerAsync(WebSocket control, PairingTestKey key, string operationId)
+    private static async Task StartAndAnswerAsync(WebSocket control, PairingTestKey key, string operationId, TimeSpan? answerDelay = null)
     {
         const string clientId = "client-screen-adaptive";
         const string displayId = "display-1";
@@ -309,7 +420,8 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
             operationId,
             displayId,
             clientSignature = key.SignPayload($"VolturaAir screen-view:start:v2:{clientId}:{operationId}:{displayId}")
-        }, "screen.view.start.result");
+        }, "screen.view.start.result", TimeSpan.FromSeconds(12));
+        if (answerDelay is { } delay) await Task.Delay(delay);
         string offer = start.GetProperty("offerSdp").GetString()!;
         const string answer = "v=0\r\no=phone 1 1 IN IP4 127.0.0.1\r\ns=answer\r\nt=0 0\r\n";
         string transcript = $"VolturaAir screen-view:answer:v2:{clientId}:{operationId}:{displayId}:{HashSdp(offer)}:{HashSdp(answer)}";
@@ -323,12 +435,13 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         Assert.True(result.GetProperty("succeeded").GetBoolean());
     }
 
-    private static async Task<JsonElement> SendUntilTypeAsync(WebSocket socket, object payload, string expectedType)
+    private static async Task<JsonElement> SendUntilTypeAsync(WebSocket socket, object payload, string expectedType, TimeSpan? timeout = null)
     {
         await SendAsync(socket, payload);
         for (int attempt = 0; attempt < 8; attempt++)
         {
-            string text = await ReceiveTextAsync(socket, new CancellationTokenSource(TimeSpan.FromSeconds(2)).Token);
+            using var cancellation = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(2));
+            string text = await ReceiveTextAsync(socket, cancellation.Token);
             using var document = JsonDocument.Parse(text);
             if (document.RootElement.GetProperty("type").GetString() == expectedType) return document.RootElement.Clone();
         }
@@ -356,6 +469,11 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
     private sealed class AdaptiveCaptureSource : IScreenViewCaptureSource
     {
         public int EncoderFailuresRemaining;
+        public int CaptureFailuresRemaining;
+        public bool RecoverableFailure { get; init; } = true;
+        private bool _recovering;
+        public TaskCompletionSource Failed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> Recovered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Captured { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Ended { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public System.Collections.Concurrent.ConcurrentQueue<bool> ForceKeyFrameRequests { get; } = new();
@@ -374,6 +492,20 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
             ForceKeyFrameRequests.Enqueue(forceKeyFrame);
             Profiles.Enqueue(profile);
             Bitrates.Enqueue(bitrate);
+            if (Interlocked.Decrement(ref CaptureFailuresRemaining) >= 0)
+            {
+                _recovering = true;
+                Failed.TrySetResult();
+                throw new ScreenViewCaptureException(RecoverableFailure ? "capture-device-lost" : "protected-content", "Injected capture transition.")
+                {
+                    CanRetryCapture = RecoverableFailure
+                };
+            }
+            if (_recovering)
+            {
+                _recovering = false;
+                Recovered.TrySetResult(forceKeyFrame);
+            }
             if (Interlocked.Decrement(ref EncoderFailuresRemaining) >= 0)
                 throw new ScreenViewCaptureException("encoder-failed", "Injected encoder sample failure.");
             Captured.TrySetResult();
@@ -389,6 +521,7 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
 
     private sealed class AdaptivePeer(params bool[] sendResults) : IScreenViewWebRtcPeer
     {
+        public TimeSpan OfferDelay { get; init; }
         private readonly Queue<bool> _sendResults = new(sendResults);
         public event EventHandler? Stopped;
         public event EventHandler? AudioStopped;
@@ -397,8 +530,11 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         public TaskCompletionSource AcceptedFrame { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource AudioUnavailable { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Disposed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public Task<string> CreateOfferAsync(CancellationToken cancellationToken) =>
-            Task.FromResult("v=0\r\no=voltura 1 1 IN IP4 127.0.0.1\r\ns=offer\r\nt=0 0\r\n");
+        public async Task<string> CreateOfferAsync(CancellationToken cancellationToken)
+        {
+            await Task.Delay(OfferDelay, cancellationToken);
+            return "v=0\r\no=voltura 1 1 IN IP4 127.0.0.1\r\ns=offer\r\nt=0 0\r\n";
+        }
         public void ApplyAnswer(string answerSdp) { }
         public bool TrySendH264(byte[] accessUnit, int framesPerSecond)
         {

@@ -749,14 +749,16 @@ bounded `iceServers`, `turnExpiresAt`, `relayUsageBytes`,
 `relayScreenQuality` is `High`, `Standard`, or `DataSaver`, representing an
 8, 4, or 2 Mbps sender ceiling respectively. A provider-forced Data saver result
 continues to override the locally selected quality.
-Some browsers can gather usable relay candidates without changing their ICE
-gathering state to `complete`. In Relay mode the browser may therefore send its
-answer after at least one relay candidate is present in `localDescription` and
-candidate events have been quiet for 350 milliseconds. Before signing and
-sending, every candidate line in the answer SDP must be `typ relay`; an empty or
-mixed candidate set is rejected. The 10-second timeout remains a failure when
-no relay candidate exists. Direct mode continues to wait for gathering to
-complete.
+The browser waits for ICE gathering to report `complete` before signing the
+answer. A pause between candidate events is not completion: this protocol sends
+one signed SDP snapshot and does not forward later candidates. For browsers
+that gather relay candidates without reporting completion, Relay mode uses the
+candidates present at the existing 10-second deadline. Every candidate line in
+that answer must be `typ relay`; an empty or mixed set is rejected. Direct mode
+continues to require gathering completion within the deadline.
+Screen View reserves a bounded slot while the host prepares its offer. Once the
+offer is ready, the client has a fresh 15-second answer window; host gathering
+does not consume the client's gathering budget.
 The authenticated relay TURN response carries `usageBytes`, `checkedAt`, and
 optional provider-owned `usageWarningBytes` and `usageCutoffBytes`. The host
 retains them as one immutable runtime snapshot, not registry settings. Missing

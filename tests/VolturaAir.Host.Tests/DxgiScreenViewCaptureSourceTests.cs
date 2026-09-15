@@ -4,6 +4,20 @@ using System.Drawing;
 
 public sealed class DxgiScreenViewCaptureSourceTests
 {
+    [Theory]
+    [InlineData(0x887A0026u, true)] // Access lost on desktop/display mode transition
+    [InlineData(0x887A0005u, true)] // Device removed
+    [InlineData(0x887A0007u, true)] // Device reset
+    [InlineData(0x887A0004u, true)] // Mode temporarily unsupported
+    [InlineData(0x887A0022u, true)] // Duplication temporarily unavailable
+    [InlineData(0x887A0028u, false)] // Session disconnected
+    [InlineData(0x80070005u, false)] // Access denied
+    [InlineData(0x887A0001u, false)] // Invalid call
+    public void OnlyRecoverableNativeTransitionsAllowCaptureRecreation(uint result, bool expected)
+    {
+        Assert.Equal(expected, DxgiScreenViewCaptureSource.IsRecoverableCaptureResult(unchecked((int)result)));
+    }
+
     [Fact]
     public void ScreenshotEncodingStreamStopsOnCancellation()
     {

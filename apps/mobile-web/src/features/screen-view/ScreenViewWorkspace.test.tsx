@@ -760,7 +760,7 @@ describe("ScreenViewWorkspace", () => {
     class FakePeerConnection {
       static instance: FakePeerConnection | null = null;
       readonly listeners = new Map<string, ((event: never) => void)[]>();
-      readonly iceGatheringState: RTCIceGatheringState = "gathering";
+      iceGatheringState: RTCIceGatheringState = "gathering";
       connectionState: RTCPeerConnectionState = "new";
       localDescription: RTCSessionDescriptionInit | null = null;
       remoteDescription: RTCSessionDescriptionInit | null = null;
@@ -903,10 +903,17 @@ describe("ScreenViewWorkspace", () => {
         candidate: { type: "relay", candidate: "candidate:1 1 udp 1 192.0.2.1 50000 typ relay" },
       });
     });
+    expect(send.mock.calls.some(([message]) => message.type === "screen.view.answer")).toBe(false);
+    act(() => {
+      if (FakePeerConnection.instance) {
+        FakePeerConnection.instance.iceGatheringState = "complete";
+        FakePeerConnection.instance.emit("icegatheringstatechange", {});
+      }
+    });
     await waitFor(() => {
       expect(send.mock.calls.some(([message]) => message.type === "screen.view.answer")).toBe(true);
     });
-    expect(FakePeerConnection.instance?.iceGatheringState).toBe("gathering");
+    expect(FakePeerConnection.instance?.iceGatheringState).toBe("complete");
     let staleMessageListener: ((event: MessageEvent) => void) | null = null;
     const staleChannel = {
       label: "screen-events",

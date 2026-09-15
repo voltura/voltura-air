@@ -254,6 +254,54 @@ describe("Secure Direct room", () => {
 });
 
 describe("Worker route isolation", () => {
+  it.each([relayEnvelopeKind.text, relayEnvelopeKind.binary])(
+    "isolates a failed client send from the host and other clients (kind %s)",
+    async (kind) => {
+      const keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
+        "sign",
+        "verify",
+      ]);
+      const publicKey = encodeBase64Url(
+        new Uint8Array(await crypto.subtle.exportKey("raw", keys.publicKey)),
+      );
+      const routeId = await deriveRouteId(publicKey);
+      const context = new TestContext();
+      const room = new worker.RelayRoomObject(context as never, {} as never);
+      await room.fetch(relayHostRequest(routeId, "203.0.113.1"));
+      const host = context.getWebSockets("host")[0]!;
+      await authenticateRoomHost(room, host, routeId, keys);
+      await room.fetch(relayDeviceRequest(routeId));
+      const failed = context.getWebSockets("device")[0]!;
+      const failedSession = decodeSentEnvelope(host.sent.pop()).sessionId;
+      await room.fetch(relayDeviceRequest(routeId));
+      const healthy = context.getWebSockets("device")[1]!;
+      const healthySession = decodeSentEnvelope(host.sent.pop()).sessionId;
+      vi.spyOn(failed, "send").mockImplementation(() => {
+        throw new Error("Injected socket closure during send");
+      });
+      const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        const payload = new TextEncoder().encode("valid message");
+        await expect(
+          room.webSocketMessage(
+            host as unknown as WebSocket,
+            Uint8Array.from(encodeEnvelope(failedSession, payload, kind)).buffer,
+          ),
+        ).resolves.toBeUndefined();
+        expect(host.readyState).toBe(TestSocket.OPEN);
+        expect(failed.closeCode).toBe(relayClose.unavailable);
+        await room.webSocketMessage(
+          host as unknown as WebSocket,
+          Uint8Array.from(encodeEnvelope(healthySession, payload, kind)).buffer,
+        );
+        expect(healthy.sent).toHaveLength(1);
+        expect(healthy.readyState).toBe(TestSocket.OPEN);
+      } finally {
+        errorLog.mockRestore();
+      }
+    },
+  );
+
   it("keeps bounded pending Relay hosts until the first valid proof", async () => {
     const keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
       "sign",

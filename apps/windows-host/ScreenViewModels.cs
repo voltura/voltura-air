@@ -130,4 +130,5 @@ public interface IScreenViewCaptureSource
 internal sealed class ScreenViewCaptureException(string code, string message, Exception? innerException = null) : Exception(message, innerException)
 {
     public string Code { get; } = code;
+    public bool CanRetryCapture { get; init; }
 }

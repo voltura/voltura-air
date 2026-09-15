@@ -797,17 +797,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function sendBounded(socket: WebSocket, value: string | ArrayBuffer | Uint8Array): boolean {
+  if (socket.readyState !== WebSocket.OPEN) return false;
   const byteLength =
     typeof value === "string" ? new TextEncoder().encode(value).length : value.byteLength;
-  if (socket.bufferedAmount + byteLength > maximumBufferedBytes) {
-    socket.close(relayClose.overloaded, "Relay backpressure limit exceeded");
-    return false;
-  }
   try {
+    if (socket.bufferedAmount + byteLength > maximumBufferedBytes) {
+      socket.close(relayClose.overloaded, "Relay backpressure limit exceeded");
+      return false;
+    }
     socket.send(value);
-  } catch (error) {
+  } catch {
     logRelayError("relay_send_error", socket);
-    throw error;
+    // A destination can close after lookup. End only that destination; allowing
+    // this error to escape blames the sender's event (or its valid text payload).
+    try {
+      socket.close(relayClose.unavailable, "Relay destination unavailable");
+    } catch {
+      /* The destination has already failed; its close/error event owns cleanup. */
+    }
+    return false;
   }
   return true;
 }

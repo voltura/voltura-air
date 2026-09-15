@@ -150,11 +150,12 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         {
             string offerSdp = await peer.CreateOfferAsync(cancellationToken).ConfigureAwait(false);
             string offerHash = HashSdp(offerSdp);
-            pending.SetOffer(offerHash);
             bool offerStillPending;
             lock (_gate)
             {
                 offerStillPending = ReferenceEquals(_pending, pending);
+                if (offerStillPending)
+                    pending.SetOffer(offerHash, (now ?? DateTimeOffset.UtcNow) + SignalingLifetime);
             }
             if (!offerStillPending)
             {
@@ -686,12 +687,33 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
     private async Task SendFramesAsync(ActiveView active, CancellationToken cancellationToken)
     {
         long eventSequence = 0;
+        long? recoveryStarted = null;
+        ScreenViewCaptureException? recoveryFailure = null;
         while (!cancellationToken.IsCancellationRequested)
         {
             string displayId = active.DisplayId;
-            ScreenViewQualityProfile quality = active.Quality;
+            if (recoveryStarted is { } started && TimeProvider.System.GetElapsedTime(started) >= TimeSpan.FromSeconds(10))
+            {
+                active.Peer.TrySendEvent(ScreenViewRecordEncoder.EncodeStatus(recoveryFailure!.Code, recoveryFailure.Message));
+                return;
+            }
             try
             {
+                if (recoveryStarted is not null)
+                {
+                    IReadOnlyList<ScreenViewSource> sources = _capture.GetSources();
+                    ScreenViewSource? source = sources.FirstOrDefault(source => source.Id == displayId);
+                    if (source is null)
+                        throw new ScreenViewCaptureException("display-unavailable", "The selected display is no longer available.") { CanRetryCapture = true };
+                    lock (_gate)
+                    {
+                        if (!ReferenceEquals(_active, active) || cancellationToken.IsCancellationRequested) return;
+                        if (active.DisplayId != displayId) continue;
+                        ReleaseHeldButtonsLocked(active);
+                        active.SetSource(source, VirtualDesktopBounds.From(sources));
+                    }
+                }
+                ScreenViewQualityProfile quality = active.Quality;
                 ScreenViewEncodedFrame? frame = await _capture.CaptureVideoAsync(
                     displayId,
                     quality.CaptureProfile,
@@ -719,6 +741,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                     active.Peer.TrySendEvent(ScreenViewRecordEncoder.EncodeCursor(++eventSequence, frame.Cursor));
                 if (frame is { Bytes.Length: > 0 })
                 {
+                    recoveryStarted = null;
+                    recoveryFailure = null;
                     ScreenViewDevelopmentTrace.FirstEncoded(_appLog);
                     ScreenViewDevelopmentTrace.Stage("send");
                     bool accepted = active.Peer.TrySendH264(frame.Bytes, frame.FramesPerSecond);
@@ -732,6 +756,15 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             }
             catch (ScreenViewCaptureException ex)
             {
+                if (ex.CanRetryCapture)
+                {
+                    recoveryStarted ??= TimeProvider.System.GetTimestamp();
+                    recoveryFailure = ex;
+                    _capture.EndCapture();
+                    active.RequestKeyFrame();
+                    await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
                 if ((string.Equals(ex.Code, "encoder-unavailable", StringComparison.Ordinal) ||
                     string.Equals(ex.Code, "encoder-failed", StringComparison.Ordinal)) &&
                     active.ReportProfileUnsupported())
@@ -788,22 +821,27 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
     private async Task ExpirePendingAsync(PendingView pending)
     {
         CancellationToken expiry = pending.ExpiryCancellation.Token;
+        TimeSpan remaining = SignalingLifetime;
         try
         {
-            await Task.Delay(SignalingLifetime, expiry).ConfigureAwait(false);
+            while (true)
+            {
+                await Task.Delay(remaining, expiry).ConfigureAwait(false);
+                lock (_gate)
+                {
+                    if (!ReferenceEquals(_pending, pending)) return;
+                    remaining = pending.ExpiresAt - DateTimeOffset.UtcNow;
+                    if (remaining <= TimeSpan.Zero) _pending = null;
+                }
+                if (remaining > TimeSpan.Zero) continue;
+                pending.Release();
+                return;
+            }
         }
         catch (OperationCanceledException) when (expiry.IsCancellationRequested)
         {
             return;
         }
-
-        bool release;
-        lock (_gate)
-        {
-            release = ReferenceEquals(_pending, pending);
-            if (release) _pending = null;
-        }
-        if (release) pending.Release();
     }
 
     private void OnPairingRevoked(object? sender, PairingRevokedEventArgs e)
@@ -920,7 +958,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         public ScreenViewSource Source { get; } = source;
         public string DisplayId => Source.Id;
         public VirtualDesktopBounds VirtualDesktop { get; } = virtualDesktop;
-        public DateTimeOffset ExpiresAt { get; } = expiresAt;
+        public DateTimeOffset ExpiresAt { get; private set; } = expiresAt;
         public IScreenViewWebRtcPeer Peer => Volatile.Read(ref _peer) ?? throw new ObjectDisposedException(nameof(PendingView));
         public DirectScreenQualityMode DirectQuality { get; } = directQuality;
         public int? MaximumBitrate { get; } = maximumBitrate;
@@ -933,7 +971,11 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         private readonly TaskCompletionSource _answerCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Task AnswerCompletion => _answerCompletion.Task;
         private int _expiryClosed;
-        public void SetOffer(string offerHash) => OfferHash = offerHash;
+        public void SetOffer(string offerHash, DateTimeOffset answerExpiresAt)
+        {
+            OfferHash = offerHash;
+            ExpiresAt = answerExpiresAt;
+        }
         public void CompleteAnswerProcessing() => _answerCompletion.TrySetResult();
         public void DetachPeer() { CloseExpiry(); _peer = null; }
         public void Release()

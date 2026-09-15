@@ -22,6 +22,15 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
     private readonly Lock _gate = new();
     private CaptureSession? _session;
 
+    // Only display/device transitions are retried. Access denial, session loss,
+    // protected content and invalid API usage still terminate capture.
+    internal static bool IsRecoverableCaptureResult(int result) => result is
+        unchecked((int)0x887A0026) or // DXGI_ERROR_ACCESS_LOST
+        unchecked((int)0x887A0005) or // DXGI_ERROR_DEVICE_REMOVED
+        unchecked((int)0x887A0007) or // DXGI_ERROR_DEVICE_RESET
+        unchecked((int)0x887A0004) or // DXGI_ERROR_UNSUPPORTED during a mode transition
+        unchecked((int)0x887A0022);   // DXGI_ERROR_NOT_CURRENTLY_AVAILABLE
+
     internal static bool ShouldCaptureVisual(bool needsResynchronization, long lastPresentTime, int dirtyRectangleCount) =>
         dirtyRectangleCount > 0 || (needsResynchronization && lastPresentTime != 0);
 
@@ -69,7 +78,10 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
             }
             catch (Exception ex) when (ex is SharpGenException or ExternalException or InvalidOperationException or NotSupportedException)
             {
-                throw new ScreenViewCaptureException("capture-unavailable", "Windows desktop capture is unavailable.", ex);
+                throw new ScreenViewCaptureException("capture-unavailable", "Windows desktop capture is unavailable.", ex)
+                {
+                    CanRetryCapture = ex is SharpGenException native && IsRecoverableCaptureResult(native.ResultCode.Code)
+                };
             }
         }
     }
@@ -103,7 +115,10 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
             catch (Exception ex) when (ex is SharpGenException or ExternalException or InvalidOperationException or NotSupportedException)
             {
                 EndCaptureCore();
-                throw new ScreenViewCaptureException("capture-device-lost", "The selected display is no longer available.", ex);
+                throw new ScreenViewCaptureException("capture-device-lost", "The selected display is no longer available.", ex)
+                {
+                    CanRetryCapture = ex is SharpGenException native && IsRecoverableCaptureResult(native.ResultCode.Code)
+                };
             }
         }
     }
@@ -170,7 +185,7 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
     {
         OutputLocation? location = EnumerateOutputs().FirstOrDefault(item => string.Equals(item.Id, sourceId, StringComparison.Ordinal));
         if (location is null)
-            throw new ScreenViewCaptureException("display-unavailable", "The selected display is no longer available.");
+            throw new ScreenViewCaptureException("display-unavailable", "The selected display is no longer available.") { CanRetryCapture = true };
 
         IDXGIFactory1? factory = null;
         IDXGIAdapter1? adapter = null;
@@ -297,7 +312,10 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
     private static void EnsureSuccess(Result result, string code)
     {
         if (result.Failure)
-            throw new ScreenViewCaptureException(code, "Windows desktop capture is unavailable.", new SharpGenException(result));
+            throw new ScreenViewCaptureException(code, "Windows desktop capture is unavailable.", new SharpGenException(result))
+            {
+                CanRetryCapture = IsRecoverableCaptureResult(result.Code)
+            };
     }
 
     private static (int X, int Y) GetEffectiveDpi(nint monitor)
@@ -375,7 +393,10 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
             if (acquire == DxgiResultCode.AccessLost || acquire == DxgiResultCode.SessionDisconnected)
             {
                 desktopResource?.Dispose();
-                throw new ScreenViewCaptureException("capture-device-lost", "Windows stopped providing the selected display.");
+                throw new ScreenViewCaptureException("capture-device-lost", "Windows stopped providing the selected display.")
+                {
+                    CanRetryCapture = acquire == DxgiResultCode.AccessLost
+                };
             }
             if (acquire.Failure) desktopResource?.Dispose();
             EnsureSuccess(acquire, "capture-failed");

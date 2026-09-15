@@ -132,6 +132,9 @@ virtual WebSocket. After the existing pairing or reconnect proof, P-256 ECDH,
 signed identity transcripts, HKDF-SHA256, and direction-specific AES-256-GCM
 protect every accepted-session frame. The service forwards opaque envelopes
 and does not own product pairing, permissions, commands, or device identities.
+Relay forwarding contains send failures at the destination socket. A closing
+client cannot turn a valid host message into a host protocol error or propagate
+its send exception through the shared host event.
 
 Secure Direct also converges on that same session handler. `WebHostService`
 owns one non-blocking 64-session admission pool shared by local, Relay, pending
@@ -271,11 +274,21 @@ owner and supplies it a loopback-only TURN endpoint. A host-owned bounded bridge
 connects that endpoint to the issued `turns` service with certificate-validated
 TLS/TCP, translates only RFC 8656 datagram/stream framing, accepts one loopback
 owner, and ends with the peer. Direct sessions create no bridge or TURN service.
-The mobile Screen workspace owns relay-candidate gathering. It can complete a
-Relay answer from a settled relay-only SDP even when a browser leaves gathering
-in progress; Direct answers retain complete-gathering behavior. Changing
+The shared web-client ICE helper waits for gathering completion before signing
+the one-shot answer. If a browser leaves gathering in progress at the 10-second
+deadline, Relay can use the nonempty relay-only SDP available then; a pause
+between candidate events is not completion. Direct requires completion. Changing
 source/profile or ending capture disposes the encoder and duplication session;
 a new source begins with a keyframe.
+
+Display-mode changes can invalidate DXGI duplication. The capture source releases
+the invalid native session and identifies recoverable device/display errors. The
+active coordinator preserves the peer and audio while retrying capture at 250 ms
+intervals for at most 10 seconds, refreshing display geometry and requesting a
+keyframe. Recovery finishes on a video frame, not a cursor update or an empty
+capture. Stop, revocation and shutdown cancel recovery; access denial, session
+disconnection and protected content stop immediately. An exhausted recovery
+reports the capture error and releases the viewing session.
 
 Custom screens cross the trust boundary as visual definitions and opaque IDs
 only. The host-owned store retains actions and assignments, the status

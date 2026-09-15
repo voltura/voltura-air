@@ -110,6 +110,9 @@ must keep input, validation, and actions reachable.
 
 Copied diagnostics may include state, failure reason, `VAIR-PAIR-*` code,
 credential-redacted page URL, browser user agent, display mode, and timestamp.
+The current page retains up to 20 connection failures in memory, including the
+failure trigger, socket state, queued byte count, visibility, and age of the last
+healthy reply. Reconnection does not erase this history; reloading the page does.
 They never include full pairing tokens, token IDs, private reconnect keys,
 host-identity private keys, challenges, or proofs.
 

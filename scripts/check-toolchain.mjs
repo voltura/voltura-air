@@ -2,14 +2,10 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { supportsToolVersion, toolVersionExpectation } from "./toolchain-versions.mjs";
 
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 const failures = [];
-
-function versionParts(value) {
-  const match = /^v?(\d+)\.(\d+)(?:\.(\d+))?/u.exec(value.trim());
-  return match ? [Number(match[1]), Number(match[2]), Number(match[3] ?? 0)] : null;
-}
 
 function commandVersion(command, args = []) {
   try {
@@ -34,38 +30,14 @@ function commandVersion(command, args = []) {
 }
 
 function requireVersion(label, actual, expected, comparison = "exact") {
-  const parts = versionParts(actual);
-  if (!parts) {
-    failures.push(`${label} returned an unrecognized version: ${actual || "<empty>"}`);
-    return;
+  if (!supportsToolVersion(actual, expected, comparison)) {
+    failures.push(
+      `${label} ${actual || "<empty>"} does not satisfy ${toolVersionExpectation(expected, comparison)}.`,
+    );
   }
-  const [major, minor, patch] = parts;
-  const [expectedMajor, expectedMinor, expectedPatch] = expected;
-  const valid =
-    comparison === "major-minor"
-      ? major === expectedMajor && minor === expectedMinor
-      : comparison === "feature-band"
-        ? major === expectedMajor &&
-          minor === expectedMinor &&
-          Math.floor(patch / 100) === Math.floor(expectedPatch / 100) &&
-          patch >= expectedPatch
-        : comparison === "minimum"
-          ? major * 1_000_000 + minor * 1_000 + patch >=
-            expectedMajor * 1_000_000 + expectedMinor * 1_000 + expectedPatch
-          : major === expectedMajor && minor === expectedMinor && patch === expectedPatch;
-  const expectation =
-    comparison === "major-minor"
-      ? `${expected.join(".")}.x`
-      : comparison === "feature-band"
-        ? `${expectedMajor}.${expectedMinor}.${Math.floor(expectedPatch / 100)}xx feature band or newer`
-        : comparison === "minimum"
-          ? `${expected.join(".")} or newer`
-          : expected.join(".");
-  if (!valid) failures.push(`${label} ${actual} does not satisfy ${expectation}.`);
 }
-
-requireVersion("Node.js", process.versions.node, [24, 20, 0]);
-requireVersion("npm", commandVersion("npm", ["--version"]), [12, 0, 2]);
+requireVersion("Node.js", process.versions.node, [24, 20, 0], "major-line");
+requireVersion("npm", commandVersion("npm", ["--version"]), [12, 0, 2], "patch-line");
 requireVersion(".NET SDK", commandVersion("dotnet", ["--version"]), [10, 0, 400], "feature-band");
 const dotnetRuntimes = commandVersion("dotnet", ["--list-runtimes"]);
 for (const runtime of [
@@ -73,14 +45,23 @@ for (const runtime of [
   "Microsoft.NETCore.App",
   "Microsoft.WindowsDesktop.App",
 ]) {
-  if (!dotnetRuntimes.split(/\r?\n/u).some((line) => line.startsWith(`${runtime} 10.0.11 `))) {
-    failures.push(`${runtime} 10.0.11 is required by the pinned build SDK.`);
+  if (
+    !dotnetRuntimes
+      .split(/\r?\n/u)
+      .some(
+        (line) =>
+          line.startsWith(`${runtime} `) &&
+          supportsToolVersion(line.split(" ")[1], [10, 0, 11], "patch-line"),
+      )
+  ) {
+    failures.push(`${runtime} 10.0.11 or a newer 10.0 patch is required.`);
   }
 }
 requireVersion(
   "PowerShell",
   commandVersion("pwsh", ["-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"]),
-  [7, 6, 5],
+  [7, 6, 6],
+  "patch-line",
 );
 requireVersion("PHP", commandVersion("php", ["-r", "echo PHP_VERSION;"]), [8, 5, 9], "minimum");
 
@@ -97,9 +78,11 @@ const packageJson = JSON.parse(readFileSync(join(repositoryRoot, "package.json")
 if (
   packageJson.packageManager !== "npm@12.0.2" ||
   packageJson.engines?.node !== ">=24.20.0 <25" ||
-  packageJson.engines?.npm !== "12.0.2"
+  packageJson.engines?.npm !== ">=12.0.2 <12.1"
 ) {
-  failures.push("package.json must declare the Node 24 LTS and npm 12.0.2 toolchain contract.");
+  failures.push(
+    "package.json must declare the Node 24 LTS and npm 12.0 patch-line toolchain contract.",
+  );
 }
 
 const dockerfile = readFileSync(join(repositoryRoot, "services", "relay", "Dockerfile"), "utf8");
@@ -161,5 +144,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  "Toolchain check passed: Node 24.20.0, npm 12.0.2, .NET SDK 10.0.4xx/runtime 10.0.11, PowerShell 7.6.5, PHP 8.5.9+, Visual Studio 2026 18.9+, and NSIS.",
+  "Toolchain check passed: Node 24 LTS (24.20.0+), npm 12.0.2+, .NET SDK 10.0.4xx/runtime 10.0.11+, PowerShell 7.6 LTS (7.6.6+), PHP 8.5.9+, Visual Studio 2026 18.9+, and NSIS.",
 );

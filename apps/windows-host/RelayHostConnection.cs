@@ -33,6 +33,9 @@ internal sealed class RelayHostConnection : IAsyncDisposable
     private const int MaximumUrlsPerTurnServer = 8;
     private const int MaximumPendingDeviceCloses = 64;
     private const int MaximumRelayEnvelopeBytes = RelayEnvelope.MaximumEncodedBytes;
+    internal static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(10);
+    internal static readonly TimeSpan AuthenticationTimeout = TimeSpan.FromSeconds(10);
+    internal static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(5);
     private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(10) };
     private static readonly TimeSpan[] RetryDelays =
     [
@@ -43,6 +46,7 @@ internal sealed class RelayHostConnection : IAsyncDisposable
     private readonly RelayRoutingIdentity _identity;
     private readonly TimeProvider _timeProvider;
     private readonly IAppLogWriter _log;
+    private readonly Func<Uri, CancellationToken, Task<WebSocket>> _connectSocket;
     private readonly RelayDeviceSessions _devices;
     private readonly SemaphoreSlim _sendGate = new(1, 1);
     private readonly SemaphoreSlim _manualRetry = new(0, 1);
@@ -68,12 +72,14 @@ internal sealed class RelayHostConnection : IAsyncDisposable
         RelayRoutingIdentity identity,
         Func<WebSocket, string, Action, CancellationToken, Task> handleSession,
         IAppLogWriter log,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        Func<Uri, CancellationToken, Task<WebSocket>>? connectSocket = null)
     {
         _endpoint = endpoint;
         _identity = identity;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _log = log;
+        _connectSocket = connectSocket ?? ConnectSocketAsync;
         _devices = new RelayDeviceSessions(
             handleSession,
             () => log.Write(new AppLogEntry("relay_state", "windows_host", Action: "device_session_failed", Outcome: "failed", Code: "handler")),
@@ -308,19 +314,27 @@ internal sealed class RelayHostConnection : IAsyncDisposable
         var attempt = 0;
         while (!cancellationToken.IsCancellationRequested)
         {
-            using var socket = new ClientWebSocket();
+            WebSocket? socket = null;
             long started = _timeProvider.GetTimestamp();
             string phase = "connect";
-            socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
             SetState(
                 attempt == 0 ? RelayConnectionState.Connecting : RelayConnectionState.Retrying,
                 FailureCode,
                 socket);
             try
             {
-                await socket.ConnectAsync(CreateHostUri(), cancellationToken);
+                using (var connectTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                {
+                    connectTimeout.CancelAfter(ConnectTimeout);
+                    socket = await _connectSocket(CreateHostUri(), connectTimeout.Token);
+                }
+                SetState(State, FailureCode, socket);
                 phase = "authenticate";
-                await AuthenticateAsync(socket, cancellationToken);
+                using (var authenticationTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                {
+                    authenticationTimeout.CancelAfter(AuthenticationTimeout);
+                    await AuthenticateAsync(socket, authenticationTimeout.Token);
+                }
                 attempt = 0;
                 SetState(RelayConnectionState.Connected, null, socket);
                 RequeuePendingDeviceCloses();
@@ -337,7 +351,7 @@ internal sealed class RelayHostConnection : IAsyncDisposable
             {
                 break;
             }
-            catch (Exception exception) when (exception is WebSocketException or HttpRequestException or JsonException or InvalidDataException)
+            catch (Exception exception) when (exception is not OutOfMemoryException)
             {
                 _log.Write(CreateConnectionEndLog(socket, phase, _timeProvider.GetElapsedTime(started), exception));
                 string failureCode = exception switch
@@ -345,13 +359,20 @@ internal sealed class RelayHostConnection : IAsyncDisposable
                     WebSocketException => "websocket",
                     HttpRequestException => "https",
                     JsonException => "protocol",
-                    _ => "authentication"
+                    InvalidDataException => "authentication",
+                    OperationCanceledException => "timeout-or-abort",
+                    ObjectDisposedException => "socket-disposed",
+                    _ => "connection-failed"
                 };
                 SetState(RelayConnectionState.Failed, failureCode, socket);
             }
             finally
             {
-                ClearSocket(socket);
+                // Publish the loss before device cleanup can wait on a handler.
+                SetState(cancellationToken.IsCancellationRequested ? RelayConnectionState.Disconnected :
+                    State == RelayConnectionState.Connected ? RelayConnectionState.Retrying : State,
+                    FailureCode, null);
+                socket?.Dispose();
                 await _devices.CloseAndDrainAsync();
             }
 
@@ -370,7 +391,30 @@ internal sealed class RelayHostConnection : IAsyncDisposable
         SetState(RelayConnectionState.Disconnected, FailureCode, null);
     }
 
-    private async Task AuthenticateAsync(ClientWebSocket socket, CancellationToken cancellationToken)
+    private static async Task<WebSocket> ConnectSocketAsync(Uri uri, CancellationToken cancellationToken)
+    {
+        var socket = CreateClientSocket();
+        try
+        {
+            await socket.ConnectAsync(uri, cancellationToken);
+            return socket;
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
+        }
+    }
+
+    internal static ClientWebSocket CreateClientSocket()
+    {
+        var socket = new ClientWebSocket();
+        socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
+        socket.Options.KeepAliveTimeout = TimeSpan.FromSeconds(20);
+        return socket;
+    }
+
+    private async Task AuthenticateAsync(WebSocket socket, CancellationToken cancellationToken)
     {
         await SendTextAsync(socket, new { type = "relay.host.hello", routeId = _identity.RouteId, publicKey = _identity.PublicKey }, cancellationToken);
         using var challenge = await ReceiveTextAsync(socket, cancellationToken);
@@ -388,7 +432,7 @@ internal sealed class RelayHostConnection : IAsyncDisposable
         }
     }
 
-    private async Task ReceiveLoopAsync(ClientWebSocket socket, CancellationToken cancellationToken)
+    private async Task ReceiveLoopAsync(WebSocket socket, CancellationToken cancellationToken)
     {
         var buffer = new byte[MaximumRelayEnvelopeBytes];
         while (socket.State == WebSocketState.Open)
@@ -497,7 +541,10 @@ internal sealed class RelayHostConnection : IAsyncDisposable
                     {
                         if (_pendingDeviceCloses.ContainsKey(sessionId)) _pendingDeviceCloses[sessionId] = false;
                     }
-                    AbortForRecovery(Volatile.Read(ref _runtime).Socket, "device-close-send-failed");
+                    // SendEnvelopeAsync aborts only the socket whose write failed. A
+                    // delayed failure from an old socket must not abort its replacement.
+                    if (Volatile.Read(ref _runtime) is { State: RelayConnectionState.Connected, Socket.State: WebSocketState.Open })
+                        RequeuePendingDeviceCloses();
                 }
             }
         }
@@ -508,11 +555,29 @@ internal sealed class RelayHostConnection : IAsyncDisposable
 
     private async Task SendEnvelopeAsync(RelayEnvelope envelope, CancellationToken cancellationToken)
     {
-        var socket = Volatile.Read(ref _runtime).Socket;
-        if (socket?.State != WebSocketState.Open) throw new WebSocketException(WebSocketError.ConnectionClosedPrematurely);
+        var runtime = Volatile.Read(ref _runtime);
+        var socket = runtime.Socket;
+        if (runtime.State != RelayConnectionState.Connected || socket?.State != WebSocketState.Open)
+            throw new WebSocketException(WebSocketError.ConnectionClosedPrematurely);
         var bytes = envelope.Encode();
         await _sendGate.WaitAsync(cancellationToken);
-        try { await socket.SendAsync(bytes, WebSocketMessageType.Binary, true, cancellationToken); }
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            runtime = Volatile.Read(ref _runtime);
+            if (runtime.State != RelayConnectionState.Connected || !ReferenceEquals(socket, runtime.Socket) || socket.State != WebSocketState.Open)
+                throw new WebSocketException(WebSocketError.ConnectionClosedPrematurely);
+            // Once admitted, the shared write belongs to the relay connection. A device
+            // leaving must not cancel ClientWebSocket.SendAsync and abort every device.
+            using var sendTimeout = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
+            sendTimeout.CancelAfter(SendTimeout);
+            try { await socket.SendAsync(bytes, WebSocketMessageType.Binary, true, sendTimeout.Token); }
+            catch (Exception exception) when (exception is OperationCanceledException or WebSocketException or ObjectDisposedException)
+            {
+                AbortForRecovery(socket, "upstream-send-failed");
+                throw;
+            }
+        }
         finally { _sendGate.Release(); }
     }
 
@@ -525,13 +590,13 @@ internal sealed class RelayHostConnection : IAsyncDisposable
         return builder.Uri;
     }
 
-    private static async Task SendTextAsync(ClientWebSocket socket, object payload, CancellationToken cancellationToken)
+    private static async Task SendTextAsync(WebSocket socket, object payload, CancellationToken cancellationToken)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions.Default);
         await socket.SendAsync(bytes, WebSocketMessageType.Text, true, cancellationToken);
     }
 
-    private static async Task<JsonDocument> ReceiveTextAsync(ClientWebSocket socket, CancellationToken cancellationToken)
+    private static async Task<JsonDocument> ReceiveTextAsync(WebSocket socket, CancellationToken cancellationToken)
     {
         var bytes = new byte[2048];
         var message = await WebSocketTransport.ReceiveBoundedMessageAsync(
@@ -563,7 +628,7 @@ internal sealed class RelayHostConnection : IAsyncDisposable
         return envelope;
     }
 
-    internal static AppLogEntry CreateConnectionEndLog(WebSocket socket, string phase, TimeSpan age, Exception? exception)
+    internal static AppLogEntry CreateConnectionEndLog(WebSocket? socket, string phase, TimeSpan age, Exception? exception)
     {
         // Only fixed categories, enum/numeric error codes and elapsed time. Exception
         // messages, close descriptions and URIs can contain credentials or payloads.
@@ -574,23 +639,25 @@ internal sealed class RelayHostConnection : IAsyncDisposable
             HttpRequestException => "https",
             JsonException => "protocol-json",
             InvalidDataException => "protocol-data",
+            OperationCanceledException => "timeout-or-abort",
+            ObjectDisposedException => "socket-disposed",
             _ => "other"
         };
         var webSocketError = exception as WebSocketException;
         var socketError = exception?.InnerException as System.Net.Sockets.SocketException;
         return new AppLogEntry("relay_connection", "windows_host",
             Action: exception is null ? "closed" : "failed", Outcome: exception is null ? "closed" : "failed", Code: category,
-            Detail: FormattableString.Invariant($"phase={phase} ageMs={age.TotalMilliseconds:F0} state={socket.State} closeCode={(int?)socket.CloseStatus} hresult={exception?.HResult} websocketError={webSocketError?.WebSocketErrorCode} nativeError={webSocketError?.NativeErrorCode} socketError={socketError?.SocketErrorCode} innerHresult={exception?.InnerException?.HResult}"));
+            Detail: FormattableString.Invariant($"phase={phase} ageMs={age.TotalMilliseconds:F0} state={socket?.State} closeCode={(int?)socket?.CloseStatus} hresult={exception?.HResult} websocketError={webSocketError?.WebSocketErrorCode} nativeError={webSocketError?.NativeErrorCode} socketError={socketError?.SocketErrorCode} innerHresult={exception?.InnerException?.HResult}"));
     }
 
-    private void AbortForRecovery(ClientWebSocket? socket, string reason)
+    private void AbortForRecovery(WebSocket? socket, string reason)
     {
         if (socket is null || socket.State == WebSocketState.Aborted) return;
         _log.Write(new AppLogEntry("relay_connection", "windows_host", Action: "local_abort", Outcome: "retrying", Code: reason));
         socket.Abort();
     }
 
-    private void SetState(RelayConnectionState state, string? failureCode, ClientWebSocket? socket)
+    private void SetState(RelayConnectionState state, string? failureCode, WebSocket? socket)
     {
         RelayRuntimeState previous = Volatile.Read(ref _runtime);
         var next = new RelayRuntimeState(state, failureCode, socket);
@@ -610,17 +677,6 @@ internal sealed class RelayHostConnection : IAsyncDisposable
         {
             try { subscriber(this, eventArgs); }
             catch (Exception exception) when (exception is not OutOfMemoryException) { }
-        }
-    }
-
-    private void ClearSocket(ClientWebSocket socket)
-    {
-        while (true)
-        {
-            RelayRuntimeState current = Volatile.Read(ref _runtime);
-            if (!ReferenceEquals(current.Socket, socket)) return;
-            var next = current with { Socket = null };
-            if (ReferenceEquals(Interlocked.CompareExchange(ref _runtime, next, current), current)) return;
         }
     }
 
@@ -648,7 +704,7 @@ internal sealed class RelayHostConnection : IAsyncDisposable
         }
         await _shutdown.CancelAsync();
         _deviceCloseQueue.Writer.TryComplete();
-        ClientWebSocket? socket = Volatile.Read(ref _runtime).Socket;
+        WebSocket? socket = Volatile.Read(ref _runtime).Socket;
         socket?.Abort();
         socket?.Dispose();
         if (_runTask is not null)
@@ -670,5 +726,5 @@ internal sealed class RelayHostConnection : IAsyncDisposable
     private sealed record RelayRuntimeState(
         RelayConnectionState State,
         string? FailureCode,
-        ClientWebSocket? Socket);
+        WebSocket? Socket);
 }

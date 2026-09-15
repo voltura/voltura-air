@@ -11,7 +11,7 @@ test("repository toolchains are pinned to supported stable releases", () => {
   const dockerfile = read("services/relay/Dockerfile");
 
   assert.equal(root.packageManager, "npm@12.0.2");
-  assert.deepEqual(root.engines, { node: ">=24.20.0 <25", npm: "12.0.2" });
+  assert.deepEqual(root.engines, { node: ">=24.20.0 <25", npm: ">=12.0.2 <12.1" });
   assert.deepEqual(dotnet.sdk, {
     version: "10.0.400",
     rollForward: "latestPatch",
@@ -19,7 +19,8 @@ test("repository toolchains are pinned to supported stable releases", () => {
   });
   const toolchainCheck = read("scripts/check-toolchain.mjs");
   assert.match(toolchainCheck, /"feature-band"/u);
-  assert.match(toolchainCheck, /\[7, 6, 5\]/u);
+  assert.match(toolchainCheck, /\[7, 6, 6\]/u);
+  assert.match(toolchainCheck, /"patch-line"/u);
   assert.match(toolchainCheck, /process\.env\.npm_execpath/u);
   assert.match(toolchainCheck, /\[18, 9, 0\], "minimum"/u);
   assert.match(dockerfile, /^FROM node:24\.20\.0-alpine@sha256:[a-f0-9]{64} AS build$/mu);

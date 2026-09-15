@@ -1,4 +1,5 @@
 import { getPcDisplayName } from "../pairing/pcDisplayName";
+import { getConnectionDiagnostics } from "../connection/connectionDiagnostics";
 import { getSpeechDiagnostics } from "../input/speechRecognitionSession";
 import { getWebSocketUrl, type PcProfile } from "../connection/pcProfiles";
 import type { HostStatusMetadata } from "../protocol/messages";
@@ -64,6 +65,7 @@ export function buildMobileDiagnostics(input: MobileDiagnosticsInput): string {
     browserUserAgent: navigator.userAgent,
     pageUrl: sanitizeUrl(safeLocationHref()),
     displayMode: getDisplayMode(),
+    connection: getConnectionDiagnostics(),
     speechRecognition: getSpeechDiagnostics(),
     timestamp: new Date().toISOString(),
   });

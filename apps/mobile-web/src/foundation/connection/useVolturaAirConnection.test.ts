@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPairingKeyMaterial } from "./pairingCredentials";
 import { createPcProfile } from "./pcProfiles";
 import { connectSecureDirect } from "./secureDirect";
+import { getConnectionDiagnostics } from "./connectionDiagnostics";
 import {
   shouldClearStoredReconnectKeyForRejection,
   useVolturaAirConnection,
@@ -1201,8 +1202,24 @@ describe("useVolturaAirConnection", () => {
 
       await act(() => vi.advanceTimersByTime(7500));
       expect(result.current.state).toBe("unavailable");
+      const failure = getConnectionDiagnostics().failures.at(-1);
+      expect(failure).toMatchObject({ trigger: "health-timeout", readyState: MockWebSocket.OPEN });
       expect(socket.close).toHaveBeenCalledTimes(1);
       expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ type: "health.ping" }));
+      await act(() => vi.advanceTimersByTime(1200));
+      const replacement = getSocket(1);
+      replacement.readyState = MockWebSocket.OPEN;
+      dispatchSocketEvent(replacement, "open");
+      dispatchSocketEvent(replacement, "message", {
+        data: JSON.stringify({
+          type: "pair.accepted",
+          clientId: "client-a",
+          pcName: "PC",
+          paired: true,
+        }),
+      });
+      expect(result.current.state).toBe("paired");
+      expect(getConnectionDiagnostics().failures.at(-1)).toEqual(failure);
     } finally {
       vi.useRealTimers();
     }

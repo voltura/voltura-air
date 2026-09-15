@@ -53,14 +53,20 @@ after final published-release verification succeeds.
 
 ## Prerequisites
 
-- Windows, Node.js 24.20.0 LTS, npm 12.0.2, .NET SDK 10.0.400,
-  PowerShell 7.6 LTS, Git, and NSIS 3.12 or newer.
+- Windows, Node.js 24 LTS (24.20.0 or newer within 24.x), npm 12.0.2 or a newer
+  12.0 patch, .NET SDK 10.0.400 or a newer patch in the 10.0.4xx feature band,
+  PowerShell 7.6 LTS (7.6.6 or a newer 7.6 patch), Git, and NSIS 3.12 or newer.
 - Visual Studio 2026 18.9 or newer with the Desktop development with C++ workload.
 - PHP 8.5.9 or newer on the 8.5 line for the public-site validation gate.
 - Authenticated GitHub CLI with write access to `voltura/voltura-air`.
 - Clean `main`, no merge/rebase, and no divergence from `origin/main`.
 - No workflow YAML under `.github/workflows`.
 - One committed non-empty target section in `docs/release-notes.md`.
+
+Installed .NET runtimes may advance from 10.0.11 within the 10.0 patch line;
+PSScriptAnalyzer may advance within 1.25.x. Preview versions are not accepted.
+The preferred bootstrap versions, dependency locks, and published image digests
+remain exact so packaged inputs stay reproducible.
 
 Outputs are under `artifacts/publish`; the command prints SHA-256 hashes for the
 ZIP and both installers.

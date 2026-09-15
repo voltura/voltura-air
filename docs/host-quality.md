@@ -32,6 +32,13 @@
 - Relay connection-end diagnostics retain the connection phase, elapsed time,
   numeric close/native error codes, and local recovery-abort category. They omit
   exception messages, peer close descriptions, connection URLs, and identifiers.
+- Relay connection setup and authentication each have a 10-second deadline.
+  Idle host sockets send a WebSocket PING after 20 seconds and require its PONG
+  within 20 seconds. Transport cancellation outside host shutdown enters normal
+  reconnect, and the disconnected state is published before device cleanup.
+  An admitted shared Relay send has a host-owned five-second deadline; ending one
+  device session cannot cancel that write and abort other devices' connections.
+  Late send failures abort only their original socket, never its replacement.
 - The active Screen View session owns system-output capture, endpoint-change
   subscriptions, bounded PCM/Opus work, and audio cancellation. Audio capture or
   track failure reports sound unavailable and must not cancel video or the

@@ -59,6 +59,7 @@ import {
   parseServerMessage,
 } from "./connectionProtocol";
 import { requestHostState, trySendClientMessage } from "./connectionSocketMessages";
+import { recordConnectionFailure, type ConnectionFailureTrigger } from "./connectionDiagnostics";
 import type { ConnectionError, ConnectionState, PairingAttempt } from "./connectionTypes";
 import {
   clearStoredReconnectKey,
@@ -359,6 +360,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       socket?: ControllerSocket,
       reason?: string,
       code = "VAIR-PAIR-HOST-UNREACHABLE",
+      trigger: ConnectionFailureTrigger = "connection-failure",
     ) {
       if (disposed || !shouldRetry) {
         return;
@@ -369,6 +371,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       }
 
       hasShownUnavailable = true;
+      recordConnectionFailure(code, trigger, socket, lastHealthyAtRef.current);
       clearRuntimeStateFromSocket(true);
       window.clearTimeout(connectionTimer);
       connectionTimer = undefined;
@@ -511,13 +514,13 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       }
 
       if (!trySendClientMessage(socket, { type: "health.ping" })) {
-        markUnavailable(socket);
+        markUnavailable(socket, undefined, undefined, "health-send-failed");
         return;
       }
 
       window.clearTimeout(healthDeadlineTimer);
       healthDeadlineTimer = window.setTimeout(() => {
-        markUnavailable(socket);
+        markUnavailable(socket, undefined, undefined, "health-timeout");
       }, healthCheckTimeoutMs);
     }
 
@@ -1396,6 +1399,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
             ws,
             getPcUnavailableMessage(currentPc(), screenshotMode),
             "VAIR-PAIR-SOCKET-CLOSED",
+            "socket-close",
           );
         }
 
@@ -1404,7 +1408,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
             return;
           }
 
-          markUnavailable(ws);
+          markUnavailable(ws, undefined, undefined, "socket-error");
         }
 
         let receiveQueue = Promise.resolve();

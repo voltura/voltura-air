@@ -475,6 +475,9 @@ public sealed partial class HostUiLayoutTests
                 Assert.Same(window.Resources["BoundedAccordionStyle"], details.Style);
                 Assert.Contains(FindWpfDescendants<InfoCard>(details), card => card.Title == "Network adapter");
                 var scroller = Assert.Single(FindWpfDescendants<ScrollViewer>(details));
+                // The isolated host may have no adapter details. Give this overflow
+                // scenario explicit tall content instead of depending on machine state.
+                Assert.IsAssignableFrom<FrameworkElement>(scroller.Content).MinHeight = 1000;
                 details.IsExpanded = true;
                 designSurface.UpdateLayout();
 

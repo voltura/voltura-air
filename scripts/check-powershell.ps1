@@ -37,8 +37,8 @@ if (`$failures) { `$failures | Write-Error; exit 1 }
 Assert-Parses $windowsPowerShell $windowsScripts 'Windows PowerShell 5.1'
 Assert-Parses (Get-Command pwsh -ErrorAction Stop).Source $coreScripts 'PowerShell 7.6'
 
-$analyzer = Get-Module -ListAvailable PSScriptAnalyzer | Where-Object Version -eq ([version]'1.25.0') | Select-Object -First 1
-if (-not $analyzer) { throw 'PSScriptAnalyzer 1.25.0 is required. Install-PSResource PSScriptAnalyzer -Version 1.25.0 -Scope CurrentUser' }
+$analyzer = Get-Module -ListAvailable PSScriptAnalyzer | Where-Object { $_.Version.Major -eq 1 -and $_.Version.Minor -eq 25 } | Sort-Object Version -Descending | Select-Object -First 1
+if (-not $analyzer) { throw 'PSScriptAnalyzer 1.25.x is required. Install-PSResource PSScriptAnalyzer -Version 1.25.0 -Scope CurrentUser' }
 Import-Module $analyzer.Path -Force
 $findings = @(Invoke-ScriptAnalyzer -Path $PSScriptRoot -Recurse -Severity Error)
 if ($findings.Count -gt 0) {

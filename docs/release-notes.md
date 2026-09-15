@@ -6,6 +6,12 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.3.3
+
+- Improved Cloud Relay connection stability and automatic reconnection.
+- Fixed the Windows app showing a connected relay after its connection stopped.
+- Connection diagnostics now retain recent failures after reconnecting.
+
 ## v1.3.2
 
 - Updated the tools used to build and test Voltura Air.

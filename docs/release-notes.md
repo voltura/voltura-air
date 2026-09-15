@@ -8,7 +8,9 @@ create one. Keep the shared notices in
 
 ## v1.3.4
 
-- Quiet Cloud Relay sessions now check their connection more frequently while the phone app is open.
+- Improved Cloud Relay stability when the phone stays idle on the trackpad screen.
+- Fixed automatic Relay reconnection and the Windows app showing a connected relay after its connection stopped.
+- Connection diagnostics now retain recent failures after reconnecting.
 
 ## v1.3.3
 

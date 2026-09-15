@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultAppSettings } from "../../foundation/settings/appSettings";
 import { defaultTrackpadSettings } from "../../foundation/input/gestures";
@@ -488,8 +488,16 @@ describe("SettingsDrawer", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText("Appearance"));
-    fireEvent.click(await screen.findByRole("button", { name: /#5FC8B4/u }, { timeout: 5000 }));
+    // Wait for both lazy modules explicitly instead of racing module loading
+    // against a DOM-query timeout in the parallel full suite.
+    await act(async () => {
+      fireEvent.click(screen.getByText("Appearance"));
+      await vi.dynamicImportSettled();
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /#5FC8B4/u }));
+      await vi.dynamicImportSettled();
+    });
     const input = await screen.findByLabelText("Hex color");
     const colorSurface = await screen.findByRole("slider", { name: "Saturation and brightness" });
     const initialColorDescription = colorSurface.getAttribute("aria-valuetext");

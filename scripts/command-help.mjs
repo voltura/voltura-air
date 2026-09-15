@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export const commandDescriptions = {
+  "setup:windows":
+    "Install and verify the Windows development machine; use -- -CheckOnly for inspection.",
   "actions:restore": "Install the checked-in GitHub Actions workflow files.",
   "ai:init":
     "Install the newest ChatGPT/Codex package if needed, then configure the daily task and desktop shortcut.",

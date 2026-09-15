@@ -53,10 +53,17 @@ after final published-release verification succeeds.
 
 ## Prerequisites
 
+Use `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1`
+to install and verify the public development machine. For a Voltura-operated
+release, run the equivalent entry point in `voltura-air-service` to additionally
+configure and check production access and the existing update signing key.
+See [machine setup](setup.md#windows-machine-setup).
+
 - Windows, Node.js 24 LTS (24.20.0 or newer within 24.x), npm 12.0.2 or a newer
   12.0 patch, .NET SDK 10.0.400 or a newer patch in the 10.0.4xx feature band,
   PowerShell 7.6 LTS (7.6.6 or a newer 7.6 patch), Git, and NSIS 3.12 or newer.
-- Visual Studio 2026 18.9 or newer with the Desktop development with C++ workload.
+- Visual Studio 2026 18.9 or newer with the Desktop development with C++ workload,
+  v143 toolset, Windows SDK 10.0.26100.0, and bundled CMake.
 - PHP 8.5.9 or newer on the 8.5 line for the public-site validation gate.
 - Authenticated GitHub CLI with write access to `voltura/voltura-air`.
 - Clean `main`, no merge/rebase, and no divergence from `origin/main`.
@@ -121,6 +128,11 @@ npm run package:win:small
 npm run package:win:test
 npm run package:win:test -- -SkipBuild
 ```
+
+`npm run package:win -- -OutputDirectory artifacts/setup-check` builds the normal
+compressed packages in a dedicated verification directory. Custom output must
+remain beneath this checkout's `artifacts` directory and cannot be combined with
+uncompressed installer mode. The default release output remains `artifacts/publish`.
 
 `package:win:test` writes uncompressed test installers under `artifacts/test`;
 never publish them. Releasable names are:

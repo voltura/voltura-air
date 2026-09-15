@@ -6,7 +6,7 @@ Set-StrictMode -Version Latest
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $php = (Get-Command php -ErrorAction Stop).Source
 $phpIni = Join-Path $repoRoot '.site-dev\php.ini'
-$phpArguments = if (Test-Path -LiteralPath $phpIni -PathType Leaf) { @('-c', $phpIni, '-d', 'extension=zip') } else { @() }
+$phpArguments = if (Test-Path -LiteralPath $phpIni -PathType Leaf) { @('-c', $phpIni) } else { @() }
 $version = (& $php @phpArguments -r 'echo PHP_MAJOR_VERSION, ".", PHP_MINOR_VERSION;').Trim()
 if ($LASTEXITCODE -ne 0 -or $version -ne '8.5') { throw "PHP 8.5 is required; found '$version'." }
 

@@ -5,7 +5,8 @@
     "install-chatgpt-codex-schedule.ps1",
     "remove-chatgpt-codex-schedule.ps1",
     "remove-chatgpt-codex-shortcut.ps1",
-    "update-chatgpt-codex.ps1"
+    "update-chatgpt-codex.ps1",
+    "setup-windows.ps1"
   ],
   "powerShell76": [
     "build-libdatachannel.ps1",
@@ -21,6 +22,8 @@
     "site-dev-init.ps1",
     "site-dev.ps1",
     "verify-windows-version.ps1",
-    "zip-clean-repo.ps1"
+    "zip-clean-repo.ps1",
+    "setup/Configure-Windows.ps1",
+    "setup/Install-Database.ps1"
   ]
 }

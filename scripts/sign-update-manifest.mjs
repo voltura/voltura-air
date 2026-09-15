@@ -1,6 +1,7 @@
-import { createHash, createPrivateKey, createPublicKey, sign, verify } from "node:crypto";
+import { createHash, createPublicKey, sign, verify } from "node:crypto";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { validateUpdateSigningKey } from "./update-signing-key.mjs";
 
 const [version, publishRoot] = process.argv.slice(2);
 if (!/^\d+\.\d+\.\d+$/u.test(version ?? "") || !publishRoot)
@@ -55,7 +56,10 @@ for (const name of installers) {
   });
 }
 const bytes = Buffer.from(JSON.stringify({ schema: 1, version, assets }), "utf8");
-const privateKey = createPrivateKey({ key: await readFile(keyPath, "utf8"), passphrase });
+const privateKey = validateUpdateSigningKey(process.cwd(), {
+  VOLTURA_AIR_UPDATE_SIGNING_KEY_PATH: keyPath,
+  VOLTURA_AIR_UPDATE_SIGNING_PASSPHRASE: passphrase,
+});
 const signature = sign("sha256", bytes, { key: privateKey, padding: 6, saltLength: 32 });
 const publicKey = createPublicKey(
   await readFile(

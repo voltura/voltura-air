@@ -9,7 +9,7 @@ $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 $windowsScripts = @($manifest.windowsPowerShell51 | ForEach-Object { Join-Path $PSScriptRoot $_ })
 $coreScripts = @($manifest.powerShell76 | ForEach-Object { Join-Path $PSScriptRoot $_ })
 $listed = @($windowsScripts + $coreScripts | ForEach-Object { [IO.Path]::GetFullPath($_) } | Sort-Object -Unique)
-$actual = @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.ps1' -File | ForEach-Object FullName | Sort-Object -Unique)
+$actual = @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.ps1' -File -Recurse | ForEach-Object FullName | Sort-Object -Unique)
 if (Compare-Object $listed $actual) {
     throw 'powershell-compatibility.json must classify every PowerShell script exactly once.'
 }

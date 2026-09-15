@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "tools": {
+    "node": {
+      "minimum": "24.20.0",
+      "policy": "major-line",
+      "package": "OpenJS.NodeJS.LTS",
+      "command": "node.exe",
+      "arguments": ["--version"]
+    },
+    "npm": { "minimum": "12.0.2", "policy": "patch-line" },
+    "dotnet": {
+      "minimum": "10.0.400",
+      "policy": "feature-band",
+      "package": "Microsoft.DotNet.SDK.10",
+      "command": "dotnet.exe",
+      "arguments": ["--version"]
+    },
+    "runtime": { "minimum": "10.0.11", "policy": "patch-line" },
+    "powershell": {
+      "minimum": "7.6.6",
+      "policy": "patch-line",
+      "package": "Microsoft.PowerShell",
+      "command": "pwsh.exe",
+      "arguments": ["-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"]
+    },
+    "php": {
+      "minimum": "8.5.9",
+      "policy": "patch-line",
+      "package": "PHP.PHP.8.5",
+      "command": "php.exe",
+      "arguments": ["-r", "echo PHP_VERSION;"]
+    },
+    "nsis": {
+      "minimum": "3.12.0",
+      "policy": "minimum",
+      "package": "NSIS.NSIS",
+      "command": "makensis.exe",
+      "arguments": ["/VERSION"]
+    },
+    "visualStudio": {
+      "minimum": "18.9.0",
+      "policy": "major-line",
+      "package": "Microsoft.VisualStudio.BuildTools"
+    },
+    "analyzer": { "minimum": "1.25.0", "policy": "patch-line" },
+    "mariadb": {
+      "minimum": "12.3.2",
+      "policy": "patch-line",
+      "package": "MariaDB.Server",
+      "command": "mariadb.exe",
+      "arguments": ["--version"]
+    },
+    "git": {
+      "minimum": "2.0.0",
+      "policy": "minimum",
+      "package": "Git.Git",
+      "command": "git.exe",
+      "arguments": ["--version"]
+    },
+    "github": {
+      "minimum": "2.0.0",
+      "policy": "minimum",
+      "package": "GitHub.cli",
+      "command": "gh.exe",
+      "arguments": ["--version"]
+    }
+  },
+  "visualStudio": {
+    "range": "[18.9,19.0)",
+    "components": [
+      "Microsoft.VisualStudio.Workload.VCTools",
+      "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+      "Microsoft.VisualStudio.Component.VC.14.44.17.14.x86.x64",
+      "Microsoft.VisualStudio.Component.Windows11SDK.26100",
+      "Microsoft.VisualStudio.Component.VC.CMake.Project"
+    ],
+    "windowsSdk": "10.0.26100.0",
+    "platformToolset": "v143"
+  }
+}

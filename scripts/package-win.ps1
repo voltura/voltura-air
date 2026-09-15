@@ -2,6 +2,7 @@
 
 param(
     [string]$Version,
+    [string]$OutputDirectory,
     [string]$Runtime = "win-x64",
     [switch]$SkipBuild,
     [switch]$FrameworkDependentOnly,
@@ -122,6 +123,15 @@ function Write-InstallerPayloadManifest {
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $packageJsonPath = Join-Path $repoRoot "package.json"
 $publishRoot = Join-Path $repoRoot "artifacts\publish"
+if ($OutputDirectory) {
+    $candidate = [IO.Path]::GetFullPath($OutputDirectory, $repoRoot.Path)
+    $allowed = [IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts')) + [IO.Path]::DirectorySeparatorChar
+    if (-not $candidate.StartsWith($allowed, [StringComparison]::OrdinalIgnoreCase)) { throw 'Custom package output must be a subdirectory of this repository artifacts directory.' }
+    if ($NoInstallerCompression) { throw 'Custom output is for compressed package verification only.' }
+    Import-Module (Join-Path $PSScriptRoot 'setup/Setup.Storage.psm1') -Force
+    Assert-SetupPlainDirectory $candidate
+    $publishRoot = $candidate
+}
 $publishDir = Join-Path $publishRoot "VolturaAir-$Runtime"
 $frameworkDependentPublishDir = Join-Path $publishRoot "VolturaAir-$Runtime-framework-dependent"
 $zipPath = Join-Path $publishRoot "VolturaAir-$Version-$Runtime.zip"
@@ -188,11 +198,15 @@ New-Item -ItemType Directory -Force -Path $publishRoot | Out-Null
 New-Item -ItemType Directory -Force -Path (Split-Path $installerPath -Parent) | Out-Null
 
 if (-not $SkipBuild) {
+    if ($OutputDirectory) {
+        Assert-SetupPlainDirectory $publishDir
+        Assert-SetupPlainDirectory $frameworkDependentPublishDir
+    }
     if (-not $FrameworkDependentOnly -and (Test-Path $publishDir)) {
-        Remove-Item $publishDir -Recurse -Force
+        Remove-Item -LiteralPath $publishDir -Recurse -Force
     }
     if (Test-Path $frameworkDependentPublishDir) {
-        Remove-Item $frameworkDependentPublishDir -Recurse -Force
+        Remove-Item -LiteralPath $frameworkDependentPublishDir -Recurse -Force
     }
 
     Push-Location $repoRoot

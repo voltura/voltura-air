@@ -110,7 +110,7 @@ function buildBundle(string $root, string $target, string $prefix): void
 
 function runImport(string $wrapper, string $bundle, string $root, int $adminId, string $failure): void
 {
-    $command = [PHP_BINARY, '-c', php_ini_loaded_file() ?: '', '-d', 'extension=zip', $wrapper, $bundle, $failure, $root, (string)$adminId];
+    $command = [PHP_BINARY, '-c', php_ini_loaded_file() ?: '', $wrapper, $bundle, $failure, $root, (string)$adminId];
     $environment = array_merge($_ENV, ['VOLTURA_AIR_SCREENS_CONFIG' => (string)getenv('VOLTURA_AIR_SCREENS_CONFIG')]);
     $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $root, $environment);
     if (!is_resource($process)) { throw new RuntimeException('Could not start importer process.'); }

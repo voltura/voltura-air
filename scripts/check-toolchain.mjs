@@ -6,6 +6,10 @@ import { supportsToolVersion, toolVersionExpectation } from "./toolchain-version
 
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 const failures = [];
+const toolchain = JSON.parse(readFileSync(join(repositoryRoot, "scripts/toolchain.json"), "utf8"));
+const requirement = (name) => toolchain.tools[name];
+const version = (name) => requirement(name).minimum.split(".").map(Number);
+const policy = (name) => requirement(name).policy;
 
 function commandVersion(command, args = []) {
   try {
@@ -36,9 +40,14 @@ function requireVersion(label, actual, expected, comparison = "exact") {
     );
   }
 }
-requireVersion("Node.js", process.versions.node, [24, 20, 0], "major-line");
-requireVersion("npm", commandVersion("npm", ["--version"]), [12, 0, 2], "patch-line");
-requireVersion(".NET SDK", commandVersion("dotnet", ["--version"]), [10, 0, 400], "feature-band");
+requireVersion("Node.js", process.versions.node, version("node"), policy("node"));
+requireVersion("npm", commandVersion("npm", ["--version"]), version("npm"), policy("npm"));
+requireVersion(
+  ".NET SDK",
+  commandVersion("dotnet", ["--version"]),
+  version("dotnet"),
+  policy("dotnet"),
+);
 const dotnetRuntimes = commandVersion("dotnet", ["--list-runtimes"]);
 for (const runtime of [
   "Microsoft.AspNetCore.App",
@@ -51,7 +60,7 @@ for (const runtime of [
       .some(
         (line) =>
           line.startsWith(`${runtime} `) &&
-          supportsToolVersion(line.split(" ")[1], [10, 0, 11], "patch-line"),
+          supportsToolVersion(line.split(" ")[1], version("runtime"), policy("runtime")),
       )
   ) {
     failures.push(`${runtime} 10.0.11 or a newer 10.0 patch is required.`);
@@ -60,10 +69,15 @@ for (const runtime of [
 requireVersion(
   "PowerShell",
   commandVersion("pwsh", ["-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"]),
-  [7, 6, 6],
-  "patch-line",
+  version("powershell"),
+  policy("powershell"),
 );
-requireVersion("PHP", commandVersion("php", ["-r", "echo PHP_VERSION;"]), [8, 5, 9], "minimum");
+requireVersion(
+  "PHP",
+  commandVersion("php", ["-r", "echo PHP_VERSION;"]),
+  version("php"),
+  policy("php"),
+);
 
 const globalJson = JSON.parse(readFileSync(join(repositoryRoot, "global.json"), "utf8"));
 if (
@@ -106,7 +120,7 @@ const nsis = nsisCandidates.find(existsSync);
 if (!nsis) {
   failures.push("NSIS makensis.exe was not found under Program Files.");
 } else {
-  requireVersion("NSIS", commandVersion(nsis, ["/VERSION"]), [3, 12, 0], "minimum");
+  requireVersion("NSIS", commandVersion(nsis, ["/VERSION"]), version("nsis"), policy("nsis"));
 }
 
 const vswhere = join(
@@ -123,9 +137,9 @@ if (!existsSync(vswhere)) {
     "-products",
     "*",
     "-version",
-    "[18.9,19.0)",
+    toolchain.visualStudio.range,
     "-requires",
-    "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+    ...toolchain.visualStudio.components.filter((id) => !id.includes(".Workload.")),
     "-property",
     "installationVersion",
   ]);
@@ -134,7 +148,12 @@ if (!existsSync(vswhere)) {
       "Visual Studio 2026 18.9 or newer with the Desktop development with C++ workload is required; found none.",
     );
   } else {
-    requireVersion("Visual Studio 2026", installationVersion, [18, 9, 0], "minimum");
+    requireVersion(
+      "Visual Studio 2026",
+      installationVersion,
+      version("visualStudio"),
+      policy("visualStudio"),
+    );
   }
 }
 

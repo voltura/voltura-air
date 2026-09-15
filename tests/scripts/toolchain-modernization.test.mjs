@@ -18,11 +18,30 @@ test("repository toolchains are pinned to supported stable releases", () => {
     allowPrerelease: false,
   });
   const toolchainCheck = read("scripts/check-toolchain.mjs");
-  assert.match(toolchainCheck, /"feature-band"/u);
-  assert.match(toolchainCheck, /\[7, 6, 6\]/u);
-  assert.match(toolchainCheck, /"patch-line"/u);
+  const manifest = json("scripts/toolchain.json");
+  assert.equal(manifest.tools.dotnet.policy, "feature-band");
+  assert.equal(manifest.tools.powershell.minimum, "7.6.6");
+  assert.equal(manifest.tools.powershell.policy, "patch-line");
+  assert.equal(manifest.tools.dotnet.minimum, dotnet.sdk.version);
+  assert.equal(root.packageManager, `npm@${manifest.tools.npm.minimum}`);
+  assert.equal(root.engines.node, `>=${manifest.tools.node.minimum} <25`);
+  assert.equal(manifest.tools.php.policy, "patch-line");
+  for (const project of [
+    "SetupHelper/SetupHelper.vcxproj",
+    "VirtualCameraMediaSource/VirtualCameraMediaSource.vcxproj",
+  ]) {
+    const xml = read(`apps/windows-host/Features/PhoneWebcam/Native/${project}`);
+    assert.ok(
+      xml.includes(`<PlatformToolset>${manifest.visualStudio.platformToolset}</PlatformToolset>`),
+    );
+    assert.ok(
+      xml.includes(
+        `<WindowsTargetPlatformVersion>${manifest.visualStudio.windowsSdk}</WindowsTargetPlatformVersion>`,
+      ),
+    );
+  }
   assert.match(toolchainCheck, /process\.env\.npm_execpath/u);
-  assert.match(toolchainCheck, /\[18, 9, 0\], "minimum"/u);
+  assert.equal(manifest.tools.visualStudio.minimum, "18.9.0");
   assert.match(dockerfile, /^FROM node:24\.20\.0-alpine@sha256:[a-f0-9]{64} AS build$/mu);
   assert.match(dockerfile, /npm install --global npm@12\.0\.2/u);
   assert.match(dockerfile, /npm ci --workspace/u);

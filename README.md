@@ -258,6 +258,21 @@ PowerShell 7.6 LTS, PHP 8.5.9 or newer on the 8.5 line, NSIS 3.12 or newer, and 
 the **Desktop development with C++** workload. `npm run tools:check` verifies
 the installed toolchain before a broad build.
 
+On Windows 11 x64, install and verify the development prerequisites from a normal
+terminal after cloning:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1
+```
+
+Setup requires Git and Microsoft App Installer (WinGet). It requests installation
+elevation separately, restores locked dependencies, initializes the local site
+database, and runs the build, tests, and packaging checks. Add `-CheckOnly` to
+inspect prerequisites without installing or configuring anything. See
+[machine setup](docs/setup.md#windows-machine-setup) for credentials and recovery.
+Voltura production operators start the same script in the sibling private
+`voltura-air-service` repository to include release access and signing verification.
+
 ```powershell
 git clone https://github.com/voltura/voltura-air.git
 cd voltura-air

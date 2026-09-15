@@ -1,5 +1,73 @@
 # Development and validation
 
+## Windows machine setup
+
+Start from Windows 11 x64 with Git and Microsoft App Installer (WinGet), in a
+normal non-administrator PowerShell terminal at the repository root:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1 -CheckOnly
+```
+
+The first command installs supported prerequisites and runs local verification.
+The second inspects them without installing, configuring, building, or prompting
+for credentials. `npm run setup:windows` is equivalent once Node/npm are ready.
+`-PrerequisitesOnly` installs/checks machine tools without restoring or verifying
+the product; the private production setup uses this bootstrap stage.
+
+The shared requirements live in `scripts/toolchain.json`. Setup retains compliant
+tools, selects stable WinGet versions within the supported ranges, and reports
+selected executable paths. It installs Node/npm, the .NET SDK and runtimes,
+PowerShell, PHP, NSIS, GitHub CLI, and Visual Studio 2026 Build Tools with C++,
+the v143 toolset, Windows SDK 10.0.26100.0, and bundled CMake. Git must already be
+available to clone. PowerShell 5.1 remains available for its declared scripts.
+PSScriptAnalyzer, locked npm/NuGet dependencies, and Playwright Chromium are
+installed for the initiating Windows account. There is no full IDE, Docker/WSL,
+Python, or optional video-production tool installation.
+
+Fresh local site setup provisions a loopback-only `VolturaAirDev` MariaDB 12.3
+service on port 3306. Its generated administrator credential is protected with
+Windows user encryption under `%LOCALAPPDATA%\Voltura Air\Setup\MariaDB`.
+The existing site initializer owns `.site-dev` configuration and schemas. Existing
+working development credentials and data are retained; an unmanaged instance asks
+for its administrator password only when needed. An existing initializer-owned
+connection port and configuration are retained. A conflicting explicit port is
+rejected before configuration writes. A port conflict stops setup.
+No production database credentials or schema operations are used.
+
+Verification first stops any verified installed/repository Voltura Air host through
+`host-preflight.ps1`, then runs `npm run build`, `npm test`, all three site integration
+suites, and compressed packaging of the ZIP and both installers into
+`artifacts/setup-check`. It does not regenerate public artwork or publish anything.
+For production credentials and signed-package verification, clone the private
+service repository beside this one and run its `scripts/setup-windows.ps1` instead.
+
+Sanitized tool selections and local verification status are recorded in
+`%LOCALAPPDATA%\Voltura Air\Setup\Reports`. Reports contain stage/status data,
+not command output or credentials, and never replace checks of actual state.
+`-CheckOnly` does not write reports.
+
+Rerun the same command after a failed installation or Windows restart. Setup never
+reboots automatically. Database initialization phases are recorded beside the
+encrypted administrator credential. Interrupted offline initialization is retained
+in `data.partial-<id>` directories under the managed MariaDB installation; setup
+never deletes these backups. Unrecognized data, changed service configuration, or
+an unfinished `.setup-pending` atomic write stops with an inspection requirement.
+Preserve these files and credentials when investigating; do not clear a database to
+make a check pass. An existing data directory without matching ownership state is
+never adopted or overwritten.
+
+The managed `my.ini` belongs to setup: additional directives, includes, duplicate
+bindings, and changed paths are rejected before startup. Readiness also checks the
+actual process listener. If a service started by setup fails readiness, setup stops
+it and reports any cleanup failure while preserving the data and credential.
+
+Validate changes to setup in a fresh Windows 11 x64 VM with only Git/WinGet and no
+copied dependency caches. Run full setup, then rerun it to verify preserved data,
+credentials, and installed versions. Account sign-ins and the existing encrypted
+update key require the operator; local fixture tests do not replace this acceptance.
+
 ## Development workflows
 
 The [source quick start](../README.md#develop-from-source) owns prerequisites

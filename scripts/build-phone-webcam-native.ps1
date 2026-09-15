@@ -53,16 +53,11 @@ $intermediateRoot = Join-Path $repoRoot "artifacts\obj\PhoneWebcam"
 $mediaSourceOutput = Join-Path $intermediateRoot "MediaSourceOutput"
 $setupOutput = Join-Path $intermediateRoot "SetupOutput"
 
-$msbuildCandidates = @(
-    "${env:ProgramFiles}\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
-    "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe",
-    "${env:ProgramFiles}\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
-    "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
-)
-$msbuildPath = $msbuildCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
-if ([string]::IsNullOrWhiteSpace($msbuildPath)) {
-    throw "Visual Studio 2022 MSBuild with the C++ desktop workload is required to build Phone webcam."
-}
+Import-Module (Join-Path $PSScriptRoot 'setup/Setup.Tools.psm1') -Force
+$toolchain = Get-Content (Join-Path $PSScriptRoot 'toolchain.json') -Raw | ConvertFrom-Json
+$visualStudio = Get-SetupVisualStudio $toolchain
+if (-not $visualStudio) { throw 'Run scripts/setup-windows.ps1 to install the supported C++ toolchain.' }
+$msbuildPath = Join-Path $visualStudio 'MSBuild/Current/Bin/MSBuild.exe'
 
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 New-Item -ItemType Directory -Force -Path $intermediateRoot | Out-Null

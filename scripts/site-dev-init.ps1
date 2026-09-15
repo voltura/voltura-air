@@ -3,7 +3,9 @@
 param(
     [ValidateRange(1024, 65535)]
     [int]$Port = 3306,
-    [string]$RootUser = 'root'
+    [string]$RootUser = 'root',
+    [switch]$Automatic,
+    [switch]$CheckOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -116,31 +118,26 @@ function New-DevelopmentPassword {
     return [BitConverter]::ToString($bytes).Replace('-', '').ToLowerInvariant()
 }
 
+Import-Module (Join-Path $PSScriptRoot 'setup/Setup.Storage.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'setup/Setup.Database.psm1') -Force
+
 function Invoke-MariaDb([string]$Executable, [string[]]$Arguments, [string]$Sql) {
-    $operationId = [Guid]::NewGuid().ToString('N')
-    $inputPath = Join-Path $devRoot "$operationId.sql"
-    $outputPath = Join-Path $devRoot "$operationId.stdout"
-    $errorPath = Join-Path $devRoot "$operationId.stderr"
-    try {
-        [IO.File]::WriteAllText($inputPath, $Sql, [Text.UTF8Encoding]::new($false))
-        $process = Start-Process -FilePath $Executable `
-            -ArgumentList $Arguments `
-            -NoNewWindow `
-            -Wait `
-            -PassThru `
-            -RedirectStandardInput $inputPath `
-            -RedirectStandardOutput $outputPath `
-            -RedirectStandardError $errorPath
-        return [pscustomobject]@{
-            ExitCode = $process.ExitCode
-            Output = if (Test-Path -LiteralPath $outputPath) { Get-Content -LiteralPath $outputPath -Raw } else { '' }
-            Error = if (Test-Path -LiteralPath $errorPath) { Get-Content -LiteralPath $errorPath -Raw } else { '' }
-        }
-    } finally {
-        Remove-Item -LiteralPath $inputPath, $outputPath, $errorPath -Force -ErrorAction SilentlyContinue
-    }
+    Invoke-SetupSql $Executable $Arguments $Sql $env:MYSQL_PWD
 }
 
+Import-Module (Join-Path $PSScriptRoot 'setup/Setup.SiteConfiguration.psm1')
+$existingConfiguration = Read-SetupSiteConfiguration $configPath $Port $PSBoundParameters.ContainsKey('Port')
+$existingConfig = $null -ne $existingConfiguration
+if ($existingConfig) { $Port = $existingConfiguration.Port; $devPassword = $existingConfiguration.Password }
+
+if ($CheckOnly) {
+    $php = Find-PhpExecutable
+    if (-not $php -or -not (Test-Path -LiteralPath $configPath)) { throw 'Local PHP/database configuration is missing. Run setup.' }
+    & $php -c $phpIniPath (Join-Path $PSScriptRoot 'setup/check-site-database.php') $configPath $Port
+    if ($LASTEXITCODE -ne 0) { throw 'Local database inspection failed. Run site:dev:init to configure it.' }
+    exit 0
+}
+New-SetupPrivateDirectory $devRoot
 $php = Find-PhpExecutable
 if (-not $php) {
     Write-Host 'Installing PHP 8.5...'
@@ -152,15 +149,19 @@ if (-not $php) {
 }
 
 $mariaPatterns = @(
+    "$env:ProgramFiles\VolturaAirDev-MariaDB\bin\mariadb.exe",
     "$env:ProgramFiles\MariaDB *\bin\mariadb.exe",
     "$env:ProgramFiles\MariaDB *\bin\mysql.exe",
     "${env:ProgramFiles(x86)}\MariaDB *\bin\mariadb.exe"
 )
 $maria = Find-Executable @('mariadb.exe', 'mariadb', 'mysql.exe', 'mysql') $mariaPatterns
-if (-not $maria) {
-    Write-Host 'Installing MariaDB. Keep the default local database instance enabled and choose a root password in the installer.'
+$managedPassword = $null
+if ($Automatic -and ((Get-Service VolturaAirDev -ErrorAction SilentlyContinue) -or (Test-Path (Join-Path $env:LOCALAPPDATA 'Voltura Air/Setup/MariaDB/state.json')) -or -not $maria)) {
+    $managedPassword = Initialize-SetupDatabase $repoRoot $Port
+    $maria = Find-Executable @('mariadb.exe', 'mariadb', 'mysql.exe', 'mysql') $mariaPatterns
+} elseif (-not $maria) {
+    Write-Host 'Installing MariaDB. Choose a local root password in the installer.'
     Install-WingetPackage 'MariaDB.Server' -Interactive
-    Read-Host 'Finish the MariaDB installer completely, including its root-password setup, then press Enter here'
     Refresh-ProcessPath
     $maria = Find-Executable @('mariadb.exe', 'mariadb', 'mysql.exe', 'mysql') $mariaPatterns
 }
@@ -193,31 +194,51 @@ upload_max_filesize=8M
 post_max_size=9M
 session.use_strict_mode=1
 "@
-[IO.File]::WriteAllText($phpIniPath, $phpIni, [Text.UTF8Encoding]::new($false))
+if (-not (Test-Path -LiteralPath $phpIniPath)) { Write-SetupAtomicFile $phpIniPath $phpIni }
+# Add only missing required extensions; preserve the existing development INI.
+foreach ($extension in @('pdo_mysql', 'zip')) {
+    & $php -c $phpIniPath -r "exit(extension_loaded('$extension') ? 0 : 1);"
+    if ($LASTEXITCODE -ne 0) {
+        $existingIni = Get-Content -LiteralPath $phpIniPath -Raw
+        Write-SetupAtomicFile $phpIniPath ($existingIni.TrimEnd() + "`r`nextension=$extension`r`n")
+    }
+}
 & $php -c $phpIniPath -r "exit(in_array('mysql', PDO::getAvailableDrivers(), true) && extension_loaded('zip') ? 0 : 1);"
 if ($LASTEXITCODE -ne 0) { throw 'PHP could not load the PDO MySQL and ZIP extensions.' }
 
-$rootPassword = ConvertFrom-SecureValue (Read-Host "MariaDB root password selected in the installer" -AsSecureString)
-$devPassword = if (Test-Path -LiteralPath $configPath) {
-    $existing = Get-Content -LiteralPath $configPath -Raw
-    $match = [regex]::Match($existing, "'password'\s*=>\s*'([a-f0-9]{48})'")
-    if ($match.Success) { $match.Groups[1].Value } else { New-DevelopmentPassword }
-} else {
-    New-DevelopmentPassword
-}
-$catalogSecret = if (Test-Path -LiteralPath $configPath) {
-    $existing = Get-Content -LiteralPath $configPath -Raw
-    $match = [regex]::Match($existing, "'catalog_secret'\s*=>\s*'([a-f0-9]{96})'")
-    if ($match.Success) { $match.Groups[1].Value } else { (New-DevelopmentPassword) + (New-DevelopmentPassword) }
-} else {
-    (New-DevelopmentPassword) + (New-DevelopmentPassword)
+$rootPassword = $managedPassword
+if (-not $existingConfig) {
+$devPassword = New-DevelopmentPassword
+$catalogSecret = (New-DevelopmentPassword) + (New-DevelopmentPassword)
+
+$escapedStorage = Escape-PhpSingleQuoted ($storagePath.Replace('\', '/'))
+$config = @"
+<?php
+return [
+    'dsn' => 'mysql:host=127.0.0.1;port=$Port;dbname=$databaseName;charset=utf8mb4',
+    'username' => '$databaseUser',
+    'password' => '$devPassword',
+    'storage_path' => '$escapedStorage',
+    'catalog_secret' => '$catalogSecret',
+];
+"@
+Write-SetupAtomicFile $configPath $config
 }
 
-$clientArguments = @("--port=$Port", "--user=$RootUser", '--batch', '--skip-column-names')
+
+$clientArguments = @('--host=127.0.0.1', '--protocol=TCP', "--port=$Port", "--user=$RootUser", '--batch', '--skip-column-names')
 $previousPassword = $env:MYSQL_PWD
 try {
-    $env:MYSQL_PWD = $rootPassword
-    $bootstrap = "CREATE DATABASE IF NOT EXISTS ``$databaseName`` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER IF NOT EXISTS '$databaseUser'@'127.0.0.1' IDENTIFIED BY '$devPassword'; ALTER USER '$databaseUser'@'127.0.0.1' IDENTIFIED BY '$devPassword'; GRANT ALL PRIVILEGES ON ``$databaseName``.* TO '$databaseUser'@'127.0.0.1'; FLUSH PRIVILEGES;"
+    $devArguments = @('--host=127.0.0.1', '--protocol=TCP', "--port=$Port", "--user=$databaseUser", '--batch', '--skip-column-names', $databaseName)
+    $probe = Invoke-SetupSql $maria $devArguments 'SELECT 1;' $devPassword
+    if ($probe.ExitCode -eq 0) {
+        $clientArguments = @('--host=127.0.0.1', '--protocol=TCP', "--port=$Port", "--user=$databaseUser", '--batch', '--skip-column-names')
+        $env:MYSQL_PWD = $devPassword
+    } else {
+        if (-not $rootPassword) { $rootPassword = ConvertFrom-SecureValue (Read-Host 'Existing local MariaDB administrator password' -AsSecureString) }
+        $env:MYSQL_PWD = $rootPassword
+    $sqlPassword = $devPassword.Replace("'", "''")
+    $bootstrap = "SET SESSION sql_mode='NO_BACKSLASH_ESCAPES'; CREATE DATABASE IF NOT EXISTS ``$databaseName`` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER IF NOT EXISTS '$databaseUser'@'127.0.0.1' IDENTIFIED BY '$sqlPassword'; ALTER USER '$databaseUser'@'127.0.0.1' IDENTIFIED BY '$sqlPassword'; GRANT ALL PRIVILEGES ON ``$databaseName``.* TO '$databaseUser'@'127.0.0.1'; FLUSH PRIVILEGES;"
     $bootstrapResult = Invoke-MariaDb $maria $clientArguments $bootstrap
     if ($bootstrapResult.ExitCode -ne 0) {
         if ($bootstrapResult.Error -match 'Access denied') {
@@ -226,11 +247,14 @@ try {
         throw "MariaDB could not be reached through its local client connection on port $Port. Confirm that its Windows service is running and that the port matches the installer."
     }
 
+    }
     $databaseArguments = $clientArguments + @($databaseName)
     $tableResult = Invoke-MariaDb $maria $databaseArguments 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = "air_screen_users";'
     if ($tableResult.ExitCode -ne 0) { throw 'Could not inspect the development database.' }
-    if ([int]$tableResult.Output.Trim() -eq 0) {
+    if ([int]$tableResult.Output.Trim() -eq 0 -or (Test-Path -LiteralPath (Join-Path $devRoot 'catalog-bootstrap.pending'))) {
+        if (-not (Test-Path -LiteralPath (Join-Path $devRoot 'catalog-bootstrap.pending'))) { Write-SetupAtomicFile (Join-Path $devRoot 'catalog-bootstrap.pending') 'Fresh catalog creation in progress; retain until every table exists.' }
         $schema = Get-Content -LiteralPath (Join-Path $repoRoot 'apps\public-site\screens\schema.sql') -Raw
+        $schema = $schema -replace '(?im)^CREATE TABLE ', 'CREATE TABLE IF NOT EXISTS ' -replace '(?im)^INSERT INTO ', 'INSERT IGNORE INTO '
         $schemaResult = Invoke-MariaDb $maria $databaseArguments $schema
         if ($schemaResult.ExitCode -ne 0) { throw 'Could not create the development catalog tables.' }
     }
@@ -244,6 +268,8 @@ try {
     if ([int]$currentSchemaResult.Output.Trim() -ne 8) {
         throw 'The development catalog uses a superseded schema. Clear the development database explicitly, then rerun site:dev:init.'
     }
+
+    if (Test-Path -LiteralPath (Join-Path $devRoot 'catalog-bootstrap.pending')) { [IO.File]::Delete((Join-Path $devRoot 'catalog-bootstrap.pending')) }
 
     # Telemetry is an additive schema with its own idempotent lifecycle. It is
     # deliberately independent from the catalog's fresh-schema-only contract.
@@ -262,20 +288,8 @@ try {
 } finally {
     $env:MYSQL_PWD = $previousPassword
     $rootPassword = $null
+    $managedPassword = $null
 }
-
-$escapedStorage = Escape-PhpSingleQuoted ($storagePath.Replace('\', '/'))
-$config = @"
-<?php
-return [
-    'dsn' => 'mysql:host=127.0.0.1;port=$Port;dbname=$databaseName;charset=utf8mb4',
-    'username' => '$databaseUser',
-    'password' => '$devPassword',
-    'storage_path' => '$escapedStorage',
-    'catalog_secret' => '$catalogSecret',
-];
-"@
-[IO.File]::WriteAllText($configPath, $config, [Text.UTF8Encoding]::new($false))
 
 Write-Host 'Local site development is ready.'
 Write-Host 'Run: npm run site:dev'

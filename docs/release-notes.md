@@ -6,6 +6,10 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.3.4
+
+- Quiet Cloud Relay sessions now check their connection more frequently while the phone app is open.
+
 ## v1.3.3
 
 - Improved Cloud Relay connection stability and automatic reconnection.

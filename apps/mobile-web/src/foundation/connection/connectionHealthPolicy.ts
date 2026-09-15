@@ -1,5 +1,8 @@
+import type { PcProfile } from "./pcProfiles";
+
 const interactiveHealthCheckMs = 10000;
 const passiveHealthCheckMs = 60000;
+const relayPassiveHealthCheckMs = 20000;
 const passiveAfterMs = 15000;
 const inputAckTimeoutMs = 3500;
 
@@ -28,9 +31,14 @@ export function getNextHealthCheckDelay(
   lastUserActivityAt: number,
   lastHealthyAt: number,
   now = Date.now(),
+  transportMode?: PcProfile["transportMode"],
 ) {
   const isInteractive = pendingAckCount > 0 || now - lastUserActivityAt < passiveAfterMs;
-  const interval = isInteractive ? interactiveHealthCheckMs : passiveHealthCheckMs;
+  // Relay has a separate phone-to-cloud socket; the host's keepalive does not
+  // keep this socket active during a quiet foreground session.
+  const passiveInterval =
+    transportMode === "relay" ? relayPassiveHealthCheckMs : passiveHealthCheckMs;
+  const interval = isInteractive ? interactiveHealthCheckMs : passiveInterval;
   const baseline = isInteractive
     ? Math.max(lastHealthyAt || now, lastUserActivityAt)
     : lastHealthyAt || now;

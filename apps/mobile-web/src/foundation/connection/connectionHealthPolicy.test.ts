@@ -22,4 +22,12 @@ describe("connection health policy", () => {
     expect(getNextInputAckCheckDelay([1000, 2000], 3000)).toBe(1501);
     expect(getNextInputAckCheckDelay([], 3000)).toBe(Number.POSITIVE_INFINITY);
   });
+
+  it("shortens only the idle Relay interval and retains interactive deadlines", () => {
+    expect(getNextHealthCheckDelay(0, 0, 100000, 100000, "relay")).toBe(20000);
+    expect(getNextHealthCheckDelay(0, 0, 100000, 115000, "relay")).toBe(5000);
+    expect(getNextHealthCheckDelay(0, 0, 100000, 125000, "relay")).toBe(1000);
+    expect(getNextHealthCheckDelay(0, 0, 100000, 100000, "secure-direct")).toBe(60000);
+    expect(getNextHealthCheckDelay(0, 100000, 100000, 100000, "relay")).toBe(10000);
+  });
 });

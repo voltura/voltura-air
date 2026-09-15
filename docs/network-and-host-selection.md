@@ -64,6 +64,10 @@ stays editable and changes no active/saved profile.
 A valid host is saved only after acceptance. A pairing link opens device-name
 confirmation and keeps its token semantics. **Forget** removes a saved profile.
 Missing input acknowledgements or health failure enters unavailable/retrying.
+While the mobile app is visible, quiet Relay sessions send a health check every
+20 seconds to keep the separate phone-to-cloud socket active. Direct sessions
+retain their 60-second idle interval. Interactive checks remain at 10 seconds;
+background suspension stops health checks for every transport.
 
 The host identity is not a routing value and never appears in the pairing URL
 or saved-host address. A fresh short QR supplies one bootstrap token; the opened

@@ -464,6 +464,8 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
           pendingInputAcksRef.current.size,
           lastUserActivityAtRef.current,
           lastHealthyAtRef.current,
+          Date.now(),
+          pc.transportMode,
         ),
         getNextInputAckCheckDelay(pendingInputAcksRef.current.values()),
       );

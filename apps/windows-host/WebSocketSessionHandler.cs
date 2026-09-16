@@ -204,7 +204,7 @@ internal sealed class WebSocketSessionHandler(
 
                     if (!pairingManager.TryTrackConnection(
                         authentication.ClientId,
-                        () => transport.Register(authentication.ClientId, socket),
+                        () => transport.Register(authentication.ClientId, socket, broadcastsEnabled: false),
                         out activeConnection,
                         out authenticatedPairingEpoch,
                         connectionMethod: ResolveDeviceConnectionMethod(
@@ -225,10 +225,13 @@ internal sealed class WebSocketSessionHandler(
                         _ = usageSession.TryRegister(sessionRegistry);
                     }
                     var connectionRecordingToken = usageTelemetry.CurrentRecordingToken;
-                    await transport.SendAsync(
+                    // Keep revocation tracking active, but do not expose this socket to
+                    // status/event broadcasts until its pairing response has been sent.
+                    if (!await transport.TrySendAsync(
                         socket,
                         statusFactory.CreatePairAccepted(authentication.ClientId),
-                        cancellationToken);
+                        cancellationToken)) break;
+                    transport.EnableBroadcasts(socket);
                     _ = usageTelemetry.TryRecordConnection(connectionMethod, connectionRecordingToken);
                     continue;
                 }

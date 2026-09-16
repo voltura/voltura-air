@@ -6,6 +6,12 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.3.6
+
+- Fixed Screen View briefly reporting a playback failure before showing live video.
+- Screen View now offers a playback retry when video cannot start.
+- Fixed a connection setup race that could send a status update before pairing was confirmed.
+
 ## v1.3.5
 
 - Screen View now recovers from temporary display changes, such as starting or stopping full-screen video.

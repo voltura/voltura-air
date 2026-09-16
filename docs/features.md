@@ -167,6 +167,10 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - One authorized device can view one selected display at a time. Multiple
   displays are selectable before or during viewing; another device receives a
   busy result. Leaving the workspace stops viewing.
+- Screen View shows startup progress until video arrives. Audio and video tracks
+  share one attached stream, so adding sound does not reload the video player.
+  If the browser blocks or cannot start playback, **Show video** retries playback
+  on the existing connection.
 - The same authorized session captures the current default Windows multimedia
   output at 48 kHz stereo and sends Opus beside the video. **High** uses a
   configured nominal 96 kbps in stereo, **Standard** 64 kbps in stereo, and

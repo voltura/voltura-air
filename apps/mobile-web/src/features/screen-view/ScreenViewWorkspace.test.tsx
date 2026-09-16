@@ -756,282 +756,367 @@ describe("ScreenViewWorkspace", () => {
     expect(screen.getByRole("button", { name: "Click" }).hasAttribute("disabled")).toBe(false);
   });
 
-  it("offers a working user-gesture playback retry when autoplay is blocked", async () => {
-    class FakePeerConnection {
-      static instance: FakePeerConnection | null = null;
-      readonly listeners = new Map<string, ((event: never) => void)[]>();
-      iceGatheringState: RTCIceGatheringState = "gathering";
-      connectionState: RTCPeerConnectionState = "new";
-      localDescription: RTCSessionDescriptionInit | null = null;
-      remoteDescription: RTCSessionDescriptionInit | null = null;
+  it.each(["blocked", "video-first", "audio-first", "playback-error"] as const)(
+    "handles screen playback startup: %s",
+    async (scenario) => {
+      class FakePeerConnection {
+        static instance: FakePeerConnection | null = null;
+        readonly listeners = new Map<string, ((event: never) => void)[]>();
+        iceGatheringState: RTCIceGatheringState = "gathering";
+        connectionState: RTCPeerConnectionState = "new";
+        localDescription: RTCSessionDescriptionInit | null = null;
+        remoteDescription: RTCSessionDescriptionInit | null = null;
 
-      constructor() {
-        FakePeerConnection.instance = this;
+        constructor() {
+          FakePeerConnection.instance = this;
+        }
+        addEventListener(type: string, listener: (event: never) => void) {
+          this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
+        }
+        removeEventListener(type: string, listener: (event: never) => void) {
+          this.listeners.set(
+            type,
+            (this.listeners.get(type) ?? []).filter((entry) => entry !== listener),
+          );
+        }
+        setRemoteDescription(description: RTCSessionDescriptionInit) {
+          this.remoteDescription = description;
+          return Promise.resolve();
+        }
+        createAnswer(): Promise<RTCSessionDescriptionInit> {
+          return Promise.resolve({
+            type: "answer",
+            sdp: screenAnswerSdp,
+          });
+        }
+        setLocalDescription(description: RTCSessionDescriptionInit) {
+          this.localDescription = description;
+          return Promise.resolve();
+        }
+        close() {
+          this.connectionState = "closed";
+        }
+        emit(type: string, event: unknown) {
+          if (
+            type === "icecandidate" &&
+            this.localDescription &&
+            (event as RTCPeerConnectionIceEvent).candidate
+          ) {
+            this.localDescription = {
+              ...this.localDescription,
+              sdp: `${this.localDescription.sdp ?? ""}\r\na=candidate:1 1 udp 1 192.0.2.1 50000 typ relay\r\n`,
+            };
+          }
+          for (const listener of this.listeners.get(type) ?? []) {
+            listener(event as never);
+          }
+        }
       }
-      addEventListener(type: string, listener: (event: never) => void) {
-        this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
-      }
-      removeEventListener(type: string, listener: (event: never) => void) {
-        this.listeners.set(
-          type,
-          (this.listeners.get(type) ?? []).filter((entry) => entry !== listener),
+
+      vi.stubGlobal("RTCPeerConnection", FakePeerConnection as unknown as typeof RTCPeerConnection);
+      let rejectStalePlayback: ((reason: DOMException) => void) | null = null;
+      const play = vi
+        .spyOn(HTMLMediaElement.prototype, "play")
+        .mockRejectedValueOnce(new DOMException("Playback requires a gesture.", "NotAllowedError"))
+        .mockResolvedValueOnce()
+        .mockImplementationOnce(
+          () =>
+            new Promise<void>((_resolve, reject) => {
+              rejectStalePlayback = reject;
+            }),
         );
+      const send = vi.fn<(message: ClientMessage) => void>();
+      const pcId = "https://voltura.se/air/app/";
+      const clientKey = createPairingKeyMaterial();
+      const hostKey = createPairingKeyMaterial();
+      if (!clientKey || !hostKey) {
+        throw new Error("Test key generation is unavailable.");
       }
-      setRemoteDescription(description: RTCSessionDescriptionInit) {
-        this.remoteDescription = description;
-        return Promise.resolve();
-      }
-      createAnswer(): Promise<RTCSessionDescriptionInit> {
-        return Promise.resolve({
-          type: "answer",
-          sdp: screenAnswerSdp,
-        });
-      }
-      setLocalDescription(description: RTCSessionDescriptionInit) {
-        this.localDescription = description;
-        return Promise.resolve();
-      }
-      close() {
-        this.connectionState = "closed";
-      }
-      emit(type: string, event: unknown) {
-        if (
-          type === "icecandidate" &&
-          this.localDescription &&
-          (event as RTCPeerConnectionIceEvent).candidate
-        ) {
-          this.localDescription = {
-            ...this.localDescription,
-            sdp: `${this.localDescription.sdp ?? ""}\r\na=candidate:1 1 udp 1 192.0.2.1 50000 typ relay\r\n`,
-          };
-        }
-        for (const listener of this.listeners.get(type) ?? []) {
-          listener(event as never);
-        }
-      }
-    }
+      localStorage.setItem(`voltura-air.reconnect-key.client-test.${pcId}`, clientKey.privateKey);
 
-    vi.stubGlobal("RTCPeerConnection", FakePeerConnection as unknown as typeof RTCPeerConnection);
-    let rejectStalePlayback: ((reason: DOMException) => void) | null = null;
-    const play = vi
-      .spyOn(HTMLMediaElement.prototype, "play")
-      .mockRejectedValueOnce(new DOMException("Playback requires a gesture.", "NotAllowedError"))
-      .mockResolvedValueOnce()
-      .mockImplementationOnce(
-        () =>
-          new Promise<void>((_resolve, reject) => {
-            rejectStalePlayback = reject;
-          }),
+      render(
+        <ScreenViewWorkspace
+          activePc={{
+            customName: false,
+            id: pcId,
+            name: "PC",
+            url: pcId,
+            hostIdentityPublicKey: hostKey.reconnectPublicKey,
+            transportMode: "relay",
+          }}
+          capability={capability}
+          clientId="client-test"
+          onBack={vi.fn()}
+          onOpenKeyboard={vi.fn()}
+          send={send}
+          state="paired"
+          trackpadSettings={defaultTrackpadSettings}
+        />,
       );
-    const send = vi.fn<(message: ClientMessage) => void>();
-    const pcId = "https://voltura.se/air/app/";
-    const clientKey = createPairingKeyMaterial();
-    const hostKey = createPairingKeyMaterial();
-    if (!clientKey || !hostKey) {
-      throw new Error("Test key generation is unavailable.");
-    }
-    localStorage.setItem(`voltura-air.reconnect-key.client-test.${pcId}`, clientKey.privateKey);
-
-    render(
-      <ScreenViewWorkspace
-        activePc={{
-          customName: false,
-          id: pcId,
-          name: "PC",
-          url: pcId,
-          hostIdentityPublicKey: hostKey.reconnectPublicKey,
-          transportMode: "relay",
-        }}
-        capability={capability}
-        clientId="client-test"
-        onBack={vi.fn()}
-        onOpenKeyboard={vi.fn()}
-        send={send}
-        state="paired"
-        trackpadSettings={defaultTrackpadSettings}
-      />,
-    );
-    act(() => {
-      publishScreenViewResult({
-        type: "screen.view.sources.result",
-        operationId: sourceRequestId(send),
-        succeeded: true,
-        message: "Displays are available.",
-        sources: [
-          { id: "display-1", label: "Main display", width: 1920, height: 1080, isPrimary: true },
-        ],
+      act(() => {
+        publishScreenViewResult({
+          type: "screen.view.sources.result",
+          operationId: sourceRequestId(send),
+          succeeded: true,
+          message: "Displays are available.",
+          sources: [
+            { id: "display-1", label: "Main display", width: 1920, height: 1080, isPrimary: true },
+          ],
+        });
       });
-    });
-    const startRequest = await waitFor(() => {
-      const request = send.mock.calls
-        .map(([message]) => message)
-        .find((message) => message.type === "screen.view.start");
-      if (request?.type !== "screen.view.start") {
-        throw new Error("Screen start request was not sent.");
-      }
-      return request;
-    });
-    const offerSdp = screenOfferSdp;
-    const offerHash = hashScreenSdp(offerSdp);
-    const transcript = `VolturaAir screen-view:offer:v2:client-test:${startRequest.operationId}:display-1:${offerHash}`;
-    const hostSignature = signPrivateKeyPayload(
-      hostKey.privateKey,
-      new TextEncoder().encode(transcript),
-    );
-    act(() => {
-      publishScreenViewResult({
-        type: "screen.view.start.result",
-        operationId: startRequest.operationId,
-        displayId: "display-1",
-        succeeded: true,
-        code: "accepted",
-        message: "The encrypted WebRTC screen connection is ready.",
-        offerSdp,
-        hostSignature,
-        iceServers: [
-          {
-            urls: ["turns:turn.example.test:5349?transport=tcp"],
-            username: "user",
-            credential: "secret",
-          },
-        ],
-      });
-    });
-    await waitFor(() => expect(FakePeerConnection.instance?.localDescription).not.toBeNull());
-    act(() => {
-      FakePeerConnection.instance?.emit("icecandidate", {
-        candidate: { type: "relay", candidate: "candidate:1 1 udp 1 192.0.2.1 50000 typ relay" },
-      });
-    });
-    expect(send.mock.calls.some(([message]) => message.type === "screen.view.answer")).toBe(false);
-    act(() => {
-      if (FakePeerConnection.instance) {
-        FakePeerConnection.instance.iceGatheringState = "complete";
-        FakePeerConnection.instance.emit("icegatheringstatechange", {});
-      }
-    });
-    await waitFor(() => {
-      expect(send.mock.calls.some(([message]) => message.type === "screen.view.answer")).toBe(true);
-    });
-    expect(FakePeerConnection.instance?.iceGatheringState).toBe("complete");
-    let staleMessageListener: ((event: MessageEvent) => void) | null = null;
-    const staleChannel = {
-      label: "screen-events",
-      binaryType: "blob",
-      close: vi.fn(),
-      addEventListener: (type: string, listener: (event: MessageEvent) => void) => {
-        if (type === "message") {
-          staleMessageListener = listener;
+      const startRequest = await waitFor(() => {
+        const request = send.mock.calls
+          .map(([message]) => message)
+          .find((message) => message.type === "screen.view.start");
+        if (request?.type !== "screen.view.start") {
+          throw new Error("Screen start request was not sent.");
         }
-      },
-    };
-    act(() => {
-      FakePeerConnection.instance?.emit("datachannel", { channel: staleChannel });
-    });
-    const duplicateChannel = {
-      label: "screen-events",
-      close: vi.fn(),
-      addEventListener: vi.fn(),
-    };
-    act(() => {
-      FakePeerConnection.instance?.emit("datachannel", { channel: duplicateChannel });
-    });
-    expect(duplicateChannel.close).toHaveBeenCalledOnce();
-    expect(duplicateChannel.addEventListener).not.toHaveBeenCalled();
-    const video = screen.getByLabelText("Mirrored PC display video") as HTMLVideoElement;
-    Object.defineProperty(video, "srcObject", { configurable: true, writable: true, value: null });
-    act(() => {
-      FakePeerConnection.instance?.emit("track", { track: { kind: "video" }, streams: [{}] });
-    });
+        return request;
+      });
+      const offerSdp = screenOfferSdp;
+      const offerHash = hashScreenSdp(offerSdp);
+      const transcript = `VolturaAir screen-view:offer:v2:client-test:${startRequest.operationId}:display-1:${offerHash}`;
+      const hostSignature = signPrivateKeyPayload(
+        hostKey.privateKey,
+        new TextEncoder().encode(transcript),
+      );
+      act(() => {
+        publishScreenViewResult({
+          type: "screen.view.start.result",
+          operationId: startRequest.operationId,
+          displayId: "display-1",
+          succeeded: true,
+          code: "accepted",
+          message: "The encrypted WebRTC screen connection is ready.",
+          offerSdp,
+          hostSignature,
+          iceServers: [
+            {
+              urls: ["turns:turn.example.test:5349?transport=tcp"],
+              username: "user",
+              credential: "secret",
+            },
+          ],
+        });
+      });
+      await waitFor(() => expect(FakePeerConnection.instance?.localDescription).not.toBeNull());
+      act(() => {
+        FakePeerConnection.instance?.emit("icecandidate", {
+          candidate: { type: "relay", candidate: "candidate:1 1 udp 1 192.0.2.1 50000 typ relay" },
+        });
+      });
+      expect(send.mock.calls.some(([message]) => message.type === "screen.view.answer")).toBe(
+        false,
+      );
+      act(() => {
+        if (FakePeerConnection.instance) {
+          FakePeerConnection.instance.iceGatheringState = "complete";
+          FakePeerConnection.instance.emit("icegatheringstatechange", {});
+        }
+      });
+      await waitFor(() => {
+        expect(send.mock.calls.some(([message]) => message.type === "screen.view.answer")).toBe(
+          true,
+        );
+      });
+      expect(FakePeerConnection.instance?.iceGatheringState).toBe("complete");
+      let staleMessageListener: ((event: MessageEvent) => void) | null = null;
+      const staleChannel = {
+        label: "screen-events",
+        binaryType: "blob",
+        close: vi.fn(),
+        addEventListener: (type: string, listener: (event: MessageEvent) => void) => {
+          if (type === "message") {
+            staleMessageListener = listener;
+          }
+        },
+      };
+      act(() => {
+        FakePeerConnection.instance?.emit("datachannel", { channel: staleChannel });
+      });
+      const duplicateChannel = {
+        label: "screen-events",
+        close: vi.fn(),
+        addEventListener: vi.fn(),
+      };
+      act(() => {
+        FakePeerConnection.instance?.emit("datachannel", { channel: duplicateChannel });
+      });
+      expect(duplicateChannel.close).toHaveBeenCalledOnce();
+      expect(duplicateChannel.addEventListener).not.toHaveBeenCalled();
+      const video = screen.getByLabelText("Mirrored PC display video") as HTMLVideoElement;
+      Object.defineProperty(video, "srcObject", {
+        configurable: true,
+        writable: true,
+        value: null,
+      });
+      if (scenario === "video-first" || scenario === "audio-first") {
+        let source: MediaProvider | null = null;
+        let finishPlayback: (() => void) | undefined;
+        let abortPlayback: ((error: DOMException) => void) | undefined;
+        const assignSource = vi.fn((value: MediaProvider | null) => {
+          source = value;
+          // The media load algorithm aborts pending play promises on srcObject assignment.
+          abortPlayback?.(new DOMException("The media source was reloaded.", "AbortError"));
+        });
+        Object.defineProperty(video, "srcObject", {
+          configurable: true,
+          get: () => source,
+          set: assignSource,
+        });
+        play.mockReset().mockImplementation(
+          () =>
+            new Promise<void>((resolve, reject) => {
+              finishPlayback = resolve;
+              abortPlayback = reject;
+            }),
+        );
+        const kinds = scenario === "video-first" ? ["video", "audio"] : ["audio", "video"];
+        await act(async () => {
+          for (const kind of kinds) {
+            FakePeerConnection.instance?.emit("track", { track: { kind }, streams: [] });
+          }
+          await Promise.resolve();
+        });
+        expect(
+          screen.queryByText("The connected WebRTC video could not begin playback."),
+        ).toBeNull();
+        expect(assignSource).toHaveBeenCalledTimes(1);
+        expect(play).toHaveBeenCalledTimes(1);
+        expect((source as MediaStream | null)?.getTracks().map((track) => track.kind)).toEqual(
+          kinds,
+        );
+        act(() => {
+          FakePeerConnection.instance!.connectionState = "connected";
+          FakePeerConnection.instance?.emit("connectionstatechange", {});
+        });
+        expect(screen.getByRole("status").textContent).toBe("Starting screen video...");
+        await act(async () => {
+          finishPlayback?.();
+          await Promise.resolve();
+        });
+        fireEvent.playing(video);
+        expect(screen.getByRole("status").textContent).toBe("Live - Encrypted WebRTC");
+        return;
+      }
+      if (scenario === "playback-error") {
+        play
+          .mockReset()
+          .mockRejectedValueOnce(new DOMException("Decoder unavailable.", "NotSupportedError"))
+          .mockResolvedValueOnce();
+        await act(async () => {
+          FakePeerConnection.instance?.emit("track", { track: { kind: "video" }, streams: [] });
+          await Promise.resolve();
+        });
+        expect(screen.getByRole("status").textContent).toBe(
+          "Video could not start. Tap Show video to try again.",
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Show video" }));
+        await waitFor(() => expect(play).toHaveBeenCalledTimes(2));
+        fireEvent.playing(video);
+        expect(screen.getByRole("status").textContent).toBe("Live - Encrypted WebRTC");
+        return;
+      }
+      act(() => {
+        FakePeerConnection.instance?.emit("track", { track: { kind: "video" }, streams: [{}] });
+      });
 
-    const showVideo = await screen.findByRole("button", { name: "Show video" });
-    expect(screen.getByRole("status").textContent).toBe(
-      "Video is ready. Tap Show video to allow playback.",
-    );
-    expect(screen.queryByText("Your PC display appears here")).toBeNull();
-    fireEvent.click(showVideo);
-    await waitFor(() => expect(play).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Show video" })).toBeNull());
-    fireEvent.loadedData(video);
+      const showVideo = await screen.findByRole("button", { name: "Show video" });
+      expect(screen.getByRole("status").textContent).toBe(
+        "Video is ready. Tap Show video to allow playback.",
+      );
+      act(() => {
+        FakePeerConnection.instance!.connectionState = "connected";
+        FakePeerConnection.instance?.emit("connectionstatechange", {});
+      });
+      expect(screen.getByRole("status").textContent).toBe(
+        "Video is ready. Tap Show video to allow playback.",
+      );
+      expect(screen.queryByText("Your PC display appears here")).toBeNull();
+      fireEvent.click(showVideo);
+      await waitFor(() => expect(play).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Show video" })).toBeNull());
+      fireEvent.loadedData(video);
 
-    const audioCode = new TextEncoder().encode("audio-unavailable");
-    const audioMessage = new TextEncoder().encode("PC sound stopped. Video is still available.");
-    const audioRecord = new Uint8Array(5 + audioCode.length + audioMessage.length);
-    audioRecord[0] = 7;
-    audioRecord[1] = 0;
-    audioRecord[2] = audioCode.length;
-    new DataView(audioRecord.buffer).setUint16(3, audioMessage.length, false);
-    audioRecord.set(audioCode, 5);
-    audioRecord.set(audioMessage, 5 + audioCode.length);
-    vi.useFakeTimers();
-    act(() => staleMessageListener?.(new MessageEvent("message", { data: audioRecord.buffer })));
-    expect(document.querySelector(".screen-view-audio-notice")?.textContent).toBe(
-      "PC sound stopped. Video is still available.",
-    );
-    fireEvent.click(screen.getByRole("button", { name: "View PC screen full screen" }));
-    expect(document.querySelector(".screen-view-workspace")?.classList).toContain("is-immersive");
-    expect(document.querySelector(".screen-view-audio-overlay")?.textContent).toBe(
-      "PC sound stopped. Video is still available.",
-    );
-    act(() => {
-      vi.advanceTimersByTime(7_999);
-    });
-    expect(document.querySelector(".screen-view-audio-overlay")).not.toBeNull();
-    act(() => {
-      vi.advanceTimersByTime(1);
-    });
-    expect(document.querySelector(".screen-view-audio-overlay")).toBeNull();
-    expect(document.querySelector(".screen-view-audio-notice")).toBeNull();
-    expect(video.muted).toBe(true);
-    expect(screen.getByRole("button", { name: "Play PC sound" }).getAttribute("title")).toBe(
-      "PC sound is unavailable",
-    );
-    vi.useRealTimers();
+      const audioCode = new TextEncoder().encode("audio-unavailable");
+      const audioMessage = new TextEncoder().encode("PC sound stopped. Video is still available.");
+      const audioRecord = new Uint8Array(5 + audioCode.length + audioMessage.length);
+      audioRecord[0] = 7;
+      audioRecord[1] = 0;
+      audioRecord[2] = audioCode.length;
+      new DataView(audioRecord.buffer).setUint16(3, audioMessage.length, false);
+      audioRecord.set(audioCode, 5);
+      audioRecord.set(audioMessage, 5 + audioCode.length);
+      vi.useFakeTimers();
+      act(() => staleMessageListener?.(new MessageEvent("message", { data: audioRecord.buffer })));
+      expect(document.querySelector(".screen-view-audio-notice")?.textContent).toBe(
+        "PC sound stopped. Video is still available.",
+      );
+      fireEvent.click(screen.getByRole("button", { name: "View PC screen full screen" }));
+      expect(document.querySelector(".screen-view-workspace")?.classList).toContain("is-immersive");
+      expect(document.querySelector(".screen-view-audio-overlay")?.textContent).toBe(
+        "PC sound stopped. Video is still available.",
+      );
+      act(() => {
+        vi.advanceTimersByTime(7_999);
+      });
+      expect(document.querySelector(".screen-view-audio-overlay")).not.toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(document.querySelector(".screen-view-audio-overlay")).toBeNull();
+      expect(document.querySelector(".screen-view-audio-notice")).toBeNull();
+      expect(video.muted).toBe(true);
+      expect(screen.getByRole("button", { name: "Play PC sound" }).getAttribute("title")).toBe(
+        "PC sound is unavailable",
+      );
+      vi.useRealTimers();
 
-    if (!FakePeerConnection.instance) {
-      throw new Error("Fake peer connection was not created.");
-    }
-    FakePeerConnection.instance.connectionState = "disconnected";
-    act(() => {
-      FakePeerConnection.instance?.emit("connectionstatechange", {});
-    });
-    expect(document.querySelector('.screen-view-status-block [role="status"]')?.textContent).toBe(
-      "Screen video interrupted. Reconnecting for up to 8 seconds...",
-    );
-    expect(screen.getByText("Your PC display appears here")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Stop" })).toBeTruthy();
-    FakePeerConnection.instance.connectionState = "connected";
-    act(() => {
-      FakePeerConnection.instance?.emit("connectionstatechange", {});
-    });
-    expect(document.querySelector('.screen-view-status-block [role="status"]')?.textContent).toBe(
-      "Live - Encrypted WebRTC",
-    );
+      if (!FakePeerConnection.instance) {
+        throw new Error("Fake peer connection was not created.");
+      }
+      FakePeerConnection.instance.connectionState = "disconnected";
+      act(() => {
+        FakePeerConnection.instance?.emit("connectionstatechange", {});
+      });
+      expect(document.querySelector('.screen-view-status-block [role="status"]')?.textContent).toBe(
+        "Screen video interrupted. Reconnecting for up to 8 seconds...",
+      );
+      expect(screen.getByText("Your PC display appears here")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Stop" })).toBeTruthy();
+      FakePeerConnection.instance.connectionState = "connected";
+      act(() => {
+        FakePeerConnection.instance?.emit("connectionstatechange", {});
+      });
+      expect(document.querySelector('.screen-view-status-block [role="status"]')?.textContent).toBe(
+        "Live - Encrypted WebRTC",
+      );
 
-    act(() => {
-      FakePeerConnection.instance?.emit("track", { track: { kind: "video" }, streams: [{}] });
-    });
-    await waitFor(() => expect(play).toHaveBeenCalledTimes(3));
-    FakePeerConnection.instance.connectionState = "failed";
-    act(() => {
-      FakePeerConnection.instance?.emit("connectionstatechange", {});
-    });
-    await act(async () => {
-      rejectStalePlayback?.(new DOMException("The stream was closed."));
-      await Promise.resolve();
-    });
-    expect(screen.queryByRole("button", { name: "Show video" })).toBeNull();
-    expect(screen.getByText("Your PC display appears here")).toBeTruthy();
-    expect(document.querySelector('.screen-view-status-block [role="status"]')?.textContent).toBe(
-      "Screen video connection was lost. Tap Start to reconnect.",
-    );
-    act(() => {
-      staleMessageListener?.(new MessageEvent("message", { data: "stale invalid record" }));
-    });
-    expect(document.querySelector('.screen-view-status-block [role="status"]')?.textContent).toBe(
-      "Screen video connection was lost. Tap Start to reconnect.",
-    );
-  });
+      act(() => {
+        FakePeerConnection.instance?.emit("track", { track: { kind: "video" }, streams: [{}] });
+      });
+      await waitFor(() => expect(play).toHaveBeenCalledTimes(3));
+      FakePeerConnection.instance.connectionState = "failed";
+      act(() => {
+        FakePeerConnection.instance?.emit("connectionstatechange", {});
+      });
+      await act(async () => {
+        rejectStalePlayback?.(new DOMException("The stream was closed."));
+        await Promise.resolve();
+      });
+      expect(screen.queryByRole("button", { name: "Show video" })).toBeNull();
+      expect(screen.getByText("Your PC display appears here")).toBeTruthy();
+      expect(document.querySelector('.screen-view-status-block [role="status"]')?.textContent).toBe(
+        "Screen video connection was lost. Tap Start to reconnect.",
+      );
+      act(() => {
+        staleMessageListener?.(new MessageEvent("message", { data: "stale invalid record" }));
+      });
+      expect(document.querySelector('.screen-view-status-block [role="status"]')?.textContent).toBe(
+        "Screen video connection was lost. Tap Start to reconnect.",
+      );
+    },
+  );
 
   it("uses an in-app full-screen fallback and keeps an explicit exit control", async () => {
     const send = vi.fn<(message: ClientMessage) => void>();

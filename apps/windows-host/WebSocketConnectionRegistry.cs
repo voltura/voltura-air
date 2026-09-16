@@ -31,7 +31,7 @@ internal sealed class WebSocketConnectionRegistry : IDisposable
         }
     }
 
-    public void Register(string clientId, WebSocket socket)
+    public void Register(string clientId, WebSocket socket, bool broadcastsEnabled = true)
     {
         lock (_gate)
         {
@@ -48,7 +48,15 @@ internal sealed class WebSocketConnectionRegistry : IDisposable
             }
 
             sockets.Add(socket);
-            _sendGates.Add(socket, new SendGateState());
+            _sendGates.Add(socket, new SendGateState { BroadcastsEnabled = broadcastsEnabled });
+        }
+    }
+
+    public void EnableBroadcasts(WebSocket socket)
+    {
+        lock (_gate)
+        {
+            if (_sendGates.TryGetValue(socket, out var sendGate)) sendGate.BroadcastsEnabled = true;
         }
     }
 
@@ -117,7 +125,9 @@ internal sealed class WebSocketConnectionRegistry : IDisposable
     {
         lock (_gate)
         {
-            return [.. _activeSockets.SelectMany(pair => pair.Value.Select(socket => (pair.Key, socket)))];
+            return [.. _activeSockets.SelectMany(pair => pair.Value
+                .Where(socket => _sendGates.TryGetValue(socket, out var state) && state.BroadcastsEnabled)
+                .Select(socket => (pair.Key, socket)))];
         }
     }
 
@@ -230,5 +240,6 @@ internal sealed class WebSocketConnectionRegistry : IDisposable
         public int Users { get; set; }
 
         public bool Retired { get; set; }
+        public bool BroadcastsEnabled { get; set; }
     }
 }

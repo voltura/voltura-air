@@ -628,7 +628,7 @@ export default function ScreenViewWorkspace({
     const source = video?.srcObject;
     if (!video || !source) {
       setPlaybackBlocked(false);
-      setStatus("The WebRTC mirror is no longer connected. Tap Start to try again.");
+      setStatus("Screen viewing is disconnected. Tap Start to try again.");
       return;
     }
     try {
@@ -647,8 +647,8 @@ export default function ScreenViewWorkspace({
         setPlaybackBlocked(true);
         setStatus("Video is ready. Tap Show video to allow playback.");
       } else {
-        setPlaybackBlocked(false);
-        setStatus("The connected WebRTC video could not begin playback.");
+        setPlaybackBlocked(true);
+        setStatus("Video could not start. Tap Show video to try again.");
       }
     }
   }
@@ -868,7 +868,10 @@ export default function ScreenViewWorkspace({
         return;
       }
       remoteStreamRef.current = stream;
-      videoRef.current.srcObject = stream;
+      // Reassigning even the same stream reloads the player and aborts pending play().
+      if (videoRef.current.srcObject !== stream) {
+        videoRef.current.srcObject = stream;
+      }
       if (event.track.kind === "audio") {
         setAudioTrackReady(true);
       } else {
@@ -921,8 +924,8 @@ export default function ScreenViewWorkspace({
         disconnectedRecoveryRef.current = undefined;
         if (hasVisualFrameRef.current) {
           setViewing(true);
+          setStatus("Live - Encrypted WebRTC");
         }
-        setStatus("Live - Encrypted WebRTC");
       }
       if (peer.connectionState === "disconnected") {
         traceScreenView("reconnect_started");
@@ -992,7 +995,7 @@ export default function ScreenViewWorkspace({
       });
       if (!renewing) {
         scheduleCredentialRenewal(message.turnExpiresAt);
-        setStatus("Connecting encrypted WebRTC mirror...");
+        setStatus("Starting screen video...");
       }
     } catch (error) {
       if (!isCurrentNegotiation()) {

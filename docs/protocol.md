@@ -314,6 +314,10 @@ SHA-256, IEEE P1363 fixed-field format:
 The host consumes the challenge before verification. A session accepts one
 proof; cross-session, different-challenge, reused, and post-restart proofs fail.
 
+The host sends `pair.accepted` before enabling status or feature broadcasts to
+that socket. The socket remains tracked for revocation while acceptance is sent;
+a failed send or revocation cannot enable broadcasts afterward.
+
 Success:
 
 ```json

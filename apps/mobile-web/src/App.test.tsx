@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { useVolturaAirConnection } from "./foundation/connection/useVolturaAirConnection";
 import { usePwaLifecycle } from "./foundation/pwa/usePwaLifecycle";
+// Load the real workspace before timed navigation assertions. Its first lazy import
+// otherwise includes Vitest's cold module transformation while other suites run.
+import "./features/screen-view";
 
 vi.mock("./foundation/connection/useVolturaAirConnection", () => ({
   useVolturaAirConnection: vi.fn(),

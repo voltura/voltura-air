@@ -13,7 +13,9 @@ internal sealed class WebSocketTransport : IDisposable
     public int ActiveSocketCount => _connections.ActiveSocketCount;
     public int SendGateCount => _connections.SendGateCount;
 
-    public void Register(string clientId, WebSocket socket) => _connections.Register(clientId, socket);
+    public void Register(string clientId, WebSocket socket, bool broadcastsEnabled = true) =>
+        _connections.Register(clientId, socket, broadcastsEnabled);
+    public void EnableBroadcasts(WebSocket socket) => _connections.EnableBroadcasts(socket);
     public void Unregister(string clientId, WebSocket socket) => _connections.Unregister(clientId, socket);
     public void DetachFromRevocation(string clientId, WebSocket socket) => _connections.DetachFromRevocation(clientId, socket);
     public WebSocket[] TakeRevoked(string? clientId) => _connections.TakeRevoked(clientId);

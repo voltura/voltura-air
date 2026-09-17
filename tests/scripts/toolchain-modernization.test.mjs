@@ -20,7 +20,7 @@ test("repository toolchains are pinned to supported stable releases", () => {
   const toolchainCheck = read("scripts/check-toolchain.mjs");
   const manifest = json("scripts/toolchain.json");
   assert.equal(manifest.tools.dotnet.policy, "feature-band");
-  assert.equal(manifest.tools.powershell.minimum, "7.6.6");
+  assert.equal(manifest.tools.powershell.minimum, "7.6.0");
   assert.equal(manifest.tools.powershell.policy, "patch-line");
   assert.equal(manifest.tools.dotnet.minimum, dotnet.sdk.version);
   assert.equal(root.packageManager, `npm@${manifest.tools.npm.minimum}`);

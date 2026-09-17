@@ -129,6 +129,12 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   retains the latest ordinary notification while one is visible.
   Later optional single-device notifications include the current profile; the
   existing multiple-device summary is unchanged.
+- The PC's **PC input paused** administrator-app warning appears once per
+  connected session. It is rearmed after all devices disconnect and a device
+  connects again. The web warning continues to follow the active app.
+  **Show desktop** uses Windows' desktop action (Win+D), including for windows
+  that do not support minimization. It leaves an already active desktop in place
+  and reports success only after Windows confirms the desktop is foreground.
 - Unsupported actions are omitted; host-disabled actions explain the relevant
   permission. Manually sent unauthorized commands are rejected.
 - Custom screens and Presentation are supported capabilities and remain
@@ -581,6 +587,31 @@ supported. Its browser profile stores device identity/name, saved PCs, local UI
 preferences, text snippets, and theme. It provides a cache-reset flow and can
 refresh its installed shell once after reconnect.
 
+**Settings → App** offers **Keep this device’s screen on**, off by default and
+saved for the current browser installation across PCs. Where the Screen Wake
+Lock API is available, it requests a lock only while paired and visible, releases
+it on disconnect or hiding, and requests it again on return. The device can
+decline or release a lock; the app does not continuously retry. Gyro mouse
+retains its own automatic lock and stops when the page is hidden.
+
+**Keep pairing and settings** asks the browser to protect existing website
+storage from automatic eviction. The app checks protection once on startup and
+requests it automatically once on iOS Safari when needed, or in other browsers
+when the Permissions API reports persistent-storage permission as already granted.
+Prompt, denied, and unknown permission states use the explicit action; an
+automatic request that is declined or fails can also be retried there. Safari's
+narrow browser check preserves its silent request where permission querying is
+unavailable. The section shows enabled, declined, unavailable, or failed results.
+Protection is browser-controlled, is not a backup, and does not prevent manual
+deletion. Transfer cleanup, Forget PC, and app cache refresh retain their
+existing behavior.
+
+Home screen guidance offers the browser's native install prompt when available.
+An App settings information dialog gives Safari and other-browser instructions,
+including **Open as Web App** where shown. The guidance is hidden when running
+installed. Information icons also explain screen wake lock and storage protection;
+their dialogs use the shared close and OK actions.
+
 Appearance includes an optional custom accent seed. The host Preferences page
 owns the global device default, while an authenticated device can save its own
 override or return to the PC default. The PWA caches the effective value for
@@ -827,6 +858,12 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   and cancels that device's active mutation and transfer work. **My device** allows transfer; **Remote controls** blocks it. A complete pre-transfer Custom matrix migrates with transfer blocked; malformed Custom data remains fail-closed.
 
 ### Apps
+
+- When the foreground window has higher privileges than the host, Apps first
+  shows and verifies the Windows desktop, then activates the selected window
+  and checks that it received focus. Only this path minimizes other windows;
+  normal app switches activate the selected window directly. This does not
+  require administrator rights.
 
 - **Apps** is a lazy-loaded Menu tool for switching between ordinary top-level application windows on the signed-in Windows session and current virtual desktop. Its global quick mode selector remains available, and the Apps header provides a direct Trackpad shortcut beside Refresh. It presents a circular, orientation-responsive horizontal carousel with the same decelerating flick momentum as Terminal scrolling; touching a coasting deck stops it immediately. Tapping the centered card restores a minimized window, maximizes a suitable normal window, and asks Windows to focus it. Swipe up or the explicit Close button posts the application's normal close request, so unsaved-work prompts remain on the PC. A final **Open app** card expands into a vertically scrollable panel of existing host-approved application-launch shortcuts and closes back to the same deck position; the shortcuts retain their separate permission.
 - The host applies Windows' generic visible root-owner/last-active-popup and extended-style rules, then filters cloaked, other-session, other-desktop, and untitled windows before returning at most 48 bounded summaries. Voltura Air itself is included only when the separate host-application control setting permits that device. The browser receives a fresh connection-scoped revision and random opaque window IDs; the same verified native identity retains its opaque ID across title changes, while recycled or changed identities do not. Native handles, process IDs, executable paths, icons, commands, and arguments never cross the wire. Every action revalidates the current native window against that revision and current policy. Higher-integrity windows that Windows will not let Voltura Air lifetime-tag remain visible and may be focused, but fail closed for preview and close instead of being omitted or risking a recycled-window action.

@@ -482,14 +482,24 @@ export function App() {
 
     persistRemoteSetting(key, value);
   };
-  const { installApp, installPrompt, isInstalled, refreshInstalledApp, refreshMessage } =
-    usePwaLifecycle({
-      activePc,
-      autoRefresh: appSettings.autoRefresh,
-      clientId,
-      hostStatus,
-      state,
-    });
+  const {
+    installApp,
+    installPrompt,
+    isInstalled,
+    refreshInstalledApp,
+    refreshMessage,
+    keepDeviceScreenOn,
+    setKeepDeviceScreenOn,
+    screenWakeLockSupported,
+    protectSavedData,
+    storageProtection,
+  } = usePwaLifecycle({
+    activePc,
+    autoRefresh: appSettings.autoRefresh,
+    clientId,
+    hostStatus,
+    state,
+  });
   const {
     acceptLivePairingQr,
     confirmPendingPairing,
@@ -815,6 +825,11 @@ export function App() {
             });
           }}
           installApp={installApp}
+          keepDeviceScreenOn={keepDeviceScreenOn}
+          setKeepDeviceScreenOn={setKeepDeviceScreenOn}
+          screenWakeLockSupported={screenWakeLockSupported}
+          protectSavedData={protectSavedData}
+          storageProtection={storageProtection}
           installPrompt={installPrompt}
           isInstalled={isInstalled}
           isPairingQrReading={isPairingQrReading}

@@ -473,16 +473,6 @@
   min-width: 0;
 }
 
-.install-steps {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding-left: 22px;
-  color: var(--muted);
-  font-size: 0.92rem;
-  line-height: 1.35;
-}
-
 .manual-pc-form {
   display: grid;
   gap: 10px;

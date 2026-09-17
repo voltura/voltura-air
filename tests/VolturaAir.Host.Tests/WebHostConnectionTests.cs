@@ -370,13 +370,15 @@ public sealed class WebHostConnectionTests : WebHostServiceTestBase
             reconnectPublicKey = key.PublicKey
         });
 
-        fixture.WebHost.SetInputBlockedByElevation(true);
-        using var blockedTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        var blockedStatusText = await ReceiveTextAsync(socket, blockedTimeout.Token);
-        using var blockedStatus = JsonDocument.Parse(blockedStatusText);
+        foreach (var blocked in new[] { true, false, true, false })
+        {
+            fixture.WebHost.SetInputBlockedByElevation(blocked);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            using var status = JsonDocument.Parse(await ReceiveTextAsync(socket, timeout.Token));
 
-        Assert.Equal("status", blockedStatus.RootElement.GetProperty("type").GetString());
-        Assert.True(blockedStatus.RootElement.GetProperty("host").GetProperty("inputBlockedByElevation").GetBoolean());
+            Assert.Equal("status", status.RootElement.GetProperty("type").GetString());
+            Assert.Equal(blocked, status.RootElement.GetProperty("host").GetProperty("inputBlockedByElevation").GetBoolean());
+        }
     }
 
     [Fact]

@@ -202,6 +202,11 @@ beforeEach(() => {
   );
   mockConnection();
   vi.mocked(usePwaLifecycle).mockReturnValue({
+    keepDeviceScreenOn: false,
+    setKeepDeviceScreenOn: vi.fn(),
+    screenWakeLockSupported: false,
+    protectSavedData: vi.fn(),
+    storageProtection: "unavailable",
     installApp: vi.fn(),
     installPrompt: null,
     isInstalled: false,
@@ -381,6 +386,11 @@ describe("App header and mode navigation", () => {
     vi.useFakeTimers();
     const refreshInstalledApp = vi.fn();
     vi.mocked(usePwaLifecycle).mockReturnValue({
+      keepDeviceScreenOn: false,
+      setKeepDeviceScreenOn: vi.fn(),
+      screenWakeLockSupported: false,
+      protectSavedData: vi.fn(),
+      storageProtection: "unavailable",
       installApp: vi.fn(),
       installPrompt: null,
       isInstalled: false,
@@ -477,6 +487,53 @@ describe("App header and mode navigation", () => {
     await waitFor(() => {
       expect(screen.getByRole("dialog").textContent).toContain("Administrator app active");
     });
+  });
+
+  it.each(["Continue", "Close Administrator app active"])(
+    "clears the paused-input panel after input resumes following %s",
+    (dismissLabel) => {
+      const send = vi.fn();
+      mockConnection({ hostStatus: { inputBlockedByElevation: true }, send });
+      const { rerender } = render(<App />);
+      fireEvent.click(screen.getByRole("button", { name: dismissLabel }));
+      expect(
+        screen.getByRole("button", { name: "PC input paused. Open recovery options." }),
+      ).toBeTruthy();
+
+      mockConnection({ hostStatus: { inputBlockedByElevation: false }, send });
+      rerender(<App />);
+
+      expect(
+        screen.queryByRole("button", { name: "PC input paused. Open recovery options." }),
+      ).toBeNull();
+      expect(screen.queryByRole("dialog", { name: "Administrator app active" })).toBeNull();
+    },
+  );
+
+  it("opens administrator recovery above the open settings drawer and keeps settings open", () => {
+    const send = vi.fn();
+    mockConnection({ hostStatus: { inputBlockedByElevation: false }, send });
+    const { rerender } = render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    const settings = screen.getByRole("dialog", { name: "Menu" });
+
+    mockConnection({ hostStatus: { inputBlockedByElevation: true }, send });
+    rerender(<App />);
+
+    const recovery = screen.getByRole("dialog", { name: "Administrator app active" });
+    expect(recovery.tagName).toBe("DIALOG");
+    expect(recovery.hasAttribute("open")).toBe(true);
+    expect(settings.hasAttribute("open")).toBe(true);
+    fireEvent.click(within(recovery).getByRole("button", { name: "Show desktop" }));
+    expect(send).toHaveBeenCalledWith({
+      type: "keyboard.special",
+      inputContext: "keyboard",
+      key: "D",
+      modifiers: ["Win"],
+    });
+    fireEvent.click(within(recovery).getByRole("button", { name: "Continue" }));
+    expect(screen.queryByRole("dialog", { name: "Administrator app active" })).toBeNull();
+    expect(settings.hasAttribute("open")).toBe(true);
   });
 
   it("uses accessible mode labels and selected state in both navigation surfaces", () => {

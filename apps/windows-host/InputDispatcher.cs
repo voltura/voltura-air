@@ -7,6 +7,21 @@ public sealed class InputDispatcher(IInputInjector inputInjector)
     private readonly IInputInjector _inputInjector = inputInjector;
     internal event EventHandler? TaskbarActivated;
 
+    internal async ValueTask<(bool Handled, InputDispatchOutcome Outcome)> DispatchAsync(
+        ValidatedInputCommand command,
+        bool allowHostApplicationControl,
+        CancellationToken cancellationToken)
+    {
+        if (HostUiInputGuard.IsShowDesktopShortcut(command))
+        {
+            var shown = await HostUiInputGuard.TryShowDesktopAsync(cancellationToken).ConfigureAwait(false);
+            return (true, shown ? InputDispatchOutcome.Executed : InputDispatchOutcome.Failed);
+        }
+
+        var handled = Dispatch(command, allowHostApplicationControl, out var outcome);
+        return (handled, outcome);
+    }
+
     public bool Dispatch(JsonElement message)
     {
         return Dispatch(message, out _);

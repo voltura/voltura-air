@@ -21,10 +21,11 @@ internal sealed class InputCommandHandler(
         try
         {
             _ = powerController.DismissBlackoutIfActive();
-            if (!inputDispatcher.Dispatch(
+            var (handled, dispatchOutcome) = await inputDispatcher.DispatchAsync(
                 command,
                 allowHostApplicationControl,
-                out var dispatchOutcome))
+                cancellationToken);
+            if (!handled)
             {
                 await SendErrorAsync(socket, sequence, "VAIR-INPUT-UNSUPPORTED", "Unsupported input message.", cancellationToken);
                 return false;

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
+import { useScreenWakeLock } from "../platform/useScreenWakeLock";
 import {
   getGyroInitialAvailability,
   GyroMotionProcessor,
@@ -36,7 +37,6 @@ export function useGyroMouse({
   const engagedRef = useRef(false);
   const lastValidMotionAtRef = useRef(Number.NEGATIVE_INFINITY);
   const dataTimerRef = useRef<number | null>(null);
-  const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
   const lastActivationIdRef = useRef(0);
   const permissionAttemptRef = useRef(0);
   const onSelectedChangeRef = useRef(onSelectedChange);
@@ -164,38 +164,7 @@ export function useGyroMouse({
     };
   }, [connected, enabledSurface, listenerGeneration, selected, sensitivity]);
 
-  useEffect(() => {
-    if (!selected || !connected || !enabledSurface || document.visibilityState !== "visible") {
-      return;
-    }
-    const wakeLock = navigator.wakeLock;
-    if (!wakeLock) {
-      return;
-    }
-    let cancelled = false;
-    void wakeLock
-      .request("screen")
-      .then((lock) => {
-        if (cancelled) {
-          void lock.release();
-        } else {
-          wakeLockRef.current = lock;
-        }
-      })
-      .catch(() => {
-        // Wake lock is a best-effort enhancement.
-      });
-    return () => {
-      cancelled = true;
-      const lock = wakeLockRef.current;
-      wakeLockRef.current = null;
-      if (lock) {
-        void lock.release().catch(() => {
-          // The browser may already have released it.
-        });
-      }
-    };
-  }, [connected, enabledSurface, selected]);
+  useScreenWakeLock(selected && connected && enabledSurface);
 
   useEffect(() => {
     const onVisibility = () => {

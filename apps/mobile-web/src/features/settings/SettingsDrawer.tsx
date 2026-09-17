@@ -321,6 +321,11 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
           >
             <AppSettingsSection
               appSettings={props.appSettings}
+              keepDeviceScreenOn={props.keepDeviceScreenOn}
+              setKeepDeviceScreenOn={props.setKeepDeviceScreenOn}
+              screenWakeLockSupported={props.screenWakeLockSupported}
+              protectSavedData={props.protectSavedData}
+              storageProtection={props.storageProtection}
               installApp={props.installApp}
               installPrompt={props.installPrompt}
               isInstalled={props.isInstalled}

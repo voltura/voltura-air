@@ -1,5 +1,6 @@
 import type { ChangeEvent, ComponentType, Dispatch, RefObject, SetStateAction } from "react";
 import type { AppSettings, FourthMode } from "../../foundation/settings/appSettings";
+import type { StorageProtectionState } from "../../foundation/pwa/usePersistentStorage";
 import type { TrackpadSettings } from "../../foundation/input/gestures";
 import type { KeyboardSettings } from "../../foundation/settings/keyboardSettings";
 import type { PcProfile } from "../../foundation/connection/pcProfiles";
@@ -36,6 +37,11 @@ export interface SettingsToolOption {
 export interface SettingsDrawerProps {
   activePc: PcProfile | null;
   appSettings: AppSettings;
+  keepDeviceScreenOn: boolean;
+  setKeepDeviceScreenOn: (enabled: boolean) => void;
+  screenWakeLockSupported: boolean;
+  protectSavedData: () => Promise<void>;
+  storageProtection: StorageProtectionState;
   diagnostics: string;
   deviceName: string;
   customPointerEnabled?: boolean | undefined;

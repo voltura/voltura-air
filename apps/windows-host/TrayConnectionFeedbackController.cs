@@ -27,6 +27,7 @@ internal sealed class TrayConnectionFeedbackController : IDisposable
     private OwnedDispatcherTimer? _pendingStartupConnectionGrace;
     private bool _initialNoticeDisplayActive;
     private bool _hadActiveController;
+    private bool _remoteInputWarningShown;
     private bool _started;
     private bool _disposed;
 
@@ -130,9 +131,11 @@ internal sealed class TrayConnectionFeedbackController : IDisposable
             {
                 ShowOptionalConnectedNotification();
             }
+            ReportRemoteInputBlockedIfCurrent();
         }
         else if (_hadActiveController && !hasActiveController)
         {
+            _remoteInputWarningShown = false;
             ScheduleDisconnectNotification();
             ApplyCurrentState(holdConnectedDuringReconnect: true);
         }
@@ -378,8 +381,10 @@ internal sealed class TrayConnectionFeedbackController : IDisposable
 
     private void ReportRemoteInputBlocked()
     {
-        if (!_disposed && RemoteInputBlockedTrayNotification.ShouldShow(true, _pairingManager.HasActiveController))
+        if (!_disposed && !_remoteInputWarningShown &&
+            RemoteInputBlockedTrayNotification.ShouldShow(true, _pairingManager.HasActiveController))
         {
+            _remoteInputWarningShown = true;
             _showNotification(
                 RemoteInputBlockedTrayNotification.Title,
                 RemoteInputBlockedTrayNotification.Message,

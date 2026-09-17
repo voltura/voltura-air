@@ -1,45 +1,13 @@
-.input-recovery-dialog {
-  position: fixed;
-  z-index: 1001;
-  top: 50%;
-  left: 50%;
-  width: min(360px, calc(100vw - var(--space-2xl)));
-  box-sizing: border-box;
-  display: grid;
-  gap: var(--space-sm);
-  border: 1px solid color-mix(in srgb, var(--danger) 42%, var(--border));
-  border-radius: var(--radius-large);
-  padding: var(--space-lg);
-  color: var(--text);
+.modal-dialog.input-recovery-dialog {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
   background: color-mix(in srgb, var(--surface) 96%, var(--danger) 8%);
-  box-shadow: 0 8px 24px var(--floating-shadow);
-  text-align: left;
-  transform: translate(-50%, -50%);
-}
-
-.input-recovery-dialog h2,
-.input-recovery-dialog p {
-  margin: 0;
-}
-
-.input-recovery-dialog h2 {
-  font-size: 1.05rem;
-}
-
-.input-recovery-dialog p {
-  color: var(--muted);
-  font-size: 0.92rem;
 }
 
 .input-recovery-dialog-actions {
-  display: flex;
+  width: 100%;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--space-sm);
-}
-
-.input-recovery-dialog button {
-  min-height: var(--control-compact-height);
-  padding: 6px 10px;
 }
 
 .input-recovery-toast {

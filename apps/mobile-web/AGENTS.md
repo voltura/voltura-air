@@ -19,6 +19,10 @@ Inherits root; read relevant UI-system/architecture guidance.
 - Before contact, declare gesture ownership and fix `touch-action`. Accessibly
   handle tap/scroll/long-press/drag/cancel/release. Feature-detect; never
   UA-detect.
+- Exception: persistent-storage startup requests retain the iOS Safari check
+  to preserve its silent storage protection without relying on permission-query
+  support. Elsewhere, auto-request only when that API reports `granted`;
+  unknown or prompt states require the explicit action.
 
 ## Verify
 

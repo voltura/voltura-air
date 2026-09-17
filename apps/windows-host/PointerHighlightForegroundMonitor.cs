@@ -7,36 +7,29 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
 {
     private const uint EventSystemForeground = 0x0003;
     private const uint WinEventOutOfContext = 0x0000;
-    private const uint WinEventSkipOwnProcess = 0x0002;
-    private static readonly TimeSpan TaskbarActivationDelay = TimeSpan.FromMilliseconds(150);
+    private static readonly TimeSpan ForegroundSettleDelay = TimeSpan.FromMilliseconds(150);
     private readonly Dispatcher _dispatcher;
     private readonly IAppLogWriter _appLog;
     private readonly uint _hostIntegrityLevel;
+    private readonly Func<nint> _getForegroundWindow;
+    private readonly Func<nint, uint?> _getWindowIntegrityLevel;
     private readonly WinEventProc _callback;
-    private readonly DispatcherTimer _taskbarActivationTimer;
+    private readonly DispatcherTimer _foregroundRecheckTimer;
     private readonly OwnedDispatcherAction _taskbarActivationAction;
     private nint _hook;
     private int _remoteInputBlocked;
     private bool _disposed;
 
     public PointerHighlightForegroundMonitor(IAppLogWriter appLog)
+        : this(appLog, 0, GetForegroundWindow, GetWindowIntegrityLevel)
     {
-        _dispatcher = Dispatcher.CurrentDispatcher;
-        _appLog = appLog;
-        _callback = OnForegroundWindowChanged;
-        _taskbarActivationTimer = new DispatcherTimer(DispatcherPriority.Background, _dispatcher)
-        {
-            Interval = TaskbarActivationDelay
-        };
-        _taskbarActivationTimer.Tick += OnTaskbarActivationTimerTick;
-        _taskbarActivationAction = new OwnedDispatcherAction(_dispatcher, ScheduleTaskbarActivationRecheck);
-
         if (!WindowsProcessIntegrity.TryGetCurrentProcessIntegrityLevel(out _hostIntegrityLevel))
         {
             WriteDiagnostic("host_integrity_unavailable");
             return;
         }
 
+        // Switching to a host window must also refresh the reported input state.
         _hook = SetWinEventHook(
             EventSystemForeground,
             EventSystemForeground,
@@ -44,7 +37,7 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
             _callback,
             0,
             0,
-            WinEventOutOfContext | WinEventSkipOwnProcess);
+            WinEventOutOfContext);
         if (_hook == nint.Zero)
         {
             WriteDiagnostic("hook_failed", win32Error: Marshal.GetLastWin32Error());
@@ -52,7 +45,27 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
         }
 
         WriteDiagnostic("started");
-        UpdateOverlaySuppression(GetForegroundWindow());
+        UpdateOverlaySuppression(_getForegroundWindow());
+    }
+
+    internal PointerHighlightForegroundMonitor(
+        IAppLogWriter appLog,
+        uint hostIntegrityLevel,
+        Func<nint> getForegroundWindow,
+        Func<nint, uint?> getWindowIntegrityLevel)
+    {
+        _dispatcher = Dispatcher.CurrentDispatcher;
+        _appLog = appLog;
+        _hostIntegrityLevel = hostIntegrityLevel;
+        _getForegroundWindow = getForegroundWindow;
+        _getWindowIntegrityLevel = getWindowIntegrityLevel;
+        _callback = OnForegroundWindowChanged;
+        _foregroundRecheckTimer = new DispatcherTimer(DispatcherPriority.Background, _dispatcher)
+        {
+            Interval = ForegroundSettleDelay
+        };
+        _foregroundRecheckTimer.Tick += OnForegroundRecheckTimerTick;
+        _taskbarActivationAction = new OwnedDispatcherAction(_dispatcher, ScheduleForegroundRecheck);
     }
 
     public void Dispose()
@@ -70,8 +83,8 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
 
         _disposed = true;
         _taskbarActivationAction.Dispose();
-        _taskbarActivationTimer.Stop();
-        _taskbarActivationTimer.Tick -= OnTaskbarActivationTimerTick;
+        _foregroundRecheckTimer.Stop();
+        _foregroundRecheckTimer.Tick -= OnForegroundRecheckTimerTick;
         if (_hook != nint.Zero)
         {
             _ = UnhookWinEvent(_hook);
@@ -93,19 +106,18 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
         _taskbarActivationAction.Queue(DispatcherPriority.Background);
     }
 
-    private void ScheduleTaskbarActivationRecheck()
+    private void ScheduleForegroundRecheck()
     {
         if (_disposed)
         {
             return;
         }
 
-        _taskbarActivationTimer.Stop();
-        _taskbarActivationTimer.Start();
-        WriteDiagnostic("taskbar_activation_recheck_scheduled");
+        _foregroundRecheckTimer.Stop();
+        _foregroundRecheckTimer.Start();
     }
 
-    private void OnForegroundWindowChanged(
+    internal void OnForegroundWindowChanged(
         nint hook,
         uint eventType,
         nint windowHandle,
@@ -116,13 +128,17 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
     {
         if (!_disposed && eventType == EventSystemForeground)
         {
-            UpdateOverlaySuppression(windowHandle);
+            // Let transient notification/task-switcher focus settle, then query the current
+            // foreground window instead of trusting a potentially stale event handle.
+            ScheduleForegroundRecheck();
         }
     }
 
     private void UpdateOverlaySuppression(nint windowHandle)
     {
-        var integrityLevelKnown = WindowsProcessIntegrity.TryGetWindowIntegrityLevel(windowHandle, out var foregroundIntegrityLevel);
+        var integrityLevel = _getWindowIntegrityLevel(windowHandle);
+        var integrityLevelKnown = integrityLevel.HasValue;
+        var foregroundIntegrityLevel = integrityLevel.GetValueOrDefault();
         var remoteInputBlocked = integrityLevelKnown && WindowsProcessIntegrity.IsHigherIntegrity(_hostIntegrityLevel, foregroundIntegrityLevel);
         WriteDiagnostic(
             !integrityLevelKnown
@@ -137,14 +153,17 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
         }
     }
 
-    private void OnTaskbarActivationTimerTick(object? sender, EventArgs e)
+    private void OnForegroundRecheckTimerTick(object? sender, EventArgs e)
     {
-        _taskbarActivationTimer.Stop();
+        _foregroundRecheckTimer.Stop();
         if (!_disposed)
         {
-            UpdateOverlaySuppression(GetForegroundWindow());
+            UpdateOverlaySuppression(_getForegroundWindow());
         }
     }
+
+    private static uint? GetWindowIntegrityLevel(nint windowHandle) =>
+        WindowsProcessIntegrity.TryGetWindowIntegrityLevel(windowHandle, out var level) ? level : null;
 
     private void WriteDiagnostic(string outcome, string? detail = null, int? win32Error = null)
     {

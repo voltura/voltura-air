@@ -6,6 +6,13 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.3.7
+
+- Improved administrator-app warnings in the web app, including with settings open, and stopped repeated PC warnings after dismissal.
+- Fixed Show desktop leaving some applications visible.
+- Fixed switching away from administrator apps leaving PC input paused.
+- Improved the phone web app with an optional keep-screen-on setting, better protection for saved PCs and settings, and clearer Home Screen setup help.
+
 ## v1.3.6
 
 - Fixed Screen View briefly reporting a playback failure before showing live video.

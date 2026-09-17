@@ -19,6 +19,7 @@ import {
 export type ThemeMode = "system" | "light" | "dark";
 
 const liveKeyboardKey = "voltura-air.liveKeyboard";
+const keepDeviceScreenOnKey = "voltura-air.keepDeviceScreenOn";
 const themeModeKey = "voltura-air.themeMode";
 const autoRefreshSessionPrefix = "voltura-air.autoRefresh";
 
@@ -42,6 +43,14 @@ export function keyboardSettingsKey(clientId: string): string {
 
 export function loadLiveKeyboardDefault(): boolean {
   return readLocalStorage(liveKeyboardKey) !== "false";
+}
+
+export function loadKeepDeviceScreenOn(): boolean {
+  return readLocalStorage(keepDeviceScreenOnKey) === "true";
+}
+
+export function saveKeepDeviceScreenOn(enabled: boolean): void {
+  writeLocalStorage(keepDeviceScreenOnKey, String(enabled));
 }
 
 export function saveLiveKeyboardPreference(enabled: boolean): void {

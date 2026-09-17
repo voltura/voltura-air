@@ -11,6 +11,11 @@ const ToolIcon = () => null;
 const baseProps = {
   activePc: null,
   appSettings: defaultAppSettings,
+  keepDeviceScreenOn: false,
+  setKeepDeviceScreenOn: vi.fn(),
+  screenWakeLockSupported: true,
+  protectSavedData: vi.fn(),
+  storageProtection: "available" as const,
   diagnostics: "{}",
   deviceName: "Phone",
   disconnectActivePc: vi.fn(),

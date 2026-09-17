@@ -8,7 +8,7 @@ public sealed class RemoteInputBlockedTrayNotificationTests
         Assert.True(RemoteInputBlockedTrayNotification.ShouldShow(isBlocked: true, hasActiveController: true));
         Assert.Equal("PC input paused", RemoteInputBlockedTrayNotification.Title);
         Assert.Equal(
-            "An administrator app is active. Switch to another window or choose Show desktop on your phone.",
+            "An administrator app is active. Switch to another window or choose Show desktop in the web app.",
             RemoteInputBlockedTrayNotification.Message);
     }
 

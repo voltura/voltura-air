@@ -1,8 +1,8 @@
 using System.Runtime.InteropServices;
-using System.Reflection;
-using System.Globalization;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using System.Text.Json;
-using WpfApplication = System.Windows.Application;
 
 namespace VolturaAir.Host;
 
@@ -23,6 +23,7 @@ internal static partial class HostUiInputGuard
     private const int ScRestore = 0xF120;
     private const int ShowWindowMinimize = 6;
     private static long _lastClientPointerInputTicks;
+    private static int _showDesktopInProgress;
 
     public static bool ShouldBlockClientInput(string? messageType, JsonElement message)
     {
@@ -135,23 +136,33 @@ internal static partial class HostUiInputGuard
         return IsIconic(foregroundWindow);
     }
 
-    internal static bool TryShowDesktop()
+    internal static bool TryShowDesktop() => TryShowDesktopAsync().GetAwaiter().GetResult();
+
+    internal static async Task<bool> TryShowDesktopAsync(CancellationToken cancellationToken = default)
     {
-        var dispatcher = WpfApplication.Current?.Dispatcher;
-        if (dispatcher is null || dispatcher.HasShutdownStarted)
+        // Reject overlapping requests rather than letting two toggles restore the windows.
+        if (Interlocked.CompareExchange(ref _showDesktopInProgress, 1, 0) != 0)
         {
             return false;
         }
-
         try
         {
-            return dispatcher.CheckAccess()
-                ? TryMinimizeAllDesktopWindows()
-                : dispatcher.Invoke(TryMinimizeAllDesktopWindows);
-        }
-        catch (InvalidOperationException)
-        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsDesktopForeground() && !TryToggleDesktop()) return false;
+
+            var elapsed = Stopwatch.StartNew();
+            var desktopSamples = 0;
+            while (elapsed.Elapsed < TimeSpan.FromSeconds(2))
+            {
+                await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+                desktopSamples = IsDesktopForeground() ? desktopSamples + 1 : 0;
+                if (desktopSamples == 3) return true;
+            }
             return false;
+        }
+        finally
+        {
+            Volatile.Write(ref _showDesktopInProgress, 0);
         }
     }
 
@@ -195,47 +206,41 @@ internal static partial class HostUiInputGuard
             HasOnlyWinModifier(command.Modifiers);
     }
 
-    private static bool TryMinimizeAllDesktopWindows()
+    private static bool TryToggleDesktop()
     {
-        object? shell = null;
         try
         {
-            var shellType = Type.GetTypeFromProgID("Shell.Application");
-            if (shellType is null)
+            var start = new ProcessStartInfo
             {
-                return false;
-            }
-
-            shell = Activator.CreateInstance(shellType);
-            if (shell is null)
-            {
-                return false;
-            }
-
-            _ = shellType.InvokeMember(
-                "MinimizeAll",
-                BindingFlags.InvokeMethod,
-                null,
-                shell,
-                null,
-                CultureInfo.InvariantCulture);
+                FileName = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"),
+                UseShellExecute = true
+            };
+            // Windows' registered Show Desktop action. Never request elevation.
+            start.ArgumentList.Add("shell:::{3080F90D-D7AD-11D9-BD98-0000947B0257}");
+            if (IsDesktopForeground()) return true;
+            using var request = Process.Start(start);
             return true;
         }
-        catch (COMException)
+        catch (Exception exception) when (exception is Win32Exception or InvalidOperationException)
         {
             return false;
         }
-        catch (TargetInvocationException)
-        {
-            return false;
-        }
-        finally
-        {
-            if (shell is not null && Marshal.IsComObject(shell))
-            {
-                _ = Marshal.FinalReleaseComObject(shell);
-            }
-        }
+    }
+
+    private static unsafe bool IsDesktopForeground()
+    {
+        var foreground = GetForegroundWindow();
+        var shell = GetShellWindow();
+        if (foreground == 0 || shell == 0 || !IsWindowVisible(foreground) || IsIconic(foreground)) return false;
+        _ = GetWindowThreadProcessId(foreground, out var foregroundProcess);
+        _ = GetWindowThreadProcessId(shell, out var shellProcess);
+        if (foregroundProcess != shellProcess) return false;
+        if (foreground == shell) return true;
+        const int capacity = 128;
+        var name = stackalloc char[capacity];
+        var length = GetClassName(foreground, name, capacity);
+        return new ReadOnlySpan<char>(name, Math.Max(0, length)).SequenceEqual("WorkerW".AsSpan()) &&
+            FindWindowEx(foreground, 0, "SHELLDLL_DefView", null) != 0;
     }
 
     private static bool HasOnlyWinModifier(JsonElement modifiers)
@@ -412,6 +417,16 @@ internal static partial class HostUiInputGuard
 
     [LibraryImport("user32.dll")]
     private static partial nint GetForegroundWindow();
+
+    [LibraryImport("user32.dll")]
+    private static partial nint GetShellWindow();
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool IsWindowVisible(nint windowHandle);
+
+    [LibraryImport("user32.dll", EntryPoint = "FindWindowExW", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial nint FindWindowEx(nint parent, nint after, string className, string? title);
 
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

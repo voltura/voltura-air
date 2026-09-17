@@ -62,12 +62,13 @@ internal sealed class CustomScreenCommandHandler(
         bool? requestedState,
         CancellationToken cancellationToken)
     {
-        var result = Execute(
+        var result = await ExecuteAsync(
             clientId,
             screenId,
             screenRevision,
             buttonId,
-            requestedState);
+            requestedState,
+            cancellationToken);
         appLog.Write(new AppLogEntry(
             Event: "command_outcome",
             Source: "windows_host",
@@ -87,12 +88,13 @@ internal sealed class CustomScreenCommandHandler(
         }, cancellationToken);
     }
 
-    private CustomScreenExecutionResult Execute(
+    private async ValueTask<CustomScreenExecutionResult> ExecuteAsync(
         string clientId,
         string screenId,
         string screenRevision,
         string buttonId,
-        bool? requestedState)
+        bool? requestedState,
+        CancellationToken cancellationToken)
     {
         var screen = screens.Find(screenId);
         if (screen is null || !screen.AssignedClientIds.Contains(clientId, StringComparer.Ordinal))
@@ -233,10 +235,11 @@ internal sealed class CustomScreenCommandHandler(
         try
         {
             _ = powerController.DismissBlackoutIfActive();
-            if (!inputDispatcher.Dispatch(
+            var (handled, outcome) = await inputDispatcher.DispatchAsync(
                 command.Value,
                 statusFactory.CanControlHostApplication(clientId),
-                out var outcome))
+                cancellationToken);
+            if (!handled)
             {
                 return new(false, "action-unavailable", "This button action is unavailable.");
             }

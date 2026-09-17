@@ -103,6 +103,25 @@ internal sealed class WindowsAppsWindowAdapter(
         bool maximize = window.IdentityToken != nint.Zero && SupportsMaximize(window.Handle) &&
             !AppsWindowNativeMethods.IsZoomed(window.Handle) &&
             !IsApplicationFullscreen(window.Handle);
+
+        // Only leave the foreground through the desktop when it has higher privileges.
+        var foreground = WindowNativeMethods.GetForegroundWindow();
+        if (WindowsProcessIntegrity.TryGetCurrentProcessIntegrityLevel(out var hostIntegrity) &&
+            WindowsProcessIntegrity.TryGetWindowIntegrityLevel(foreground, out var foregroundIntegrity) &&
+            WindowsProcessIntegrity.IsHigherIntegrity(hostIntegrity, foregroundIntegrity))
+        {
+            if (!HostUiInputGuard.TryShowDesktop())
+            {
+                return new(false, "activation-rejected", "Windows could not show the desktop before switching applications.");
+            }
+
+            // The window may have closed or been replaced while the desktop settled.
+            if (!TryGetCurrent(window, includeVolturaAir, out _))
+            {
+                return new(false, "stale-window", "The application window is no longer available.");
+            }
+        }
+
         return _windowActivator.TryActivateWindow(window.Handle, maximize)
             ? new(true, "accepted", "Application activated.")
             : new(false, "activation-rejected", "Windows did not allow the application to take focus.");

@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getAutoRefreshSessionKey } from "../settings/appStorage";
+import {
+  getAutoRefreshSessionKey,
+  loadKeepDeviceScreenOn,
+  saveKeepDeviceScreenOn,
+} from "../settings/appStorage";
+import { supportsScreenWakeLock, useScreenWakeLock } from "../platform/useScreenWakeLock";
+import { usePersistentStorage } from "./usePersistentStorage";
 import type { ConnectionState } from "../connection/connectionTypes";
 import type { PcProfile } from "../connection/pcProfiles";
 import type { HostStatusMetadata } from "../protocol/messages";
@@ -31,6 +37,14 @@ export function usePwaLifecycle({
   hostStatus,
   state,
 }: PwaLifecycleOptions) {
+  const [keepDeviceScreenOn, setKeepDeviceScreenOnState] = useState(loadKeepDeviceScreenOn);
+  const screenWakeLockSupported = supportsScreenWakeLock();
+  useScreenWakeLock(keepDeviceScreenOn && state === "paired");
+  const { protectSavedData, storageProtection } = usePersistentStorage();
+  const setKeepDeviceScreenOn = useCallback((enabled: boolean) => {
+    saveKeepDeviceScreenOn(enabled);
+    setKeepDeviceScreenOnState(enabled);
+  }, []);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(() => isRunningStandalone());
   const [refreshMessage, setRefreshMessage] = useState(
@@ -163,7 +177,18 @@ export function usePwaLifecycle({
     });
   }, [activePc, autoRefresh, clientId, hostStatus, runRefreshAttempt, state]);
 
-  return { installApp, installPrompt, isInstalled, refreshInstalledApp, refreshMessage };
+  return {
+    installApp,
+    installPrompt,
+    isInstalled,
+    refreshInstalledApp,
+    refreshMessage,
+    keepDeviceScreenOn,
+    setKeepDeviceScreenOn,
+    screenWakeLockSupported,
+    protectSavedData,
+    storageProtection,
+  };
 }
 
 export function shouldRefreshWebClient(

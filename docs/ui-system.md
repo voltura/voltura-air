@@ -200,10 +200,16 @@ Files uses one panel below 640 CSS pixels and two equal panels at or above that 
 
 Files distinguishes **Open** (launch on the PC and remain in Files) from **View** (launch, then enter PC Screen after host success). This reuses the existing toolbar space and avoids a hidden long-press action competing with Properties. Permission or trust failures remain in Files with direct guidance; Screen Back restores Files.
 
-Screen viewing keeps its responsive stage as the working region. Sound,
+Screen viewing keeps its responsive stage as the working region. Volume −/+ (only
+with local sound on and PC volume supported), Sound,
 screenshot, record/stop, and expand/restore actions form one top-right overlay group with
 stable ordering and safe-area offsets; their spacing is owned by that
-composition. Sound starts muted for every peer and changes only browser-local
+composition. A matching top-left EyeOff/Eye toggle hides or shows volume, Sound,
+screenshot, record, and Scroll/Zoom; fullscreen remains at the top right. Hidden
+controls leave the focus order. Visibility is local to the open workspace and
+survives orientation and fullscreen changes. Zoom reset, mouse/keyboard control,
+and capture progress/results remain available. The landscape Back action sits
+in the bottom controls row. Sound starts muted for every peer and changes only browser-local
 playback. Its active state retains the neutral neighboring-control treatment
 except during activation. Record changes to a clear red Stop state and uses one
 compact artifact panel for elapsed time, finalization, Save/Share, and Discard.

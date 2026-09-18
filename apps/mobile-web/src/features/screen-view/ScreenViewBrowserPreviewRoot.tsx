@@ -35,6 +35,8 @@ export default function ScreenViewBrowserPreviewRoot() {
   return (
     <main className="app-shell control-depth screen-view-browser-preview">
       <ScreenViewWorkspace
+        audioState={{ type: "audio.state", volume: 50, muted: false }}
+        supportsVolumeControl
         activePc={{
           customName: false,
           id: "preview",

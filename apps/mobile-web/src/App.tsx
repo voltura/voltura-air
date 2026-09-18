@@ -1119,6 +1119,8 @@ export function App() {
           >
             <Suspense fallback={<div className="workspace-loading">Opening Screen…</div>}>
               <ScreenViewWorkspace
+                audioState={connection.audioState}
+                supportsVolumeControl={connection.supportsVolumeControl}
                 activePc={activePc}
                 capability={screenViewCapability}
                 clientId={clientId}

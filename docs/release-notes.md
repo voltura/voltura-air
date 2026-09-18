@@ -6,6 +6,10 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.3.8
+
+- Adjust your PC’s volume while viewing its screen with sound on, and hide or show the on-screen controls for a clearer view.
+
 ## v1.3.7
 
 - Improved administrator-app warnings in the web app, including with settings open, and stopped repeated PC warnings after dismissal.

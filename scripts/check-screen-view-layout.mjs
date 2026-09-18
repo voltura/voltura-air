@@ -1,4 +1,5 @@
 import path from "node:path";
+import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 import { createServer } from "vite";
@@ -72,6 +73,95 @@ try {
 
   process.stdout.write(
     `Screen View direct pointer covers the ${result.video.width.toFixed(2)} x ${result.video.height.toFixed(2)} video and receives its center hit.\n`,
+  );
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  // Preview has no incoming media; allow the real local Sound handler to run.
+  await page.evaluate(() => {
+    HTMLMediaElement.prototype.play = async () => {};
+  });
+  await page.getByRole("button", { name: "Play PC sound", exact: true }).click();
+  const output = process.env.SCREEN_VIEW_SCREENSHOT_DIR;
+  if (output) await mkdir(output, { recursive: true });
+  for (const viewport of [
+    { width: 320, height: 740 },
+    { width: 390, height: 844 },
+    { width: 844, height: 390 },
+  ]) {
+    await page.setViewportSize(viewport);
+    for (const fullscreen of [false, true]) {
+      if (fullscreen)
+        await page.getByRole("button", { name: "View PC screen full screen", exact: true }).click();
+      const layout = await page.evaluate(() => {
+        const stage = document.querySelector(".screen-view-stage").getBoundingClientRect();
+        const buttons = [...document.querySelectorAll(".screen-view-top-actions > button")]
+          .filter((button) => !button.hidden)
+          .map((button) => {
+            const bounds = button.getBoundingClientRect();
+            return {
+              name: button.getAttribute("aria-label"),
+              x: bounds.x,
+              y: bounds.y,
+              right: bounds.right,
+              width: bounds.width,
+              height: bounds.height,
+            };
+          });
+        const back = document.querySelector(".screen-view-icon-button").getBoundingClientRect();
+        return {
+          stage: { x: stage.x, right: stage.right, bottom: stage.bottom },
+          buttons,
+          backY: back.y,
+          immersive: document
+            .querySelector(".screen-view-workspace")
+            .classList.contains("is-immersive"),
+        };
+      });
+      const buttons = layout.buttons;
+      if (
+        buttons.length !== 7 ||
+        buttons.some(
+          (b, i) =>
+            Math.abs(b.y - buttons[0].y) > 1 ||
+            Math.abs(b.height - 40) > 1 ||
+            b.x < layout.stage.x ||
+            b.right > layout.stage.right ||
+            (i > 0 && b.x < buttons[i - 1].right - 1),
+        ) ||
+        (!fullscreen && viewport.width > viewport.height && layout.backY < layout.stage.bottom - 1)
+      ) {
+        throw new Error(
+          `Toolbar layout failed at ${JSON.stringify(viewport)}, fullscreen=${fullscreen}: ${JSON.stringify(layout)}`,
+        );
+      }
+      if (output && viewport.width === 390 && !fullscreen)
+        await page.screenshot({ path: path.join(output, "controls-shown.png") });
+      await page.getByRole("button", { name: "Hide controls", exact: true }).click();
+      for (const label of [
+        "Increase PC volume",
+        "Decrease PC volume",
+        "Mute PC sound",
+        "Capture PC screenshot",
+        "Start screen recording",
+      ]) {
+        if (await page.getByRole("button", { name: label, exact: true }).count())
+          throw new Error(`Hidden control is still accessible: ${label}`);
+      }
+      if (await page.getByRole("button", { name: /Two-finger mode:/ }).count())
+        throw new Error("Scroll/Zoom remains accessible");
+      if (output && viewport.width === 390 && !fullscreen)
+        await page.screenshot({ path: path.join(output, "controls-hidden.png") });
+      if (fullscreen)
+        await page.getByRole("button", { name: "Exit full screen", exact: true }).click();
+      await page.getByRole("button", { name: "Show controls", exact: true }).click();
+    }
+  }
+  await page.getByRole("button", { name: "Mute PC sound", exact: true }).click();
+  if (await page.getByRole("button", { name: "Increase PC volume", exact: true }).count())
+    throw new Error("Muted volume control is visible");
+  if (errors.length) throw new Error(`Browser errors: ${errors.join("; ")}`);
+  process.stdout.write(
+    "Screen View controls pass narrow portrait, portrait, landscape, fullscreen, hidden, and muted checks.\n",
   );
 } finally {
   await browser?.close();

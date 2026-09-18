@@ -188,6 +188,12 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   output-device changes are reported in the live view and never stop video.
   Sound notices disappear after eight seconds, including in full screen;
   local PC playback continues normally.
+- With Sound on and volume permission available, **−** and **+** adjust PC output
+  volume by five percentage points per tap. The top-left **Hide controls / Show
+  controls** button hides or restores volume, Sound, screenshot, recording, and
+  Scroll/Zoom actions without interrupting playback or recording. Fullscreen and
+  the visibility toggle remain available. Controls start visible when opening
+  Screen View and retain their visibility across rotation and fullscreen changes.
 - **Preferences → Screen viewing** owns the High default. Each paired device may
   inherit it or select High, Standard, or Low from Windows **Devices → Screen
   viewing** or mobile **Menu → Settings → Screen viewing**. A supporting host

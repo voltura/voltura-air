@@ -9,6 +9,8 @@ import {
 } from "react";
 import {
   ChevronLeft,
+  Eye,
+  EyeOff,
   Camera,
   Circle,
   Keyboard,
@@ -31,6 +33,7 @@ import { createLocalId } from "../../foundation/identity/localId";
 import type { TrackpadSettings, TwoFingerMode } from "../../foundation/input/gestures";
 import { usePointerInput } from "../../foundation/input/usePointerInput";
 import type {
+  AudioStateMessage,
   ClientMessage,
   ScreenViewCapability,
   ScreenViewSource,
@@ -69,9 +72,12 @@ import { hasExpectedScreenMedia } from "./screenViewSdp";
 import { ScreenViewRecordingPanel } from "./ScreenViewRecordingPanel";
 import { useScreenViewRecording } from "./useScreenViewRecording";
 import { screenViewRecordingMaximumDurationMs } from "./screenViewRecording";
+import { ScreenViewVolumeControls } from "./ScreenViewVolumeControls";
 import "./screen-view.css";
 
 interface Props {
+  audioState?: AudioStateMessage | null;
+  supportsVolumeControl?: boolean;
   activePc: PcProfile;
   browserPreviewState?: "inactive" | "active" | "permission-blocked";
   capability: ScreenViewCapability;
@@ -101,6 +107,8 @@ const relayStartResponseTimeoutMs = 25_000;
 
 export default function ScreenViewWorkspace({
   activePc,
+  audioState = null,
+  supportsVolumeControl = false,
   browserPreviewState,
   capability,
   clientId,
@@ -129,6 +137,7 @@ export default function ScreenViewWorkspace({
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
   const [qualityText, setQualityText] = useState("");
   const [soundOn, setSoundOn] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
   const [audioAvailable, setAudioAvailable] = useState(browserPreviewState !== undefined);
   const [audioTrackReady, setAudioTrackReady] = useState(browserPreviewState !== undefined);
   const [audioNotice, setAudioNotice] = useState("");
@@ -1431,7 +1440,28 @@ export default function ScreenViewWorkspace({
           <div className="screen-view-top-actions">
             <button
               type="button"
+              className="screen-view-visibility-toggle"
+              aria-label={controlsVisible ? "Hide controls" : "Show controls"}
+              title={controlsVisible ? "Hide controls" : "Show controls"}
+              aria-pressed={!controlsVisible}
+              onClick={() => setControlsVisible((visible) => !visible)}
+              onTouchStart={stopScreenGesture}
+              onTouchMove={stopScreenGesture}
+              onTouchEnd={stopScreenGesture}
+              onTouchCancel={stopScreenGesture}
+            >
+              {controlsVisible ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+            </button>
+            <ScreenViewVolumeControls
+              audioState={audioState}
+              enabled={supportsVolumeControl && state === "paired"}
+              visible={controlsVisible && soundOn && supportsVolumeControl}
+              send={send}
+            />
+            <button
+              type="button"
               className="screen-view-sound-action"
+              hidden={!controlsVisible}
               onTouchStart={stopScreenGesture}
               onTouchMove={stopScreenGesture}
               onTouchEnd={stopScreenGesture}
@@ -1456,6 +1486,7 @@ export default function ScreenViewWorkspace({
               <button
                 type="button"
                 className="screen-view-camera-action"
+                hidden={!controlsVisible}
                 onTouchStart={stopScreenGesture}
                 onTouchMove={stopScreenGesture}
                 onTouchEnd={stopScreenGesture}
@@ -1493,6 +1524,7 @@ export default function ScreenViewWorkspace({
             )}
             <button
               type="button"
+              hidden={!controlsVisible}
               className={`screen-view-record-action${recording.presentation.phase === "recording" ? " active" : ""}`}
               onTouchStart={stopScreenGesture}
               onTouchMove={stopScreenGesture}
@@ -1579,6 +1611,7 @@ export default function ScreenViewWorkspace({
             <button
               type="button"
               className="screen-view-two-finger-mode"
+              hidden={!controlsVisible}
               onTouchStart={stopScreenGesture}
               onTouchMove={stopScreenGesture}
               onTouchEnd={stopScreenGesture}

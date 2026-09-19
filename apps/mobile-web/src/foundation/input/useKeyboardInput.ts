@@ -11,9 +11,10 @@ import type { KeyboardSpecialMessage, KeyboardTextMessage } from "../protocol/me
 
 export function useKeyboardInput(
   emit: (payload: KeyboardTextMessage | KeyboardSpecialMessage) => void,
+  sessionLive = false,
 ) {
   const [keyboardText, setKeyboardText] = useState("");
-  const [liveKeyboard, setLiveKeyboard] = useState(() => loadLiveKeyboardDefault());
+  const [liveKeyboard, setLiveKeyboard] = useState(() => sessionLive || loadLiveKeyboardDefault());
   const committedKeyboardTextRef = useRef("");
   const isComposingRef = useRef(false);
   const lastEmptyDeleteRef = useRef<{ key: string; timeStamp: number } | null>(null);
@@ -38,6 +39,9 @@ export function useKeyboardInput(
   }, [liveKeyboard, placeLiveKeyboardCaret]);
 
   const setLiveTyping = (enabled: boolean) => {
+    if (sessionLive) {
+      return;
+    }
     setLiveKeyboard(enabled);
     saveLiveKeyboardPreference(enabled);
     committedKeyboardTextRef.current = keyboardText;

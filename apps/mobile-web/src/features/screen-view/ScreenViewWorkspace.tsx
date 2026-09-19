@@ -73,6 +73,7 @@ import { ScreenViewRecordingPanel } from "./ScreenViewRecordingPanel";
 import { useScreenViewRecording } from "./useScreenViewRecording";
 import { screenViewRecordingMaximumDurationMs } from "./screenViewRecording";
 import { ScreenViewVolumeControls } from "./ScreenViewVolumeControls";
+import { ScreenViewKeyboard } from "./ScreenViewKeyboard";
 import "./screen-view.css";
 
 interface Props {
@@ -431,6 +432,16 @@ export default function ScreenViewWorkspace({
     const onKeyDown = (event: KeyboardEvent) => {
       const message = screenKeyboardMessage(event);
       if (!message) {
+        return;
+      }
+      if (
+        event.target instanceof HTMLTextAreaElement &&
+        event.target.classList.contains("screen-view-keyboard-input") &&
+        (message.type === "keyboard.text" ||
+          ((message.key === "Enter" || message.key === "Backspace") &&
+            !message.modifiers?.length))
+      ) {
+        // Let the live input own text edits; capture shortcuts and navigation below.
         return;
       }
       event.preventDefault();
@@ -1760,6 +1771,13 @@ export default function ScreenViewWorkspace({
             >
               {twoFingerMode === "scroll" ? "Scroll" : "Zoom"}
             </button>
+            {controlsVisible && (
+              <ScreenViewKeyboard
+                key={`${selected}:${connectionEpoch}:${state}:${capability.directPointer?.permissionGranted}`}
+                enabled={state === "paired" && capability.directPointer?.permissionGranted === true}
+                send={send}
+              />
+            )}
             {capability.directPointer && hasFinePointer && (
               <button
                 ref={directPointerButtonRef}

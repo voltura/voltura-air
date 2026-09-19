@@ -292,6 +292,17 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   orientations expands the mirror edge-to-edge across the device viewport and
   remains expanded across orientation changes; its explicit exit action restores
   the normal workspace.
+  **ABC** and **123** beside **Scroll/Zoom** request the device's text or numeric
+  keyboard while staying in the mirror. Input is sent live to the PC under
+  **Pointer and keyboard** permission, without a visible local editor or Send step.
+  Both actions follow Hide controls. The hidden input stays inside the fullscreen
+  workspace; opening it does not intentionally resize, scroll, or reposition the
+  mirror or controls, and may cover content. Native keyboard layout and fullscreen
+  interaction remain browser-controlled. Opening or dismissing the keyboard does
+  not reset local mirror zoom or pan. Browsers exposing the keyboard-overlay option
+  use it while these controls are available and restore it on cleanup. ABC/123
+  are omitted when input-mode support is absent; uncertain native-keyboard
+  availability does not hide them. **Keys** still opens Keyboard mode.
   Compact Sound, Click, keyboard, display, and Stop controls sit around the responsive
   canvas. Screen View excludes microphone/per-app capture, recording pause or
   editing, annotations, absolute touch, windows, all-monitor composition,

@@ -136,6 +136,68 @@ try {
       }
       if (output && viewport.width === 390 && !fullscreen)
         await page.screenshot({ path: path.join(output, "controls-shown.png") });
+      const geometry = () =>
+        page.evaluate(() => ({
+          transform: document.querySelector(".screen-view-content").style.transform,
+          bounds: [".screen-view-stage", ".screen-view-video", ".screen-view-overlay-actions"].map(
+            (selector) => document.querySelector(selector).getBoundingClientRect().toJSON(),
+          ),
+          fullscreen: document.fullscreenElement !== null,
+          scroll: [window.scrollX, window.scrollY],
+        }));
+      const scrollMode = page.getByRole("button", {
+        name: "Two-finger mode: Scroll. Switch to Zoom",
+      });
+      if (await scrollMode.count()) await scrollMode.click();
+      await page.evaluate(
+        () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+      );
+      await page.locator(".screen-view-stage").evaluate((stage) => {
+        const bounds = stage.getBoundingClientRect();
+        const touch = (id, x, y) =>
+          new Touch({
+            identifier: id,
+            target: stage,
+            clientX: bounds.x + x,
+            clientY: bounds.y + y,
+          });
+        const dispatch = (type, touches) =>
+          stage.dispatchEvent(
+            new TouchEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              touches,
+              targetTouches: touches,
+            }),
+          );
+        dispatch("touchstart", [touch(1, 100, 100), touch(2, 160, 100)]);
+        dispatch("touchmove", [touch(1, 60, 110), touch(2, 200, 110)]);
+        dispatch("touchend", []);
+      });
+      await page.locator(".screen-view-content.zoomed").waitFor({ timeout: 3000 });
+      const beforeKeyboard = await geometry();
+      for (const label of ["Show device keyboard", "Show device numeric keyboard"]) {
+        await page.getByRole("button", { name: label, exact: true }).click();
+        const input = await page.locator(".screen-view-keyboard-input").evaluate((element) => ({
+          focused: document.activeElement === element,
+          mode: element.inputMode,
+          opacity: getComputedStyle(element).opacity,
+        }));
+        if (
+          !input.focused ||
+          input.opacity !== "0" ||
+          input.mode !== (label.includes("numeric") ? "numeric" : "text")
+        )
+          throw new Error("Device keyboard focus or hidden-input presentation failed");
+        const afterKeyboard = await geometry();
+        if (JSON.stringify(afterKeyboard) !== JSON.stringify(beforeKeyboard))
+          throw new Error(
+            `Device keyboard focus changed mirror geometry or fullscreen: ${JSON.stringify({ viewport, fullscreen, beforeKeyboard, afterKeyboard })}`,
+          );
+      }
+      await page.locator(".screen-view-keyboard-input").evaluate((element) => element.blur());
+      if (JSON.stringify(await geometry()) !== JSON.stringify(beforeKeyboard))
+        throw new Error("Device keyboard dismissal changed mirror geometry or fullscreen");
       await page.getByRole("button", { name: "Hide controls", exact: true }).click();
       for (const label of [
         "Increase PC volume",
@@ -143,6 +205,8 @@ try {
         "Mute PC sound",
         "Capture PC screenshot",
         "Start screen recording",
+        "Show device keyboard",
+        "Show device numeric keyboard",
       ]) {
         if (await page.getByRole("button", { name: label, exact: true }).count())
           throw new Error(`Hidden control is still accessible: ${label}`);

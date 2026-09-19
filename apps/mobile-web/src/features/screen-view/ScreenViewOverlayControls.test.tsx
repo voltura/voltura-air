@@ -5,6 +5,7 @@ import type { AudioStateMessage, ClientMessage } from "../../foundation/protocol
 import ScreenViewWorkspace from "./ScreenViewWorkspace";
 import { ScreenViewVolumeControls } from "./ScreenViewVolumeControls";
 import * as recordingModule from "./useScreenViewRecording";
+import { toLiveKeyboardValue } from "../../foundation/input/keyboardDelta";
 
 const audioState: AudioStateMessage = { type: "audio.state", volume: 50, muted: false };
 const props = {
@@ -59,6 +60,164 @@ afterEach(() => {
 });
 
 describe("Screen View overlay controls", () => {
+  it.each([
+    { key: "ArrowLeft" },
+    { key: "ArrowRight", shiftKey: true, modifiers: ["Shift"] },
+    { key: "Escape" },
+    { key: "Tab" },
+    { key: "Delete" },
+    { key: "a", code: "KeyA", ctrlKey: true, modifiers: ["Control"] },
+    { key: "Backspace", ctrlKey: true, modifiers: ["Control"] },
+    { key: "Enter", shiftKey: true, modifiers: ["Shift"] },
+  ])("forwards $key from the hidden input without local defaults", ({ modifiers, ...key }) => {
+    const send = vi.fn();
+    render(<ScreenViewWorkspace {...props} send={send} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show device keyboard" }));
+    const editor = screen.getByRole("textbox", { name: "Type on PC" }) as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: toLiveKeyboardValue("hello") } });
+    send.mockClear();
+    expect(fireEvent.keyDown(editor, key)).toBe(false);
+    expect(send).toHaveBeenCalledExactlyOnceWith({
+      type: "keyboard.special",
+      key: key.key,
+      ...(modifiers ? { modifiers } : {}),
+      inputContext: "screen-view",
+    });
+    expect(editor.value).toBe(toLiveKeyboardValue("hello"));
+    expect(document.activeElement).toBe(editor);
+  });
+
+  it("leaves text, Enter, Backspace, and composition to the live input", () => {
+    const send = vi.fn();
+    render(<ScreenViewWorkspace {...props} send={send} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show device keyboard" }));
+    const editor = screen.getByRole("textbox", { name: "Type on PC" });
+    send.mockClear();
+    for (const [key, value, message] of [
+      ["a", "a", { type: "keyboard.text", text: "a" }],
+      ["Enter", "a\n", { type: "keyboard.special", key: "Enter" }],
+      ["Backspace", "a", { type: "keyboard.special", key: "Backspace" }],
+    ] as const) {
+      expect(fireEvent.keyDown(editor, { key })).toBe(true);
+      expect(send).not.toHaveBeenCalled();
+      fireEvent.change(editor, { target: { value: toLiveKeyboardValue(value) } });
+      expect(send).toHaveBeenCalledExactlyOnceWith({ ...message, inputContext: "screen-view" });
+      send.mockClear();
+    }
+    fireEvent.compositionStart(editor);
+    expect(fireEvent.keyDown(editor, { key: "Enter", isComposing: true })).toBe(true);
+    expect(fireEvent.keyDown(editor, { key: "ArrowLeft", isComposing: true })).toBe(true);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("types live through a hidden target, switches layouts, and keeps Keys navigation", () => {
+    localStorage.setItem("voltura-air.liveKeyboard", "false");
+    const send = vi.fn();
+    render(<ScreenViewWorkspace {...props} send={send} />);
+    const editor = screen.getByRole("textbox", { name: "Type on PC" }) as HTMLTextAreaElement;
+    fireEvent.click(screen.getByRole("button", { name: "Show device keyboard" }));
+    expect(document.activeElement).toBe(editor);
+    expect(editor.inputMode).toBe("text");
+    expect(editor.className).toBe("screen-view-keyboard-input");
+    expect(editor.tabIndex).toBe(-1);
+    send.mockClear();
+    fireEvent.change(editor, { target: { value: toLiveKeyboardValue("hello") } });
+    expect(send).toHaveBeenCalledExactlyOnceWith({
+      type: "keyboard.text",
+      text: "hello",
+      inputContext: "screen-view",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Show device numeric keyboard" }));
+    expect(document.activeElement).toBe(editor);
+    expect(editor.inputMode).toBe("numeric");
+    fireEvent.change(editor, { target: { value: toLiveKeyboardValue("hello1") } });
+    expect(send).toHaveBeenLastCalledWith({
+      type: "keyboard.text",
+      text: "1",
+      inputContext: "screen-view",
+    });
+    expect(localStorage.getItem("voltura-air.liveKeyboard")).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "Keys" }));
+    expect(props.onOpenKeyboard).toHaveBeenCalled();
+    localStorage.removeItem("voltura-air.liveKeyboard");
+  });
+
+  it("commits composition once and avoids physical capture duplicating hidden-input keys", () => {
+    const send = vi.fn();
+    render(<ScreenViewWorkspace {...props} send={send} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show device keyboard" }));
+    const editor = screen.getByRole("textbox", { name: "Type on PC" });
+    send.mockClear();
+    fireEvent.keyDown(editor, { key: "a", code: "KeyA" });
+    expect(send).not.toHaveBeenCalled();
+    fireEvent.compositionStart(editor);
+    fireEvent.change(editor, { target: { value: toLiveKeyboardValue("漢") } });
+    expect(send).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(editor);
+    fireEvent.change(editor, { target: { value: toLiveKeyboardValue("漢") } });
+    expect(send).toHaveBeenCalledExactlyOnceWith({
+      type: "keyboard.text",
+      text: "漢",
+      inputContext: "screen-view",
+    });
+    fireEvent.change(editor, { target: { value: toLiveKeyboardValue("") } });
+    expect(send).toHaveBeenLastCalledWith({
+      type: "keyboard.special",
+      key: "Backspace",
+      inputContext: "screen-view",
+    });
+    send.mockClear();
+    fireEvent.keyDown(editor, { key: "Backspace" });
+    expect(send).toHaveBeenCalledExactlyOnceWith({
+      type: "keyboard.special",
+      key: "Backspace",
+      inputContext: "screen-view",
+    });
+  });
+
+  it("hides both actions and clears the focused input without leaving fullscreen", () => {
+    render(<ScreenViewWorkspace {...props} send={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "View PC screen full screen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show device keyboard" }));
+    const editor = screen.getByRole("textbox", { name: "Type on PC" }) as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: toLiveKeyboardValue("hello") } });
+    fireEvent.click(screen.getByRole("button", { name: "Hide controls" }));
+    expect(screen.queryByRole("button", { name: "Show device keyboard" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Show device numeric keyboard" })).toBeNull();
+    expect(editor.value).toBe("");
+    expect(document.activeElement).not.toBe(editor);
+    expect(screen.getByRole("button", { name: "Exit full screen" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Show controls" }));
+    expect((screen.getByRole("textbox", { name: "Type on PC" }) as HTMLTextAreaElement).value).toBe(
+      toLiveKeyboardValue(""),
+    );
+  });
+
+  it("resets on connection and permission changes and prevents unauthorized typing", () => {
+    const send = vi.fn();
+    const { rerender } = render(<ScreenViewWorkspace {...props} send={send} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show device keyboard" }));
+    const editor = screen.getByRole("textbox", { name: "Type on PC" }) as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: toLiveKeyboardValue("hello") } });
+    rerender(<ScreenViewWorkspace {...props} connectionEpoch={1} send={send} />);
+    expect(editor.value).toBe("");
+    expect(document.activeElement).not.toBe(editor);
+    rerender(
+      <ScreenViewWorkspace
+        {...props}
+        connectionEpoch={1}
+        send={send}
+        capability={{ ...props.capability, directPointer: { permissionGranted: false } }}
+      />,
+    );
+    const blockedEditor = screen.getByRole("textbox", { name: "Type on PC" });
+    send.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Show device keyboard" }));
+    expect(document.activeElement).not.toBe(blockedEditor);
+    fireEvent.change(blockedEditor, { target: { value: toLiveKeyboardValue("blocked") } });
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it("preserves later taps when earlier host responses arrive, including direction changes", () => {
     const send = vi.fn<(message: ClientMessage) => void>();
     const { rerender } = render(

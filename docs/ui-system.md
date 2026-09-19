@@ -205,7 +205,12 @@ with local sound on and PC volume supported), Sound,
 screenshot, record/stop, and expand/restore actions form one top-right overlay group with
 stable ordering and safe-area offsets; their spacing is owned by that
 composition. A matching top-left EyeOff/Eye toggle hides or shows volume, Sound,
-screenshot, record, and Scroll/Zoom; fullscreen remains at the top right. Hidden
+screenshot, record, Scroll/Zoom, and the adjacent ABC/123 device-keyboard actions;
+fullscreen remains at the top right. ABC/123 reuse the Scroll/Zoom pill styling
+and send live input through a visually hidden focus target inside the fullscreen
+workspace. They show no local text or editor. Keyboard visibility does not drive
+layout or overlay positioning; the keyboard may cover content. Hiding controls
+also blurs and clears that input target. Hidden
 controls leave the focus order. Visibility is local to the open workspace and
 survives orientation and fullscreen changes. Zoom reset, mouse/keyboard control,
 and capture progress/results remain available. The landscape Back action sits

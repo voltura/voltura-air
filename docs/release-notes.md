@@ -6,6 +6,12 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.4.1
+
+- Type on your PC while staying in Screen View: tap **ABC** for your device’s keyboard or **123** for its number keyboard, where supported.
+- Your typing goes straight to the PC, without a separate text box or Send button.
+- Hide the new keyboard buttons along with the other on-screen controls for a clearer view.
+
 ## v1.4.0
 
 - Screen View now reconnects automatically when your phone switches between Wi-Fi and mobile data while using Cloud Relay.

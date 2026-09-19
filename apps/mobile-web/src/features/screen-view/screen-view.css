@@ -289,6 +289,23 @@
   gap: 0.4rem;
 }
 
+.screen-view-keyboard-input {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  min-width: 0;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  font-size: 16px;
+  pointer-events: none;
+}
+
 .screen-view-two-finger-mode,
 .screen-view-mouse-mode {
   min-height: 2.25rem;

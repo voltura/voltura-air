@@ -111,7 +111,7 @@ async function openView(renewalSupported = true) {
   const send = vi.fn<(message: ClientMessage) => void>();
   const pcId = "https://example.test/d";
   localStorage.setItem(`voltura-air.reconnect-key.viewer.${pcId}`, client.privateKey);
-  const view = render(
+  const workspace = (state: "connecting" | "paired", connectionEpoch: number) => (
     <ScreenViewWorkspace
       activePc={{
         id: pcId,
@@ -134,13 +134,15 @@ async function openView(renewalSupported = true) {
         ...(renewalSupported ? { relayRenewal: true } : {}),
       }}
       clientId="viewer"
+      connectionEpoch={connectionEpoch}
       onBack={vi.fn()}
       onOpenKeyboard={vi.fn()}
       send={send}
-      state="paired"
+      state={state}
       trackpadSettings={defaultTrackpadSettings}
-    />,
+    />
   );
+  const view = render(workspace("paired", 1));
   const source = send.mock.calls.find(
     ([message]) => message.type === "screen.view.sources.get",
   )![0];
@@ -161,7 +163,7 @@ async function openView(renewalSupported = true) {
       .map(([message]) => message)
       .filter((message): message is ScreenViewStartMessage => message.type === "screen.view.start");
   const stops = () => send.mock.calls.filter(([message]) => message.type === "screen.view.stop");
-  async function accept(request = starts().at(-1)!, validSignature = true) {
+  async function accept(request = starts().at(-1)!, validSignature = true, answerSucceeded = true) {
     const transcript = `VolturaAir screen-view:offer:v2:viewer:${request.operationId}:${request.displayId}:${hashScreenSdp(offer)}${request.renewalOf && validSignature ? `:renew:${request.renewalOf}` : ""}`;
     await act(async () => {
       publishScreenViewResult({
@@ -189,9 +191,9 @@ async function openView(renewalSupported = true) {
         publishScreenViewResult({
           type: "screen.view.answer.result",
           operationId: answer.operationId,
-          succeeded: true,
-          code: "accepted",
-          message: "Ready",
+          succeeded: answerSucceeded,
+          code: answerSucceeded ? "accepted" : "offer-expired",
+          message: answerSucceeded ? "Ready" : "The screen offer expired.",
         }),
       );
     }
@@ -205,7 +207,9 @@ async function openView(renewalSupported = true) {
   });
   const video = screen.getByLabelText("Mirrored PC display video") as HTMLVideoElement;
   fireEvent.loadedData(video);
-  return { ...view, send, starts, stops, accept, original, video };
+  const setConnection = (state: "connecting" | "paired", connectionEpoch: number) =>
+    view.rerender(workspace(state, connectionEpoch));
+  return { ...view, send, starts, stops, accept, original, video, setConnection };
 }
 async function advance(milliseconds: number) {
   await act(async () => {
@@ -214,6 +218,132 @@ async function advance(milliseconds: number) {
 }
 
 describe("Relay screen renewal", () => {
+  it("automatically renews the active mirror after the Relay control connection changes", async () => {
+    const view = await openView();
+    const originalOperation = view.starts()[0]!.operationId;
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "View PC screen full screen" }));
+      await Promise.resolve();
+    });
+    view.video.muted = false;
+
+    act(() => view.setConnection("connecting", 1));
+    expect(view.original.close).toHaveBeenCalledOnce();
+    expect(recording.stop).toHaveBeenCalledWith(
+      "Screen viewing was interrupted. Recording is ready.",
+    );
+    expect(view.stops()).toHaveLength(0);
+
+    act(() => view.setConnection("paired", 2));
+    expect(view.starts().at(-1)!.renewalOf).toBe(originalOperation);
+    await view.accept();
+    const replacement = Peer.instances.at(-1)!;
+    await act(async () => {
+      replacement.connect();
+      replacement.audio.unmute();
+      replacement.video.unmute();
+      fireEvent.loadedData(view.video);
+      await Promise.resolve();
+    });
+
+    expect(view.video.muted).toBe(false);
+    expect(document.querySelector(".screen-view-workspace")?.classList).toContain("is-immersive");
+    expect(screen.getByText("Live - Encrypted WebRTC")).toBeTruthy();
+  });
+
+  it("falls back once to a fresh start when the interrupted host session is already gone", async () => {
+    const view = await openView();
+    const originalOperation = view.starts()[0]!.operationId;
+    act(() => view.setConnection("connecting", 1));
+    act(() => view.setConnection("paired", 2));
+    const renewal = view.starts().at(-1)!;
+    expect(renewal.renewalOf).toBe(originalOperation);
+
+    act(() =>
+      publishScreenViewResult({
+        type: "screen.view.start.result",
+        operationId: renewal.operationId,
+        displayId: renewal.displayId,
+        succeeded: false,
+        code: "renewal-unavailable",
+        message: "The current screen connection cannot be renewed.",
+      }),
+    );
+    await advance(0);
+
+    expect(view.starts()).toHaveLength(3);
+    expect(view.starts().at(-1)!.renewalOf).toBeUndefined();
+  });
+
+  it("ends the previous host session when a recovery start is rejected", async () => {
+    const view = await openView();
+    act(() => view.setConnection("connecting", 1));
+    act(() => view.setConnection("paired", 2));
+    const renewal = view.starts().at(-1)!;
+
+    act(() =>
+      publishScreenViewResult({
+        type: "screen.view.start.result",
+        operationId: renewal.operationId,
+        displayId: renewal.displayId,
+        succeeded: false,
+        code: "turn-unavailable",
+        message: "Relay screen viewing is temporarily unavailable.",
+      }),
+    );
+
+    expect(view.stops()).toHaveLength(1);
+    expect(screen.getByText("Relay screen viewing is temporarily unavailable.")).toBeTruthy();
+  });
+
+  it("ends the previous host session when a recovery start does not respond", async () => {
+    const view = await openView();
+    act(() => view.setConnection("connecting", 1));
+    act(() => view.setConnection("paired", 2));
+
+    await advance(25_000);
+
+    expect(view.stops()).toHaveLength(1);
+    expect(
+      screen.getByText(
+        "The PC did not respond while reconnecting Screen View. Ending the previous session...",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("ends the previous host session when a recovery answer is rejected", async () => {
+    const view = await openView();
+    act(() => view.setConnection("connecting", 1));
+    act(() => view.setConnection("paired", 2));
+
+    await view.accept(undefined, true, false);
+
+    expect(view.stops()).toHaveLength(1);
+    expect(Peer.instances.at(-1)!.close).toHaveBeenCalledOnce();
+    expect(
+      screen.getByText(
+        "The screen connection could not be restored. Ending the previous session...",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("ends the previous host session when a recovery peer does not become ready", async () => {
+    const view = await openView();
+    act(() => view.setConnection("connecting", 1));
+    act(() => view.setConnection("paired", 2));
+    await view.accept();
+
+    await advance(30_000);
+
+    expect(view.stops()).toHaveLength(1);
+    expect(Peer.instances.at(-1)!.close).toHaveBeenCalledOnce();
+    expect(
+      screen.getByText(
+        "The screen connection could not be restored. Ending the previous session...",
+      ),
+    ).toBeTruthy();
+  });
+
   it("keeps the live view, sound and fullscreen while replacing only a ready connection, repeatedly", async () => {
     const view = await openView();
     const originalOperation = view.starts()[0]!.operationId;

@@ -300,7 +300,7 @@ internal sealed class WebSocketSessionHandler(
                 if (!string.IsNullOrEmpty(authenticatedClientId))
                 {
                     aiAssistant.ClientDisconnected(authenticatedClientId, socket);
-                    await screenViewCommands.ClientDisconnectedAsync(authenticatedClientId);
+                    await screenViewCommands.ClientDisconnectedAsync(authenticatedClientId, socket);
                     await phoneWebcamCommands.ClientDisconnectedAsync(authenticatedClientId, socket);
                     appsCommands.ClientDisconnected(authenticatedClientId, socket);
                     fileManagerCommands.ClientDisconnected(authenticatedClientId, socket);

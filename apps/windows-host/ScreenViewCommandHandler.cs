@@ -13,13 +13,13 @@ internal sealed class ScreenViewCommandHandler(
     private readonly IAppLogWriter _appLog = appLog ?? NullAppLog.Instance;
     private bool _disposed;
 
-    public async Task ClientDisconnectedAsync(string clientId)
+    public async Task ClientDisconnectedAsync(string clientId, WebSocket socket)
     {
-        coordinator.Stop(clientId);
+        coordinator.StopConnection(clientId, socket);
         PendingStart? pending = GetPending(clientId);
-        pending?.Cancel();
-        if (pending is not null)
+        if (pending is not null && ReferenceEquals(pending.Owner, socket))
         {
+            pending.Cancel();
             await pending.Task.ConfigureAwait(false);
         }
     }
@@ -84,7 +84,7 @@ internal sealed class ScreenViewCommandHandler(
             else
             {
 #pragma warning disable CA2000 // PendingStart owns and disposes the linked cancellation source.
-                var pending = new PendingStart(CancellationTokenSource.CreateLinkedTokenSource(cancellationToken));
+                var pending = new PendingStart(socket, CancellationTokenSource.CreateLinkedTokenSource(cancellationToken));
 #pragma warning restore CA2000
                 _pendingStarts.Add(clientId, pending);
                 pending.Task = RunStartAsync(
@@ -105,7 +105,7 @@ internal sealed class ScreenViewCommandHandler(
                 operationId,
                 displayId,
                 "busy",
-                "Another screen-view request is already being prepared.",
+                "This device is already preparing a screen-view request.",
                 cancellationToken);
         }
         return Task.CompletedTask;
@@ -197,7 +197,15 @@ internal sealed class ScreenViewCommandHandler(
                 return;
             }
         }
-        var result = await coordinator.StartAsync(clientId, operationId, displayId, clientSignature, cancellationToken, relay, renewalOf: renewalOf).ConfigureAwait(false);
+        var result = await coordinator.StartAsync(
+            clientId,
+            operationId,
+            displayId,
+            clientSignature,
+            cancellationToken,
+            relay,
+            renewalOf: renewalOf,
+            owner: socket).ConfigureAwait(false);
         await transport.SendAsync(socket, new
         {
             type = "screen.view.start.result",
@@ -224,7 +232,12 @@ internal sealed class ScreenViewCommandHandler(
         string clientSignature,
         CancellationToken cancellationToken)
     {
-        ScreenViewOperationResult result = coordinator.CompleteAnswer(clientId, operationId, answerSdp, clientSignature);
+        ScreenViewOperationResult result = coordinator.CompleteAnswer(
+            clientId,
+            operationId,
+            answerSdp,
+            clientSignature,
+            owner: socket);
         return transport.SendAsync(socket, new
         {
             type = "screen.view.answer.result",
@@ -335,8 +348,9 @@ internal sealed class ScreenViewCommandHandler(
             message
         }, cancellationToken);
 
-    private sealed class PendingStart(CancellationTokenSource cancellation) : IDisposable
+    private sealed class PendingStart(WebSocket owner, CancellationTokenSource cancellation) : IDisposable
     {
+        public WebSocket Owner { get; } = owner;
         public CancellationToken Token => cancellation.Token;
         public Task Task { get; set; } = Task.CompletedTask;
 

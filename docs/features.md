@@ -164,6 +164,14 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   reconnects before the existing credentials expire. Before a recording that
   could overlap renewal, the connection renews first so the five-minute recording
   can use one uninterrupted received track.
+- If the same open PWA changes networks while using Relay, Screen View retains
+  its signed active-session identity and automatically replaces the interrupted
+  media peer after the command connection reconnects. The selected display,
+  sound setting, fullscreen, and local zoom survive a successful replacement;
+  direct mouse mode is disabled and an active recording is finalized because
+  its received track was interrupted. If host cleanup already released the old
+  session, the PWA performs one fresh start. It never displaces another paired
+  device that acquired the single-viewer slot.
 - The bundled Windows libdatachannel peer retains libjuice as its ICE and TURN
   owner. In relay mode a bounded loopback bridge carries libjuice's TURN
   messages over certificate-validated TLS/TCP 443, including the stream framing
@@ -310,6 +318,8 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   tell the viewer whether the PC stopped or disallowed it. Permission/toggle
   revocation, disconnect, lock or session loss, host exit, display removal, and
   capture-device loss stop the stream and release native/network resources.
+  A superseded Relay control socket releases only Screen View work that it still
+  owns, so its delayed disconnect cannot stop a replacement owned by the same PWA.
   Protected content and secure desktop are never replaced with another capture
   method.
 

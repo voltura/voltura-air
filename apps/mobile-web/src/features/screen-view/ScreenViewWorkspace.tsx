@@ -82,6 +82,7 @@ interface Props {
   browserPreviewState?: "inactive" | "active" | "permission-blocked";
   capability: ScreenViewCapability;
   clientId: string;
+  connectionEpoch?: number;
   onBack: () => void;
   onOpenKeyboard: () => void;
   onTransferNotice?: (message: string, tone: "success" | "error" | "neutral") => void;
@@ -100,6 +101,11 @@ interface PendingSource {
   displayId: string;
   previousDisplayId: string;
 }
+interface RelayRecovery {
+  operationId: string;
+  displayId: string;
+  attemptedEpoch: number | null;
+}
 
 const disconnectedRecoveryMs = 8_000;
 const directStartResponseTimeoutMs = 15_000;
@@ -112,6 +118,7 @@ export default function ScreenViewWorkspace({
   browserPreviewState,
   capability,
   clientId,
+  connectionEpoch = 0,
   onBack,
   onOpenKeyboard,
   onTransferNotice,
@@ -179,6 +186,9 @@ export default function ScreenViewWorkspace({
   const [credentialExpires, setCredentialExpires] = useState(0);
   const recordAfterRenewalRef = useRef(false);
   const disconnectedRecoveryRef = useRef<number | undefined>(undefined);
+  const relayRecoveryRef = useRef<RelayRecovery | null>(null);
+  const lastConnectionEpochRef = useRef(connectionEpoch);
+  const lastActivePcIdRef = useRef(activePc.id);
   const stopQualityMonitorRef = useRef<(() => void) | null>(null);
   const qualitySampleRef = useRef<ScreenViewQualitySample | null>(null);
   const pointerInput = usePointerInput({
@@ -590,7 +600,9 @@ export default function ScreenViewWorkspace({
         }
         pendingOfferRef.current = null;
         if (renewalOf) {
-          abandonRenewal();
+          failRenewal(
+            "The PC did not respond while reconnecting Screen View. Ending the previous session...",
+          );
           return;
         }
         cancelHostCapture(
@@ -625,6 +637,7 @@ export default function ScreenViewWorkspace({
   }
 
   function stop() {
+    relayRecoveryRef.current = null;
     const operationId = createLocalId();
     pendingStopRef.current = operationId;
     send({ type: "screen.view.stop", operationId });
@@ -698,9 +711,12 @@ export default function ScreenViewWorkspace({
     window.clearTimeout(startResponseTimeoutRef.current);
     startResponseTimeoutRef.current = undefined;
     const renewing = pending.renewalOf !== undefined;
+    const recovering =
+      pending.renewalOf !== undefined &&
+      relayRecoveryRef.current?.operationId === pending.renewalOf;
     const failStart = (text: string) => {
       if (renewing) {
-        abandonRenewal();
+        failRenewal(text);
       } else {
         cancelHostCapture(text);
       }
@@ -712,7 +728,7 @@ export default function ScreenViewWorkspace({
         );
       } else {
         if (renewing) {
-          abandonRenewal();
+          failRenewal(message.message);
           return;
         }
         setStatus("The PC returned a mismatched screen-view response.");
@@ -726,13 +742,24 @@ export default function ScreenViewWorkspace({
       !message.hostSignature ||
       !activePc.hostIdentityPublicKey
     ) {
+      if (!message.succeeded && recovering && message.code === "renewal-unavailable") {
+        const recovery = relayRecoveryRef.current;
+        abandonRenewal();
+        activeOperationRef.current = null;
+        if (recovery) {
+          setStatus("The previous screen session ended. Starting a new mirror...");
+          window.setTimeout(() => start(recovery.displayId), 0);
+        }
+        return;
+      }
       if (message.succeeded) {
         failStart(message.message);
       } else {
         if (renewing) {
-          abandonRenewal();
+          failRenewal(message.message);
           return;
         }
+        relayRecoveryRef.current = null;
         setStatus(message.message);
         setStreaming(false);
       }
@@ -759,6 +786,7 @@ export default function ScreenViewWorkspace({
       return;
     }
     if (!renewing) {
+      relayRecoveryRef.current = null;
       activeOperationRef.current = message.operationId;
       setSoundOn(false);
       setAudioAvailable(false);
@@ -805,7 +833,9 @@ export default function ScreenViewWorkspace({
       renewalRef.current = { operationId: message.operationId, peer };
       startResponseTimeoutRef.current = window.setTimeout(() => {
         if (renewalRef.current?.peer === peer) {
-          abandonRenewal();
+          failRenewal(
+            "The screen connection could not be restored. Ending the previous session...",
+          );
         }
       }, 30_000);
     } else {
@@ -826,6 +856,7 @@ export default function ScreenViewWorkspace({
       eventsRef.current = events;
       remoteStreamRef.current = stream;
       renewalRef.current = null;
+      relayRecoveryRef.current = null;
       window.clearTimeout(startResponseTimeoutRef.current);
       startResponseTimeoutRef.current = undefined;
       if (videoRef.current) {
@@ -921,7 +952,9 @@ export default function ScreenViewWorkspace({
       if (renewalRef.current?.peer === peer) {
         promoteRenewal();
         if (peer.connectionState === "failed" || peer.connectionState === "closed") {
-          abandonRenewal();
+          failRenewal(
+            "The screen connection could not be restored. Ending the previous session...",
+          );
         }
         return;
       }
@@ -943,16 +976,24 @@ export default function ScreenViewWorkspace({
         setStatus("Screen video interrupted. Reconnecting for up to 8 seconds...");
         disconnectedRecoveryRef.current = window.setTimeout(() => {
           if (peerRef.current === peer && peer.connectionState === "disconnected") {
-            closeStream();
-            setStatus("Screen video connection was lost. Tap Start to reconnect.");
+            if (beginRelayRecovery("Screen video connection was lost. Reconnecting...")) {
+              resumeRelayRecovery();
+            } else {
+              closeStream();
+              setStatus("Screen video connection was lost. Tap Start to reconnect.");
+            }
           }
         }, disconnectedRecoveryMs);
       }
       if (peer.connectionState === "failed" || peer.connectionState === "closed") {
         traceScreenView("connection_lost", peer.connectionState);
         if (peerRef.current === peer) {
-          closeStream();
-          setStatus("Screen video connection was lost. Tap Start to reconnect.");
+          if (beginRelayRecovery("Screen video connection was lost. Reconnecting...")) {
+            resumeRelayRecovery();
+          } else {
+            closeStream();
+            setStatus("Screen video connection was lost. Tap Start to reconnect.");
+          }
         }
       }
     });
@@ -1127,17 +1168,56 @@ export default function ScreenViewWorkspace({
     image.style.height = `${cursor.height * scale}px`;
   }
 
-  function closeStream() {
+  function beginRelayRecovery(message: string) {
+    const operationId = activeOperationRef.current;
+    if (
+      !operationId ||
+      activePc.transportMode !== "relay" ||
+      !capability.relayRenewal ||
+      !capability.canView
+    ) {
+      return false;
+    }
+    relayRecoveryRef.current ??= {
+      operationId,
+      displayId: selected,
+      attemptedEpoch: null,
+    };
+    closeStream(true);
+    setStatus(message);
+    return true;
+  }
+
+  function resumeRelayRecovery() {
+    const recovery = relayRecoveryRef.current;
+    if (!recovery || state !== "paired" || recovery.attemptedEpoch === connectionEpoch) {
+      return;
+    }
+    recovery.attemptedEpoch = connectionEpoch;
+    setStatus("Reconnecting Screen View...");
+    start(recovery.displayId, recovery.operationId);
+  }
+
+  function closeStream(preserveRelaySession = false) {
     traceScreenView("stream_closed");
     abandonRenewal();
     setCredentialExpires(0);
-    recording.stop("Screen viewing ended. Recording is ready.");
-    activeOperationRef.current = null;
+    recording.stop(
+      preserveRelaySession
+        ? "Screen viewing was interrupted. Recording is ready."
+        : "Screen viewing ended. Recording is ready.",
+    );
+    if (!preserveRelaySession) {
+      relayRecoveryRef.current = null;
+      activeOperationRef.current = null;
+    }
     negotiationGenerationRef.current += 1;
     disableDirectPointer();
     cancelScreenGesture();
-    applyViewTransform(identityScreenViewTransform);
-    setTwoFingerMode("scroll");
+    if (!preserveRelaySession) {
+      applyViewTransform(identityScreenViewTransform);
+      setTwoFingerMode("scroll");
+    }
     window.clearTimeout(credentialRenewalRef.current);
     credentialRenewalRef.current = undefined;
     window.clearTimeout(renewalRestartRef.current);
@@ -1150,7 +1230,9 @@ export default function ScreenViewWorkspace({
     stopQualityMonitorRef.current = null;
     qualitySampleRef.current = null;
     setQualityText("");
-    void exitImmersive();
+    if (!preserveRelaySession) {
+      void exitImmersive();
+    }
     pendingOfferRef.current = null;
     pendingSourceRef.current = null;
     pendingAnswerRef.current = null;
@@ -1163,10 +1245,12 @@ export default function ScreenViewWorkspace({
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-    setStreaming(false);
+    setStreaming(preserveRelaySession);
     setViewing(false);
     setPlaybackBlocked(false);
-    setSoundOn(false);
+    if (!preserveRelaySession) {
+      setSoundOn(false);
+    }
     setAudioAvailable(false);
     setAudioTrackReady(false);
     setAudioNotice("");
@@ -1227,6 +1311,15 @@ export default function ScreenViewWorkspace({
     }
     window.clearTimeout(startResponseTimeoutRef.current);
     startResponseTimeoutRef.current = undefined;
+  }
+
+  function failRenewal(message: string) {
+    const recovery = relayRecoveryRef.current;
+    if (recovery && activeOperationRef.current === recovery.operationId) {
+      cancelHostCapture(message);
+      return;
+    }
+    abandonRenewal();
   }
 
   const renewCredentials = useEffectEvent(() => {
@@ -1309,7 +1402,9 @@ export default function ScreenViewWorkspace({
         pendingAnswerRef.current = null;
         if (!message.succeeded) {
           if (renewalRef.current?.operationId === message.operationId) {
-            abandonRenewal();
+            failRenewal(
+              "The screen connection could not be restored. Ending the previous session...",
+            );
             return;
           }
           closeStream();
@@ -1353,6 +1448,10 @@ export default function ScreenViewWorkspace({
     },
   );
   const stopLocalStream = useEffectEvent(closeStream);
+  const beginRelayRecoveryForConnection = useEffectEvent((message: string) =>
+    beginRelayRecovery(message),
+  );
+  const resumeRelayRecoveryForConnection = useEffectEvent(resumeRelayRecovery);
 
   useEffect(() => {
     if (!audioNotice) {
@@ -1381,13 +1480,51 @@ export default function ScreenViewWorkspace({
     if (browserPreviewState) {
       return;
     }
-    if (state !== "paired" || !capability.canView) {
+    const pcChanged = lastActivePcIdRef.current !== activePc.id;
+    const epochChanged = lastConnectionEpochRef.current !== connectionEpoch;
+    lastActivePcIdRef.current = activePc.id;
+    lastConnectionEpochRef.current = connectionEpoch;
+
+    if (pcChanged || !capability.canView) {
       stopLocalStream();
+      return;
     }
-    return () => {
+    if (state !== "paired") {
+      if (
+        activePc.transportMode === "relay" &&
+        capability.relayRenewal &&
+        activeOperationRef.current
+      ) {
+        beginRelayRecoveryForConnection(
+          "PC connection changed. Waiting to reconnect Screen View...",
+        );
+      } else {
+        stopLocalStream();
+      }
+      return;
+    }
+    if (
+      epochChanged &&
+      activePc.transportMode === "relay" &&
+      capability.relayRenewal &&
+      activeOperationRef.current &&
+      !relayRecoveryRef.current
+    ) {
+      beginRelayRecoveryForConnection("PC connection changed. Reconnecting Screen View...");
+    } else if (epochChanged && (activePc.transportMode !== "relay" || !capability.relayRenewal)) {
       stopLocalStream();
-    };
-  }, [activePc.id, browserPreviewState, capability.canView, state]);
+      return;
+    }
+    resumeRelayRecoveryForConnection();
+  }, [
+    activePc.id,
+    activePc.transportMode,
+    browserPreviewState,
+    capability.canView,
+    capability.relayRenewal,
+    connectionEpoch,
+    state,
+  ]);
 
   useEffect(
     () => () => {

@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { useVolturaAirConnection } from "./foundation/connection/useVolturaAirConnection";
+import type { ScreenViewCapability } from "./foundation/protocol/messages";
 import { usePwaLifecycle } from "./foundation/pwa/usePwaLifecycle";
 import { recoverFromChunkLoadError } from "./foundation/pwa/freshAppRefresh";
 // Load the real workspace before timed navigation assertions. Its first lazy import
@@ -798,6 +799,63 @@ describe("App header and mode navigation", () => {
     expect(screen.queryByText("Live mirror")).toBeNull();
     expect(document.querySelector(".app-shell")?.classList).not.toContain("screen-view-active");
     expect(document.querySelector(".bottom-mode-tabs")).not.toBeNull();
+  });
+
+  it("keeps Relay Screen mounted with its trusted capability while the control connection reconnects", async () => {
+    const activePc = {
+      customName: true,
+      id: "pc-a",
+      name: "Relay PC",
+      transportMode: "relay" as const,
+      url: "https://voltura.se/a/route",
+    };
+    const capability: ScreenViewCapability = {
+      enabled: true,
+      permissionGranted: true,
+      canView: true,
+      requiresRepair: false,
+      encrypted: true,
+      maxWidth: 1920,
+      maxHeight: 1080,
+      maxFramesPerSecond: 30,
+      systemAudio: { codec: "opus" as const, sampleRate: 48_000, channels: 2 },
+      relayRenewal: true,
+    };
+    mockConnection({ activePc, screenViewCapability: capability });
+    const rendered = render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    fireEvent.click(
+      within(screen.getByRole("heading", { name: "Menu" }).closest("dialog")!).getByRole("button", {
+        name: "View PC screen",
+      }),
+    );
+    expect(await screen.findByText("Live mirror", {}, { timeout: 5000 })).toBeTruthy();
+
+    mockConnection({
+      activePc,
+      connectionEpoch: 2,
+      message: "PC disconnected",
+      screenViewCapability: undefined,
+      state: "disconnected",
+    });
+    rendered.rerender(<App />);
+
+    expect(screen.getByText("Live mirror")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "PC disconnected" })).toBeNull();
+    expect(document.querySelector(".pairing-status.blocking")).toBeNull();
+
+    mockConnection({
+      activePc: { ...activePc, id: "pc-b" },
+      connectionEpoch: 3,
+      message: "PC disconnected",
+      screenViewCapability: undefined,
+      state: "disconnected",
+    });
+    rendered.rerender(<App />);
+
+    expect(screen.queryByText("Live mirror")).toBeNull();
+    expect(screen.getByRole("heading", { name: "PC disconnected" })).toBeTruthy();
   });
 
   it("opens Apps as a separate lazy workspace and restores mode navigation on back", async () => {

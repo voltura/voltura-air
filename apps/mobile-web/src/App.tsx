@@ -3,7 +3,7 @@ import { getAvailableToolModeIds, toolModeDefinitions } from "./app/appModeTabs"
 import { createSettingsActions, SettingsDrawer } from "./features/settings";
 import { parsePairingLink } from "./foundation/pairing/pairingLink";
 import { getPcDisplayName } from "./foundation/pairing/pcDisplayName";
-import type { RemoteLaunchAction } from "./foundation/protocol/messages";
+import type { RemoteLaunchAction, ScreenViewCapability } from "./foundation/protocol/messages";
 import { buildMobileDiagnostics } from "./foundation/diagnostics/mobileDiagnostics";
 import type { RemoteSettings } from "./foundation/settings/remoteSettings";
 import { useVolturaAirConnection } from "./foundation/connection/useVolturaAirConnection";
@@ -116,6 +116,15 @@ export function App() {
   );
   const [activeCustomScreenId, setActiveCustomScreenId] = useState<string | null>(null);
   const [isScreenViewOpen, setIsScreenViewOpen] = useState(false);
+  const [screenViewCapabilitySnapshot, setScreenViewCapabilitySnapshot] = useState<{
+    pcId: string;
+    capability: ScreenViewCapability;
+  } | null>(null);
+  const activeScreenViewCapability =
+    screenViewCapability ??
+    (activePc?.transportMode === "relay" && screenViewCapabilitySnapshot?.pcId === activePc.id
+      ? screenViewCapabilitySnapshot.capability
+      : undefined);
   const [isPhoneWebcamOpen, setIsPhoneWebcamOpen] = useState(false);
   const [phoneWebcamCapabilitySnapshot, setPhoneWebcamCapabilitySnapshot] =
     useState(phoneWebcamCapability);
@@ -759,29 +768,34 @@ export function App() {
           tab={tab}
         />
 
-        {!isPhoneWebcamOpen && (
-          <PairingGate
-            activePc={activePc}
-            connectManualHost={connectManualHost}
-            confirmPendingPairing={confirmPendingPairing}
-            diagnostics={mobileDiagnostics}
-            isSettingsOpen={isSettingsOpen}
-            isPairingQrReading={isPairingQrReading}
-            manualReconnectProgress={manualReconnectProgress}
-            message={message}
-            pairingDeviceName={pairingDeviceName}
-            pairingDeviceNamePlaceholder={pairingDeviceNamePlaceholder}
-            pairingStatusMessage={pairingStatusMessage}
-            pendingPairing={pendingPairing !== null}
-            reconnectablePcs={reconnectablePcs}
-            scanPairingQr={scanPairingQr}
-            setPairingDeviceName={setPairingDeviceName}
-            state={state}
-            tryManualReconnect={tryManualReconnect}
-            tryReconnectPc={tryReconnectPc}
-            usesLivePairingQr={usesLivePairingQr}
-          />
-        )}
+        {!isPhoneWebcamOpen &&
+          !(
+            isScreenViewOpen &&
+            activePc?.transportMode === "relay" &&
+            activeScreenViewCapability
+          ) && (
+            <PairingGate
+              activePc={activePc}
+              connectManualHost={connectManualHost}
+              confirmPendingPairing={confirmPendingPairing}
+              diagnostics={mobileDiagnostics}
+              isSettingsOpen={isSettingsOpen}
+              isPairingQrReading={isPairingQrReading}
+              manualReconnectProgress={manualReconnectProgress}
+              message={message}
+              pairingDeviceName={pairingDeviceName}
+              pairingDeviceNamePlaceholder={pairingDeviceNamePlaceholder}
+              pairingStatusMessage={pairingStatusMessage}
+              pendingPairing={pendingPairing !== null}
+              reconnectablePcs={reconnectablePcs}
+              scanPairingQr={scanPairingQr}
+              setPairingDeviceName={setPairingDeviceName}
+              state={state}
+              tryManualReconnect={tryManualReconnect}
+              tryReconnectPc={tryReconnectPc}
+              usesLivePairingQr={usesLivePairingQr}
+            />
+          )}
 
         <ErrorDialog
           code={lastConnectionError?.code}
@@ -888,6 +902,11 @@ export function App() {
           }}
           onOpenScreenView={() => {
             requestPresentationExit(() => {
+              setScreenViewCapabilitySnapshot(
+                activePc && screenViewCapability
+                  ? { pcId: activePc.id, capability: screenViewCapability }
+                  : null,
+              );
               setActiveCustomScreenId(null);
               setIsThirdPartyNoticesOpen(false);
               setIsDiagnosticsOpen(false);
@@ -1116,7 +1135,7 @@ export function App() {
               />
             </Suspense>
           </WorkspaceErrorBoundary>
-        ) : isScreenViewOpen && activePc && screenViewCapability ? (
+        ) : isScreenViewOpen && activePc && activeScreenViewCapability ? (
           <WorkspaceErrorBoundary
             featureName="Screen"
             onBack={() => {
@@ -1128,8 +1147,9 @@ export function App() {
                 audioState={connection.audioState}
                 supportsVolumeControl={connection.supportsVolumeControl}
                 activePc={activePc}
-                capability={screenViewCapability}
+                capability={activeScreenViewCapability}
                 clientId={clientId}
+                connectionEpoch={connectionEpoch}
                 onBack={() => {
                   setIsScreenViewOpen(false);
                 }}

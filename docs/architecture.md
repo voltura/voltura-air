@@ -168,6 +168,12 @@ capture/encoder, quality controller and audio run survive the handover; the
 capture loop switches at a keyframe after the candidate connects. It never sends
 duplicate media, and retired native teardown is awaited outside that loop.
 Failed candidates leave the current session intact until bounded expiry recovery.
+For a Relay network change, the mobile workspace keeps the active operation
+in memory across the command-connection epoch and reuses the same renewal path.
+Pending and active host sessions carry command-socket ownership; a validated
+replacement transfers ownership before negotiation, while disconnect cleanup is
+owner-specific. This prevents a late disconnect from the old Relay socket from
+canceling the new peer without weakening single-viewer arbitration.
 `ScreenViewCoordinator`
 owns one session-scoped WASAPI loopback/Concentus pipeline for the current default
 multimedia output, follows endpoint changes through notifications, and isolates

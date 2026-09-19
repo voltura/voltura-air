@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Runtime.InteropServices;
@@ -62,7 +63,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         CancellationToken cancellationToken,
         RelayTurnConfiguration? relay = null,
         DateTimeOffset? now = null,
-        string? renewalOf = null)
+        string? renewalOf = null,
+        WebSocket? owner = null)
     {
         if (!CanStart(clientId))
             return Failure("permission-denied", "Screen viewing is disabled for this device.");
@@ -81,6 +83,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             return Failure("invalid-proof", "The WebRTC screen-view request could not be authenticated.");
 
         ActiveView? renewalTarget = null;
+        ActiveView? stoppingRenewalTarget = null;
         if (renewalOf is not null)
         {
             lock (_gate)
@@ -89,11 +92,16 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                     return Failure("busy", "Another screen-view request is already being prepared.");
                 if (relay is not null && _active?.ClientId == clientId &&
                     _active.OperationId == renewalOf && _active.DisplayId == displayId &&
-                    !_active.Stop.IsCancellationRequested && _active.MaximumBitrate == relay.MaximumBitrate &&
+                    _active.MaximumBitrate == relay.MaximumBitrate &&
                     _active.DirectQuality == (relay.EffectiveQuality == RelayScreenQuality.DataSaver
                         ? DirectScreenQualityMode.DataSaver : DirectScreenQualityMode.Automatic))
-                    renewalTarget = _active;
+                {
+                    if (_active.Stop.IsCancellationRequested) stoppingRenewalTarget = _active;
+                    else renewalTarget = _active;
+                }
             }
+            if (stoppingRenewalTarget is not null)
+                await stoppingRenewalTarget.Stopped.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
             if (renewalTarget is null)
                 return Failure("renewal-unavailable", "The current screen connection cannot be renewed.");
         }
@@ -125,17 +133,25 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             peer,
             directQuality,
             relay?.MaximumBitrate,
-            renewalTarget);
+            renewalTarget,
+            owner);
         PendingView? expired;
         bool busy;
+        bool sameClientBusy;
+        bool renewalStoppedDuringAdmission;
         lock (_gate)
         {
             expired = TakeExpiredPending(createdAt);
-            busy = (renewalTarget is null ? _active is not null : !ReferenceEquals(_active, renewalTarget)) || _pending is not null;
+            renewalStoppedDuringAdmission = renewalTarget?.Stop.IsCancellationRequested == true;
+            busy = renewalStoppedDuringAdmission ||
+                (renewalTarget is null ? _active is not null : !ReferenceEquals(_active, renewalTarget)) ||
+                _pending is not null;
             busy = busy || _answering is not null;
+            sameClientBusy = _active?.ClientId == clientId || _pending?.ClientId == clientId || _answering?.ClientId == clientId;
             if (!busy)
             {
                 _pending = pending;
+                renewalTarget?.SetOwner(owner);
                 pending.ExpiryTask = ExpirePendingAsync(pending);
             }
         }
@@ -143,7 +159,14 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         if (busy)
         {
             pending.Release();
-            return Failure("busy", "Another device is already viewing the screen.");
+            if (renewalStoppedDuringAdmission)
+            {
+                await renewalTarget!.Stopped.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+                return Failure("renewal-unavailable", "The current screen connection cannot be renewed.");
+            }
+            return Failure("busy", sameClientBusy
+                ? "Screen viewing is already active for this device."
+                : "Another device is already viewing the screen.");
         }
 
         try
@@ -191,7 +214,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         string operationId,
         string answerSdp,
         string clientSignature,
-        DateTimeOffset? now = null)
+        DateTimeOffset? now = null,
+        WebSocket? owner = null)
     {
         if (!CanStart(clientId))
             return new(false, "permission-denied", "Screen viewing is disabled for this device.");
@@ -206,6 +230,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             pending = _pending is not null &&
                 _pending.ClientId == clientId &&
                 _pending.OperationId == operationId &&
+                ReferenceEquals(_pending.Owner, owner) &&
                 _pending.OfferHash is not null
                 ? _pending
                 : null;
@@ -264,7 +289,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                         pending.Peer,
                         pending.DirectQuality,
                         pending.MaximumBitrate,
-                        soundQuality);
+                        soundQuality,
+                        pending.Owner);
                     _answering = null;
                     pending.DetachPeer();
                     _active = active;
@@ -345,6 +371,36 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                 answering = true;
             }
             if (_active?.ClientId == clientId) active = _active;
+        }
+        if (releasePending) pending!.Release();
+        if (active is not null)
+        {
+            ReleaseHeldButtons(active);
+            active.RequestStop();
+        }
+        return releasePending || answering || active is not null;
+    }
+
+    public bool StopConnection(string clientId, WebSocket owner)
+    {
+        PendingView? pending = null;
+        ActiveView? active = null;
+        bool releasePending = false;
+        bool answering = false;
+        lock (_gate)
+        {
+            if (_pending?.ClientId == clientId && ReferenceEquals(_pending.Owner, owner))
+            {
+                pending = _pending;
+                _pending = null;
+                releasePending = true;
+            }
+            if (_answering?.ClientId == clientId && ReferenceEquals(_answering.Owner, owner))
+            {
+                _answering.StopRequested = true;
+                answering = true;
+            }
+            if (_active?.ClientId == clientId && _active.IsOwnedBy(owner)) active = _active;
         }
         if (releasePending) pending!.Release();
         if (active is not null)
@@ -569,7 +625,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             {
                 if (ReferenceEquals(_active, active)) _active = null;
             }
-            active.Release();
+            try { active.Release(); }
+            finally { active.Stopped.TrySetResult(); }
             if (activityStarted)
                 NotifyActivityChanged(false, active.ClientId, active.OperationId);
         }
@@ -950,7 +1007,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         IScreenViewWebRtcPeer peer,
         DirectScreenQualityMode directQuality,
         int? maximumBitrate,
-        ActiveView? renewalTarget)
+        ActiveView? renewalTarget,
+        WebSocket? owner)
     {
         private IScreenViewWebRtcPeer? _peer = peer;
         public string ClientId { get; } = clientId;
@@ -963,6 +1021,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         public DirectScreenQualityMode DirectQuality { get; } = directQuality;
         public int? MaximumBitrate { get; } = maximumBitrate;
         public ActiveView? RenewalTarget { get; } = renewalTarget;
+        public WebSocket? Owner { get; } = owner;
         public TaskCompletionSource<IScreenViewWebRtcPeer> Handover { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public string? OfferHash { get; private set; }
         public bool StopRequested { get; set; }
@@ -999,7 +1058,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         IScreenViewWebRtcPeer peer,
         DirectScreenQualityMode directQuality,
         int? maximumBitrate,
-        ScreenViewSoundQuality soundQuality)
+        ScreenViewSoundQuality soundQuality,
+        WebSocket? owner)
     {
         private ScreenViewSource _source = source;
         private VirtualDesktopBounds _virtualDesktop = virtualDesktop;
@@ -1014,6 +1074,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         private int _soundQuality = (int)soundQuality;
         private int _released;
         private bool _hostStopClaimed;
+        private WebSocket? _owner = owner;
         public string ClientId { get; } = clientId;
         public string OperationId { get; } = operationId;
         public ScreenViewSource Source => Volatile.Read(ref _source);
@@ -1025,6 +1086,9 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         public int? MaximumBitrate { get; } = maximumBitrate;
         public DirectScreenQualityMode DirectQuality { get; } = directQuality;
         public volatile PendingView? Renewal;
+        public TaskCompletionSource Stopped { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool IsOwnedBy(WebSocket ownerSocket) => ReferenceEquals(Volatile.Read(ref _owner), ownerSocket);
+        public void SetOwner(WebSocket? ownerSocket) => Volatile.Write(ref _owner, ownerSocket);
         public void AttachPeer(IScreenViewWebRtcPeer value)
         {
             value.Stopped += OnPeerStopped;

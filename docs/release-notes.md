@@ -6,6 +6,14 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.4.0
+
+- Screen View now reconnects automatically when your phone switches between Wi-Fi and mobile data while using Cloud Relay.
+- A reconnected Screen View keeps your selected display, sound choice, full-screen view, and zoom whenever possible.
+- Interrupted screen recordings now finish safely and remain available instead of being lost during reconnection.
+- Fixed an older Cloud Relay connection sometimes stopping Screen View after the new connection was ready.
+- Improved Screen View messages when a view is already active, reconnecting, or cannot be restored.
+
 ## v1.3.9
 
 - When opened through voltura.se, the web app now moves to the latest version after an update and reminds you to update the PC app too.

@@ -366,6 +366,7 @@ public sealed class WebHostScreenViewTests : WebHostServiceTestBase
             JsonElement second = await StartAsync(control, reconnectKey, "op-second", "display-1");
             Assert.False(second.GetProperty("succeeded").GetBoolean());
             Assert.Equal("busy", second.GetProperty("code").GetString());
+            Assert.Equal("Screen viewing is already active for this device.", second.GetProperty("message").GetString());
 
             JsonElement rejected = await SendUntilTypeAsync(control, new
             {

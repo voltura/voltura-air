@@ -736,6 +736,17 @@ An ordinary start with no renewal context still receives `busy` while viewing.
 Old hosts reject the additional field; controllers use the existing stop/start
 renewal when the capability is absent.
 
+Relay clients also use the same signed renewal when an open controller changes
+network and reconnects its command socket. Pending offers and the active viewer
+are owned by the authenticated command socket that created or most recently
+renewed them. Admitting a valid same-client renewal transfers that ownership
+before replacement negotiation, so delayed cleanup of the superseded socket
+cannot cancel the candidate or active view. Cleanup from a socket never releases
+work owned by another socket. If cleanup of the named active operation has
+already begun, the host waits for that bounded teardown before returning
+`renewal-unavailable`; the controller may then issue one ordinary start. A
+different client remains `busy` and is never displaced.
+
 Only one replacement can be pending. The host retains the original session ID,
 capture, encoder, audio run, display and quality controller, waits at most 15
 seconds after the answer for connection readiness and a keyframe, then sends

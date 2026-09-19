@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -7,6 +8,72 @@ namespace VolturaAir.Host.Tests;
 [Collection(AppPermissionSettingsCollection.Name)]
 public sealed class ScreenViewRelayRenewalTests : IsolatedHostSettingsTest
 {
+    [Fact]
+    public async Task ReplacementSocketOwnsRenewalBeforeOldSocketDisconnects()
+    {
+        await using var fixture = new Fixture(false);
+        using var oldSocket = CreateSocket();
+        using var replacementSocket = CreateSocket();
+        await fixture.StartAsync("view", owner: oldSocket);
+        await WaitUntilAsync(() => !fixture.Peers.Peers[0].Frames.IsEmpty);
+
+        Assert.True((await fixture.OfferAsync("renew", "view", owner: replacementSocket)).Succeeded);
+        Assert.False(fixture.Coordinator.StopConnection("viewer", oldSocket));
+        Assert.True(fixture.Answer("renew", owner: replacementSocket).Succeeded);
+        fixture.Peers.Peers[^1].Connection.TrySetResult();
+        await WaitUntilAsync(() => !fixture.Peers.Peers[^1].Frames.IsEmpty);
+
+        Assert.False(fixture.Peers.Peers[^1].Disposed);
+        Assert.True(fixture.Coordinator.StopConnection("viewer", replacementSocket));
+        await WaitUntilAsync(() => fixture.Peers.Peers.All(peer => peer.Disposed));
+    }
+
+    [Fact]
+    public async Task RenewalWaitsForOldSocketCleanupBeforeFreshStartFallback()
+    {
+        await using var fixture = new Fixture(false);
+        using var oldSocket = CreateSocket();
+        using var replacementSocket = CreateSocket();
+        await fixture.StartAsync("view", owner: oldSocket);
+        await WaitUntilAsync(() => !fixture.Peers.Peers[0].Frames.IsEmpty);
+
+        Assert.True(fixture.Coordinator.StopConnection("viewer", oldSocket));
+        ScreenViewStartResult renewal = await fixture.OfferAsync("renew", "view", owner: replacementSocket);
+        Assert.Equal("renewal-unavailable", renewal.Code);
+
+        Assert.True((await fixture.OfferAsync("fresh", owner: replacementSocket)).Succeeded);
+    }
+
+    private static RelayVirtualWebSocket CreateSocket() =>
+        new(Guid.NewGuid(), new string('r', 22), (_, _) => Task.CompletedTask);
+
+    [Fact]
+    public async Task DifferentDeviceRemainsBusyAndIsNotAllowedToTakeOver()
+    {
+        await using var fixture = new Fixture(false);
+        await fixture.StartAsync("view");
+        using var otherKey = new PairingTestKey();
+        Assert.True(fixture.Manager.AcceptPairing(
+            "other-viewer",
+            "Other phone",
+            fixture.Manager.CreatePairingToken(),
+            reconnectPublicKey: otherKey.PublicKey).Accepted);
+        const string transcript = "VolturaAir screen-view:start:v2:other-viewer:other:display-1";
+
+        ScreenViewStartResult result = await fixture.Coordinator.StartAsync(
+            "other-viewer",
+            "other",
+            "display-1",
+            otherKey.SignPayload(transcript),
+            CancellationToken.None,
+            fixture.Relay);
+
+        Assert.Equal("busy", result.Code);
+        Assert.Equal("Another device is already viewing the screen.", result.Message);
+        Assert.False(fixture.Peers.Peers[0].Disposed);
+        Assert.True(fixture.Peers.Peers[1].Disposed);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -146,24 +213,30 @@ public sealed class ScreenViewRelayRenewalTests : IsolatedHostSettingsTest
             Capture = new Capture(staticDesktop);
             Coordinator = new ScreenViewCoordinator(manager, status, Capture, Peers, audioFactory: Audio);
         }
-        public Task<ScreenViewStartResult> OfferAsync(string operation, string? renewalOf = null, RelayScreenQuality? quality = null)
+        public Task<ScreenViewStartResult> OfferAsync(
+            string operation,
+            string? renewalOf = null,
+            RelayScreenQuality? quality = null,
+            WebSocket? owner = null)
         {
             string transcript = $"VolturaAir screen-view:start:v2:viewer:{operation}:display-1";
             if (renewalOf is not null) transcript += $":renew:{renewalOf}";
             return Coordinator.StartAsync("viewer", operation, "display-1", Key.SignPayload(transcript),
-                CancellationToken.None, quality.HasValue ? Relay with { EffectiveQuality = quality.Value } : Relay, renewalOf: renewalOf);
+                CancellationToken.None, quality.HasValue ? Relay with { EffectiveQuality = quality.Value } : Relay,
+                renewalOf: renewalOf, owner: owner);
         }
-        public async Task StartAsync(string operation, string? renewalOf = null)
+        public async Task StartAsync(string operation, string? renewalOf = null, WebSocket? owner = null)
         {
-            Assert.True((await OfferAsync(operation, renewalOf)).Succeeded);
+            Assert.True((await OfferAsync(operation, renewalOf, owner: owner)).Succeeded);
             if (renewalOf is null) Peers.Peers[^1].Connection.TrySetResult();
-            Assert.True(Answer(operation).Succeeded);
+            Assert.True(Answer(operation, owner: owner).Succeeded);
         }
-        public ScreenViewOperationResult Answer(string operation, string? proof = null)
+        public ScreenViewOperationResult Answer(string operation, string? proof = null, WebSocket? owner = null)
         {
             string hash = ScreenViewHostIdentity.Base64Url(SHA256.HashData(Encoding.UTF8.GetBytes(Peer.Sdp)));
             return Coordinator.CompleteAnswer("viewer", operation, Peer.Sdp,
-                proof ?? Key.SignPayload($"VolturaAir screen-view:answer:v2:viewer:{operation}:display-1:{hash}:{hash}"));
+                proof ?? Key.SignPayload($"VolturaAir screen-view:answer:v2:viewer:{operation}:display-1:{hash}:{hash}"),
+                owner: owner);
         }
         public async ValueTask DisposeAsync()
         {

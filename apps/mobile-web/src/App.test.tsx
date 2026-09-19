@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { useVolturaAirConnection } from "./foundation/connection/useVolturaAirConnection";
 import { usePwaLifecycle } from "./foundation/pwa/usePwaLifecycle";
+import { recoverFromChunkLoadError } from "./foundation/pwa/freshAppRefresh";
 // Load the real workspace before timed navigation assertions. Its first lazy import
 // otherwise includes Vitest's cold module transformation while other suites run.
 import "./features/screen-view";
@@ -192,6 +193,7 @@ beforeEach(() => {
   vi.stubGlobal("localStorage", createStorage());
   vi.stubGlobal("sessionStorage", createStorage());
   vi.stubGlobal("__APP_VERSION__", "test");
+  vi.stubGlobal("__WEB_BUILD_ID__", "current-build");
   vi.stubGlobal(
     "matchMedia",
     vi.fn(() => ({
@@ -216,6 +218,30 @@ beforeEach(() => {
 });
 
 describe("App header and mode navigation", () => {
+  it("shows the compact update notice until it is dismissed", async () => {
+    await recoverFromChunkLoadError(new Event("vite:preloadError", { cancelable: true }), {
+      buildId: "old-build",
+      refresh: () =>
+        Promise.resolve({
+          navigationStarted: true,
+          navigationMethod: "replace",
+          warnings: [],
+        }),
+      showUpdateNotice: true,
+    });
+
+    const view = render(<App />);
+    const dialog = screen.getByRole("dialog", { name: "App updated" });
+    expect(dialog.textContent).toContain("Version test. Update the PC app too.");
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
+    expect(screen.queryByRole("dialog", { name: "App updated" })).toBeNull();
+
+    view.unmount();
+    render(<App />);
+    expect(screen.queryByRole("dialog", { name: "App updated" })).toBeNull();
+  });
+
   it("keeps connection errors short in the header and presents the complete dismissible error once per occurrence", async () => {
     const error = {
       code: "VAIR-PAIR-HOST-PROOF-INVALID",

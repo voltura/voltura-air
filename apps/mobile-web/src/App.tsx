@@ -23,12 +23,17 @@ import { AnchoredHint } from "./ui/guidance/AnchoredHint";
 import { useOneShotHint } from "./ui/guidance/useOneShotHint";
 import { ConfirmationDialog } from "./ui/overlays/ConfirmationDialog";
 import { ErrorDialog } from "./ui/overlays/ErrorDialog";
+import { InfoDialog } from "./ui/overlays/InfoDialog";
 import { CustomScreenWorkspace } from "./features/custom-screens";
 import { incompatibleCustomScreenResponseCode } from "./foundation/connection/useCustomScreens";
 import { WorkspaceErrorBoundary } from "./app/WorkspaceErrorBoundary";
 import { subscribeFileManagerResults } from "./foundation/connection/fileManagerResultBus";
 import { ThirdPartyNoticesWorkspace } from "./features/legal";
 import { requestGyroPermission, type GyroActivationRequest } from "./foundation/input/gyroMouse";
+import {
+  clearChunkLoadUpdateNotice,
+  hasChunkLoadUpdateNotice,
+} from "./foundation/pwa/freshAppRefresh";
 
 const ScreenViewWorkspace = lazy(() => import("./features/screen-view"));
 const FileManagerWorkspace = lazy(() => import("./features/file-manager"));
@@ -43,6 +48,7 @@ const PairingQrScannerDialog = lazy(loadPairingQrScannerDialog);
 
 export function App() {
   const initialPairing = useMemo(() => parsePairingLink(window.location.href), []);
+  const [isUpdateNoticeOpen, setIsUpdateNoticeOpen] = useState(hasChunkLoadUpdateNotice);
   const connection = useVolturaAirConnection();
   const {
     state,
@@ -1315,6 +1321,15 @@ export function App() {
           textTransferResult={textTransferResult}
           transientFeedback={transientFeedback}
           onDismissTransient={() => setTransientFeedback(null)}
+        />
+        <InfoDialog
+          description={`Version ${__APP_VERSION__}. Update the PC app too.`}
+          isOpen={isUpdateNoticeOpen}
+          onClose={() => {
+            clearChunkLoadUpdateNotice();
+            setIsUpdateNoticeOpen(false);
+          }}
+          title="App updated"
         />
         <ConfirmationDialog
           confirmLabel={`Open ${pendingRemoteLaunch === "openYoutube" ? "YouTube" : "Kodi"}`}

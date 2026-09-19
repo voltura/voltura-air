@@ -17,6 +17,14 @@ replace `/air/app/`, `/a`, or `/s`. Build it with
 `npm run site:hosted:dev-build`. The private service repository owns its
 credentialed `/d`-only publication command.
 
+Full site publication uploads both hosted app outputs, but rebuilds only the
+stable app. Build the development app separately before publishing it when its
+source changes. Publication requires a completed stable build, uploads both apps,
+then removes server asset files absent from the corresponding local folder. The
+development app remains a lightweight test-only publication. If an open client
+requests a removed Vite chunk, it performs one guarded fresh-app refresh and
+reconnects normally from the current build.
+
 ## Feature explorer
 
 The public, account-free feature explorer is served at

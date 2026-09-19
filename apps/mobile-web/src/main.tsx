@@ -6,8 +6,17 @@ import {
   readCustomScreenPreviewControlDepth,
   readCustomScreenPreviewId,
 } from "./features/custom-screens";
+import { recoverFromChunkLoadError } from "./foundation/pwa/freshAppRefresh";
 import { getDisplayMode } from "./foundation/platform/clientEnvironment";
 import "./styles.css";
+
+if (import.meta.env.PROD) {
+  window.addEventListener("vite:preloadError", (event) => {
+    void recoverFromChunkLoadError(event, {
+      showUpdateNotice: import.meta.env.BASE_URL === "/air/app/",
+    });
+  });
+}
 
 document.documentElement.dataset.displayMode = getDisplayMode();
 const previewScreenId = readCustomScreenPreviewId(window.location.href);

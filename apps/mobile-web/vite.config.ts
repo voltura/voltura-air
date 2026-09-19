@@ -152,8 +152,11 @@ function webBuildIdFile(buildId: string, outputDirectory: string): Plugin {
     configureServer() {
       writeBuildId();
     },
-    closeBundle() {
-      writeBuildId();
+    closeBundle: {
+      order: "post",
+      handler() {
+        writeBuildId();
+      },
     },
   };
 }

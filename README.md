@@ -284,6 +284,9 @@ npm run dev
 - [Development workflows and validation](docs/setup.md#development-workflows)
 - [Cloud relay and advanced self-hosting](docs/relay-deployment.md)
 - [Documentation map](docs/README.md)
+- [Explore the interactive architecture diagram](https://gitdiagram.com/voltura/voltura-air)
+  — an automatically generated visual overview of the repository. For maintained
+  technical details, see the [architecture documentation](docs/architecture.md).
 
 ## Statistics
 

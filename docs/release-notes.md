@@ -6,6 +6,10 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.3.9
+
+- When opened through voltura.se, the web app now moves to the latest version after an update and reminds you to update the PC app too.
+
 ## v1.3.8
 
 - Adjust your PC’s volume while viewing its screen with sound on, and hide or show the on-screen controls for a clearer view.

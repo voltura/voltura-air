@@ -15,15 +15,15 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "ws": "^8.21.3"
+    "ws": "^8.22.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20260911.1",
-    "@types/node": "26.5.1",
-    "@types/ws": "^8.18.1",
-    "tsx": "^4.23.13",
+    "@cloudflare/workers-types": "5.20261002.1",
+    "@types/node": "26.6.4",
+    "@types/ws": "^8.18.2",
+    "tsx": "^4.23.15",
     "typescript": "7.0.2",
-    "vitest": "^5.0.0",
-    "wrangler": "4.131.2"
+    "vitest": "^5.0.3",
+    "wrangler": "4.146.0"
   }
 }

@@ -108,6 +108,7 @@ test("every root npm command has a current human-readable description", () => {
   assert.match(commandDescriptions.dev, /development loop/u);
   assert.equal(packageJson.scripts["tools:check"], "node scripts/check-toolchain.mjs");
   assert.equal(packageJson.scripts["deps:check"], "node scripts/check-dependencies.mjs");
+  assert.match(packageJson.scripts.test, /npm run deps:check/);
   assert.equal(
     packageJson.scripts["powershell:check"],
     "pwsh -NoProfile -File scripts/check-powershell.ps1",

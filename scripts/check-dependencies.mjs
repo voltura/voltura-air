@@ -22,7 +22,43 @@ function run(command, args, options = {}) {
 
 const audit = run("npm", ["audit", "--audit-level=moderate", "--json"]);
 const auditReport = JSON.parse(audit.stdout || "{}");
-if (audit.status !== 0 || (auditReport.metadata?.vulnerabilities?.total ?? 0) !== 0) {
+
+// GHSA-vfj7-8cjw-p6xm has no patched braces release. The affected chain is confined
+// to stylelint processing repository-owned CSS globs, so keep the exception narrow
+// and fail closed if npm reports a different advisory or dependency path.
+const acceptedUnpatchedAuditPackages = new Set([
+  "braces",
+  "fast-glob",
+  "globby",
+  "micromatch",
+  "stylelint",
+  "stylelint-config-recommended",
+  "stylelint-config-standard",
+]);
+const acceptedAuditAdvisories = new Map([
+  ["braces", "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm"],
+]);
+const auditEntries = Object.entries(auditReport.vulnerabilities ?? {});
+const unexpectedAuditEntries = auditEntries.filter(([name, entry]) => {
+  if (
+    !acceptedUnpatchedAuditPackages.has(name) ||
+    !entry.nodes?.every((node) => node.startsWith("node_modules/"))
+  ) {
+    return true;
+  }
+  return (entry.via ?? []).some((cause) => {
+    if (typeof cause === "string") return !acceptedUnpatchedAuditPackages.has(cause);
+    return acceptedAuditAdvisories.get(cause.name) !== cause.url;
+  });
+});
+const packageLock = JSON.parse(
+  readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"),
+);
+if (packageLock.packages?.["node_modules/sharp"]?.version !== "0.35.5") {
+  console.error("The audited Miniflare graph must resolve the sharp override to 0.35.5.");
+  process.exit(1);
+}
+if (unexpectedAuditEntries.length > 0) {
   console.error(audit.stdout || audit.stderr);
   process.exit(1);
 }

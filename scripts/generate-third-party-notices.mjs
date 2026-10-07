@@ -157,15 +157,15 @@ async function verifyMaintainedInventory() {
   const requiredInventoryText = [
     "libdatachannel 0.24.5",
     "OpenSSL 3.6.3",
-    "Microsoft WebView2 SDK | 1.0.4191.47",
-    "Markdig | 1.3.2",
+    "Microsoft WebView2 SDK | 1.0.4258.31",
+    "Markdig | 1.4.0",
     "QRCoder | 1.8.0",
     "Vortice.Windows | 3.8.3",
     "Vortice.Mathematics | 2.1.1",
     "SharpGen.Runtime and SharpGen.Runtime.COM | 2.4.2-beta",
     "Concentus | 2.2.2",
     "NAudio.Wasapi and NAudio.Core | 3.1.0",
-    "`ws` 8.21.3",
+    "`ws` 8.22.0",
   ];
   for (const expected of requiredInventoryText) {
     if (!inventory.includes(expected)) {
@@ -174,8 +174,8 @@ async function verifyMaintainedInventory() {
   }
 
   const directHostPackages = [
-    ["Microsoft.Web.WebView2", "1.0.4191.47"],
-    ["Markdig", "1.3.2"],
+    ["Microsoft.Web.WebView2", "1.0.4258.31"],
+    ["Markdig", "1.4.0"],
     ["QRCoder", "1.8.0"],
     ["Vortice.Direct3D11", "3.8.3"],
     ["Vortice.D3DCompiler", "3.8.3"],
@@ -202,7 +202,7 @@ async function verifyMaintainedInventory() {
   const installedWsPackage = JSON.parse(
     await readFile(path.join(repoRoot, "node_modules", "ws", "package.json"), "utf8"),
   );
-  if (installedWsPackage.version !== "8.21.3" || relayPackage.dependencies?.ws !== "^8.21.3") {
+  if (installedWsPackage.version !== "8.22.0" || relayPackage.dependencies?.ws !== "^8.22.0") {
     throw new Error("Relay ws dependency no longer matches the maintained third-party inventory.");
   }
 

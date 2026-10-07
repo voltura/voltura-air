@@ -75,7 +75,7 @@
     "size:report": "node scripts/report-source-sizes.mjs",
     "size:check": "node scripts/report-source-sizes.mjs --check",
     "tools:check": "node scripts/check-toolchain.mjs",
-    "test": "npm run docs:check && npm run tools:check && npm run third-party:check && npm run ui:tokens:check && npm run size:check && npm run host:ownership:check && npm run powershell:check && npm run site:check && npm run relay:check && npm run test:web && npm run test:scripts && dotnet test VolturaAir.slnx -p:RestoreLockedMode=true",
+    "test": "npm run docs:check && npm run tools:check && npm run deps:check && npm run third-party:check && npm run ui:tokens:check && npm run size:check && npm run host:ownership:check && npm run powershell:check && npm run site:check && npm run relay:check && npm run test:web && npm run test:scripts && dotnet test VolturaAir.slnx -p:RestoreLockedMode=true",
     "test:web": "npm run test --workspace apps/mobile-web -- --run && npm run screen-view:layout-check",
     "test:host": "dotnet test VolturaAir.slnx",
     "test:scripts": "node --test tests/scripts/*.test.mjs",
@@ -91,8 +91,11 @@
     "oxfmt": "0.67.0",
     "oxlint": "1.82.0",
     "oxlint-tsgolint": "7.0.2001",
-    "sharp": "^0.35.4",
+    "sharp": "0.35.5",
     "typescript": "7.0.2"
+  },
+  "overrides": {
+    "sharp": "0.35.5"
   },
   "engines": {
     "node": ">=24.20.0 <25",
@@ -102,6 +105,7 @@
   "allowScripts": {
     "unrs-resolver@1.12.2": true,
     "esbuild@0.28.1": true,
-    "workerd@1.20260911.1": true
+    "esbuild@0.28.2": true,
+    "workerd@1.20261006.1": true
   }
 }

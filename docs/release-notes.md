@@ -6,6 +6,10 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.4.2
+
+- Corrected text for 3rd party audio driver in installer
+
 ## v1.4.1
 
 - Type on your PC while staying in Screen View: tap **ABC** for your device’s keyboard or **123** for its number keyboard, where supported.

@@ -43,7 +43,7 @@ try {
     }
     Invoke-SetupCommand 'dotnet.exe' @('restore', 'VolturaAir.slnx', '--locked-mode')
     $stage = 'database-initialization'
-    Invoke-SetupCommand 'pwsh.exe' @('-NoProfile', '-File', 'scripts/site-dev-init.ps1', '-Automatic')
+    Invoke-SetupCommand 'pwsh.exe' @('-NoProfile', '-File', 'scripts/site-dev-init.ps1', '-Automatic', '-Reset')
     $stage = 'host-preflight'
     Write-Host 'Stopping the verified Voltura Air host before build and isolated host tests.'
     Invoke-SetupCommand 'pwsh.exe' @('-NoProfile', '-File', 'scripts/host-preflight.ps1')

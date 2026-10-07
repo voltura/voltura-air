@@ -89,7 +89,18 @@ test("setup verification is separate from publication and fresh schema seeds are
     setup,
     /finally \{\s*\$env:PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT = \$previousPlaywrightDownloadTimeout\s*\}/u,
   );
+  assert.match(setup, /site-dev-init\.ps1', '-Automatic', '-Reset'/u);
   const site = readFileSync("scripts/site-dev-init.ps1", "utf8");
+  assert.match(site, /DROP DATABASE IF EXISTS/u);
+  assert.match(site, /database-reset\.pending/u);
+  for (const boundary of [
+    "database-reset",
+    "catalog-schema",
+    "catalog-upgrade",
+    "telemetry-schema",
+  ]) {
+    assert.match(site, new RegExp(`Invoke-SiteSetupFailure '${boundary}'`, "u"));
+  }
   assert.match(site, /CREATE TABLE IF NOT EXISTS/u);
   assert.match(site, /INSERT IGNORE INTO/u);
   assert.ok(

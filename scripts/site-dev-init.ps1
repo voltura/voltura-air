@@ -5,6 +5,7 @@ param(
     [int]$Port = 3306,
     [string]$RootUser = 'root',
     [switch]$Automatic,
+    [switch]$Reset,
     [switch]$CheckOnly
 )
 
@@ -16,6 +17,13 @@ $phpIniPath = Join-Path $devRoot 'php.ini'
 $storagePath = Join-Path $devRoot 'screen-packages'
 $databaseName = 'voltura_air_dev'
 $databaseUser = 'voltura_air_dev'
+$resetMarkerPath = Join-Path $devRoot 'database-reset.pending'
+
+function Invoke-SiteSetupFailure([string]$Boundary) {
+    if ($env:VOLTURA_AIR_SITE_SETUP_FAIL -eq $Boundary) {
+        throw "Injected local site setup failure after $Boundary."
+    }
+}
 
 function Find-Executable([string[]]$Names, [string[]]$Patterns) {
     foreach ($name in $Names) {
@@ -249,6 +257,13 @@ try {
 
     }
     $databaseArguments = $clientArguments + @($databaseName)
+    if ($Reset) {
+        Write-SetupAtomicFile $resetMarkerPath 'Local development database reset is in progress; rerun full setup to recreate it.'
+        $resetSql = "DROP DATABASE IF EXISTS ``$databaseName``; CREATE DATABASE ``$databaseName`` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+        $resetResult = Invoke-MariaDb $maria $clientArguments $resetSql
+        if ($resetResult.ExitCode -ne 0) { throw 'Could not reset the local development database.' }
+        Invoke-SiteSetupFailure 'database-reset'
+    }
     $tableResult = Invoke-MariaDb $maria $databaseArguments 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = "air_screen_users";'
     if ($tableResult.ExitCode -ne 0) { throw 'Could not inspect the development database.' }
     if ([int]$tableResult.Output.Trim() -eq 0 -or (Test-Path -LiteralPath (Join-Path $devRoot 'catalog-bootstrap.pending'))) {
@@ -257,11 +272,13 @@ try {
         $schema = $schema -replace '(?im)^CREATE TABLE ', 'CREATE TABLE IF NOT EXISTS ' -replace '(?im)^INSERT INTO ', 'INSERT IGNORE INTO '
         $schemaResult = Invoke-MariaDb $maria $databaseArguments $schema
         if ($schemaResult.ExitCode -ne 0) { throw 'Could not create the development catalog tables.' }
+        Invoke-SiteSetupFailure 'catalog-schema'
     }
 
     $catalogUpgrade = Get-Content -LiteralPath (Join-Path $repoRoot 'apps\public-site\screens\schema-upgrade.sql') -Raw
     $catalogUpgradeResult = Invoke-MariaDb $maria $databaseArguments $catalogUpgrade
     if ($catalogUpgradeResult.ExitCode -ne 0) { throw 'Could not apply the additive development catalog schema upgrade.' }
+    Invoke-SiteSetupFailure 'catalog-upgrade'
 
     $currentSchemaResult = Invoke-MariaDb $maria $databaseArguments 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ("air_screen_users", "air_screen_packages", "air_screen_reports", "air_screen_ratings", "air_screen_verification_tokens", "air_screen_rate_buckets", "air_screen_cleanup_jobs", "air_screen_maintenance");'
     if ($currentSchemaResult.ExitCode -ne 0) { throw 'Could not inspect the development catalog schema.' }
@@ -276,6 +293,7 @@ try {
     $telemetrySchema = Get-Content -LiteralPath (Join-Path $repoRoot 'apps\public-site\telemetry\schema.sql') -Raw
     $telemetrySchemaResult = Invoke-MariaDb $maria $databaseArguments $telemetrySchema
     if ($telemetrySchemaResult.ExitCode -ne 0) { throw 'Could not apply the additive development telemetry schema.' }
+    Invoke-SiteSetupFailure 'telemetry-schema'
     $telemetryTablesResult = Invoke-MariaDb $maria $databaseArguments 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ("air_telemetry_daily", "air_telemetry_batches", "air_telemetry_rate_buckets", "air_telemetry_ingest_daily", "air_telemetry_maintenance");'
     if ($telemetryTablesResult.ExitCode -ne 0 -or [int]$telemetryTablesResult.Output.Trim() -ne 5) {
         throw 'The additive development telemetry schema is incomplete.'
@@ -284,6 +302,8 @@ try {
     if ($telemetryColumnsResult.ExitCode -ne 0 -or [int]$telemetryColumnsResult.Output.Trim() -ne 21) {
         throw 'The additive development telemetry schema has missing required columns.'
     }
+
+    if ($Reset -and (Test-Path -LiteralPath $resetMarkerPath)) { [IO.File]::Delete($resetMarkerPath) }
 
 } finally {
     $env:MYSQL_PWD = $previousPassword

@@ -29,11 +29,13 @@ Python, or optional video-production tool installation.
 Fresh local site setup provisions a loopback-only `VolturaAirDev` MariaDB 12.3
 service on port 3306. Its generated administrator credential is protected with
 Windows user encryption under `%LOCALAPPDATA%\Voltura Air\Setup\MariaDB`.
-The existing site initializer owns `.site-dev` configuration and schemas. Existing
-working development credentials and data are retained; an unmanaged instance asks
-for its administrator password only when needed. An existing initializer-owned
-connection port and configuration are retained. A conflicting explicit port is
-rejected before configuration writes. A port conflict stops setup.
+The existing site initializer owns `.site-dev` configuration and schemas. Full
+Windows setup resets only the local `voltura_air_dev` database and recreates its
+current catalog and telemetry schemas; it never patches or preserves local site
+data. The standalone `npm run site:dev:init` command remains additive. An unmanaged
+instance asks for its administrator password only when needed. An existing
+initializer-owned connection port and configuration are retained. A conflicting
+explicit port is rejected before configuration writes. A port conflict stops setup.
 No production database credentials or schema operations are used.
 
 Verification first stops any verified installed/repository Voltura Air host through
@@ -54,9 +56,10 @@ encrypted administrator credential. Interrupted offline initialization is retain
 in `data.partial-<id>` directories under the managed MariaDB installation; setup
 never deletes these backups. Unrecognized data, changed service configuration, or
 an unfinished `.setup-pending` atomic write stops with an inspection requirement.
-Preserve these files and credentials when investigating; do not clear a database to
-make a check pass. An existing data directory without matching ownership state is
-never adopted or overwritten.
+Preserve the managed MariaDB files and credentials when investigating; do not clear
+its data directory to make a check pass. Full setup deliberately resets only the
+initializer-owned `voltura_air_dev` schema. An existing data directory without
+matching ownership state is never adopted or overwritten.
 
 The managed `my.ini` belongs to setup: additional directives, includes, duplicate
 bindings, and changed paths are rejected before startup. Readiness also checks the
@@ -64,8 +67,8 @@ actual process listener. If a service started by setup fails readiness, setup st
 it and reports any cleanup failure while preserving the data and credential.
 
 Validate changes to setup in a fresh Windows 11 x64 VM with only Git/WinGet and no
-copied dependency caches. Run full setup, then rerun it to verify preserved data,
-credentials, and installed versions. Account sign-ins and the existing encrypted
+copied dependency caches. Run full setup, then rerun it to verify recreated local
+schemas, preserved credentials, and installed versions. Account sign-ins and the existing encrypted
 update key require the operator; local fixture tests do not replace this acceptance.
 
 ## Development workflows

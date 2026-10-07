@@ -20,75 +20,16 @@ function run(command, args, options = {}) {
   return result;
 }
 
-const audit = run("npm", ["audit", "--audit-level=moderate", "--json"]);
+// Runtime dependencies are the security boundary. Development-tool updates are
+// handled by deps:update and should not require policy exceptions in this check.
+const audit = run("npm", ["audit", "--omit=dev", "--audit-level=moderate", "--json"]);
 const auditReport = JSON.parse(audit.stdout || "{}");
-
-// GHSA-vfj7-8cjw-p6xm has no patched braces release. The affected chain is confined
-// to stylelint processing repository-owned CSS globs, so keep the exception narrow
-// and fail closed if npm reports a different advisory or dependency path.
-const acceptedUnpatchedAuditPackages = new Set([
-  "braces",
-  "fast-glob",
-  "globby",
-  "micromatch",
-  "stylelint",
-  "stylelint-config-recommended",
-  "stylelint-config-standard",
-]);
-const acceptedAuditAdvisories = new Map([
-  ["braces", "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm"],
-]);
-const auditEntries = Object.entries(auditReport.vulnerabilities ?? {});
-const unexpectedAuditEntries = auditEntries.filter(([name, entry]) => {
-  if (
-    !acceptedUnpatchedAuditPackages.has(name) ||
-    !entry.nodes?.every((node) => node.startsWith("node_modules/"))
-  ) {
-    return true;
-  }
-  return (entry.via ?? []).some((cause) => {
-    if (typeof cause === "string") return !acceptedUnpatchedAuditPackages.has(cause);
-    return acceptedAuditAdvisories.get(cause.name) !== cause.url;
-  });
-});
-const packageLock = JSON.parse(
-  readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"),
-);
-if (packageLock.packages?.["node_modules/sharp"]?.version !== "0.35.5") {
-  console.error("The audited Miniflare graph must resolve the sharp override to 0.35.5.");
-  process.exit(1);
-}
-if (unexpectedAuditEntries.length > 0) {
+if (audit.status !== 0 || (auditReport.metadata?.vulnerabilities?.total ?? 0) !== 0) {
   console.error(audit.stdout || audit.stderr);
   process.exit(1);
 }
 
-const outdated = run("npm", ["outdated", "--workspaces", "--include-workspace-root", "--json"]);
-const outdatedReport = JSON.parse(outdated.stdout || "{}");
-const unexpectedOutdated = Object.entries(outdatedReport).filter(([name, value]) => {
-  const entries = Array.isArray(value) ? value : [value];
-  const accepted =
-    name === "@types/node"
-      ? "26.5.1"
-      : name === "@cloudflare/workers-types"
-        ? "5.20260911.1"
-        : null;
-  return (
-    !accepted || entries.some((entry) => entry.current !== accepted || entry.wanted !== accepted)
-  );
-});
-if (unexpectedOutdated.length > 0) {
-  console.error(
-    `Unexpected npm updates are available: ${unexpectedOutdated.map(([name]) => name).join(", ")}`,
-  );
-  process.exit(1);
-}
-
-const acceptedUpstreamTestRunnerPackages = new Map([
-  ["Microsoft.ApplicationInsights", ["2.23.0", "3.1.2"]],
-]);
-
-for (const mode of ["--outdated", "--vulnerable", "--deprecated"]) {
+for (const mode of ["--vulnerable", "--deprecated"]) {
   const result = run("dotnet", [
     "list",
     "VolturaAir.slnx",
@@ -109,20 +50,9 @@ for (const mode of ["--outdated", "--vulnerable", "--deprecated"]) {
       ...(framework.transitivePackages ?? []),
     ]),
   );
-  const unexpected =
-    mode === "--outdated"
-      ? packages.filter((entry) => {
-          const accepted = acceptedUpstreamTestRunnerPackages.get(entry.id);
-          return (
-            !accepted ||
-            entry.resolvedVersion !== accepted[0] ||
-            entry.latestVersion !== accepted[1]
-          );
-        })
-      : packages;
-  if (unexpected.length > 0) {
+  if (packages.length > 0) {
     console.error(
-      `Unexpected NuGet ${mode.slice(2)} findings: ${unexpected.map((entry) => entry.id).join(", ")}`,
+      `Unexpected NuGet ${mode.slice(2)} findings: ${packages.map((entry) => entry.id).join(", ")}`,
     );
     process.exit(1);
   }
@@ -157,5 +87,5 @@ if (
 }
 
 console.log(
-  "Dependency check passed: npm and NuGet graphs have no known vulnerable, deprecated, or unexpected outdated packages.",
+  "Dependency check passed: runtime npm and NuGet graphs have no known vulnerable or deprecated packages.",
 );

@@ -105,7 +105,7 @@ VIAddVersionKey "Comments" "Developer: ${DEVELOPER}; Website: ${PRODUCT_URL}; Em
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${EXE_NAME}"
 !define MUI_FINISHPAGE_RUN_TEXT "Start ${APP_NAME}"
 !define MUI_FINISHPAGE_SHOWREADME
-!define MUI_FINISHPAGE_SHOWREADME_TEXT "Open VB-Audio to get VB-CABLE for optional phone audio (third-party donationware, not included; your licence applies)"
+!define MUI_FINISHPAGE_SHOWREADME_TEXT "Get VB-CABLE for optional cam audio (3rd-party)"
 !define MUI_FINISHPAGE_SHOWREADME_FUNCTION OpenVbCableWebsite
 !define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED
 !define MUI_FINISHPAGE_REBOOTLATER_DEFAULT

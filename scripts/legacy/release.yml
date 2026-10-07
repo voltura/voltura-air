@@ -131,7 +131,7 @@ jobs:
 
       - name: Install NSIS
         shell: pwsh
-        run: choco install nsis --version=3.12.0 -y --no-progress
+        run: choco install nsis --version=3.13.0 -y --no-progress
 
       - name: Package release assets
         shell: pwsh

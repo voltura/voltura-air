@@ -191,7 +191,7 @@ if ([string]::IsNullOrWhiteSpace($makensisPath)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($makensisPath)) {
-    throw "makensis was not found. Install NSIS 3.12 or later, then run this command again."
+    throw "makensis was not found. Install NSIS 3.13 or later, then run this command again."
 }
 
 New-Item -ItemType Directory -Force -Path $publishRoot | Out-Null

@@ -28,7 +28,8 @@ test("Node LTS updates stay on the supported major and SDK updates stay in their
 });
 
 test("minimum and exact tool requirements retain their boundaries", () => {
-  assert.equal(supportsToolVersion("v3.12", [3, 12, 0], "minimum"), true);
+  assert.equal(supportsToolVersion("v3.13", [3, 13, 0], "minimum"), true);
+  assert.equal(supportsToolVersion("v3.12", [3, 13, 0], "minimum"), false);
   assert.equal(supportsToolVersion("18.10.12201.205", [18, 9, 0], "minimum"), true);
   assert.equal(supportsToolVersion("8.5.10", [8, 5, 9], "minimum"), true);
   assert.equal(supportsToolVersion("8.5.8", [8, 5, 9], "minimum"), false);

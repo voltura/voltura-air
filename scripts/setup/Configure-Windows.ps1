@@ -27,7 +27,20 @@ try {
     }
     $stage = 'locked-restores'
     Invoke-SetupNpm @('ci')
-    Invoke-SetupCommand 'node.exe' @('node_modules/@playwright/test/cli.js', 'install', 'chromium')
+    $chromePaths = @(
+        "$env:ProgramFiles\Google\Chrome\Application\chrome.exe"
+        "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe"
+        "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
+    )
+    if (-not ($chromePaths | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)) {
+        $previousPlaywrightDownloadTimeout = $env:PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT
+        try {
+            $env:PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT = '120000'
+            Invoke-SetupCommand 'node.exe' @('node_modules/@playwright/test/cli.js', 'install', 'chromium')
+        } finally {
+            $env:PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT = $previousPlaywrightDownloadTimeout
+        }
+    }
     Invoke-SetupCommand 'dotnet.exe' @('restore', 'VolturaAir.slnx', '--locked-mode')
     $stage = 'database-initialization'
     Invoke-SetupCommand 'pwsh.exe' @('-NoProfile', '-File', 'scripts/site-dev-init.ps1', '-Automatic')

@@ -82,6 +82,13 @@ test("signing verification rejects missing, unencrypted, wrong-password and mism
 test("setup verification is separate from publication and fresh schema seeds are retryable", () => {
   const setup = readFileSync("scripts/setup/Configure-Windows.ps1", "utf8");
   assert.doesNotMatch(setup, /release:full|release:draft|git.*push|relay:deploy/u);
+  assert.match(setup, /Google\\Chrome\\Application\\chrome\.exe/u);
+  assert.match(setup, /if \(-not \(\$chromePaths/u);
+  assert.match(setup, /PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT = '120000'/u);
+  assert.match(
+    setup,
+    /finally \{\s*\$env:PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT = \$previousPlaywrightDownloadTimeout\s*\}/u,
+  );
   const site = readFileSync("scripts/site-dev-init.ps1", "utf8");
   assert.match(site, /CREATE TABLE IF NOT EXISTS/u);
   assert.match(site, /INSERT IGNORE INTO/u);

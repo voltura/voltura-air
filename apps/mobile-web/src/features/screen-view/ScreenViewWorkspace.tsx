@@ -142,6 +142,7 @@ export default function ScreenViewWorkspace({
   );
   const [viewing, setViewing] = useState(browserPreviewState !== undefined);
   const [streaming, setStreaming] = useState(browserPreviewState !== undefined);
+  const stoppedByUserRef = useRef(false);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
   const [qualityText, setQualityText] = useState("");
   const [soundOn, setSoundOn] = useState(false);
@@ -438,8 +439,7 @@ export default function ScreenViewWorkspace({
         event.target instanceof HTMLTextAreaElement &&
         event.target.classList.contains("screen-view-keyboard-input") &&
         (message.type === "keyboard.text" ||
-          ((message.key === "Enter" || message.key === "Backspace") &&
-            !message.modifiers?.length))
+          ((message.key === "Enter" || message.key === "Backspace") && !message.modifiers?.length))
       ) {
         // Let the live input own text edits; capture shortcuts and navigation below.
         return;
@@ -589,6 +589,7 @@ export default function ScreenViewWorkspace({
       setStatus("The reconnect key is unavailable. Pair this device again.");
       return;
     }
+    stoppedByUserRef.current = false;
     pendingOfferRef.current = { operationId, displayId, ...(renewalOf ? { renewalOf } : {}) };
     if (renewalOf) {
       renewalRef.current = { operationId, peer: null };
@@ -648,6 +649,7 @@ export default function ScreenViewWorkspace({
   }
 
   function stop() {
+    stoppedByUserRef.current = true;
     relayRecoveryRef.current = null;
     const operationId = createLocalId();
     pendingStopRef.current = operationId;
@@ -759,7 +761,7 @@ export default function ScreenViewWorkspace({
         activeOperationRef.current = null;
         if (recovery) {
           setStatus("The previous screen session ended. Starting a new mirror...");
-          window.setTimeout(() => start(recovery.displayId), 0);
+          renewalRestartRef.current = window.setTimeout(() => start(recovery.displayId), 0);
         }
         return;
       }
@@ -1395,6 +1397,9 @@ export default function ScreenViewWorkspace({
         setSelected((current) => (current.length > 0 ? current : (preferredSource?.id ?? "")));
         if (browserPreviewState) {
           setStatus("Live - Encrypted WebRTC");
+          return;
+        }
+        if (stoppedByUserRef.current) {
           return;
         }
         if (message.sources.length === 0) {

@@ -6,6 +6,10 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.4.3
+
+- Fixed Screen View restarting after you press **Stop**. It now stays stopped through reconnections and display-list refreshes until you press **Start**.
+
 ## v1.4.2
 
 - Corrected text for 3rd party audio driver in installer

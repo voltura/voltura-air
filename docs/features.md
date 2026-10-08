@@ -180,7 +180,10 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - **View PC screen** follows the paired device's profile or explicit Custom value.
 - One authorized device can view one selected display at a time. Multiple
   displays are selectable before or during viewing; another device receives a
-  busy result. Leaving the workspace stops viewing.
+  busy result. Leaving the workspace stops viewing. Pressing **Stop** keeps the
+  open workspace idle through reconnects and display-list refreshes until the
+  user presses **Start**. Interrupted or failed mirrors retain their existing
+  automatic recovery behavior unless the user presses **Stop**.
 - Screen View shows startup progress until video arrives. Audio and video tracks
   share one attached stream, so adding sound does not reload the video player.
   If the browser blocks or cannot start playback, **Show video** retries playback

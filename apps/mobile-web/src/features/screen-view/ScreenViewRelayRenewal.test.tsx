@@ -218,6 +218,74 @@ async function advance(milliseconds: number) {
 }
 
 describe("Relay screen renewal", () => {
+  it.each([true, false])(
+    "keeps a manually stopped mirror idle after reconnect and display refresh (renewal: %s)",
+    async (renewalSupported) => {
+      const view = await openView(renewalSupported);
+      fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+      act(() => view.setConnection("connecting", 1));
+      act(() => view.setConnection("paired", 2));
+      const source = view.send.mock.calls
+        .map(([message]) => message)
+        .reverse()
+        .find((message) => message.type === "screen.view.sources.get")!;
+      if (source.type !== "screen.view.sources.get") {
+        throw new Error("Missing refreshed sources request");
+      }
+      act(() =>
+        publishScreenViewResult({
+          type: "screen.view.sources.result",
+          operationId: source.operationId,
+          succeeded: true,
+          message: "Ready",
+          sources: [
+            { id: "display-1", label: "Display", width: 1920, height: 1080, isPrimary: true },
+          ],
+        }),
+      );
+      await advance(15 * 60_000);
+
+      expect(view.starts()).toHaveLength(1);
+      expect(view.video.srcObject).toBeNull();
+      expect(screen.getByText("Your PC display appears here")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Start" }).hasAttribute("disabled")).toBe(false);
+
+      fireEvent.click(screen.getByRole("button", { name: "Start" }));
+      expect(view.starts()).toHaveLength(2);
+      await view.accept();
+      act(() => {
+        const peer = Peer.instances.at(-1)!;
+        peer.connect();
+        peer.video.unmute();
+        fireEvent.loadedData(view.video);
+      });
+      expect(screen.getByText("Live - Encrypted WebRTC")).toBeTruthy();
+    },
+  );
+
+  it("cancels a queued fresh recovery start when the user presses Stop", async () => {
+    const view = await openView();
+    act(() => view.setConnection("connecting", 1));
+    act(() => view.setConnection("paired", 2));
+    const renewal = view.starts().at(-1)!;
+    act(() =>
+      publishScreenViewResult({
+        type: "screen.view.start.result",
+        operationId: renewal.operationId,
+        displayId: renewal.displayId,
+        succeeded: false,
+        code: "renewal-unavailable",
+        message: "The current screen connection cannot be renewed.",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await advance(15 * 60_000);
+
+    expect(view.starts()).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Start" })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("Screen viewing stopped.");
+  });
+
   it("automatically renews the active mirror after the Relay control connection changes", async () => {
     const view = await openView();
     const originalOperation = view.starts()[0]!.operationId;

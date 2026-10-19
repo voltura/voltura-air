@@ -10,9 +10,9 @@
       },
       "Markdig": {
         "type": "Direct",
-        "requested": "[1.4.0, )",
-        "resolved": "1.4.0",
-        "contentHash": "lLhaiI/mNDTNzgLqnmknhf4LjgTqOAyjx5+GNz0X3AxYMxUhmFppF2WVMdER+SDqwhE5wUF1pzs/cuLwFxs7xA=="
+        "requested": "[1.4.1, )",
+        "resolved": "1.4.1",
+        "contentHash": "laiWlBRnwVqQlY9eWR56+uteUVtR+LpGw0doMSpirFuxdplSi3V59UOGRTepJaE8hJvfKGcCoguIZ8jmUHcEnA=="
       },
       "Microsoft.Web.WebView2": {
         "type": "Direct",
@@ -22,18 +22,18 @@
       },
       "NAudio.Wasapi": {
         "type": "Direct",
-        "requested": "[3.1.0, )",
-        "resolved": "3.1.0",
-        "contentHash": "iTG+oBJaiID344yz84PrTiVF98av5SsuOUu7ICskcUd6f5ShHDMskG9sE4XUM05Vdlwy88bMQDDC3e+85Mv8yw==",
+        "requested": "[3.2.0, )",
+        "resolved": "3.2.0",
+        "contentHash": "jkT7CTrkpea+2EPvmnKrFaiKibqR0PMsbqaMoe7IeX7Okr9WYF88p41RWRwxI1hg1b8FBPBjiOj7UL9H9S5DwQ==",
         "dependencies": {
-          "NAudio.Core": "3.1.0"
+          "NAudio.Core": "3.2.0"
         }
       },
       "QRCoder": {
         "type": "Direct",
-        "requested": "[1.8.0, )",
-        "resolved": "1.8.0",
-        "contentHash": "RuvX3PEXU6pbY/I5ItAk800jm62r+YnoPLgyS2WTgwxkOnGkOfU9ORiipHUF0LkLyqM8rlroUCA319JjRYfRFQ=="
+        "requested": "[1.8.1, )",
+        "resolved": "1.8.1",
+        "contentHash": "aGfRFpU/IPexAtEOEXCNxC3fMCAqgn6kqALRvXt6LxVAW0VolSDGHiyrY+o2CJgTITOsMpsrsDi7svMJaJ9Vfg=="
       },
       "Vortice.D3DCompiler": {
         "type": "Direct",
@@ -73,8 +73,8 @@
       },
       "NAudio.Core": {
         "type": "Transitive",
-        "resolved": "3.1.0",
-        "contentHash": "8Hrd3Uqb2wEB64eZYF+0vl9xBadeSn6JnFDsHuGrw87ucJ+pB7u5NzVpHl8OlCNvIvH+sD9b2h4JOqXBuZGYwg==",
+        "resolved": "3.2.0",
+        "contentHash": "XmKfK+iJ9nGwQyMB412+d0CghABNwshFdO3ZRowQ7fDTOXggN9S7J69Dw70/z6DuyfhVdSgnS0FoBtUnwZRCEQ==",
         "dependencies": {
           "System.Numerics.Tensors": "9.0.0"
         }

@@ -6,23 +6,23 @@
 
   <ItemGroup>
     <PackageVersion Include="Concentus" Version="2.2.2" />
-    <PackageVersion Include="Markdig" Version="1.4.0" />
+    <PackageVersion Include="Markdig" Version="1.5.0" />
     <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageVersion Include="Microsoft.Testing.Extensions.Telemetry" Version="2.5.0" />
     <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport.Abstractions" Version="2.5.0" />
     <PackageVersion Include="Microsoft.Testing.Platform" Version="2.5.0" />
     <PackageVersion Include="Microsoft.Testing.Platform.MSBuild" Version="2.5.0" />
-    <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
-    <PackageVersion Include="NAudio.Wasapi" Version="3.1.0" />
-    <PackageVersion Include="QRCoder" Version="1.8.0" />
+    <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
+    <PackageVersion Include="NAudio.Wasapi" Version="3.3.0" />
+    <PackageVersion Include="QRCoder" Version="1.8.1" />
     <PackageVersion Include="System.Numerics.Tensors" Version="10.0.12" />
     <PackageVersion Include="Vortice.D3DCompiler" Version="3.8.3" />
     <PackageVersion Include="Vortice.Direct3D11" Version="3.8.3" />
     <PackageVersion Include="Vortice.Mathematics" Version="2.1.1" />
     <PackageVersion Include="Vortice.MediaFoundation" Version="3.8.3" />
     <PackageVersion Include="xunit.v3" Version="4.0.1" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
   </ItemGroup>
 </Project>

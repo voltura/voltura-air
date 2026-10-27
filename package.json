@@ -106,6 +106,6 @@
     "unrs-resolver@1.12.2": true,
     "esbuild@0.28.1": true,
     "esbuild@0.28.2": true,
-    "workerd@1.20261006.1": true
+    "workerd@1.20261023.1": true
   }
 }

@@ -6,6 +6,10 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.4.4
+
+- Refreshed the README language-count badge to clear its cached invalid result.
+
 ## v1.4.3
 
 - Fixed Screen View restarting after you press **Stop**. It now stays stopped through reconnections and display-list refreshes until you press **Start**.

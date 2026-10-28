@@ -158,6 +158,8 @@ test("unsupported runtimes fail before creating or changing artifacts", () => {
         join(scriptsDir, "package-win.ps1"),
         "-Runtime",
         "win-arm64",
+        "-SigningConfig",
+        join(fixtureRoot, "missing-signing-config.json"),
       ],
       { encoding: "utf8", windowsHide: true },
     );

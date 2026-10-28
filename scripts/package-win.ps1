@@ -12,12 +12,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-if ($SigningConfig) {
-    & (Join-Path $PSScriptRoot 'sign-installer.ps1') -SigningConfig $SigningConfig -Path 'preflight.exe' -ValidateOnly
-}
-
 if ($Runtime -cne "win-x64") {
     throw "Runtime '$Runtime' is not supported. Use win-x64."
+}
+
+if ($SigningConfig) {
+    & (Join-Path $PSScriptRoot 'sign-installer.ps1') -SigningConfig $SigningConfig -Path 'preflight.exe' -ValidateOnly
 }
 
 function Assert-LastExitCode {

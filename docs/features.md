@@ -37,7 +37,7 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   `Unavailable` independently; no system information is polled in the background.
 - Light, dark, system, Windows High Contrast, per-user installation, portable
   ZIP, and installer packages are supported.
-- Eligible installed stable builds can automatically stage a signed newer GitHub Release; the user explicitly installs it from the shared tray/sidebar update action. Portable and development runs do not check for updates.
+- Eligible installed stable builds can automatically stage a signed newer GitHub Release; the user explicitly installs it from the shared tray/sidebar update action. Automatic checks run on startup once devices disconnect, then every 24 hours while running. Checking, downloading, and waiting for devices replace the cached install action until the operation finishes; a failed check or download restores the cached action. Portable and development runs do not check for updates.
 - Connect shows a short-lived QR code, refresh countdown, **New code**, and
   **Copy link**. Mobile can reconnect to saved PCs or enter a host manually.
 - Adapter and port selection are automatic by default. Connection allows a

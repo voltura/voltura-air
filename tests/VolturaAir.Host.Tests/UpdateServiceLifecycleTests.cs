@@ -104,7 +104,7 @@ public sealed class UpdateServiceLifecycleTests : IsolatedHostSettingsTest
     }
 
     [Fact]
-    public async Task ReadyUpdateStaysActionableAndApplyCancelsNewerCandidateWithoutNetwork()
+    public async Task NewerCandidateShowsDownloadProgressAndApplyCancelsWithoutNetwork()
     {
         AppUpdateSettings.SetAutomaticUpdateDownloadsEnabled(false);
         using var store = new TempPairingStore();
@@ -124,8 +124,8 @@ public sealed class UpdateServiceLifecycleTests : IsolatedHostSettingsTest
 
         var check = service.CheckForUpdatesAsync(manual: true, TestContext.Current.CancellationToken);
         await handler.InstallerReadStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(UpdateState.Ready, service.State);
-        Assert.Equal("1.0.10", service.TargetVersion);
+        Assert.Equal(UpdateState.Downloading, service.State);
+        Assert.Equal("1.0.11", service.TargetVersion);
         var requestsBeforeApply = handler.ApiRequests;
 
         await service.ApplyAsync(TestContext.Current.CancellationToken);

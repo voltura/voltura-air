@@ -1,4 +1,4 @@
-# Voltura Air
+## Voltura Air
 
 <p align="center">
   <img src="apps/windows-host/Assets/VolturaAir-256.png" alt="Voltura Air application icon" width="128">
@@ -165,7 +165,7 @@ explicitly monitor `CABLE Output` through the default speakers for end-to-end te
 Use headphones or keep the phone away from the speakers while testing to avoid
 acoustic echo or feedback.
 
-Installed stable builds check GitHub Releases at most once a day and automatically stage a newer release by default. Installation is always explicit from the **Update** button or tray menu; startup never installs or requests UAC. The first updater-capable version must be installed manually.
+Installed stable builds automatically check GitHub Releases on startup once no controller is connected, then every 24 hours while running, and stage a newer release by default. Startup checks do not wait for the previous check's timestamp. Installation is always explicit from the **Update** button or tray menu; startup never installs or requests UAC. The first updater-capable version must be installed manually.
 
 ## Connect
 

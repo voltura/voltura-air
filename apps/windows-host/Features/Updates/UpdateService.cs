@@ -149,7 +149,7 @@ internal sealed class UpdateService : IAsyncDisposable
 
     private async Task CheckCoreAsync(bool manual, CancellationToken cancellationToken)
     {
-        ShowWorkingState(UpdateState.Checking, null);
+        SetState(UpdateState.Checking, null);
         AppUpdateSettings.SetLastUpdateCheckAttemptUtc(DateTimeOffset.UtcNow);
         using var response = await (_client ??= _clientFactory()).GetAsync(
             ReleaseUrl,
@@ -204,7 +204,7 @@ internal sealed class UpdateService : IAsyncDisposable
 
         _deferred = null;
         EnsurePairingSubscription();
-        ShowWorkingState(UpdateState.Downloading, candidate.Version.ToString(3));
+        SetState(UpdateState.Downloading, candidate.Version.ToString(3));
         var installerName = UpdatePolicy.SelectInstallerNameFromModifyInstaller(candidate.Version, _modifyInstaller);
         using var candidateCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
@@ -254,7 +254,7 @@ internal sealed class UpdateService : IAsyncDisposable
     {
         _deferred = candidate;
         EnsurePairingSubscription();
-        ShowWorkingState(UpdateState.WaitingForDevices, candidate.Version.ToString(3));
+        SetState(UpdateState.WaitingForDevices, candidate.Version.ToString(3));
         ReportManualResult(manual, UpdateNotificationKind.WaitingForDevices, candidate.Version.ToString(3));
     }
 
@@ -321,13 +321,9 @@ internal sealed class UpdateService : IAsyncDisposable
     {
         while (!cancellationToken.IsCancellationRequested && AppUpdateSettings.AutomaticUpdateDownloadsEnabled())
         {
-            var last = AppUpdateSettings.LastUpdateCheckAttemptUtc();
-            var wait = last is null
-                ? TimeSpan.FromMinutes(2)
-                : TimeSpan.FromHours(24) - (DateTimeOffset.UtcNow - last.Value);
-            if (wait > TimeSpan.Zero) await Task.Delay(wait, cancellationToken).ConfigureAwait(false);
             await WaitForNoControllerAsync(cancellationToken).ConfigureAwait(false);
             await CheckForUpdatesAsync(manual: false, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromHours(24), cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -432,11 +428,6 @@ internal sealed class UpdateService : IAsyncDisposable
     }
 
     private string SelectInstallerName(Version version) => UpdatePolicy.SelectInstallerNameFromModifyInstaller(version, _modifyInstaller);
-
-    private void ShowWorkingState(UpdateState state, string? version)
-    {
-        if (_ready is null) SetState(state, version);
-    }
 
     private void RestorePresentation()
     {

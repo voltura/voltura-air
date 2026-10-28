@@ -16,6 +16,7 @@ public sealed partial class HostUiLayoutTests
         RunOnStaThread(() =>
         {
             using var appScope = new WpfApplicationScope();
+            AppUpdateSettings.SetAutomaticUpdateDownloadsEnabled(false);
             using var store = new TempPairingStore();
             using var inputInjector = new SendInputInjector();
             using var directory = new UpdateTemporaryDirectory();

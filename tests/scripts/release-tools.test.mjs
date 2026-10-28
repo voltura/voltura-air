@@ -31,6 +31,7 @@ import {
   publishReleaseIfRequested,
   restoreCleanTrackedTree,
   withReleaseLock,
+  verifyConfiguredInstallerSignatures,
 } from "../../scripts/release-publish.mjs";
 import {
   compareSemver,
@@ -46,10 +47,50 @@ import {
   replaceReleaseNotesSection,
   resolveLatestPublishedRelease,
   resolveReleaseVersion,
-  unsignedReleaseNotice,
+  installerSignatureNotice,
 } from "../../scripts/release-tools.mjs";
 
-const requiredNotices = `${freewareNotice}\n\n${unsignedReleaseNotice}`;
+const requiredNotices = `${freewareNotice}\n\n${installerSignatureNotice}`;
+
+test("cached release installers must match the current signing configuration", () => {
+  const assets = ["app.zip", "setup.exe", "setup-full.exe", "update.json", "update.sig"];
+  const calls = [];
+  verifyConfiguredInstallerSignatures(
+    assets,
+    (command, args) => calls.push({ command, args }),
+    "private-signing.json",
+  );
+  assert.equal(calls.length, 2);
+  for (const call of calls) {
+    assert.equal(call.command, "pwsh");
+    assert.ok(call.args.includes("private-signing.json"));
+    assert.ok(call.args.includes("-VerifyOnly"));
+  }
+  for (const error of ["unsigned cached installer", "different certificate"]) {
+    assert.throws(
+      () =>
+        verifyConfiguredInstallerSignatures(
+          assets,
+          () => {
+            throw new Error(error);
+          },
+          "changed-config.json",
+        ),
+      new RegExp(error),
+    );
+  }
+  assert.throws(
+    () => verifyConfiguredInstallerSignatures(["setup.exe"], () => {}, "config.json"),
+    /both release installers/u,
+  );
+  verifyConfiguredInstallerSignatures(
+    assets,
+    () => {
+      throw new Error("Unconfigured development build must not sign");
+    },
+    "",
+  );
+});
 const auditedReleaseTitle = "Voltura Air v1.0.5";
 const auditedReleaseBody = "Reviewed release body.\n";
 const auditedReleaseMetadata = {
@@ -871,7 +912,7 @@ test("release notes keep one shared canonical notices section", async () => {
   const sectionCount = [...notes.matchAll(/^## v\S+$/gmu)].length;
   assert.ok(sectionCount > 0);
   assert.equal(notes.split(freewareNotice).length - 1, 1);
-  assert.equal(notes.split(unsignedReleaseNotice).length - 1, 1);
+  assert.equal(notes.split(installerSignatureNotice).length - 1, 1);
   assert.equal(getGeneralReleaseNotices(notes), requiredNotices);
 });
 

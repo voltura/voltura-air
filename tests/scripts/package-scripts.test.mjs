@@ -55,6 +55,23 @@ const directoryBuildProps = readFileSync(
 );
 const inboxPowerShell = '"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"';
 
+test("configured installer signing is preflighted and applied after compilation", () => {
+  const preflight = packageWindowsScript.indexOf("-Path 'preflight.exe' -ValidateOnly");
+  assert.ok(preflight > 0 && preflight < packageWindowsScript.indexOf("New-Item"));
+  const signing = packageWindowsScript.lastIndexOf("-Path $installerPath");
+  assert.ok(signing > packageWindowsScript.lastIndexOf("& $makensisPath"));
+  assert.ok(packageWindowsScript.lastIndexOf("-Path $frameworkDependentInstallerPath") > signing);
+  assert.match(packageWindowsScript, /if \(\$SigningConfig\)/u);
+  const release = readFileSync(
+    new URL("../../scripts/release-publish.mjs", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    release.indexOf("scripts/sign-installer.ps1") < release.indexOf("preflightPublishRestores();"),
+  );
+  assert.match(release, /checked\("npm", \["run", "package:win"\]\)/u);
+});
+
 test("documentation coverage runs in the root and pull-request quality gates", () => {
   assert.equal(packageJson.scripts.test.split(" && ")[0], "npm run docs:check");
   assert.match(qualityWorkflow, /run: npm run docs:check/u);

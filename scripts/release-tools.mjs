@@ -3,8 +3,8 @@ const semverPattern =
 
 export const freewareNotice =
   "Voltura Air is free software from Voltura AB. If it helps you, optional support is available through [Ko-fi](https://ko-fi.com/voltura) or [PayPal](https://www.paypal.me/voltura).";
-export const unsignedReleaseNotice =
-  "Release binaries are not code-signed. Windows may show an unknown-publisher or Microsoft Defender SmartScreen warning. Download release files only from the official Voltura Air website or GitHub release page.";
+export const installerSignatureNotice =
+  "Installers carry a timestamped Voltura AB signature using a self-signed certificate. This does not establish public publisher trust or SmartScreen reputation; Windows may still show an unknown-publisher or Microsoft Defender SmartScreen warning. Download release files only from the official Voltura Air website or GitHub release page.";
 export const releaseNotesStartMarker = "<!-- voltura-air:release-notes:start -->";
 export const releaseNotesEndMarker = "<!-- voltura-air:release-notes:end -->";
 
@@ -198,12 +198,12 @@ export function validateReleaseNotesContent(content, { preserveComments = false 
   if (countOccurrences(releaseContent, freewareNotice) !== 1) {
     throw new Error("Release notes must contain exactly one canonical freeware notice.");
   }
-  if (countOccurrences(releaseContent, unsignedReleaseNotice) !== 1) {
-    throw new Error("Release notes must contain exactly one canonical unsigned-release notice.");
+  if (countOccurrences(releaseContent, installerSignatureNotice) !== 1) {
+    throw new Error("Release notes must contain exactly one canonical installer-signature notice.");
   }
   const publishableContent = releaseContent
     .replace(freewareNotice, "")
-    .replace(unsignedReleaseNotice, "")
+    .replace(installerSignatureNotice, "")
     .trim();
   if (!publishableContent) {
     throw new Error("Release notes contain no user-facing changes.");
@@ -213,13 +213,16 @@ export function validateReleaseNotesContent(content, { preserveComments = false 
 
 export function extractUserFacingReleaseNotes(content) {
   const releaseContent = validateReleaseNotesContent(content, { preserveComments: true });
-  return releaseContent.replace(freewareNotice, "").replace(unsignedReleaseNotice, "").trim();
+  return releaseContent.replace(freewareNotice, "").replace(installerSignatureNotice, "").trim();
 }
 
 function validateUserFacingReleaseNotes(content, { preserveComments = false } = {}) {
   const trimmedContent = content.trim();
   const releaseContent = removeHtmlComments(trimmedContent).trim();
-  if (releaseContent.includes(freewareNotice) || releaseContent.includes(unsignedReleaseNotice)) {
+  if (
+    releaseContent.includes(freewareNotice) ||
+    releaseContent.includes(installerSignatureNotice)
+  ) {
     throw new Error("Version sections must not repeat the notices from '## General notices'.");
   }
   if (!releaseContent) {
@@ -291,13 +294,13 @@ export function getGeneralReleaseNotices(text) {
   const releaseContent = removeHtmlComments(content).trim();
   if (
     countOccurrences(releaseContent, freewareNotice) !== 1 ||
-    countOccurrences(releaseContent, unsignedReleaseNotice) !== 1
+    countOccurrences(releaseContent, installerSignatureNotice) !== 1
   ) {
     throw new Error("General notices must contain exactly one copy of each canonical notice.");
   }
   const remainingContent = releaseContent
     .replace(freewareNotice, "")
-    .replace(unsignedReleaseNotice, "")
+    .replace(installerSignatureNotice, "")
     .trim();
   if (remainingContent) {
     throw new Error("The General notices section must contain only the canonical notices.");

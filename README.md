@@ -234,8 +234,10 @@ Voltura-operated infrastructure. The mobile web app does not send telemetry,
 and normal local or remote control does not require statistics or an account.
 The choice can be changed under **Diagnostics → Usage statistics**.
 
-Release binaries are not code-signed. Windows can therefore show an
-unknown-publisher or Microsoft Defender SmartScreen warning. Download only from
+Installers carry a timestamped Voltura AB signature using a self-signed certificate.
+This embeds the publisher identity but does not establish public certificate trust
+or SmartScreen reputation. Windows may still show an unknown-publisher or
+Microsoft Defender SmartScreen warning. Download only from
 the [official product page](https://voltura.se/air/) or the
 [official GitHub releases](https://github.com/voltura/voltura-air/releases/latest).
 

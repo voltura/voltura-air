@@ -324,6 +324,29 @@ export async function runLocalRelease(args = process.argv.slice(2), options = {}
   return withReleaseLock(() => runLocalReleaseUnlocked(args, options));
 }
 
+export function verifyConfiguredInstallerSignatures(
+  assetPaths,
+  execute = checked,
+  config = process.env.VOLTURA_AIR_INSTALLER_SIGNING_CONFIG,
+) {
+  if (!config) return;
+  const installers = assetPaths.filter((asset) => asset.endsWith(".exe"));
+  if (installers.length !== 2)
+    throw new Error("Expected both release installers for signature verification.");
+  for (const installer of installers) {
+    execute("pwsh", [
+      "-NoProfile",
+      "-File",
+      "scripts/sign-installer.ps1",
+      "-SigningConfig",
+      config,
+      "-Path",
+      installer,
+      "-VerifyOnly",
+    ]);
+  }
+}
+
 async function runLocalReleaseUnlocked(
   args = process.argv.slice(2),
   { progress, publishLatest = false, retainCheckpoint = false } = {},
@@ -351,6 +374,18 @@ async function runLocalReleaseUnlocked(
       }
       checked("gh", ["auth", "status", "--hostname", "github.com"], { captureOutput: true });
       checked("npm", ["run", "tools:check"]);
+      if (process.env.VOLTURA_AIR_INSTALLER_SIGNING_CONFIG) {
+        checked("pwsh", [
+          "-NoProfile",
+          "-File",
+          "scripts/sign-installer.ps1",
+          "-SigningConfig",
+          process.env.VOLTURA_AIR_INSTALLER_SIGNING_CONFIG,
+          "-Path",
+          "preflight.exe",
+          "-ValidateOnly",
+        ]);
+      }
       preflightPublishRestores();
       const initialStatus = checked("git", ["status", "--porcelain=v1", "--untracked-files=all"], {
         captureOutput: true,
@@ -622,7 +657,20 @@ async function runLocalReleaseUnlocked(
       releaseProgress,
       "Creating and auditing the GitHub release",
       "Uploading the exact ZIP and installer set, then verifying GitHub metadata and digests.",
-      () => {
+      async () => {
+        if (process.env.VOLTURA_AIR_INSTALLER_SIGNING_CONFIG) {
+          const localCheckpoint = await readReleaseCheckpoint({
+            repositoryRoot,
+            version: releaseContext.targetVersion,
+            commit: releaseCommit,
+            assetPaths,
+          });
+          if (!localCheckpoint)
+            throw new Error(
+              "Signed release verification requires the exact local checkpoint artifacts, including on resume.",
+            );
+        }
+        verifyConfiguredInstallerSignatures(assetPaths);
         if (releaseContext.resumePhase === "published") {
           auditReleaseArtifacts(
             getRelease(releaseContext.targetTag, releaseContext.repository),

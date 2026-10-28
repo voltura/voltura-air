@@ -63,8 +63,9 @@ for a Windows 11 PC.
   remote-control service. Device transfer is intentionally one selected file at
   a time.
 - A sleeping or shut-down PC cannot receive a Voltura Air wake command.
-- Release binaries are not code-signed, so Windows may show an
-  unknown-publisher or SmartScreen warning.
+- Official installers carry a timestamped Voltura AB signature using a self-signed
+  certificate. This does not establish public publisher trust or SmartScreen
+  reputation; Windows may still show an unknown-publisher or SmartScreen warning.
 
 ## Distribution
 

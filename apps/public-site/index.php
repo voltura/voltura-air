@@ -602,7 +602,7 @@
             internet or administrator approval; the full installer includes them.
           </p>
           <p>
-            Releases are not code-signed, so Windows may show an unknown publisher or SmartScreen warning. Download only from this page or the official GitHub repository.
+            Installers carry a timestamped Voltura AB signature using a self-signed certificate. Windows may still show an unknown publisher or SmartScreen warning. Download only from this page or the official GitHub repository.
           </p>
         </div>
         <a class="button primary" href="https://github.com/voltura/voltura-air/releases/latest">Download latest release</a>

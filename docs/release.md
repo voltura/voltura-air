@@ -113,6 +113,25 @@ commit or publish.
 
 ## Standalone package checks
 
+When `VOLTURA_AIR_INSTALLER_SIGNING_CONFIG` (or packaging's `-SigningConfig`) names
+a JSON file with `certificateThumbprint`, `timestampUrl`, and `allowSelfSigned`,
+both installers are Authenticode-signed after NSIS compilation and before release
+hashing/update-manifest signing. Packaging requires that certificate and its private
+key in `Cert:\CurrentUser\My`, plus Windows SDK SignTool. No private key is stored
+in this repository. Signing uses SHA-256 and an
+RFC 3161 timestamp. Verification checks the pinned signer, timestamp, and Windows
+Authenticode validation, allowing only the expected untrusted-root result for this
+self-signed certificate. Signing or timestamp failures stop packaging.
+
+This embeds the Voltura AB publisher identity, but does not establish public
+certificate trust or SmartScreen reputation. Display depends on Windows policy and
+certificate trust; an untrusted computer may still report an unknown publisher.
+The portable ZIP and installed payload are not Authenticode-signed by this step.
+Public development packaging without signing configuration remains unsigned.
+The private `voltura-air-service` release and machine-setup commands supply the
+required Voltura AB configuration; its release documentation owns certificate
+backup/restore. Configured release commands preflight the signing tools/key.
+
 The complete release already runs these gates. For independent verification:
 
 ```powershell
@@ -191,7 +210,8 @@ Add `--prerelease` for a prerelease version.
 Maintain `docs/release-notes.md` newest first with one `## v<version>` section
 of concise user-visible capabilities, fixes, setup/compatibility notes, or known
 limitations. Omit refactors, tests, tooling, dependency maintenance, and other
-internal work. Keep its General notices unchanged.
+internal work. Keep its General notices synchronized with the canonical notices
+in `scripts/release-tools.mjs` when distribution policy changes.
 
 The release command validates the section and builds the GitHub body. After a
 manual GitHub edit/publish, import the marked editorial block with:

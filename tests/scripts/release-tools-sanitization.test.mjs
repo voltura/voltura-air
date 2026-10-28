@@ -4,10 +4,10 @@ import test from "node:test";
 import {
   freewareNotice,
   getGeneralReleaseNotices,
-  unsignedReleaseNotice,
+  installerSignatureNotice,
 } from "../../scripts/release-tools.mjs";
 
-const requiredNotices = `${freewareNotice}\n\n${unsignedReleaseNotice}`;
+const requiredNotices = `${freewareNotice}\n\n${installerSignatureNotice}`;
 
 test("general notices remove HTML comments until sanitization is stable", () => {
   const notes = `## General notices\n\n<<!-- hidden -->!-- second -->\n\n${requiredNotices}\n`;

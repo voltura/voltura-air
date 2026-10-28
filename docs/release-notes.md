@@ -6,6 +6,10 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.4.5
+
+- Both Windows installers now carry a timestamped Voltura AB publisher signature. Windows may still show SmartScreen or unknown-publisher warnings because the certificate is self-signed.
+
 ## v1.4.4
 
 - Refreshed the README language-count badge to clear its cached invalid result.
@@ -849,4 +853,4 @@ create one. Keep the shared notices in
 
 Voltura Air is free software from Voltura AB. If it helps you, optional support is available through [Ko-fi](https://ko-fi.com/voltura) or [PayPal](https://www.paypal.me/voltura).
 
-Release binaries are not code-signed. Windows may show an unknown-publisher or Microsoft Defender SmartScreen warning. Download release files only from the official Voltura Air website or GitHub release page.
+Installers carry a timestamped Voltura AB signature using a self-signed certificate. This does not establish public publisher trust or SmartScreen reputation; Windows may still show an unknown-publisher or Microsoft Defender SmartScreen warning. Download release files only from the official Voltura Air website or GitHub release page.

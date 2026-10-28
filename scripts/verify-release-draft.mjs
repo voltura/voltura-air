@@ -14,6 +14,7 @@ import {
   auditDraft,
   auditReleaseArtifacts,
   publishReleaseIfRequested,
+  verifyConfiguredInstallerSignatures,
 } from "./release-publish.mjs";
 import { parseReleaseArguments, parseSemver } from "./release-tools.mjs";
 
@@ -114,6 +115,7 @@ export async function verifyPreparedReleaseDraft(
 
   const assetPaths = getReleaseAssetPaths(repositoryRoot, version, runtime);
   const checkpoint = await readReleaseCheckpoint({ repositoryRoot, version, commit, assetPaths });
+  verifyConfiguredInstallerSignatures(assetPaths);
   const release = JSON.parse(
     checked("gh", [
       "release",

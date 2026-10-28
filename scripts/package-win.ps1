@@ -6,10 +6,15 @@ param(
     [string]$Runtime = "win-x64",
     [switch]$SkipBuild,
     [switch]$FrameworkDependentOnly,
-    [switch]$NoInstallerCompression
+    [switch]$NoInstallerCompression,
+    [string]$SigningConfig = $env:VOLTURA_AIR_INSTALLER_SIGNING_CONFIG
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($SigningConfig) {
+    & (Join-Path $PSScriptRoot 'sign-installer.ps1') -SigningConfig $SigningConfig -Path 'preflight.exe' -ValidateOnly
+}
 
 if ($Runtime -cne "win-x64") {
     throw "Runtime '$Runtime' is not supported. Use win-x64."
@@ -363,6 +368,13 @@ if (-not (Test-Path $frameworkDependentInstallerPath)) {
 }
 
 $verifyVersionScript = Join-Path $repoRoot "scripts\verify-windows-version.ps1"
+if ($SigningConfig) {
+    if (-not $FrameworkDependentOnly) {
+        & (Join-Path $PSScriptRoot 'sign-installer.ps1') -SigningConfig $SigningConfig -Path $installerPath
+    }
+    & (Join-Path $PSScriptRoot 'sign-installer.ps1') -SigningConfig $SigningConfig -Path $frameworkDependentInstallerPath
+}
+
 if (-not $FrameworkDependentOnly) {
     $verifyVersionArguments = @{
         Version = $Version

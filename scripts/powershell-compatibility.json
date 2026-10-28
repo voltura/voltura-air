@@ -18,6 +18,8 @@
     "measure-host-resources.ps1",
     "package-win.ps1",
     "prepare-release.ps1",
+    "sign-installer.ps1",
+    "verify-installer-signature.ps1",
     "site-dev-admin.ps1",
     "site-dev-init.ps1",
     "site-dev.ps1",

@@ -1,4 +1,4 @@
-import { useId, useState, type SubmitEvent } from "react";
+import { useEffect, useId, useRef, useState, type SubmitEvent } from "react";
 import { Camera, Clipboard, Power, RefreshCw, X } from "lucide-react";
 import { copyTextToClipboard } from "../../foundation/diagnostics/mobileDiagnostics";
 import { validateManualConnectionInput } from "../../foundation/pairing/pairingLink";
@@ -51,12 +51,46 @@ export function ConnectionSettingsSection({
   const manualHostErrorId = useId();
   const [copyDiagnosticsStatus, setCopyDiagnosticsStatus] = useState("");
   const [manualDiagnostics, setManualDiagnostics] = useState("");
-  const [forgetTarget, setForgetTarget] = useState<{ id: string; name: string } | null>(null);
+  const [copyPending, setCopyPending] = useState(false);
+  const copyOwner = useRef({ mounted: true, pending: false });
+  useEffect(() => {
+    const owner = { mounted: true, pending: false };
+    copyOwner.current = owner;
+    return () => {
+      owner.mounted = false;
+    };
+  }, []);
+  const [forgetTarget, setForgetTarget] = useState<
+    (ConnectionSettingsProps["pairedPcs"][number] & { name: string }) | null
+  >(null);
+  const currentForgetTarget =
+    forgetTarget &&
+    pairedPcs.find(
+      (pc) =>
+        pc.id === forgetTarget.id &&
+        pc.url === forgetTarget.url &&
+        pc.hostIdentityPublicKey === forgetTarget.hostIdentityPublicKey &&
+        pc.hostIdentityFingerprint === forgetTarget.hostIdentityFingerprint,
+    );
+  if (forgetTarget && !currentForgetTarget) {
+    setForgetTarget(null);
+  }
 
   const copyDiagnostics = async () => {
+    const owner = copyOwner.current;
+    if (owner.pending) {
+      return;
+    }
+    owner.pending = true;
+    setCopyPending(true);
     setCopyDiagnosticsStatus("");
     setManualDiagnostics("");
     const result = await copyTextToClipboard(diagnostics);
+    if (!owner.mounted) {
+      return;
+    }
+    owner.pending = false;
+    setCopyPending(false);
     if (result === "copied") {
       setCopyDiagnosticsStatus("Diagnostics copied.");
       return;
@@ -148,7 +182,7 @@ export function ConnectionSettingsSection({
                     type="button"
                     className="danger-button"
                     onClick={() => {
-                      setForgetTarget({ id: pc.id, name: getPcDisplayName(pc) });
+                      setForgetTarget({ ...pc, name: getPcDisplayName(pc) });
                     }}
                   >
                     <X aria-hidden="true" />
@@ -163,12 +197,12 @@ export function ConnectionSettingsSection({
       <ConfirmationDialog
         confirmLabel="Forget PC"
         description={`Forget ${forgetTarget?.name ?? "this PC"}? You will need to scan its pairing QR code again, and this device's saved settings for it will be removed.`}
-        isOpen={forgetTarget !== null}
+        isOpen={Boolean(currentForgetTarget)}
         onCancel={() => {
           setForgetTarget(null);
         }}
         onConfirm={() => {
-          const target = forgetTarget;
+          const target = currentForgetTarget;
           setForgetTarget(null);
           if (target) {
             forgetPc(target.id);
@@ -220,6 +254,7 @@ export function ConnectionSettingsSection({
         <p>Copy redacted troubleshooting details.</p>
         <button
           type="button"
+          disabled={copyPending}
           onClick={() => {
             void copyDiagnostics();
           }}

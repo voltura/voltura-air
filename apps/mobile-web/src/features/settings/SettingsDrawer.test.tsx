@@ -165,6 +165,55 @@ describe("SettingsDrawer", () => {
     expect(baseProps.onOpenThirdPartyNotices).toHaveBeenCalledOnce();
   });
 
+  it("does not steal tool focus when a native close event arrives later", () => {
+    const trigger = document.createElement("button");
+    const tool = document.createElement("input");
+    document.body.append(trigger, tool);
+    trigger.focus();
+    const view = render(<SettingsDrawer {...baseProps} onOpenDiagnostics={() => tool.focus()} />);
+    const dialog = screen.getByRole("dialog", { name: "Menu" }) as HTMLDialogElement;
+    dialog.close = () => {
+      dialog.removeAttribute("open");
+    };
+    fireEvent.click(screen.getByRole("button", { name: "Diagnostics" }));
+    fireEvent(dialog, new Event("close"));
+    expect(document.activeElement).toBe(tool);
+    view.unmount();
+    trigger.remove();
+    tool.remove();
+  });
+
+  it("does not close Menu for a nested dialog cancel event", () => {
+    const onClose = vi.fn();
+    render(
+      <SettingsDrawer
+        {...baseProps}
+        pairedPcs={[{ customName: false, id: "pc", name: "PC", url: "http://127.0.0.1" }]}
+        onClose={onClose}
+      />,
+    );
+    fireEvent.click(screen.getByText("Connection"));
+    fireEvent.click(screen.getByRole("button", { name: "Forget" }));
+    const child = screen.getByRole("dialog", { name: "Forget this PC?" });
+    fireEvent(child, new Event("cancel", { bubbles: false, cancelable: true }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Menu" }).hasAttribute("open")).toBe(true);
+  });
+
+  it("ignores a queued native close event after the drawer has reopened", () => {
+    const view = render(<SettingsDrawer {...baseProps} />);
+    const dialog = screen.getByRole("dialog", { name: "Menu" }) as HTMLDialogElement;
+    dialog.close = () => {
+      dialog.removeAttribute("open");
+    };
+    view.rerender(<SettingsDrawer {...baseProps} isOpen={false} />);
+    view.rerender(<SettingsDrawer {...baseProps} />);
+    fireEvent.click(screen.getByText("Connection"));
+    fireEvent(dialog, new Event("close"));
+    expect(screen.getByText("Connection").closest("details")?.open).toBe(true);
+    expect(document.activeElement).toBe(dialog);
+  });
+
   it("owns modal focus and returns it after a user close", () => {
     const trigger = document.createElement("button");
     document.body.append(trigger);

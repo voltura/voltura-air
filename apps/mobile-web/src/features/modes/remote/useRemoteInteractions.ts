@@ -8,6 +8,7 @@ import {
 } from "react";
 import { isInteractiveRemoteTarget, roundRemoteDelta } from "./remotePointerMath";
 import type { RepeatablePressProps } from "./RemoteButton";
+import type { RemoteModeId } from "../../../foundation/settings/remoteSettings";
 
 const repeatDelayMs = 400;
 const repeatMs = 55;
@@ -33,7 +34,8 @@ interface PendingTap {
 }
 
 interface RemoteInteractionOptions {
-  isKodiMode: boolean;
+  isConnected: boolean;
+  mode: RemoteModeId;
   navigationRing: boolean;
   onPointerButtonClick: (button: "left" | "right") => void;
   onPointerMove: (dx: number, dy: number) => void;
@@ -41,12 +43,15 @@ interface RemoteInteractionOptions {
 }
 
 export function useRemoteInteractions({
-  isKodiMode,
+  isConnected,
+  mode,
   navigationRing,
   onPointerButtonClick,
   onPointerMove,
   sendSpecial,
 }: RemoteInteractionOptions) {
+  const isKodiMode = mode === "kodi";
+  const repeatPointerRef = useRef<number | null>(null);
   const repeatTimeoutRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
   const miniTrackpadPointerRef = useRef<PointerState | null>(null);
@@ -54,6 +59,7 @@ export function useRemoteInteractions({
   const pendingTapRef = useRef<PendingTap | null>(null);
 
   const stopRepeatingPress = useCallback(() => {
+    repeatPointerRef.current = null;
     if (repeatTimeoutRef.current !== null) {
       window.clearTimeout(repeatTimeoutRef.current);
       repeatTimeoutRef.current = null;
@@ -73,42 +79,64 @@ export function useRemoteInteractions({
   }, []);
 
   useEffect(() => {
+    const cancelInteractions = () => {
+      stopRepeatingPress();
+      clearPendingTap();
+      miniTrackpadPointerRef.current = null;
+      navigationPanelPointerRef.current = null;
+    };
     const stopWhenHidden = () => {
       if (document.visibilityState === "hidden") {
-        stopRepeatingPress();
+        cancelInteractions();
       }
     };
-    window.addEventListener("blur", stopRepeatingPress);
+    window.addEventListener("blur", cancelInteractions);
+    window.addEventListener("pagehide", cancelInteractions);
     document.addEventListener("visibilitychange", stopWhenHidden);
     return () => {
-      window.removeEventListener("blur", stopRepeatingPress);
+      window.removeEventListener("blur", cancelInteractions);
+      window.removeEventListener("pagehide", cancelInteractions);
       document.removeEventListener("visibilitychange", stopWhenHidden);
       stopRepeatingPress();
       clearPendingTap();
     };
   }, [clearPendingTap, stopRepeatingPress]);
 
+  useEffect(() => {
+    stopRepeatingPress();
+    clearPendingTap();
+    miniTrackpadPointerRef.current = null;
+    navigationPanelPointerRef.current = null;
+  }, [isConnected, mode, navigationRing, clearPendingTap, stopRepeatingPress]);
+
+  const finishRepeatingPress = (event: PointerEvent<HTMLButtonElement>) => {
+    if (repeatPointerRef.current === event.pointerId) {
+      stopRepeatingPress();
+    }
+  };
+
   const getRepeatablePressProps = (action: () => void): RepeatablePressProps => ({
     onPointerDown: (event) => {
-      if (event.button !== 0) {
+      if (!isConnected || event.button !== 0) {
         return;
       }
 
       event.preventDefault();
       event.currentTarget.setPointerCapture?.(event.pointerId);
       stopRepeatingPress();
+      repeatPointerRef.current = event.pointerId;
       action();
       repeatTimeoutRef.current = window.setTimeout(() => {
         action();
         repeatIntervalRef.current = window.setInterval(action, repeatMs);
       }, repeatDelayMs);
     },
-    onPointerUp: stopRepeatingPress,
-    onPointerCancel: stopRepeatingPress,
-    onPointerLeave: stopRepeatingPress,
-    onLostPointerCapture: stopRepeatingPress,
+    onPointerUp: finishRepeatingPress,
+    onPointerCancel: finishRepeatingPress,
+    onPointerLeave: finishRepeatingPress,
+    onLostPointerCapture: finishRepeatingPress,
     onClick: (event) => {
-      if (event.detail === 0) {
+      if (isConnected && event.detail === 0) {
         action();
       }
     },
@@ -126,7 +154,10 @@ export function useRemoteInteractions({
       return;
     }
 
-    clearPendingTap();
+    if (previousTap) {
+      clearPendingTap();
+      onPointerButtonClick("left");
+    }
     pendingTapRef.current = {
       x,
       y,
@@ -173,7 +204,7 @@ export function useRemoteInteractions({
       event.preventDefault();
     },
     onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
-      if (event.key !== "Enter" && event.key !== " ") {
+      if (!isConnected || (event.key !== "Enter" && event.key !== " ")) {
         return;
       }
 
@@ -186,7 +217,7 @@ export function useRemoteInteractions({
       }
     },
     onPointerDown: (event) => {
-      if (event.button !== 0) {
+      if (!isConnected || event.button !== 0 || miniTrackpadPointerRef.current) {
         return;
       }
 
@@ -212,7 +243,12 @@ export function useRemoteInteractions({
       event.stopPropagation();
       miniTrackpadPointerRef.current = null;
       releaseCapture(event);
-      if (pointer.maxDistance <= tapDistance) {
+      if (
+        Math.max(
+          pointer.maxDistance,
+          Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY),
+        ) <= tapDistance
+      ) {
         if (isKodiMode) {
           clearPendingTap();
           sendSpecial("Enter");
@@ -227,6 +263,11 @@ export function useRemoteInteractions({
         miniTrackpadPointerRef.current = null;
       }
     },
+    onLostPointerCapture: (event) => {
+      if (miniTrackpadPointerRef.current?.id === event.pointerId) {
+        miniTrackpadPointerRef.current = null;
+      }
+    },
     onPointerLeave: (event) => {
       if (miniTrackpadPointerRef.current?.id === event.pointerId) {
         event.stopPropagation();
@@ -237,7 +278,13 @@ export function useRemoteInteractions({
 
   const navigationPanelProps: HTMLAttributes<HTMLDivElement> = {
     onPointerDown: (event) => {
-      if (!navigationRing || event.button !== 0 || isInteractiveRemoteTarget(event.target)) {
+      if (
+        !isConnected ||
+        !navigationRing ||
+        navigationPanelPointerRef.current !== null ||
+        event.button !== 0 ||
+        isInteractiveRemoteTarget(event.target)
+      ) {
         return;
       }
 
@@ -260,11 +307,21 @@ export function useRemoteInteractions({
       event.preventDefault();
       navigationPanelPointerRef.current = null;
       releaseCapture(event);
-      if (pointer.maxDistance <= tapDistance) {
+      if (
+        Math.max(
+          pointer.maxDistance,
+          Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY),
+        ) <= tapDistance
+      ) {
         queuePointerTap(event.clientX, event.clientY, event.timeStamp);
       }
     },
     onPointerCancel: (event) => {
+      if (navigationPanelPointerRef.current?.id === event.pointerId) {
+        navigationPanelPointerRef.current = null;
+      }
+    },
+    onLostPointerCapture: (event) => {
       if (navigationPanelPointerRef.current?.id === event.pointerId) {
         navigationPanelPointerRef.current = null;
       }

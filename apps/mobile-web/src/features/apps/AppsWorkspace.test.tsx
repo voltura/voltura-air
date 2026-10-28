@@ -45,6 +45,52 @@ describe("Apps workspace", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("allows Refresh after a missing initial list reply instead of loading forever", () => {
+    vi.useFakeTimers();
+    const send = vi.fn<(message: ClientMessage) => void>();
+    const { unmount } = renderWorkspace(send);
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+    expect(send).toHaveBeenCalledOnce();
+    act(() => {
+      vi.advanceTimersByTime(15_000);
+    });
+    expect(screen.queryByText("Loading…")).toBeNull();
+    expect(
+      screen.getByText("The PC did not return its applications. Use Refresh to try again."),
+    ).toBeTruthy();
+    const refresh = screen.getByRole<HTMLButtonElement>("button", { name: "Refresh applications" });
+    expect(refresh.disabled).toBe(false);
+    fireEvent.click(refresh);
+    expect(send).toHaveBeenCalledTimes(2);
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("releases an unconfirmed application action so the user can refresh", () => {
+    vi.useFakeTimers();
+    const send = vi.fn<(message: ClientMessage) => void>();
+    const feedback = vi.fn();
+    const { unmount } = renderWorkspace(send, { onFeedback: feedback });
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+    const list = send.mock.calls[0]![0] as { operationId: string };
+    act(() => publishAppsResult(listResult(list.operationId)));
+    fireEvent.click(screen.getByRole("button", { name: /activate browser/i }));
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(feedback).toHaveBeenCalledWith(expect.stringContaining("Check the PC"), "error");
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Refresh applications" }).disabled,
+    ).toBe(false);
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("holds the active-card space while discovering open applications", async () => {

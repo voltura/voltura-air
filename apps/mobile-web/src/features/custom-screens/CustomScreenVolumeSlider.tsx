@@ -24,11 +24,14 @@ export function CustomScreenVolumeSlider({
     source: AudioStateMessage | null;
     value: AudioStateMessage;
   } | null>(null);
+  const interactive = enabled && state === "paired";
+  if (!interactive && optimistic !== null) {
+    setOptimistic(null);
+  }
   const current =
     optimistic?.source === audioState
       ? optimistic.value
       : (audioState ?? { type: "audio.state", volume: 50, muted: false });
-  const interactive = enabled && state === "paired";
 
   const setVolume = (volume: number) => {
     if (!interactive) {
@@ -44,7 +47,7 @@ export function CustomScreenVolumeSlider({
 
   return (
     <div
-      aria-disabled={!enabled}
+      aria-disabled={!interactive}
       className={`volume-control custom-screen-volume${current.muted ? " muted" : ""}`}
       title={enabled ? name : (reason ?? "Volume control is unavailable.")}
     >

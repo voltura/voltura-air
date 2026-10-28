@@ -7,16 +7,16 @@ const responseTimeoutMs = 5000;
 const resultVisibilityMs = 4000;
 
 export function useAppLaunch(state: ConnectionState, send: (payload: ClientMessage) => void) {
-  const [pendingAppLaunchId, setPendingAppLaunchId] = useState<string | null>(null);
+  const [pendingOperation, setPendingOperation] = useState<{
+    actionId: string;
+    operationId: string;
+  } | null>(null);
+  const pendingAppLaunchId = pendingOperation?.actionId ?? null;
   const [appLaunchResult, setAppLaunchResult] = useState<AppLaunchResultMessage | null>(null);
   const pendingRef = useRef<{ actionId: string; operationId: string } | null>(null);
 
   useEffect(() => {
-    if (pendingAppLaunchId === null) {
-      return;
-    }
-
-    const pending = pendingRef.current;
+    const pending = pendingOperation;
     if (pending === null) {
       return;
     }
@@ -27,7 +27,7 @@ export function useAppLaunch(state: ConnectionState, send: (payload: ClientMessa
       }
 
       pendingRef.current = null;
-      setPendingAppLaunchId(null);
+      setPendingOperation(null);
       setAppLaunchResult({
         type: "app.launch.result",
         actionId: pending.actionId,
@@ -41,7 +41,7 @@ export function useAppLaunch(state: ConnectionState, send: (payload: ClientMessa
     return () => {
       window.clearTimeout(timeout);
     };
-  }, [pendingAppLaunchId]);
+  }, [pendingOperation]);
 
   useEffect(() => {
     if (state === "paired") {
@@ -49,7 +49,7 @@ export function useAppLaunch(state: ConnectionState, send: (payload: ClientMessa
     }
 
     pendingRef.current = null;
-    setPendingAppLaunchId(null);
+    setPendingOperation(null);
     setAppLaunchResult(null);
   }, [state]);
 
@@ -73,7 +73,7 @@ export function useAppLaunch(state: ConnectionState, send: (payload: ClientMessa
 
     const operationId = createLocalId();
     pendingRef.current = { actionId, operationId };
-    setPendingAppLaunchId(actionId);
+    setPendingOperation({ actionId, operationId });
     setAppLaunchResult(null);
     send({ type: "app.launch", actionId, operationId });
   };
@@ -84,7 +84,7 @@ export function useAppLaunch(state: ConnectionState, send: (payload: ClientMessa
     }
 
     pendingRef.current = null;
-    setPendingAppLaunchId(null);
+    setPendingOperation(null);
     setAppLaunchResult(result);
     return true;
   };

@@ -35,11 +35,15 @@ export function createQrDecoderSession(): QrDecoderSession {
       current.resolve(event.data.data ?? null);
     }
   };
-  worker.onerror = () => {
+  const failWorker = () => {
+    disposed = true;
+    worker.terminate();
     const current = pending;
     pending = null;
     current?.reject(new Error("QR decoder worker failed."));
   };
+  worker.onerror = failWorker;
+  worker.onmessageerror = failWorker;
 
   return {
     decode(imageData, inversionAttempts = "dontInvert") {
@@ -54,16 +58,21 @@ export function createQrDecoderSession(): QrDecoderSession {
       const pixels = new Uint8ClampedArray(imageData.data);
       return new Promise<string | null>((resolve, reject) => {
         pending = { id, reject, resolve };
-        worker.postMessage(
-          {
-            id,
-            height: imageData.height,
-            inversionAttempts,
-            pixels: pixels.buffer,
-            width: imageData.width,
-          },
-          [pixels.buffer],
-        );
+        try {
+          worker.postMessage(
+            {
+              id,
+              height: imageData.height,
+              inversionAttempts,
+              pixels: pixels.buffer,
+              width: imageData.width,
+            },
+            [pixels.buffer],
+          );
+        } catch (error) {
+          pending = null;
+          reject(error instanceof Error ? error : new Error("QR decoder request failed."));
+        }
       });
     },
     dispose() {

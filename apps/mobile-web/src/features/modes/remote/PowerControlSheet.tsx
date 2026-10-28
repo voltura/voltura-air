@@ -118,16 +118,47 @@ export function PowerControlSheet({
   pendingAwakeChange = null,
   result,
 }: PowerControlSheetProps) {
-  const [pendingAction, setPendingAction] = useState<PowerActionDefinition | null>(null);
+  const [pendingDefinition, setPendingAction] = useState<PowerActionDefinition | null>(null);
+  const pendingAction =
+    pendingDefinition && capabilities[pendingDefinition.action] ? pendingDefinition : null;
+  if (pendingDefinition && !pendingAction) {
+    setPendingAction(null);
+  }
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeButtonRef.current?.focus();
+    return () => {
+      if (previous?.isConnected) {
+        previous.focus({ preventScroll: true });
+      }
+    };
   }, []);
 
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Tab") {
+        const buttons = [
+          ...(dialogRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ??
+            []),
+        ];
+        const first = buttons[0],
+          last = buttons.at(-1);
+        if (
+          first &&
+          last &&
+          (!dialogRef.current?.contains(document.activeElement) ||
+            (event.shiftKey ? document.activeElement === first : document.activeElement === last))
+        ) {
+          event.preventDefault();
+          (event.shiftKey ? last : first).focus();
+        }
+      }
       if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
         if (pendingAction) {
           setPendingAction(null);
         } else {
@@ -135,9 +166,9 @@ export function PowerControlSheet({
         }
       }
     };
-    window.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onKeyDown);
     return () => {
-      window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keydown", onKeyDown);
     };
   }, [onClose, pendingAction]);
 
@@ -166,6 +197,7 @@ export function PowerControlSheet({
         onClick={onClose}
       />
       <section
+        ref={dialogRef}
         className="power-sheet"
         role="dialog"
         aria-modal="true"
@@ -198,7 +230,7 @@ export function PowerControlSheet({
               setPendingAction(null);
             }}
             onConfirm={() => {
-              if (pendingRequest !== null) {
+              if (pendingRequest !== null || !capabilities[pendingAction.action]) {
                 setPendingAction(null);
                 return;
               }

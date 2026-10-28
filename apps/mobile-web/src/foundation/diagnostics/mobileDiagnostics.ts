@@ -111,6 +111,23 @@ function tryLegacyCopy(value: string): boolean {
     return false;
   }
 
+  const previousFocus =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const previousSelection =
+    previousFocus instanceof HTMLInputElement || previousFocus instanceof HTMLTextAreaElement
+      ? {
+          start: previousFocus.selectionStart,
+          end: previousFocus.selectionEnd,
+          direction: previousFocus.selectionDirection,
+        }
+      : null;
+  const selection = document.getSelection();
+  const ranges = selection
+    ? Array.from({ length: selection.rangeCount }, (_, index) =>
+        selection.getRangeAt(index).cloneRange(),
+      )
+    : [];
+  const container = previousFocus?.closest("dialog[open]") ?? document.body;
   const textarea = document.createElement("textarea");
   textarea.value = value;
   textarea.setAttribute("readonly", "true");
@@ -119,7 +136,7 @@ function tryLegacyCopy(value: string): boolean {
   textarea.style.left = "-9999px";
   textarea.style.opacity = "0";
   textarea.style.pointerEvents = "none";
-  document.body.appendChild(textarea);
+  container.appendChild(textarea);
 
   try {
     textarea.focus();
@@ -129,7 +146,28 @@ function tryLegacyCopy(value: string): boolean {
   } catch {
     return false;
   } finally {
-    document.body.removeChild(textarea);
+    textarea.remove();
+    if (previousFocus?.isConnected) {
+      previousFocus.focus({ preventScroll: true });
+      if (
+        previousSelection?.start !== null &&
+        previousSelection?.start !== undefined &&
+        previousSelection.end !== null &&
+        (previousFocus instanceof HTMLInputElement || previousFocus instanceof HTMLTextAreaElement)
+      ) {
+        previousFocus.setSelectionRange(
+          previousSelection.start,
+          previousSelection.end,
+          previousSelection.direction ?? undefined,
+        );
+      }
+    }
+    if (selection && !previousSelection && ranges.length > 0) {
+      selection.removeAllRanges();
+      for (const range of ranges) {
+        selection.addRange(range);
+      }
+    }
   }
 }
 

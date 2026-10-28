@@ -265,6 +265,7 @@ export function ModeWorkspace({
         twoFingerMode: effectiveTrackpadTwoFingerMode,
       }}
       keyboardMode={{
+        connected: connection.state === "paired",
         committedKeyboardTextRef,
         isComposingRef,
         keyboardText,
@@ -359,6 +360,7 @@ export function ModeWorkspace({
         sendSpecial,
       }}
       dictationMode={{
+        connected: connection.state === "paired",
         canUseSpeech,
         dictationText,
         isListening,

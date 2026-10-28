@@ -149,6 +149,7 @@ export class GestureRecognizer {
   private maxTwoFingerSpanChange = 0;
   private twoFingerGestureActive = false;
   private smoothedPointerDelta: { dx: number; dy: number } | null = null;
+  private zoomSpan = 0;
 
   start(points: TouchPoint[], time: number): void {
     this.startTime = time;
@@ -159,6 +160,7 @@ export class GestureRecognizer {
     this.twoFingerGestureActive = false;
     this.smoothedPointerDelta = null;
     this.mode = points.length === 1 ? "pointer" : points.length === 2 ? "twoFinger" : "cancelled";
+    this.zoomSpan = points.length === 2 ? span(points) : 0;
   }
 
   cancel(): void {
@@ -173,6 +175,11 @@ export class GestureRecognizer {
     twoFingerMode: TwoFingerMode = "scroll",
   ): GestureOutput[] {
     if (this.mode === "cancelled" || this.mode === "idle") {
+      return [];
+    }
+
+    if (points.some((point) => !this.lastPoints.some((previous) => previous.id === point.id))) {
+      this.mode = "cancelled";
       return [];
     }
 
@@ -230,7 +237,6 @@ export class GestureRecognizer {
       const previousCenter = center(this.lastPoints);
       const startCenter = center(this.startPoints);
       const currentSpan = span(points);
-      const previousSpan = span(this.lastPoints);
       const startSpan = span(this.startPoints);
       this.maxDistance = Math.max(this.maxDistance, distance(currentCenter, startCenter));
       this.maxTwoFingerSpanChange = Math.max(
@@ -240,7 +246,7 @@ export class GestureRecognizer {
 
       let dx = currentCenter.x - previousCenter.x;
       let dy = currentCenter.y - previousCenter.y;
-      const spanDelta = currentSpan - previousSpan;
+      const spanDelta = currentSpan - this.zoomSpan;
       this.lastPoints = clonePoints(points);
 
       if (settings.zoomGestures && twoFingerMode === "zoom") {
@@ -248,8 +254,11 @@ export class GestureRecognizer {
           return [];
         }
         this.twoFingerGestureActive = true;
+        this.zoomSpan = currentSpan;
         return [{ type: "pointer.zoom", direction: spanDelta > 0 ? "in" : "out" }];
       }
+
+      this.zoomSpan = currentSpan;
 
       if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) {
         return [];

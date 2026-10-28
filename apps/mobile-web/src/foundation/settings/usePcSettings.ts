@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "react";
+import type { KeyboardSettings } from "./keyboardSettings";
 import {
   appSettingsKey,
   keyboardSettingsKey,
@@ -18,7 +19,21 @@ export function usePcSettings(
   hostDefaultRemoteMode?: RemoteModeId,
   hostPointerSpeed?: number,
 ) {
-  const [keyboardSettings, setKeyboardSettings] = useState(() => loadKeyboardSettings(clientId));
+  const keyboardStorageKey = keyboardSettingsKey(clientId);
+  const [keyboardState, setKeyboardState] = useState(() => ({
+    settings: loadKeyboardSettings(clientId),
+    storageKey: keyboardStorageKey,
+  }));
+  if (keyboardState.storageKey !== keyboardStorageKey) {
+    setKeyboardState({ settings: loadKeyboardSettings(clientId), storageKey: keyboardStorageKey });
+  }
+  const keyboardSettings = keyboardState.settings;
+  const setKeyboardSettings = useCallback((value: SetStateAction<KeyboardSettings>) => {
+    setKeyboardState((current) => ({
+      ...current,
+      settings: typeof value === "function" ? value(current.settings) : value,
+    }));
+  }, []);
   const trackpadStorageKey = useMemo(() => trackpadSettingsKey(clientId, pcId), [clientId, pcId]);
   const [trackpadState, setTrackpadState] = useState(() => ({
     settings: loadTrackpadSettings(clientId, pcId),
@@ -76,8 +91,10 @@ export function usePcSettings(
   }, [appState, appStorageKey]);
 
   useEffect(() => {
-    writeLocalStorage(keyboardSettingsKey(clientId), JSON.stringify(keyboardSettings));
-  }, [clientId, keyboardSettings]);
+    if (keyboardState.storageKey === keyboardStorageKey) {
+      writeLocalStorage(keyboardStorageKey, JSON.stringify(keyboardState.settings));
+    }
+  }, [keyboardStorageKey, keyboardState]);
 
   const trackpadSettings = trackpadState.settings;
   const effectiveTrackpadSettings = useMemo(

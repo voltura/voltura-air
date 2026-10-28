@@ -52,6 +52,94 @@ function TextTransferHarness({
 }
 
 describe("TextTransferMode", () => {
+  it.each(["selection", "touchpad", "pagehide", "client"])(
+    "ignores a pending clipboard read after %s changes",
+    async (reason) => {
+      let finish!: (value: Awaited<ReturnType<typeof readTextFromDeviceClipboard>>) => void;
+      vi.mocked(readTextFromDeviceClipboard).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const changed = vi.fn();
+      const view = render(<TextTransferMode {...props} draft="Draft" onDraftChange={changed} />);
+      const editor = screen.getByRole<HTMLTextAreaElement>("textbox", { name: "Text to send" });
+      editor.setSelectionRange(0, 0);
+      fireEvent.click(screen.getByRole("button", { name: "Paste from this device's clipboard" }));
+      if (reason === "selection") {
+        editor.setSelectionRange(2, 2);
+      }
+      if (reason === "touchpad") {
+        fireEvent.click(screen.getByRole("button", { name: "Touchpad" }));
+      }
+      if (reason === "pagehide") {
+        window.dispatchEvent(new Event("pagehide"));
+      }
+      if (reason === "client") {
+        view.rerender(
+          <TextTransferMode
+            {...props}
+            clientId="new-client"
+            draft="Draft"
+            onDraftChange={changed}
+          />,
+        );
+      }
+      await act(async () => {
+        finish({ status: "success", text: "Old clipboard" });
+        await Promise.resolve();
+      });
+      expect(changed).not.toHaveBeenCalled();
+    },
+  );
+  it("does not clear another client's identical draft when the old send succeeds", () => {
+    const changed = vi.fn();
+    const request = vi.fn(() => "old-send");
+    const view = render(
+      <TextTransferMode
+        {...props}
+        draft="Draft"
+        clearAfterSending
+        onDraftChange={changed}
+        requestTextTransfer={request}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send text" }));
+    view.rerender(
+      <TextTransferMode
+        {...props}
+        clientId="new-client"
+        draft="Draft"
+        clearAfterSending
+        onDraftChange={changed}
+        requestTextTransfer={request}
+        result={{
+          type: "text.send.result",
+          operationId: "old-send",
+          succeeded: true,
+          message: "Sent",
+        }}
+      />,
+    );
+    expect(changed).not.toHaveBeenCalled();
+  });
+  it("does not refocus the editor after a queued keyboard focus switches to touchpad", async () => {
+    const callbacks: FrameRequestCallback[] = [];
+    const frame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callbacks.push(callback);
+      return callbacks.length;
+    });
+    render(<TextTransferMode {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Use device keyboard" }));
+    fireEvent.click(screen.getByRole("button", { name: "Touchpad" }));
+    await act(async () => {
+      callbacks.forEach((callback) => callback(0));
+      await Promise.resolve();
+    });
+    expect(document.activeElement).not.toBe(screen.getByRole("textbox", { name: "Text to send" }));
+    frame.mockRestore();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(canReadTextFromDeviceClipboard).mockReturnValue(true);

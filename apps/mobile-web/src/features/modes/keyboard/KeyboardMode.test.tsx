@@ -8,6 +8,7 @@ const repeatStartDelayMs = 400;
 const repeatIntervalMs = 55;
 
 interface HarnessProps {
+  connected?: boolean;
   initialText?: string;
   liveKeyboard?: boolean;
   liveTypingInfoOpen?: boolean;
@@ -22,6 +23,7 @@ interface HarnessProps {
 }
 
 function KeyboardModeHarness({
+  connected = true,
   initialText = "",
   liveKeyboard = true,
   liveTypingInfoOpen,
@@ -42,6 +44,7 @@ function KeyboardModeHarness({
 
   return (
     <KeyboardMode
+      connected={connected}
       committedKeyboardTextRef={committedKeyboardTextRef}
       isComposingRef={isComposingRef}
       keyboardText={keyboardText}
@@ -95,6 +98,90 @@ function KeyboardOrientationHarness() {
 }
 
 describe("KeyboardMode live typing", () => {
+  it("keeps the replacement held key when the earlier finger releases", () => {
+    vi.useFakeTimers();
+    const sendSpecial = vi.fn();
+    render(<KeyboardModeHarness sendSpecial={sendSpecial} />);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Backspace" }), {
+      button: 0,
+      pointerId: 1,
+    });
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Delete" }), {
+      button: 0,
+      pointerId: 2,
+    });
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Backspace" }), { pointerId: 1 });
+    act(() => {
+      vi.advanceTimersByTime(repeatStartDelayMs);
+    });
+    expect(sendSpecial.mock.calls).toEqual([["Backspace"], ["Delete"], ["Delete"]]);
+    vi.useRealTimers();
+  });
+  it("does not stop a held key when an unrelated pointer releases", () => {
+    vi.useFakeTimers();
+    const sendSpecial = vi.fn();
+    render(<KeyboardModeHarness sendSpecial={sendSpecial} />);
+    const backspace = screen.getByRole("button", { name: "Backspace" });
+    fireEvent.pointerDown(backspace, { button: 0, pointerId: 1 });
+    fireEvent.pointerUp(backspace, { pointerId: 2 });
+    act(() => {
+      vi.advanceTimersByTime(repeatStartDelayMs);
+    });
+    expect(sendSpecial).toHaveBeenCalledTimes(2);
+    fireEvent.pointerUp(backspace, { pointerId: 1 });
+    act(() => {
+      vi.advanceTimersByTime(repeatIntervalMs * 3);
+    });
+    expect(sendSpecial).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+  it("stops a held key when its page departs", () => {
+    vi.useFakeTimers();
+    const sendSpecial = vi.fn();
+    render(<KeyboardModeHarness sendSpecial={sendSpecial} />);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Backspace" }), {
+      button: 0,
+      pointerId: 1,
+    });
+    window.dispatchEvent(new Event("pagehide"));
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(sendSpecial).toHaveBeenCalledOnce();
+    vi.useRealTimers();
+  });
+  it("preserves a buffered draft instead of clearing it while disconnected", () => {
+    const sendText = vi.fn();
+    render(
+      <KeyboardModeHarness
+        liveKeyboard={false}
+        initialText="Unsent draft"
+        connected={false}
+        sendText={sendText}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(sendText).not.toHaveBeenCalled();
+    expect(screen.getByRole<HTMLTextAreaElement>("textbox").value).toBe("Unsent draft");
+  });
+  it("stops an already-held live key when the connection drops", () => {
+    vi.useFakeTimers();
+    const sendSpecial = vi.fn();
+    const view = render(<KeyboardModeHarness initialText="abcdef" sendSpecial={sendSpecial} />);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Backspace" }), {
+      button: 0,
+      pointerId: 1,
+    });
+    view.rerender(
+      <KeyboardModeHarness initialText="abcdef" connected={false} sendSpecial={sendSpecial} />,
+    );
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(sendSpecial).toHaveBeenCalledOnce();
+    vi.useRealTimers();
+  });
+
   it("explains live typing and buffered send in a compact info dialog", () => {
     render(<KeyboardModeHarness />);
 
@@ -423,6 +510,87 @@ describe("KeyboardMode shortcut keys", () => {
 });
 
 describe("KeyboardMode navigation keys", () => {
+  it("does not reclaim focus after the user moves to another control", () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    render(<KeyboardModeHarness initialText="abc" liveKeyboard={false} />);
+    const textarea = screen.getByRole<HTMLTextAreaElement>("textbox");
+    textarea.focus();
+    fireEvent.click(screen.getByRole("button", { name: "Home" }));
+    const other = screen.getByRole("button", { name: "Send" });
+    other.focus();
+    act(() => frames.forEach((callback) => callback(0)));
+    expect(document.activeElement).toBe(other);
+    vi.restoreAllMocks();
+  });
+  it("retires buffered caret work when live typing is enabled before the frame", () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    render(<KeyboardModeHarness initialText="abc" liveKeyboard={false} />);
+    const textarea = screen.getByRole<HTMLTextAreaElement>("textbox");
+    textarea.focus();
+    fireEvent.click(screen.getByRole("button", { name: "Home" }));
+    fireEvent.click(screen.getByRole("switch", { name: /live typing/i }));
+    textarea.setSelectionRange(2, 2);
+    act(() => frames.forEach((callback) => callback(0)));
+    expect(textarea.selectionStart).toBe(2);
+    vi.restoreAllMocks();
+  });
+
+  it.each([false, true])(
+    "keeps Home on a leading blank line and lets Arrow down leave it (live %s)",
+    (live) => {
+      vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+        callback(0);
+        return 1;
+      });
+      render(<KeyboardModeHarness initialText={"\nabc"} liveKeyboard={live} />);
+      const textarea = screen.getByRole<HTMLTextAreaElement>("textbox");
+      const offset = live ? liveKeyboardSentinel.length : 0;
+      textarea.setSelectionRange(offset, offset);
+      fireEvent.click(screen.getByRole("button", { name: "Home" }));
+      expect(textarea.selectionStart).toBe(offset);
+      fireEvent.click(screen.getByRole("button", { name: "Arrow down" }));
+      expect(textarea.selectionStart).toBe(offset + 1);
+      vi.restoreAllMocks();
+    },
+  );
+
+  it.each([
+    ["a\n😀b", 1, "Arrow down", 2],
+    ["😀b\na", 5, "Arrow up", 0],
+  ] as const)(
+    "keeps vertical navigation on Unicode boundaries in %s",
+    (text, caret, direction, expected) => {
+      render(<KeyboardModeHarness initialText={text} liveKeyboard={false} />);
+      const textarea = screen.getByRole<HTMLTextAreaElement>("textbox");
+      textarea.setSelectionRange(caret, caret);
+      fireEvent.click(screen.getByRole("button", { name: direction }));
+      expect(textarea.selectionStart).toBe(expected);
+    },
+  );
+
+  it.each([false, true])("moves horizontal arrows across complete graphemes (live %s)", (live) => {
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 1;
+    });
+    render(<KeyboardModeHarness initialText="a👩‍💻b" liveKeyboard={live} />);
+    const textarea = screen.getByRole<HTMLTextAreaElement>("textbox");
+    const offset = live ? liveKeyboardSentinel.length : 0;
+    textarea.setSelectionRange(offset + 1, offset + 1);
+    fireEvent.click(screen.getByRole("button", { name: "Arrow right" }));
+    expect(textarea.selectionStart).toBe(offset + 6);
+    fireEvent.click(screen.getByRole("button", { name: "Arrow left" }));
+    expect(textarea.selectionStart).toBe(offset + 1);
+    vi.restoreAllMocks();
+  });
   it("sends buffered multiline text unchanged before clearing the editor", () => {
     const sendText = vi.fn();
     render(

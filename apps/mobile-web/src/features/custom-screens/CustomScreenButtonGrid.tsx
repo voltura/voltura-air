@@ -62,6 +62,7 @@ const icons = {
 } as const;
 
 interface CustomScreenButtonGridProps {
+  connected: boolean;
   collapsible: boolean;
   contentId: string;
   invoke: (button: CustomScreenButtonDefinition, enabled?: boolean) => void;
@@ -73,9 +74,9 @@ interface CustomScreenButtonGridProps {
     event: PointerEvent<HTMLButtonElement>,
     button: CustomScreenButtonDefinition,
   ) => void;
-  onLostPointerCapture: () => void;
-  onPointerCancel: () => void;
-  onPointerUp: () => void;
+  onLostPointerCapture: (event: PointerEvent<HTMLButtonElement>) => void;
+  onPointerCancel: (event: PointerEvent<HTMLButtonElement>) => void;
+  onPointerUp: (event: PointerEvent<HTMLButtonElement>) => void;
   orientation: "portrait" | "landscape";
   orientationLayoutsEnabled: boolean;
   pendingButtonIds: ReadonlySet<string>;
@@ -83,6 +84,7 @@ interface CustomScreenButtonGridProps {
 }
 
 export function CustomScreenButtonGrid({
+  connected,
   collapsible,
   contentId,
   invoke,
@@ -99,9 +101,24 @@ export function CustomScreenButtonGrid({
   pendingButtonIds,
   section,
 }: CustomScreenButtonGridProps) {
-  const [confirmation, setConfirmation] = useState<CustomScreenButtonDefinition | null>(null);
+  const [pendingConfirmation, setPendingConfirmation] = useState<{
+    button: CustomScreenButtonDefinition;
+    source: CustomScreenButtonDefinition[];
+  } | null>(null);
+  const setConfirmation = (button: CustomScreenButtonDefinition | null) =>
+    setPendingConfirmation(button ? { button, source: section.buttons } : null);
   const holdButtonRef = useRef<HTMLButtonElement | null>(null);
   const buttons = arrangeButtons(section.buttons, orientationLayoutsEnabled, orientation);
+  const confirmation =
+    connected &&
+    pendingConfirmation?.source === section.buttons &&
+    pendingConfirmation.button.enabled &&
+    buttons.some(({ button }) => button === pendingConfirmation.button)
+      ? pendingConfirmation.button
+      : null;
+  if (pendingConfirmation && confirmation === null) {
+    setPendingConfirmation(null);
+  }
   const rows = arrangeButtonRows(buttons, section.rowLimit);
   return (
     <div
@@ -136,7 +153,7 @@ export function CustomScreenButtonGrid({
                 aria-pressed={isLaserPointer ? laserPressed : undefined}
                 className={`custom-screen-button size-${size}${laserPressed ? " active" : ""}`}
                 data-custom-screen-button-id={button.id}
-                disabled={!button.enabled || laserDisabled}
+                disabled={!connected || !button.enabled || laserDisabled}
                 key={button.id}
                 onClick={(event) => {
                   if (button.repeat && event.detail > 0) {

@@ -26,6 +26,87 @@ const actionNames: Record<SystemPowerAction, RegExp> = {
 };
 
 describe("PowerControlSheet", () => {
+  it.each(["shutdown", "restart", "displayOff"] as const)(
+    "retires a %s confirmation when the host revokes it",
+    (action) => {
+      const onAction = vi.fn();
+      const shared = {
+        capabilities: allAllowed,
+        onAction,
+        onClose: vi.fn(),
+        pendingAction: null,
+        result: null,
+      };
+      const view = render(<PowerControlSheet {...shared} />);
+      fireEvent.click(screen.getByRole("button", { name: actionNames[action] }));
+      const hold = screen.getByRole("button", { name: /^Hold to/ });
+      fireEvent.keyDown(hold, { key: "Enter" });
+      act(() => {
+        vi.advanceTimersByTime(800);
+      });
+      view.rerender(
+        <PowerControlSheet {...shared} capabilities={{ ...allAllowed, [action]: false }} />,
+      );
+      act(() => {
+        vi.advanceTimersByTime(1600);
+      });
+      expect(onAction).not.toHaveBeenCalled();
+      expect(screen.queryByRole("button", { name: /^Hold to/ })).toBeNull();
+      view.rerender(<PowerControlSheet {...shared} />);
+      expect(screen.queryByRole("button", { name: /^Hold to/ })).toBeNull();
+    },
+  );
+  it("keeps Tab focus inside the power dialog", () => {
+    render(
+      <PowerControlSheet
+        capabilities={allAllowed}
+        onAction={vi.fn()}
+        onClose={vi.fn()}
+        pendingAction={null}
+        result={null}
+      />,
+    );
+    const dialog = screen.getByRole("dialog");
+    const buttons = dialog.querySelectorAll<HTMLButtonElement>("button:not(:disabled)");
+    buttons[buttons.length - 1]!.focus();
+    fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+    expect(document.activeElement).toBe(buttons[0]);
+    fireEvent.keyDown(document.activeElement!, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(buttons[buttons.length - 1]);
+  });
+  it("returns focus to the invoking control when closed", () => {
+    const launcher = document.createElement("button");
+    document.body.append(launcher);
+    launcher.focus();
+    const view = render(
+      <PowerControlSheet
+        capabilities={allAllowed}
+        onAction={vi.fn()}
+        onClose={vi.fn()}
+        pendingAction={null}
+        result={null}
+      />,
+    );
+    view.unmount();
+    expect(document.activeElement).toBe(launcher);
+    launcher.remove();
+  });
+  it("consumes Escape instead of also closing a containing surface", () => {
+    const outer = vi.fn();
+    window.addEventListener("keydown", outer);
+    render(
+      <PowerControlSheet
+        capabilities={allAllowed}
+        onAction={vi.fn()}
+        onClose={vi.fn()}
+        pendingAction={null}
+        result={null}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(outer).not.toHaveBeenCalled();
+    window.removeEventListener("keydown", outer);
+  });
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
@@ -310,7 +391,9 @@ describe("PowerControlSheet", () => {
     fireEvent.click(screen.getByRole("button", { name: /Shut down PC/ }));
     const holdButton = screen.getByRole("button", { name: "Hold to shut down pc" });
     fireEvent.pointerDown(holdButton, { button: 0, pointerId: 1 });
-    await act(() => vi.advanceTimersByTime(800));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800);
+    });
 
     rerender(
       <PowerControlSheet
@@ -387,7 +470,9 @@ describe("PowerControlSheet", () => {
     expect(onAction).not.toHaveBeenCalled();
 
     fireEvent.pointerDown(holdButton, { button: 0, pointerId: 2 });
-    await act(() => vi.advanceTimersByTime(1600));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1600);
+    });
     expect(onAction).toHaveBeenCalledExactlyOnceWith("restart");
   });
 

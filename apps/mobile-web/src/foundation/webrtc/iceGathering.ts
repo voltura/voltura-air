@@ -4,6 +4,9 @@ export function waitForIceGathering(
   peer: RTCPeerConnection,
   allowRelayCandidatesAtDeadline = false,
 ): Promise<void> {
+  if (peer.connectionState === "closed" || peer.connectionState === "failed") {
+    return Promise.reject(new Error("WebRTC connection ended while gathering candidates."));
+  }
   if (peer.iceGatheringState === "complete") {
     return Promise.resolve();
   }
@@ -11,6 +14,7 @@ export function waitForIceGathering(
     const cleanup = () => {
       window.clearTimeout(gatheringTimeout);
       peer.removeEventListener("icegatheringstatechange", onState);
+      peer.removeEventListener("connectionstatechange", onConnectionState);
     };
     const onState = () => {
       if (peer.iceGatheringState === "complete") {
@@ -18,7 +22,14 @@ export function waitForIceGathering(
         resolve();
       }
     };
+    const onConnectionState = () => {
+      if (peer.connectionState === "closed" || peer.connectionState === "failed") {
+        cleanup();
+        reject(new Error("WebRTC connection ended while gathering candidates."));
+      }
+    };
     peer.addEventListener("icegatheringstatechange", onState);
+    peer.addEventListener("connectionstatechange", onConnectionState);
     const gatheringTimeout = window.setTimeout(() => {
       cleanup();
       // The signed answer is a one-shot snapshot: a quiet candidate interval

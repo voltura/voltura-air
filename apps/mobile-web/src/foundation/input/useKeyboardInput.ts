@@ -5,7 +5,6 @@ import {
   fromLiveKeyboardValue,
   getEmptyDeleteMessage,
   getKeyboardDeltaMessages,
-  liveKeyboardSentinel,
 } from "./keyboardDelta";
 import type { KeyboardSpecialMessage, KeyboardTextMessage } from "../protocol/messages";
 
@@ -20,6 +19,13 @@ export function useKeyboardInput(
   const lastEmptyDeleteRef = useRef<{ key: string; timeStamp: number } | null>(null);
   const keyboardTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
+  const resetKeyboardInput = useCallback(() => {
+    setKeyboardText("");
+    committedKeyboardTextRef.current = "";
+    isComposingRef.current = false;
+    lastEmptyDeleteRef.current = null;
+  }, []);
+
   const placeLiveKeyboardCaret = useCallback(() => {
     window.requestAnimationFrame(() => {
       const textarea = keyboardTextareaRef.current;
@@ -27,10 +33,10 @@ export function useKeyboardInput(
         return;
       }
 
-      const caretPosition = liveKeyboardSentinel.length + keyboardText.length;
+      const caretPosition = textarea.value.length;
       textarea.setSelectionRange(caretPosition, caretPosition);
     });
-  }, [keyboardText, liveKeyboard]);
+  }, [liveKeyboard]);
 
   useEffect(() => {
     if (liveKeyboard) {
@@ -68,7 +74,11 @@ export function useKeyboardInput(
       return;
     }
 
-    getKeyboardDeltaMessages(committedKeyboardTextRef.current, normalizedNext).forEach(emit);
+    const textarea = keyboardTextareaRef.current;
+    const caretAtEnd = !textarea || textarea.selectionEnd === textarea.value.length;
+    getKeyboardDeltaMessages(committedKeyboardTextRef.current, normalizedNext, caretAtEnd).forEach(
+      emit,
+    );
     committedKeyboardTextRef.current = normalizedNext;
   };
 
@@ -100,6 +110,7 @@ export function useKeyboardInput(
     liveKeyboard,
     onKeyboardTextChange,
     placeLiveKeyboardCaret,
+    resetKeyboardInput,
     sendEmptyDelete,
     setKeyboardText,
     setLiveTyping,

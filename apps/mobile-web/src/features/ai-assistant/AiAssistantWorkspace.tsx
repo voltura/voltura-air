@@ -68,18 +68,24 @@ export default function AiAssistantWorkspace({
   const [opened, setOpened] = useState(false);
   const [working, setWorking] = useState(capability.ownedByClient && capability.working);
   const [workingPhrase, setWorkingPhrase] = useState(0);
-  const [pending, setPending] = useState(false);
+  const [pendingOperation, setPendingOperation] = useState<string | null>(null);
+  const pending = pendingOperation !== null;
   const newestRef = useRef<HTMLDivElement | null>(null);
   const questionRef = useRef<HTMLTextAreaElement | null>(null);
   const openedRef = useRef(false);
   const openAttemptedRef = useRef(false);
+  const sendRef = useRef(send);
+  useEffect(() => {
+    sendRef.current = send;
+  }, [send]);
   const openOperationRef = useRef<string | null>(null);
   const askOperationRef = useRef<string | null>(null);
   const resetOperationRef = useRef<string | null>(null);
   const appendDictationText = useCallback((text: string) => {
     setQuestion((current) => truncateQuestion(`${current}${text}`));
   }, []);
-  const dictationEnabled = opened && state === "paired" && !working && !pending;
+  const dictationEnabled =
+    opened && state === "paired" && capability.canUse && !working && !pending;
   const {
     canUseSpeech,
     isListening,
@@ -154,7 +160,8 @@ export default function AiAssistantWorkspace({
           return;
         }
         openOperationRef.current = null;
-        setPending(false);
+        setPendingOperation(null);
+        openedRef.current = message.succeeded;
         setOpened(message.succeeded);
         if (!message.succeeded) {
           openAttemptedRef.current = false;
@@ -166,7 +173,7 @@ export default function AiAssistantWorkspace({
           return;
         }
         askOperationRef.current = null;
-        setPending(false);
+        setPendingOperation(null);
         if (message.succeeded) {
           setQuestion("");
         } else {
@@ -177,29 +184,74 @@ export default function AiAssistantWorkspace({
           return;
         }
         resetOperationRef.current = null;
-        setPending(false);
+        setPendingOperation(null);
         setStatus(message.message);
         if (message.succeeded) {
           setMessages([]);
         }
       } else if (message.type === "ai.assistant.closed") {
+        openOperationRef.current = null;
+        askOperationRef.current = null;
+        resetOperationRef.current = null;
+        openedRef.current = false;
         openAttemptedRef.current = false;
         setOpened(false);
         setWorking(false);
-        setPending(false);
+        setPendingOperation(null);
         setStatus("The Assistant connection closed. Reopen the tool to continue.");
       }
     });
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    if (!pendingOperation) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      if (openOperationRef.current === pendingOperation) {
+        openOperationRef.current = null;
+      }
+      if (askOperationRef.current === pendingOperation) {
+        askOperationRef.current = null;
+      }
+      if (resetOperationRef.current === pendingOperation) {
+        resetOperationRef.current = null;
+      }
+      setPendingOperation(null);
+      setStatus("The PC did not confirm the Assistant request. Reopen the tool to reconnect.");
+    }, 30_000);
+    return () => window.clearTimeout(timer);
+  }, [pendingOperation]);
+
+  useEffect(() => {
+    if (state === "paired" && capability.canUse) {
+      return;
+    }
+    openedRef.current = false;
+    openOperationRef.current = null;
+    askOperationRef.current = null;
+    resetOperationRef.current = null;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setOpened(false);
+        setWorking(false);
+        setPendingOperation(null);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [capability.canUse, state]);
+
   useEffect(
     () => () => {
       if (openAttemptedRef.current) {
-        send({ type: "ai.assistant.close", operationId: newOperationId() });
+        sendRef.current({ type: "ai.assistant.close", operationId: newOperationId() });
       }
     },
-    [send],
+    [],
   );
 
   useEffect(() => {
@@ -221,6 +273,7 @@ export default function AiAssistantWorkspace({
     if (
       state !== "paired" ||
       openedRef.current ||
+      openOperationRef.current !== null ||
       !capability.canUse ||
       !activePc.hostIdentityPublicKey
     ) {
@@ -234,7 +287,7 @@ export default function AiAssistantWorkspace({
       setStatus("Scan the PC pairing QR again before using the AI Assistant.");
       return;
     }
-    setPending(true);
+    setPendingOperation(operationId);
     setStatus("Opening the Assistant…");
     openAttemptedRef.current = true;
     openOperationRef.current = operationId;
@@ -248,7 +301,15 @@ export default function AiAssistantWorkspace({
 
   const submit = () => {
     const normalized = question.trim();
-    if (!normalized || !opened || working || pending || !activePc.hostIdentityPublicKey) {
+    if (
+      !normalized ||
+      !opened ||
+      working ||
+      pending ||
+      state !== "paired" ||
+      !capability.canUse ||
+      !activePc.hostIdentityPublicKey
+    ) {
       return;
     }
     stopSpeech();
@@ -260,7 +321,7 @@ export default function AiAssistantWorkspace({
       setStatus("Scan the PC pairing QR again before asking a question.");
       return;
     }
-    setPending(true);
+    setPendingOperation(operationId);
     askOperationRef.current = operationId;
     send({
       type: "ai.assistant.ask",
@@ -271,7 +332,14 @@ export default function AiAssistantWorkspace({
   };
 
   const reset = () => {
-    if (!opened || working || pending || !activePc.hostIdentityPublicKey) {
+    if (
+      !opened ||
+      working ||
+      pending ||
+      state !== "paired" ||
+      !capability.canUse ||
+      !activePc.hostIdentityPublicKey
+    ) {
       return;
     }
     const operationId = newOperationId();
@@ -281,12 +349,13 @@ export default function AiAssistantWorkspace({
     if (!signature) {
       return;
     }
-    setPending(true);
+    setPendingOperation(operationId);
     resetOperationRef.current = operationId;
     send({ type: "ai.assistant.reset", operationId, clientSignature: signature });
   };
 
-  const canAsk = opened && state === "paired" && !working && !pending && question.trim().length > 0;
+  const canInteract = opened && state === "paired" && capability.canUse && !working && !pending;
+  const canAsk = canInteract && question.trim().length > 0;
   const welcome = useMemo(() => messages.length === 0 && !working, [messages.length, working]);
 
   return (
@@ -303,7 +372,7 @@ export default function AiAssistantWorkspace({
           type="button"
           className="icon-button"
           aria-label="New conversation"
-          disabled={!opened || working || pending}
+          disabled={!canInteract}
           onClick={reset}
         >
           <RotateCcw aria-hidden="true" />
@@ -395,10 +464,10 @@ export default function AiAssistantWorkspace({
           value={question}
           maxLength={maximumQuestionLength}
           placeholder="Ask a question…"
-          disabled={!opened || working || pending}
+          disabled={!canInteract}
           onChange={(event) => setQuestion(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();
               submit();
             }

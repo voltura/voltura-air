@@ -31,6 +31,7 @@ const appSwitchShortcutKeys: ShortcutKey[] = [
 ];
 
 interface KeyboardModeProps {
+  connected?: boolean;
   committedKeyboardTextRef: React.RefObject<string>;
   keyboardText: string;
   keyboardTextareaRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -54,6 +55,7 @@ interface KeyboardModeProps {
 }
 
 export function KeyboardMode({
+  connected = true,
   committedKeyboardTextRef,
   keyboardText,
   keyboardTextareaRef,
@@ -85,6 +87,7 @@ export function KeyboardMode({
     sendSpace,
     showKeyboardInputMode,
   } = useKeyboardModeController({
+    connected,
     committedKeyboardTextRef,
     keyboardTextareaRef,
     liveKeyboard,
@@ -124,6 +127,7 @@ export function KeyboardMode({
           ref={keyboardTextareaRef}
           inputMode={keyboardInputMode}
           rows={liveKeyboard ? 1 : undefined}
+          disabled={liveKeyboard && !connected}
           value={liveKeyboard ? toLiveKeyboardValue(keyboardText) : keyboardText}
           onChange={(event) => {
             onKeyboardTextChange(event.target.value);
@@ -162,7 +166,11 @@ export function KeyboardMode({
         <div className="keyboard-send-row">
           <button
             className="key-send"
+            disabled={!connected || !keyboardText}
             onClick={() => {
+              if (!connected) {
+                return;
+              }
               sendText(keyboardText);
               setKeyboardText("");
               committedKeyboardTextRef.current = "";

@@ -14,6 +14,7 @@ import type { PcProfile } from "../../foundation/connection/pcProfiles";
 import type {
   AppsCapability,
   AppsPreviewOfferMessage,
+  AppsPreviewAnswerResultMessage,
   AppsWindowSummary,
   ClientMessage,
 } from "../../foundation/protocol/messages";
@@ -55,10 +56,11 @@ export function useAppsPreviews({
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const channelRef = useRef<RTCDataChannel | null>(null);
   const previewIdRef = useRef<string | null>(null);
+  const answerOperationRef = useRef<string | null>(null);
   const assemblerRef = useRef(new AppsPreviewAssembler());
   const previewUrlsRef = useRef(new Map<string, string>());
   const [previewUrls, setPreviewUrls] = useState<Map<string, string>>(new Map());
-  const retiringPreviewUrlsRef = useRef(new Set<string>());
+  const retiringPreviewUrlsRef = useRef(new Map<string, number>());
   const previewStatesRef = useRef(new Map<string, AppsPreviewState>());
   const [previewStates, setPreviewStates] = useState<Map<string, AppsPreviewState>>(new Map());
   const lastPreviewRequestRef = useRef("");
@@ -83,19 +85,20 @@ export function useAppsPreviews({
   }, [state]);
 
   const retirePreviewUrl = useCallback((url: string) => {
-    retiringPreviewUrlsRef.current.add(url);
-    window.setTimeout(() => {
+    const timeout = window.setTimeout(() => {
       if (retiringPreviewUrlsRef.current.delete(url)) {
         URL.revokeObjectURL(url);
       }
     }, 5_000);
+    retiringPreviewUrlsRef.current.set(url, timeout);
   }, []);
 
   const clearPreviewResources = useCallback(() => {
     for (const url of previewUrlsRef.current.values()) {
       URL.revokeObjectURL(url);
     }
-    for (const url of retiringPreviewUrlsRef.current) {
+    for (const [url, timeout] of retiringPreviewUrlsRef.current) {
+      window.clearTimeout(timeout);
       URL.revokeObjectURL(url);
     }
     retiringPreviewUrlsRef.current.clear();
@@ -185,6 +188,7 @@ export function useAppsPreviews({
     (notifyHost = true) => {
       const previewId = previewIdRef.current;
       previewIdRef.current = null;
+      answerOperationRef.current = null;
       const channel = channelRef.current;
       channelRef.current = null;
       const peer = peerRef.current;
@@ -200,6 +204,21 @@ export function useAppsPreviews({
       }
     },
     [send],
+  );
+
+  const completePreviewAnswer = useCallback(
+    (result: AppsPreviewAnswerResultMessage) => {
+      if (answerOperationRef.current !== result.operationId) {
+        return false;
+      }
+      answerOperationRef.current = null;
+      if (!result.succeeded) {
+        closePreview(false);
+        setMessage(result.message);
+      }
+      return true;
+    },
+    [closePreview, setMessage],
   );
 
   const requestVisiblePreviews = useCallback(() => {
@@ -385,6 +404,7 @@ export function useAppsPreviews({
         if (!signature) {
           throw new Error("Scan the PC pairing QR again before using Apps previews.");
         }
+        answerOperationRef.current = operationId;
         send({
           type: "apps.preview.answer",
           operationId,
@@ -452,6 +472,7 @@ export function useAppsPreviews({
     acceptPreviewOffer,
     clearPreviewUrls,
     closePreview,
+    completePreviewAnswer,
     ownsPreview,
     previewStates,
     previewUrls,

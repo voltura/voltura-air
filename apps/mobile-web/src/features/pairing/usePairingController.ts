@@ -60,6 +60,13 @@ export function usePairingController(options: PairingControllerOptions) {
   );
   const usesLivePairingQr = canUseLivePairingQrScanner() && livePairingScannerAttempt !== false;
 
+  const retireScan = () => {
+    scanGenerationRef.current += 1;
+    readingQrRef.current = false;
+    setIsPairingQrReading(false);
+    setLivePairingScannerAttempt(null);
+  };
+
   useEffect(
     () => () => {
       scanGenerationRef.current += 1;
@@ -78,6 +85,7 @@ export function usePairingController(options: PairingControllerOptions) {
       return false;
     }
 
+    retireScan();
     beginNewPairing();
     setLivePairingScannerAttempt(null);
     setPendingPairing(pairingInfo);
@@ -93,6 +101,7 @@ export function usePairingController(options: PairingControllerOptions) {
     }
 
     const name = pairingDeviceName.trim() || pairingDeviceNamePlaceholder;
+    retireScan();
     setPairingScanMessage("Connecting...");
     setPendingPairing(null);
     setIsSettingsOpen(false);
@@ -100,6 +109,7 @@ export function usePairingController(options: PairingControllerOptions) {
   };
 
   const connectManualHost = (target: ManualConnectionTarget) => {
+    retireScan();
     if (target.kind === "pairing") {
       beginNewPairing();
       setPendingPairing({ pairToken: target.pairToken, pcUrl: target.pcUrl });
@@ -153,13 +163,13 @@ export function usePairingController(options: PairingControllerOptions) {
   };
 
   const onPairingQrSelected = async (event: ChangeEvent<HTMLInputElement>) => {
-    const scanGeneration = scanGenerationRef.current + 1;
-    scanGenerationRef.current = scanGeneration;
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) {
       return;
     }
+    const scanGeneration = scanGenerationRef.current + 1;
+    scanGenerationRef.current = scanGeneration;
 
     readingQrRef.current = true;
     setIsPairingQrReading(true);
@@ -169,11 +179,11 @@ export function usePairingController(options: PairingControllerOptions) {
       let scannedText: string;
       try {
         scannedText = await decodePairingQrImage(file);
-      } catch (decodeError) {
+      } catch {
         if (scanGenerationRef.current !== scanGeneration) {
           return;
         }
-        console.error("QR decode error", decodeError, { name: file.name, type: file.type });
+        console.error("QR image could not be read.");
         setPairingScanMessage(
           "Could not read the QR code. Try zooming in, retaking the picture, or scanning a new code.",
         );
@@ -192,11 +202,11 @@ export function usePairingController(options: PairingControllerOptions) {
       }
 
       acceptScannedPairingText(scannedText, scanGeneration);
-    } catch (error) {
+    } catch {
       if (scanGenerationRef.current !== scanGeneration) {
         return;
       }
-      console.error("Pairing QR scan failed", error, { name: file.name, type: file.type });
+      console.error("Pairing QR scan could not be completed.");
       setPairingScanMessage(
         "Could not read the QR code. Try zooming in, retaking the picture, or scanning a new code.",
       );

@@ -46,6 +46,9 @@ export type {
 } from "./fileTransferRuntime";
 
 const maximumSafeFileSize = Number.MAX_SAFE_INTEGER;
+const hasTransferredData = (runtime: TransferRuntime) =>
+  (runtime.direction === "download" ? runtime.received : runtime.acknowledged) ===
+  runtime.declaredSize;
 
 export function useFileTransfer(
   activePc: PcProfile,
@@ -57,7 +60,21 @@ export function useFileTransfer(
 ) {
   const canSaveToDevice = supportsDeviceFileStorage();
   const [presentation, setPresentation] = useState(() => idlePresentation());
+  const identityKey = JSON.stringify([activePc.id, activePc.hostIdentityPublicKey, clientId]);
+  const [presentationIdentity, setPresentationIdentity] = useState(identityKey);
+  if (presentationIdentity !== identityKey) {
+    setPresentationIdentity(identityKey);
+    setPresentation(idlePresentation());
+  }
   const runtimeRef = useRef<TransferRuntime | null>(null);
+  const offeredRef = useRef(new WeakSet<TransferRuntime>());
+  const finishingRef = useRef(new WeakSet<TransferRuntime>());
+  const savingRef = useRef(new WeakSet<TransferRuntime>());
+  const generationRef = useRef(0);
+  const sendRef = useRef(send);
+  useEffect(() => {
+    sendRef.current = send;
+  }, [send]);
 
   const removeStoredFile = useCallback(async (runtime: TransferRuntime) => {
     if (!runtime.directory || !runtime.storedName) {
@@ -104,14 +121,14 @@ export function useFileTransfer(
         return;
       }
       if (cancelHost && (runtime.transferId || runtime.operationId)) {
-        send(createFileTransferCancelMessage(createLocalId(), runtime));
+        sendRef.current(createFileTransferCancelMessage(createLocalId(), runtime));
       }
       runtimeRef.current = null;
       void closeRuntime(runtime, true);
       setPresentation(idlePresentation(message));
       onTransferNotice?.(message, tone);
     },
-    [closeRuntime, onTransferNotice, send],
+    [closeRuntime, onTransferNotice],
   );
 
   const updateProgress = useCallback(
@@ -227,6 +244,13 @@ export function useFileTransfer(
           void pumpUpload(runtime);
         }
       });
+      const channelFailed = () => {
+        if (!runtime.transportComplete && !hasTransferredData(runtime)) {
+          fail(runtime, "The file data channel was lost.");
+        }
+      };
+      channel.addEventListener("close", channelFailed);
+      channel.addEventListener("error", channelFailed);
       channel.addEventListener("message", (event) => {
         if (runtimeRef.current !== runtime) {
           return;
@@ -288,6 +312,7 @@ export function useFileTransfer(
         runtime?.transferId !== message.transferId ||
         runtime.direction !== message.direction ||
         runtime.peer ||
+        offeredRef.current.has(runtime) ||
         !activePc.hostIdentityPublicKey ||
         message.declaredSize < 0 ||
         !Number.isSafeInteger(message.declaredSize)
@@ -323,6 +348,7 @@ export function useFileTransfer(
         return;
       }
       try {
+        offeredRef.current.add(runtime);
         if (runtime.direction === "download") {
           await prepareDownload(runtime);
         }
@@ -340,6 +366,7 @@ export function useFileTransfer(
           if (
             runtimeRef.current === runtime &&
             !runtime.transportComplete &&
+            !hasTransferredData(runtime) &&
             (peer.connectionState === "failed" || peer.connectionState === "closed")
           ) {
             fail(runtime, "The file connection was lost.");
@@ -385,7 +412,7 @@ export function useFileTransfer(
         if (!signature) {
           throw new Error("Missing reconnect key.");
         }
-        send({
+        sendRef.current({
           type: "file.transfer.answer",
           operationId: createLocalId(),
           transferId: runtime.transferId,
@@ -407,15 +434,21 @@ export function useFileTransfer(
         );
       }
     },
-    [activePc, attachChannel, clientId, fail, prepareDownload, send, updateProgress],
+    [activePc, attachChannel, clientId, fail, prepareDownload, updateProgress],
   );
 
   const finish = useCallback(
     async (message: FileTransferResultMessage) => {
       const runtime = runtimeRef.current;
-      if (runtime?.transferId !== message.transferId || runtime.direction !== message.direction) {
+      if (
+        runtime?.transferId !== message.transferId ||
+        runtime.direction !== message.direction ||
+        runtime.transportComplete ||
+        finishingRef.current.has(runtime)
+      ) {
         return;
       }
+      finishingRef.current.add(runtime);
       await runtime.receiveChain;
       if (runtimeRef.current !== runtime) {
         return;
@@ -433,6 +466,9 @@ export function useFileTransfer(
         try {
           await runtime.writable.close();
           runtime.writable = null;
+          if (runtimeRef.current !== runtime) {
+            return;
+          }
           stored = await runtime.handle.getFile();
         } catch {
           fail(runtime, "This device could not finish storing the file.");
@@ -460,7 +496,11 @@ export function useFileTransfer(
         return;
       }
       runtimeRef.current = null;
+      const generation = ++generationRef.current;
       await closeRuntime(runtime, true);
+      if (generationRef.current !== generation) {
+        return;
+      }
       setPresentation(idlePresentation(message.message));
       if (runtime.target.kind === "file") {
         onUploadCompleted?.(runtime.target.panel, message.fileName);
@@ -475,7 +515,8 @@ export function useFileTransfer(
         const runtime = runtimeRef.current;
         if (
           message.type === "file.transfer.start.result" &&
-          runtime?.operationId === message.operationId
+          runtime?.operationId === message.operationId &&
+          !runtime.transferId
         ) {
           if (!message.succeeded || !message.transferId) {
             if (message.code === "invalid-name" && runtime.direction === "upload") {
@@ -504,7 +545,9 @@ export function useFileTransfer(
           void acceptOffer(message);
         } else if (
           message.type === "file.transfer.status" &&
-          runtime?.transferId === message.transferId
+          runtime?.transferId === message.transferId &&
+          !runtime.transportComplete &&
+          !finishingRef.current.has(runtime)
         ) {
           updateProgress(
             runtime,
@@ -529,14 +572,15 @@ export function useFileTransfer(
     return () => {
       const runtime = runtimeRef.current;
       runtimeRef.current = null;
+      generationRef.current += 1;
       if (runtime?.transferId || runtime?.operationId) {
-        send(createFileTransferCancelMessage(createLocalId(), runtime));
+        sendRef.current(createFileTransferCancelMessage(createLocalId(), runtime));
       }
       if (runtime) {
         void closeRuntime(runtime, true);
       }
     };
-  }, [canSaveToDevice, closeRuntime, send]);
+  }, [activePc.id, activePc.hostIdentityPublicKey, clientId, canSaveToDevice, closeRuntime]);
 
   useEffect(() => {
     if (enabled) {
@@ -578,7 +622,7 @@ export function useFileTransfer(
           progress: 0,
           readyToSave: false,
         });
-        send({
+        sendRef.current({
           type: "file.transfer.start",
           operationId,
           direction: "download",
@@ -617,7 +661,7 @@ export function useFileTransfer(
         progress: 0,
         readyToSave: false,
       });
-      send({
+      sendRef.current({
         type: "file.transfer.start",
         operationId,
         direction: runtime.direction,
@@ -630,7 +674,7 @@ export function useFileTransfer(
         clientSignature: signature,
       });
     },
-    [activePc.hostIdentityPublicKey, activePc.id, clientId, fail, send],
+    [activePc.hostIdentityPublicKey, activePc.id, clientId, fail],
   );
 
   const start = useCallback(
@@ -683,6 +727,7 @@ export function useFileTransfer(
           entryId: target.entry?.id ?? "",
         },
       };
+      generationRef.current += 1;
       runtimeRef.current = runtime;
       publishStart(runtime);
     },
@@ -723,6 +768,7 @@ export function useFileTransfer(
         pumping: false,
         target: { kind: "screen-capture", ...target },
       };
+      generationRef.current += 1;
       runtimeRef.current = runtime;
       publishStart(runtime);
     },
@@ -756,28 +802,44 @@ export function useFileTransfer(
 
   const saveReadyFile = useCallback(async () => {
     const runtime = runtimeRef.current;
-    if (runtime?.direction !== "download" || !runtime.readyFile || !presentation.readyToSave) {
+    if (
+      runtime?.direction !== "download" ||
+      !runtime.readyFile ||
+      !presentation.readyToSave ||
+      savingRef.current.has(runtime)
+    ) {
       return;
     }
+    savingRef.current.add(runtime);
     try {
       const result = await saveOrShareDeviceFile(runtime.readyFile, runtime.fileName);
+      if (runtimeRef.current !== runtime) {
+        return;
+      }
+      runtimeRef.current = null;
+      const generation = ++generationRef.current;
+      await closeRuntime(runtime, true);
+      if (generationRef.current !== generation) {
+        return;
+      }
       if (result === "shared") {
-        runtimeRef.current = null;
-        await closeRuntime(runtime, true);
         setPresentation(idlePresentation("Shared."));
         onTransferNotice?.("Shared.", "success");
         return;
       }
-      runtimeRef.current = null;
-      await closeRuntime(runtime, true);
       setPresentation(idlePresentation("Download started."));
       onTransferNotice?.("Download started.", "success");
     } catch (error) {
+      if (runtimeRef.current !== runtime) {
+        return;
+      }
       if (error instanceof DOMException && error.name === "AbortError") {
         return;
       }
       setPresentation((current) => ({ ...current, message: "The file could not be saved." }));
       onTransferNotice?.("The file could not be saved.", "error");
+    } finally {
+      savingRef.current.delete(runtime);
     }
   }, [closeRuntime, onTransferNotice, presentation.readyToSave]);
 
@@ -787,8 +849,11 @@ export function useFileTransfer(
       return;
     }
     runtimeRef.current = null;
+    const generation = ++generationRef.current;
     await closeRuntime(runtime, true);
-    setPresentation(idlePresentation());
+    if (generationRef.current === generation) {
+      setPresentation(idlePresentation());
+    }
   }, [closeRuntime, presentation.readyToSave]);
 
   return {

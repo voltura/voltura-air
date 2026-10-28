@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CustomScreenDefinition } from "../../foundation/protocol/messages";
+import type { ComponentProps } from "react";
+import type { ClientMessage, CustomScreenDefinition } from "../../foundation/protocol/messages";
 import { defaultTrackpadSettings } from "../../foundation/input/gestures";
 import { CustomScreenWorkspace } from "./CustomScreenWorkspace";
 
@@ -109,6 +110,183 @@ describe("CustomScreenWorkspace", () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
+
+  it.each(["disconnect", "revision", "disabled", "orientation", "collapse", "pagehide"])(
+    "retires a held custom action on %s",
+    (reason) => {
+      vi.useFakeTimers();
+      const invoke = vi.fn();
+      const initial = structuredClone(definition);
+      initial.sections[0]!.collapsible = reason === "collapse";
+      initial.sections[0]!.landscape = { order: 0, visible: false };
+      const view = render(workspace(invoke, { definition: initial }));
+      fireEvent.pointerDown(screen.getByRole("button", { name: "Volume up" }), {
+        button: 0,
+        pointerId: 8,
+      });
+      expect(invoke).toHaveBeenCalledOnce();
+      if (reason === "disconnect") {
+        view.rerender(workspace(invoke, { definition: initial, state: "connecting" }));
+      } else if (reason === "pagehide") {
+        fireEvent(window, new Event("pagehide"));
+      } else if (reason === "collapse") {
+        fireEvent.click(screen.getByRole("button", { name: "Transport" }));
+      } else if (reason === "orientation") {
+        Object.defineProperty(window, "innerWidth", { configurable: true, value: 900 });
+        Object.defineProperty(window, "innerHeight", { configurable: true, value: 500 });
+        fireEvent(window, new Event("resize"));
+      } else {
+        const next = structuredClone(initial);
+        if (reason === "revision") {
+          next.revision = "revision.two";
+        } else {
+          next.sections[0]!.buttons[1]!.enabled = false;
+        }
+        view.rerender(workspace(invoke, { definition: next }));
+      }
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(invoke).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(["revoked", "collapse", "pagehide"])(
+    "releases a custom trackpad button on %s",
+    (reason) => {
+      const send = vi.fn();
+      const initial = gyroTrackpadDefinition({ collapsible: reason === "collapse" });
+      initial.sections[0]!.trackpadGyroControl = false;
+      initial.sections[0]!.trackpadLeftClick = true;
+      const view = render(workspace(vi.fn(), { definition: initial, send }));
+      fireEvent.pointerDown(screen.getByRole("button", { name: "Left click" }), {
+        button: 0,
+        pointerId: 8,
+      });
+      if (reason === "collapse") {
+        fireEvent.click(screen.getByRole("button", { name: "Gyro pointer" }));
+      } else if (reason === "pagehide") {
+        fireEvent(window, new Event("pagehide"));
+      } else {
+        const next = structuredClone(initial);
+        next.sections[0]!.trackpadEnabled = false;
+        view.rerender(workspace(vi.fn(), { definition: next, send }));
+      }
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "pointer.button", button: "left", action: "up" }),
+      );
+    },
+  );
+
+  it("preserves a repeating custom action when another pointer presses it", () => {
+    vi.useFakeTimers();
+    const invoke = vi.fn();
+    renderWorkspace(invoke);
+    const button = screen.getByRole("button", { name: "Volume up" });
+    fireEvent.pointerDown(button, { button: 0, pointerId: 1 });
+    fireEvent.pointerDown(button, { button: 0, pointerId: 2 });
+    fireEvent.pointerUp(button, { pointerId: 2 });
+    expect(invoke).toHaveBeenCalledOnce();
+    act(() => {
+      vi.advanceTimersByTime(450);
+    });
+    expect(invoke).toHaveBeenCalledTimes(2);
+    fireEvent.pointerUp(button, { pointerId: 1 });
+  });
+  it("ignores unrelated release while a custom action repeats", () => {
+    vi.useFakeTimers();
+    const invoke = vi.fn();
+    renderWorkspace(invoke);
+    const button = screen.getByRole("button", { name: "Volume up" });
+    fireEvent.pointerDown(button, { button: 0, pointerId: 1 });
+    fireEvent.pointerUp(button, { pointerId: 2 });
+    act(() => {
+      vi.advanceTimersByTime(450);
+    });
+    expect(invoke).toHaveBeenCalledTimes(2);
+  });
+  it("keeps the owning trackpad button held when a different pointer releases", () => {
+    const send = vi.fn<(message: ClientMessage) => void>();
+    const initial = gyroTrackpadDefinition();
+    initial.sections[0]!.trackpadGyroControl = false;
+    initial.sections[0]!.trackpadLeftClick = true;
+    render(workspace(vi.fn(), { definition: initial, send }));
+    const button = screen.getByRole("button", { name: "Left click" });
+    fireEvent.pointerDown(button, { button: 0, pointerId: 1 });
+    fireEvent.pointerUp(button, { pointerId: 2 });
+    expect(
+      send.mock.calls.some(
+        ([message]) => message.type === "pointer.button" && message.action === "up",
+      ),
+    ).toBe(false);
+    fireEvent.pointerUp(button, { pointerId: 1 });
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "pointer.button", action: "up" }),
+    );
+  });
+
+  it("does not carry fullscreen trackpad state into a replacement definition", () => {
+    const initial = gyroTrackpadDefinition();
+    const view = render(workspace(vi.fn(), { definition: initial }));
+    fireEvent.click(screen.getByRole("button", { name: "Expand Gyro pointer" }));
+    expect(view.container.querySelector(".is-fullscreen")).not.toBeNull();
+    view.rerender(workspace(vi.fn(), { definition: { ...initial, revision: "replacement" } }));
+    expect(view.container.querySelector(".is-fullscreen")).toBeNull();
+  });
+
+  it("does not turn off the laser when only callback identity changes", () => {
+    const initial = withLaserButtons();
+    const first = vi.fn();
+    const latest = vi.fn();
+    const view = render(workspace(first, { definition: initial }));
+    view.rerender(workspace(latest, { definition: initial }));
+    expect(first).not.toHaveBeenCalled();
+    expect(latest).not.toHaveBeenCalled();
+    view.unmount();
+    expect(latest).toHaveBeenCalledWith(
+      initial.id,
+      initial.revision,
+      "button.default-laser",
+      false,
+      true,
+    );
+  });
+
+  it.each(["changed", "disabled", "disconnect", "hidden"])(
+    "dismisses a pending action confirmation when its target is %s",
+    (reason) => {
+      const initial = structuredClone(definition);
+      initial.sections = [initial.sections[0]!];
+      const button = initial.sections[0]!.buttons[0]!;
+      button.confirmation = "confirm";
+      const invoke = vi.fn();
+      const view = render(workspace(invoke, { definition: initial }));
+      fireEvent.click(screen.getByRole("button", { name: "Play or pause" }));
+      expect(screen.getByRole("dialog")).toBeTruthy();
+      if (reason === "disconnect") {
+        view.rerender(workspace(invoke, { definition: initial, state: "connecting" }));
+      } else if (reason === "hidden") {
+        button.landscape = { order: 0, visible: false };
+        Object.defineProperty(window, "innerWidth", { configurable: true, value: 900 });
+        Object.defineProperty(window, "innerHeight", { configurable: true, value: 500 });
+        fireEvent(window, new Event("resize"));
+      } else {
+        const next = structuredClone(initial);
+        if (reason === "changed") {
+          next.sections[0]!.buttons[0]!.name = "Different action";
+        } else {
+          next.sections[0]!.buttons[0]!.enabled = false;
+        }
+        view.rerender(workspace(invoke, { definition: next }));
+      }
+      expect(screen.queryByRole("dialog")).toBeNull();
+      if (reason === "disconnect") {
+        view.rerender(workspace(invoke, { definition: initial }));
+        expect(screen.queryByRole("dialog")).toBeNull();
+      }
+      expect(invoke).not.toHaveBeenCalled();
+    },
+  );
 
   it("applies orientation order and visibility while preserving accessible button names", () => {
     const view = renderWorkspace();
@@ -896,7 +1074,10 @@ function renderWorkspace(invoke = vi.fn()) {
   return render(workspace(invoke));
 }
 
-function workspace(invoke = vi.fn()) {
+function workspace(
+  invoke = vi.fn(),
+  overrides: Partial<ComponentProps<typeof CustomScreenWorkspace>> = {},
+) {
   return (
     <CustomScreenWorkspace
       definition={definition}
@@ -907,6 +1088,7 @@ function workspace(invoke = vi.fn()) {
       send={vi.fn()}
       state="paired"
       trackpadSettings={defaultTrackpadSettings}
+      {...overrides}
     />
   );
 }

@@ -3,6 +3,9 @@ import { useEffect, useRef, useState } from "react";
 export function useScreenViewFullscreen() {
   const [immersive, setImmersive] = useState(false);
   const workspaceRef = useRef<HTMLElement | null>(null);
+  const ownedWorkspaceRef = useRef<HTMLElement | null>(null);
+  const immersiveRef = useRef(false);
+  const generationRef = useRef(0);
   const nativeFullscreenRef = useRef(false);
   const nativeOrientationRef = useRef<"landscape" | "portrait" | null>(null);
   const fullscreenExitTimerRef = useRef<number | undefined>(undefined);
@@ -10,24 +13,37 @@ export function useScreenViewFullscreen() {
 
   async function enterImmersive() {
     const workspace = workspaceRef.current;
-    if (!workspace || immersive) {
+    if (!workspace || immersiveRef.current) {
       return;
     }
+    const generation = ++generationRef.current;
+    ownedWorkspaceRef.current = workspace;
+    immersiveRef.current = true;
     setImmersive(true);
     if (!workspace.requestFullscreen) {
       return;
     }
     try {
       await workspace.requestFullscreen({ navigationUI: "hide" });
+      if (generation !== generationRef.current) {
+        if (!immersiveRef.current && document.fullscreenElement === workspace) {
+          await document.exitFullscreen?.();
+        }
+        return;
+      }
       nativeFullscreenRef.current = document.fullscreenElement === workspace;
       nativeOrientationRef.current = nativeFullscreenRef.current ? currentOrientation() : null;
     } catch {
-      nativeFullscreenRef.current = false;
+      if (generation === generationRef.current) {
+        nativeFullscreenRef.current = false;
+      }
     }
   }
 
   async function exitImmersive() {
     const workspace = workspaceRef.current;
+    generationRef.current += 1;
+    immersiveRef.current = false;
     nativeFullscreenRef.current = false;
     nativeOrientationRef.current = null;
     window.clearTimeout(fullscreenExitTimerRef.current);
@@ -54,6 +70,7 @@ export function useScreenViewFullscreen() {
             nativeOrientationRef.current !== currentOrientation();
           nativeOrientationRef.current = null;
           if (!exitedAcrossOrientation) {
+            immersiveRef.current = false;
             setImmersive(false);
           }
         }, 200);
@@ -82,9 +99,11 @@ export function useScreenViewFullscreen() {
 
   useEffect(
     () => () => {
+      generationRef.current += 1;
+      immersiveRef.current = false;
       nativeFullscreenRef.current = false;
       nativeOrientationRef.current = null;
-      const workspace = workspaceRef.current;
+      const workspace = ownedWorkspaceRef.current;
       if (workspace && document.fullscreenElement === workspace && document.exitFullscreen) {
         void document.exitFullscreen().catch(() => undefined);
       }

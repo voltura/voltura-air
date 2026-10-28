@@ -9,7 +9,104 @@ describe("RemoteMode mini trackpad", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
+
+  it.each(["Mini trackpad", "panel"])("keeps the first pointer in control of %s", (surface) => {
+    const onPointerMove = vi.fn();
+    renderRemote({ onPointerMove });
+    const target =
+      surface === "panel"
+        ? screen.getByText("Navigation").closest(".remote-navigation-section")!
+        : screen.getByRole("button", { name: surface });
+    fireEvent.pointerDown(target, { button: 0, pointerId: 1, clientX: 10, clientY: 20 });
+    fireEvent.pointerDown(target, { button: 0, pointerId: 2, clientX: 100, clientY: 200 });
+    fireEvent.pointerMove(target, { pointerId: 1, clientX: 14, clientY: 18 });
+    expect(onPointerMove).toHaveBeenCalledExactlyOnceWith(5.4, -2.7);
+  });
+
+  it.each(["blur", "hidden", "pagehide"])(
+    "cancels delayed clicks and active drags on %s",
+    (reason) => {
+      const onPointerButtonClick = vi.fn();
+      const onPointerMove = vi.fn();
+      renderRemote({ onPointerButtonClick, onPointerMove });
+      const trackpad = screen.getByRole("button", { name: "Mini trackpad" });
+      fireEvent.pointerDown(trackpad, { button: 0, pointerId: 1, clientX: 10, clientY: 20 });
+      fireEvent.pointerUp(trackpad, { pointerId: 1, clientX: 10, clientY: 20 });
+      fireEvent.pointerDown(trackpad, { button: 0, pointerId: 2, clientX: 10, clientY: 20 });
+      if (reason === "hidden") {
+        vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+        fireEvent(document, new Event("visibilitychange"));
+      } else {
+        if (reason === "pagehide") {
+          fireEvent(window, new Event("pagehide"));
+        } else {
+          fireEvent.blur(window);
+        }
+      }
+      fireEvent.pointerMove(trackpad, { pointerId: 2, clientX: 30, clientY: 20 });
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(onPointerButtonClick).not.toHaveBeenCalled();
+      expect(onPointerMove).not.toHaveBeenCalled();
+    },
+  );
+
+  it("preserves both separate taps when the second is too far away for a double tap", () => {
+    const onPointerButtonClick = vi.fn();
+    renderRemote({ onPointerButtonClick });
+    const trackpad = screen.getByRole("button", { name: "Mini trackpad" });
+    for (const x of [10, 100]) {
+      fireEvent.pointerDown(trackpad, { button: 0, pointerId: 1, clientX: x, clientY: 20 });
+      fireEvent.pointerUp(trackpad, { pointerId: 1, clientX: x, clientY: 20 });
+    }
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(onPointerButtonClick.mock.calls).toEqual([["left"], ["left"]]);
+  });
+
+  it.each(["Mini trackpad", "panel"])(
+    "cancels %s gestures after pointer capture is lost",
+    (surface) => {
+      const onPointerButtonClick = vi.fn();
+      const onPointerMove = vi.fn();
+      renderRemote({ onPointerButtonClick, onPointerMove });
+      const target =
+        surface === "panel"
+          ? screen.getByText("Navigation").closest(".remote-navigation-section")!
+          : screen.getByRole("button", { name: surface });
+      fireEvent.pointerDown(target, { button: 0, pointerId: 1, clientX: 10, clientY: 20 });
+      fireEvent.lostPointerCapture(target, { pointerId: 1 });
+      fireEvent.pointerMove(target, { pointerId: 1, clientX: 20, clientY: 20 });
+      fireEvent.pointerUp(target, { pointerId: 1, clientX: 10, clientY: 20 });
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(onPointerButtonClick).not.toHaveBeenCalled();
+      expect(onPointerMove).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["Mini trackpad", "panel"])(
+    "uses the release position when rejecting a drag as a tap on %s",
+    (surface) => {
+      const onPointerButtonClick = vi.fn();
+      renderRemote({ onPointerButtonClick });
+      const target =
+        surface === "panel"
+          ? screen.getByText("Navigation").closest(".remote-navigation-section")!
+          : screen.getByRole("button", { name: surface });
+      fireEvent.pointerDown(target, { button: 0, pointerId: 1, clientX: 10, clientY: 20 });
+      fireEvent.pointerUp(target, { pointerId: 1, clientX: 100, clientY: 20 });
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(onPointerButtonClick).not.toHaveBeenCalled();
+    },
+  );
 
   it("moves the pointer when dragged", () => {
     const onPointerMove = vi.fn();

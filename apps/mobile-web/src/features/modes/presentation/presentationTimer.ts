@@ -92,7 +92,7 @@ export function usePresentationTimer() {
     }
 
     const updateElapsed = () => {
-      const now = Date.now();
+      const now = performance.now();
       const next =
         accumulatedSecondsRef.current + ((now - startedAtRef.current!) / 1000) * speedMultiplier;
       setElapsedSeconds(next);
@@ -126,7 +126,7 @@ export function usePresentationTimer() {
     const updateBreakElapsed = () => {
       setBreakElapsedSeconds(
         breakAccumulatedSecondsRef.current +
-          ((Date.now() - breakStartedAtRef.current!) / 1000) * speedMultiplier,
+          ((performance.now() - breakStartedAtRef.current!) / 1000) * speedMultiplier,
       );
     };
     updateBreakElapsed();
@@ -202,7 +202,7 @@ export function usePresentationTimer() {
 
   const startAt = (target: PresentationTarget, now: number) => {
     if (sessionStartedAt === null) {
-      setSessionStartedAt(new Date(now).toISOString());
+      setSessionStartedAt(new Date().toISOString());
       setSessionTarget(target);
       setSessionReportId(createLocalId());
     }
@@ -216,7 +216,7 @@ export function usePresentationTimer() {
             ? {
                 ...entry,
                 elapsedSeconds: finalBreakElapsed,
-                endedAt: new Date(now).toISOString(),
+                endedAt: new Date().toISOString(),
                 slideNumberAtEnd: currentSlideNumberRef.current,
               }
             : entry,
@@ -246,7 +246,7 @@ export function usePresentationTimer() {
       return;
     }
 
-    startAt(target, Date.now());
+    startAt(target, performance.now());
   };
 
   const startSlideshow = (target: PresentationTarget) => {
@@ -254,7 +254,7 @@ export function usePresentationTimer() {
       return;
     }
 
-    const now = Date.now();
+    const now = performance.now();
     if (!isRunning) {
       startAt(target, now);
     }
@@ -272,7 +272,7 @@ export function usePresentationTimer() {
 
   const changeSlide = (direction: "next" | "previous", target: PresentationTarget) => {
     if (!slideshowStartedRef.current && direction === "next" && !isResetPending) {
-      const now = Date.now();
+      const now = performance.now();
       if (!isRunning && !isPaused) {
         startAt(target, now);
       }
@@ -302,7 +302,7 @@ export function usePresentationTimer() {
       return;
     }
 
-    const now = Date.now();
+    const now = performance.now();
     closeActiveSlide(now);
     currentSlideNumberRef.current = nextSlide;
     if (isRunning) {
@@ -330,7 +330,7 @@ export function usePresentationTimer() {
       return;
     }
 
-    const now = Date.now();
+    const now = performance.now();
     closeActiveSlide(now);
     const presentationElapsed = readPresentationElapsed(now);
     accumulatedSecondsRef.current = presentationElapsed;
@@ -348,7 +348,7 @@ export function usePresentationTimer() {
         sessionSlideMaximum: sessionSlideMaximumRef.current,
         slideNumberAtStart: currentSlideNumberRef.current,
         slideNumberAtEnd: null,
-        startedAt: new Date(now).toISOString(),
+        startedAt: new Date().toISOString(),
         endedAt: null,
         elapsedSeconds: 0,
       },
@@ -362,7 +362,7 @@ export function usePresentationTimer() {
       return;
     }
 
-    const now = Date.now();
+    const now = performance.now();
     if (isRunning) {
       closeActiveSlide(now);
       const presentationElapsed = readPresentationElapsed(now);
@@ -380,7 +380,7 @@ export function usePresentationTimer() {
       resetResumeStateRef.current = { mode: "presentation" };
     }
     setIsRunning(false);
-    setCompletionEndedAt(new Date(now).toISOString());
+    setCompletionEndedAt(new Date().toISOString());
     setCompletionIntent(intent);
     setIsResetPending(true);
   };
@@ -397,7 +397,7 @@ export function usePresentationTimer() {
       return;
     }
 
-    const now = Date.now();
+    const now = performance.now();
     setIsResetPending(false);
     setCompletionEndedAt(null);
     setCompletionIntent(null);

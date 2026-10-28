@@ -81,27 +81,34 @@ async function reconnectSecureDirectAndRevoke(
       resolve(result);
     };
     const onMessage = (event: MessageEvent) => {
-      const response = parseServerMessage(event.data);
-      if (response?.type === "pair.challenge") {
-        const signature = signReconnectChallenge(clientId, pc.id, response.challenge);
-        if (!signature) {
+      if (finished) {
+        return;
+      }
+      try {
+        const response = parseServerMessage(event.data);
+        if (response?.type === "pair.challenge") {
+          const signature = signReconnectChallenge(clientId, pc.id, response.challenge);
+          if (!signature) {
+            finish(false);
+            return;
+          }
+          channel.send(JSON.stringify({ type: "pair.proof", clientId, signature }));
+        } else if (response?.type === "pair.accepted") {
+          if (!isExpectedHostIdentity(response, pc.hostIdentityFingerprint)) {
+            finish(false);
+            return;
+          }
+          try {
+            channel.send(JSON.stringify({ type: "pair.disconnect" }));
+          } catch {
+            finish(false);
+          }
+        } else if (response?.type === "pair.disconnect.accepted") {
+          finish(true);
+        } else if (response?.type === "pair.rejected") {
           finish(false);
-          return;
         }
-        channel.send(JSON.stringify({ type: "pair.proof", clientId, signature }));
-      } else if (response?.type === "pair.accepted") {
-        if (!isExpectedHostIdentity(response, pc.hostIdentityFingerprint)) {
-          finish(false);
-          return;
-        }
-        try {
-          channel.send(JSON.stringify({ type: "pair.disconnect" }));
-        } catch {
-          finish(false);
-        }
-      } else if (response?.type === "pair.disconnect.accepted") {
-        finish(true);
-      } else if (response?.type === "pair.rejected") {
+      } catch {
         finish(false);
       }
     };
@@ -110,16 +117,20 @@ async function reconnectSecureDirectAndRevoke(
     channel.addEventListener("message", onMessage);
     channel.addEventListener("close", onClose);
     channel.addEventListener("error", onError);
-    channel.send(
-      JSON.stringify({
-        type: "pair.hello",
-        clientId,
-        deviceName: deviceName.trim() || getDefaultDeviceName(),
-        platform: getPlatformName(),
-        browser: getBrowserName(),
-        displayMode: getDisplayMode(),
-      }),
-    );
+    try {
+      channel.send(
+        JSON.stringify({
+          type: "pair.hello",
+          clientId,
+          deviceName: deviceName.trim() || getDefaultDeviceName(),
+          platform: getPlatformName(),
+          browser: getBrowserName(),
+          displayMode: getDisplayMode(),
+        }),
+      );
+    } catch {
+      finish(false);
+    }
   });
 }
 
@@ -156,16 +167,20 @@ function reconnectAndRevoke(pc: PcProfile, clientId: string, deviceName: string)
     }
 
     function onOpen() {
-      rawSend(
-        JSON.stringify({
-          type: "pair.hello",
-          clientId,
-          deviceName: deviceName.trim() || getDefaultDeviceName(),
-          platform: getPlatformName(),
-          browser: getBrowserName(),
-          displayMode: getDisplayMode(),
-        }),
-      );
+      try {
+        rawSend(
+          JSON.stringify({
+            type: "pair.hello",
+            clientId,
+            deviceName: deviceName.trim() || getDefaultDeviceName(),
+            platform: getPlatformName(),
+            browser: getBrowserName(),
+            displayMode: getDisplayMode(),
+          }),
+        );
+      } catch {
+        finish(false);
+      }
     }
 
     function onMessage(event: MessageEvent) {
@@ -173,23 +188,33 @@ function reconnectAndRevoke(pc: PcProfile, clientId: string, deviceName: string)
         return;
       }
       if (relayChannel) {
-        void relayChannel.decryptText(event.data).then((plaintext) => {
-          if (plaintext === null) {
-            finish(false);
-          } else {
-            handleAuthenticatedMessage(plaintext);
-          }
-        });
+        void relayChannel
+          .decryptText(event.data)
+          .then((plaintext) => {
+            if (finished) {
+              return;
+            }
+            if (plaintext === null) {
+              finish(false);
+            } else {
+              handleAuthenticatedMessage(plaintext);
+            }
+          })
+          .catch(() => finish(false));
         return;
       }
-      if (
-        pc.transportMode === "relay" &&
-        typeof event.data === "string" &&
-        handleRelayHandshakeMessage(event.data)
-      ) {
-        return;
+      try {
+        if (
+          pc.transportMode === "relay" &&
+          typeof event.data === "string" &&
+          handleRelayHandshakeMessage(event.data)
+        ) {
+          return;
+        }
+        handleAuthenticatedMessage(event.data);
+      } catch {
+        finish(false);
       }
-      handleAuthenticatedMessage(event.data);
     }
 
     function handleRelayHandshakeMessage(message: string): boolean {
@@ -231,6 +256,9 @@ function reconnectAndRevoke(pc: PcProfile, clientId: string, deviceName: string)
     }
 
     function handleAuthenticatedMessage(value: unknown) {
+      if (finished) {
+        return;
+      }
       const response = parseServerMessage(value);
       if (response?.type === "pair.challenge") {
         sendReconnectProof(response.challenge);
@@ -259,6 +287,9 @@ function reconnectAndRevoke(pc: PcProfile, clientId: string, deviceName: string)
         const text = JSON.stringify({ type: "pair.disconnect" });
         if (relayChannel) {
           await relayChannel.send((encrypted) => {
+            if (finished) {
+              throw new DOMException("Revocation ended.", "AbortError");
+            }
             rawSend(encrypted);
           }, text);
         } else {

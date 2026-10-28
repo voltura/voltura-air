@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useCallback,
   useLayoutEffect,
   useRef,
   useState,
@@ -41,6 +42,50 @@ export function useSnippetReorder({ clientId, setSnippets, snippets }: UseSnippe
   const snippetDragRef = useRef<SnippetTouchState | null>(null);
   const suppressSnippetClickUntilRef = useRef(0);
   const snippetDragScrollRef = useRef<{ restore: () => void } | null>(null);
+
+  const resetDrag = useCallback(() => {
+    const drag = snippetDragRef.current;
+    if (!drag) {
+      return;
+    }
+    window.clearTimeout(drag.timer);
+    snippetDragRef.current = null;
+    if (drag.active) {
+      setSnippets((current) => {
+        const currentById = new Map(current.map((snippet) => [snippet.id, snippet]));
+        const originalIds = new Set(drag.originalSnippets.map((snippet) => snippet.id));
+        const restored = drag.originalSnippets.flatMap((snippet) => {
+          const latest = currentById.get(snippet.id);
+          return latest ? [latest] : [];
+        });
+        const next = [...restored, ...current.filter((snippet) => !originalIds.has(snippet.id))];
+        snippetsRef.current = next;
+        return next;
+      });
+    }
+    snippetDragScrollRef.current?.restore();
+    snippetDragScrollRef.current = null;
+    setDraggingSnippetId(null);
+    setSnippetDragOffsetY(0);
+    setSnippetReorderFeedback(null);
+    suppressSnippetClickUntilRef.current = Date.now() + snippetClickSuppressionMs;
+  }, [setSnippets]);
+
+  useEffect(() => {
+    const hidden = () => {
+      if (document.visibilityState === "hidden") {
+        resetDrag();
+      }
+    };
+    window.addEventListener("blur", resetDrag);
+    window.addEventListener("pagehide", resetDrag);
+    document.addEventListener("visibilitychange", hidden);
+    return () => {
+      window.removeEventListener("blur", resetDrag);
+      window.removeEventListener("pagehide", resetDrag);
+      document.removeEventListener("visibilitychange", hidden);
+    };
+  }, [resetDrag]);
 
   useEffect(() => {
     snippetsRef.current = snippets;
@@ -86,6 +131,10 @@ export function useSnippetReorder({ clientId, setSnippets, snippets }: UseSnippe
 
   const startSnippetLongPress = (event: TouchEvent<HTMLLIElement>, snippet: SavedTextSnippet) => {
     if (event.touches.length !== 1) {
+      resetDrag();
+      return;
+    }
+    if (snippetDragRef.current) {
       return;
     }
 
@@ -137,10 +186,16 @@ export function useSnippetReorder({ clientId, setSnippets, snippets }: UseSnippe
       return;
     }
 
+    if (event.touches.length !== 1) {
+      resetDrag();
+      return;
+    }
+
     const touch = Array.from(event.touches).find(
       (candidate) => candidate.identifier === drag.touchId,
     );
     if (!touch) {
+      resetDrag();
       return;
     }
 
@@ -196,6 +251,12 @@ export function useSnippetReorder({ clientId, setSnippets, snippets }: UseSnippe
     if (!drag) {
       return;
     }
+    if (
+      event.changedTouches.length > 0 &&
+      !Array.from(event.changedTouches).some((touch) => touch.identifier === drag.touchId)
+    ) {
+      return;
+    }
 
     window.clearTimeout(drag.timer);
     snippetDragRef.current = null;
@@ -227,20 +288,15 @@ export function useSnippetReorder({ clientId, setSnippets, snippets }: UseSnippe
       return;
     }
 
-    window.clearTimeout(drag.timer);
-    snippetDragRef.current = null;
+    if (
+      event.changedTouches.length > 0 &&
+      !Array.from(event.changedTouches).some((touch) => touch.identifier === drag.touchId)
+    ) {
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
-    if (drag.active) {
-      snippetsRef.current = drag.originalSnippets;
-      setSnippets(drag.originalSnippets);
-      snippetDragScrollRef.current?.restore();
-      snippetDragScrollRef.current = null;
-      setDraggingSnippetId(null);
-      setSnippetDragOffsetY(0);
-      setSnippetReorderFeedback(null);
-    }
-    suppressSnippetClickUntilRef.current = Date.now() + snippetClickSuppressionMs;
+    resetDrag();
   };
 
   const suppressSnippetClick = (event: SyntheticEvent<HTMLLIElement>) => {

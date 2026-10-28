@@ -2,6 +2,68 @@ import { describe, expect, it } from "vitest";
 import { defaultTrackpadSettings, GestureRecognizer, normalizeTrackpadSettings } from "./gestures";
 
 describe("GestureRecognizer", () => {
+  it("accumulates slow pinch movement until it reaches the zoom threshold", () => {
+    const recognizer = new GestureRecognizer();
+    const settings = { ...defaultTrackpadSettings, zoomGestures: true };
+    recognizer.start(
+      [
+        { id: 1, x: 0, y: 0 },
+        { id: 2, x: 50, y: 0 },
+      ],
+      0,
+    );
+    expect(
+      recognizer.move(
+        [
+          { id: 1, x: 0, y: 0 },
+          { id: 2, x: 52, y: 0 },
+        ],
+        10,
+        settings,
+        "zoom",
+      ),
+    ).toEqual([]);
+    expect(
+      recognizer.move(
+        [
+          { id: 1, x: 0, y: 0 },
+          { id: 2, x: 54, y: 0 },
+        ],
+        20,
+        settings,
+        "zoom",
+      ),
+    ).toEqual([{ type: "pointer.zoom", direction: "in" }]);
+    expect(
+      recognizer.move(
+        [
+          { id: 1, x: 0, y: 0 },
+          { id: 2, x: 53, y: 0 },
+        ],
+        30,
+        settings,
+        "zoom",
+      ),
+    ).toEqual([]);
+    expect(
+      recognizer.move(
+        [
+          { id: 1, x: 0, y: 0 },
+          { id: 2, x: 50, y: 0 },
+        ],
+        40,
+        settings,
+        "zoom",
+      ),
+    ).toEqual([{ type: "pointer.zoom", direction: "out" }]);
+  });
+
+  it("cancels a replaced touch instead of moving the pointer or clicking", () => {
+    const recognizer = new GestureRecognizer();
+    recognizer.start([{ id: 1, x: 0, y: 0 }], 0);
+    expect(recognizer.move([{ id: 2, x: 100, y: 0 }], 10)).toEqual([]);
+    expect(recognizer.end(20)).toEqual([]);
+  });
   it("turns one-finger movement into pointer movement", () => {
     const recognizer = new GestureRecognizer();
 

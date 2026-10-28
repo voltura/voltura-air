@@ -59,6 +59,9 @@ export class MomentumScroller {
   }
 
   end() {
+    if (this.frame !== null) {
+      return;
+    }
     const time = this.now();
     if (
       this.axis === null ||

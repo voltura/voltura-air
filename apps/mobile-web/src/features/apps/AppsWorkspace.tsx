@@ -139,6 +139,8 @@ export function AppsWorkspace({
   const selectedIndexRef = useRef(selectedIndex);
   const hasCompletedInitialListRef = useRef(false);
   const listOperationRef = useRef<string | null>(null);
+  const listTimeoutRef = useRef<number | undefined>(undefined);
+  const actionTimeoutRef = useRef<number | undefined>(undefined);
   const actionOperationRef = useRef<{
     operationId: string;
     type: "activate" | "close";
@@ -153,6 +155,7 @@ export function AppsWorkspace({
     acceptPreviewOffer,
     clearPreviewUrls,
     closePreview,
+    completePreviewAnswer,
     ownsPreview,
     previewStates,
     previewUrls,
@@ -217,6 +220,8 @@ export function AppsWorkspace({
   const requestList = useCallback(
     (quiet = false) => {
       if (state !== "paired" || !capability.canUse) {
+        window.clearTimeout(listTimeoutRef.current);
+        window.clearTimeout(actionTimeoutRef.current);
         listOperationRef.current = null;
         actionOperationRef.current = null;
         setLoading(false);
@@ -231,6 +236,21 @@ export function AppsWorkspace({
       const operationId = localId();
       const isManualRefresh = !quiet && hasCompletedInitialListRef.current;
       listOperationRef.current = operationId;
+      window.clearTimeout(listTimeoutRef.current);
+      listTimeoutRef.current = window.setTimeout(() => {
+        if (listOperationRef.current !== operationId) {
+          return;
+        }
+        listOperationRef.current = null;
+        actionOperationRef.current = null;
+        hasCompletedInitialListRef.current = true;
+        setHasCompletedInitialList(true);
+        setLoading(false);
+        setRefreshing(false);
+        setClosing(false);
+        setPendingWindowId(null);
+        setMessage("The PC did not return its applications. Use Refresh to try again.");
+      }, 15_000);
       setLoading(true);
       setRefreshing(isManualRefresh);
       if (!quiet && !isManualRefresh) {
@@ -247,6 +267,7 @@ export function AppsWorkspace({
         return;
       }
       listOperationRef.current = null;
+      window.clearTimeout(listTimeoutRef.current);
       setLoading(false);
       setRefreshing(false);
       setClosing(false);
@@ -331,9 +352,19 @@ export function AppsWorkspace({
     return () => window.clearTimeout(timeout);
   }, [requestList]);
 
+  useEffect(
+    () => () => {
+      window.clearTimeout(listTimeoutRef.current);
+      window.clearTimeout(actionTimeoutRef.current);
+    },
+    [],
+  );
+
   useEffect(() => {
     const visibilityChange = () => {
       if (document.visibilityState === "hidden") {
+        window.clearTimeout(listTimeoutRef.current);
+        window.clearTimeout(actionTimeoutRef.current);
         listOperationRef.current = null;
         actionOperationRef.current = null;
         setLoading(false);
@@ -363,6 +394,7 @@ export function AppsWorkspace({
         if (pending?.operationId !== result.operationId) {
           return;
         }
+        window.clearTimeout(actionTimeoutRef.current);
         setPendingWindowId(null);
         if (!result.succeeded) {
           actionOperationRef.current = null;
@@ -398,14 +430,14 @@ export function AppsWorkspace({
         }
         listOperationRef.current = null;
         requestList(true);
-      } else if (result.type === "apps.preview.answer.result" && !result.succeeded) {
-        setMessage(result.message);
-        closePreview(false);
+      } else if (result.type === "apps.preview.answer.result") {
+        completePreviewAnswer(result);
       }
     });
   }, [
     acceptPreviewOffer,
     closePreview,
+    completePreviewAnswer,
     handleListResult,
     onFeedback,
     ownsPreview,
@@ -588,19 +620,32 @@ export function AppsWorkspace({
     }
   };
 
-  const runWindowAction = (type: "activate" | "close", window: AppsWindowSummary) => {
+  const runWindowAction = (type: "activate" | "close", targetWindow: AppsWindowSummary) => {
     if (!revision || pendingWindowId || listOperationRef.current || state !== "paired") {
       return;
     }
     const operationId = localId();
-    actionOperationRef.current = { operationId, type, target: window };
-    setPendingWindowId(window.windowId);
+    actionOperationRef.current = { operationId, type, target: targetWindow };
+    window.clearTimeout(actionTimeoutRef.current);
+    actionTimeoutRef.current = window.setTimeout(() => {
+      if (actionOperationRef.current?.operationId !== operationId) {
+        return;
+      }
+      actionOperationRef.current = null;
+      setPendingWindowId(null);
+      setClosing(false);
+      const timeoutMessage =
+        "The PC did not confirm the application action. Check the PC, then refresh before retrying.";
+      setMessage(timeoutMessage);
+      onFeedback(timeoutMessage, "error");
+    }, 30_000);
+    setPendingWindowId(targetWindow.windowId);
     setClosing(type === "close");
     send({
       type: type === "close" ? "apps.close" : "apps.activate",
       operationId,
       revision,
-      windowId: window.windowId,
+      windowId: targetWindow.windowId,
     });
   };
 

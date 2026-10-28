@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { FileTransferMenu } from "./FileTransferMenu";
+import type { ComponentProps } from "react";
 
 const transferMock = vi.hoisted(() => ({
   cancel: vi.fn(),
@@ -39,7 +40,10 @@ const target = {
   },
 };
 
-function renderMenu(canModify = true) {
+function renderMenu(
+  canModify = true,
+  overrides: Partial<ComponentProps<typeof FileTransferMenu>> = {},
+) {
   return render(
     <FileTransferMenu
       activePc={{
@@ -55,11 +59,65 @@ function renderMenu(canModify = true) {
       enabled
       send={vi.fn()}
       target={target}
+      {...overrides}
     />,
   );
 }
 
 describe("FileTransferMenu", () => {
+  it("makes transfer unavailable when the connection is disabled", () => {
+    renderMenu(true, { enabled: false });
+    const trigger = screen.getByRole<HTMLButtonElement>("button", { name: "Transfer" });
+    expect(trigger.disabled).toBe(true);
+  });
+  it.each(["permission", "destination", "connection"])(
+    "rejects a pending picker selection after %s changes",
+    (reason) => {
+      const notice = vi.fn();
+      const host = {
+        customName: false,
+        id: "pc",
+        name: "PC",
+        url: "https://pc.invalid",
+        hostIdentityPublicKey: "A".repeat(87),
+        transportMode: "secure-direct" as const,
+      };
+      const shared = {
+        activePc: host,
+        canModify: true,
+        clientId: "client",
+        enabled: true,
+        send: vi.fn(),
+        target,
+        onTransferNotice: notice,
+      };
+      const view = render(<FileTransferMenu {...shared} />);
+      fireEvent.click(screen.getByRole("button", { name: "Transfer" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Choose file from this device" }));
+      view.rerender(
+        <FileTransferMenu
+          {...shared}
+          canModify={reason !== "permission"}
+          enabled={reason !== "connection"}
+          target={reason === "destination" ? { ...target, revision: "next-folder" } : target}
+        />,
+      );
+      fireEvent.change(document.querySelector('input[type="file"]')!, {
+        target: { files: [new File(["data"], "file.txt")] },
+      });
+      expect(transferMock.startUpload).not.toHaveBeenCalled();
+      expect(notice).toHaveBeenCalledWith(expect.stringContaining("changed"), "error");
+    },
+  );
+  it("dismisses the transfer menu with Escape and returns trigger focus", () => {
+    renderMenu();
+    const trigger = screen.getByRole("button", { name: "Transfer" });
+    fireEvent.click(trigger);
+    screen.getByRole("menuitem", { name: "Choose file from this device" }).focus();
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();

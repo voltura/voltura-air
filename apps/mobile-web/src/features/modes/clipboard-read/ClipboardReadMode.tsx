@@ -59,6 +59,14 @@ export function ClipboardReadMode({
   const [isDeviceCopyAvailable] = useState(canWriteDeferredTextToDeviceClipboard);
   const deviceCopyGenerationRef = useRef(0);
   const mountedRef = useRef(true);
+  const selectionGenerationRef = useRef(0);
+  const cancelDeviceCopyRef = useRef(onCancelGetTextForDevice);
+  useEffect(() => {
+    cancelDeviceCopyRef.current = onCancelGetTextForDevice;
+  }, [onCancelGetTextForDevice]);
+  useEffect(() => {
+    selectionGenerationRef.current += 1;
+  }, [text]);
   const [textSelection, setTextSelection] = useState<TextSelection | null>(null);
   const isAllowed = permission === true;
   const hasTextSelection =
@@ -72,12 +80,13 @@ export function ClipboardReadMode({
     return () => {
       mountedRef.current = false;
       deviceCopyGenerationRef.current += 1;
+      selectionGenerationRef.current += 1;
       if (hiddenDeviceClipboardText) {
         hiddenDeviceClipboardText.value = "";
       }
-      onCancelGetTextForDevice();
+      cancelDeviceCopyRef.current();
     };
-  }, [onCancelGetTextForDevice]);
+  }, []);
 
   const closeErrorDialog = () => {
     setDismissedErrorResult(result);
@@ -96,6 +105,7 @@ export function ClipboardReadMode({
   };
 
   const recordTextSelection = () => {
+    selectionGenerationRef.current += 1;
     const textArea = textAreaRef.current;
     if (!textArea || textArea.selectionStart === textArea.selectionEnd) {
       setTextSelection(null);
@@ -135,7 +145,11 @@ export function ClipboardReadMode({
 
     const selectionStart = textSelection.start;
     const selectionEnd = textSelection.end;
+    const generation = ++selectionGenerationRef.current;
     const result = await copyTextToClipboard(text.slice(selectionStart, selectionEnd));
+    if (!mountedRef.current || selectionGenerationRef.current !== generation) {
+      return;
+    }
     if (result === "manual") {
       onCopyFeedback({
         message: "Could not copy automatically. Try Copy again or use your browser's copy action.",

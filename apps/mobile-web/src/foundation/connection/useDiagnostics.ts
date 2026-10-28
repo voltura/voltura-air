@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createLocalId } from "../identity/localId";
 import type {
   ClientMessage,
@@ -30,14 +30,43 @@ export function useDiagnostics(
   );
   const pendingOperationRef = useRef<{ epoch: number; operationId: string } | null>(null);
 
+  useEffect(() => {
+    if (state !== "paired" || pendingOperationRef.current?.epoch !== connectionEpoch) {
+      pendingOperationRef.current = null;
+      setPendingState(null);
+    }
+  }, [connectionEpoch, state]);
+
+  useEffect(() => {
+    if (!pendingState || state !== "paired" || pendingState.epoch !== connectionEpoch) {
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      if (pendingOperationRef.current !== pendingState) {
+        return;
+      }
+      pendingOperationRef.current = null;
+      setPendingState(null);
+      setFailureState({
+        epoch: pendingState.epoch,
+        value: {
+          code: "diagnostics-timeout",
+          message: "The PC did not respond to the diagnostics request. Try again.",
+        },
+      });
+    }, 15_000);
+    return () => window.clearTimeout(timeout);
+  }, [connectionEpoch, pendingState, state]);
+
   const requestDiagnostics = useCallback((): string | null => {
     if (state !== "paired" || pendingOperationRef.current?.epoch === connectionEpoch) {
       return null;
     }
 
     const operationId = createLocalId();
-    pendingOperationRef.current = { epoch: connectionEpoch, operationId };
-    setPendingState({ epoch: connectionEpoch, operationId });
+    const pending = { epoch: connectionEpoch, operationId };
+    pendingOperationRef.current = pending;
+    setPendingState(pending);
     setFailureState(null);
     send({ type: "diagnostics.get", operationId });
     return operationId;

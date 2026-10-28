@@ -33,6 +33,7 @@ export function useGyroMouse({
   const [availability, setAvailability] = useState<GyroAvailability>(getGyroInitialAvailability);
   const [engaged, setEngagedState] = useState(false);
   const [listenerGeneration, setListenerGeneration] = useState(0);
+  const [motionAllowed, setMotionAllowed] = useState(false);
   const processorRef = useRef(new GyroMotionProcessor());
   const engagedRef = useRef(false);
   const lastValidMotionAtRef = useRef(Number.NEGATIVE_INFINITY);
@@ -68,12 +69,14 @@ export function useGyroMouse({
         return;
       }
       if (!granted) {
+        setMotionAllowed(false);
         const initial = getGyroInitialAvailability();
         setAvailability(initial === "ready" ? "denied" : initial);
         setSelected(true);
         return;
       }
       processorRef.current.resetAll();
+      setMotionAllowed(true);
       setAvailability("ready");
       setListenerGeneration((current) => current + 1);
       setSelected(true);
@@ -94,7 +97,7 @@ export function useGyroMouse({
   }, [activationRequest, finishPermission]);
 
   useEffect(() => {
-    if (!selected || !connected || !enabledSurface) {
+    if (!selected || !motionAllowed || !connected || !enabledSurface) {
       return;
     }
     lastValidMotionAtRef.current = Number.NEGATIVE_INFINITY;
@@ -162,9 +165,9 @@ export function useGyroMouse({
       dataTimerRef.current = null;
       processor.resetMapping();
     };
-  }, [connected, enabledSurface, listenerGeneration, selected, sensitivity]);
+  }, [connected, enabledSurface, listenerGeneration, motionAllowed, selected, sensitivity]);
 
-  useScreenWakeLock(selected && connected && enabledSurface);
+  useScreenWakeLock(selected && motionAllowed && connected && enabledSurface);
 
   useEffect(() => {
     const onVisibility = () => {
@@ -176,8 +179,10 @@ export function useGyroMouse({
       setSelected(false);
     };
     document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", stop);
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", stop);
     };
   }, [setSelected]);
 

@@ -29,6 +29,8 @@ export async function connectSecureDirect(
   let cleaned = false;
   let timeout: number | undefined;
   let cancelSetup: ((error: Error) => void) | undefined;
+  let cleanupChannelSetup: (() => void) | undefined;
+  let cleanupGathering: (() => void) | undefined;
   const cancelled = new Promise<never>((_, reject) => {
     cancelSetup = reject;
   });
@@ -38,7 +40,8 @@ export async function connectSecureDirect(
   };
   const onPeerConnectionStateChange = () => {
     if (peer.connectionState === "failed" || peer.connectionState === "closed") {
-      channel?.close();
+      cleanup();
+      cancelSetup?.(new Error("Secure Direct peer connection failed."));
     }
   };
   peer.addEventListener("connectionstatechange", onPeerConnectionStateChange);
@@ -49,6 +52,8 @@ export async function connectSecureDirect(
     }
     cleaned = true;
     window.clearTimeout(timeout);
+    cleanupGathering?.();
+    cleanupChannelSetup?.();
     peer.removeEventListener("connectionstatechange", onPeerConnectionStateChange);
     signaling.close();
     channel?.close();
@@ -90,7 +95,10 @@ export async function connectSecureDirect(
           "close",
           () => {
             if (!answerSent) {
-              reject(new Error("Secure Direct signaling closed."));
+              const error = new Error("Secure Direct signaling closed.");
+              reject(error);
+              cancelSetup?.(error);
+              cleanup();
             }
           },
           { once: true },
@@ -99,7 +107,10 @@ export async function connectSecureDirect(
           "error",
           () => {
             if (!answerSent) {
-              reject(new Error("Secure Direct signaling failed."));
+              const error = new Error("Secure Direct signaling failed.");
+              reject(error);
+              cancelSetup?.(error);
+              cleanup();
             }
           },
           { once: true },
@@ -110,14 +121,24 @@ export async function connectSecureDirect(
 
     const channelPromise = new Promise<RTCDataChannel>((resolve, reject) => {
       peer.addEventListener("datachannel", (event) => {
+        if (cleaned) {
+          event.channel.close();
+          return;
+        }
         if (channel || event.channel.label !== "voltura-control") {
           event.channel.close();
           cleanup();
-          reject(new Error("Secure Direct DataChannel was invalid."));
+          const error = new Error("Secure Direct DataChannel was invalid.");
+          reject(error);
+          cancelSetup?.(error);
           return;
         }
         channel = event.channel;
         channel.binaryType = "arraybuffer";
+        if (channel.readyState === "closed" || channel.readyState === "closing") {
+          reject(new Error("Secure Direct DataChannel was already closed."));
+          return;
+        }
         if (channel.readyState === "open") {
           resolve(channel);
         } else {
@@ -126,6 +147,7 @@ export async function connectSecureDirect(
             channel?.removeEventListener("close", onClose);
             channel?.removeEventListener("error", onError);
           };
+          cleanupChannelSetup = removeSetupListeners;
           const onOpen = () => {
             removeSetupListeners();
             resolve(channel!);
@@ -144,11 +166,22 @@ export async function connectSecureDirect(
         }
       });
     });
+    void channelPromise.catch((error: unknown) => {
+      cleanup();
+      cancelSetup?.(
+        error instanceof Error ? error : new Error("Secure Direct DataChannel failed."),
+      );
+    });
 
     await Promise.race([peer.setRemoteDescription({ type: "offer", sdp: offer }), cancelled]);
     const createdAnswer = await Promise.race([peer.createAnswer(), cancelled]);
     await Promise.race([peer.setLocalDescription(createdAnswer), cancelled]);
-    await Promise.race([waitForIceGathering(peer), cancelled]);
+    await Promise.race([
+      waitForIceGathering(peer, (cleanup) => {
+        cleanupGathering = cleanup;
+      }),
+      cancelled,
+    ]);
     const sdp = peer.localDescription?.sdp;
     if (
       !sdp ||
@@ -164,6 +197,9 @@ export async function connectSecureDirect(
     answerSent = true;
     signaling.send(answer);
     const opened = await Promise.race([channelPromise, cancelled]);
+    if (cleaned || opened.readyState !== "open") {
+      throw new Error("Secure Direct DataChannel closed during setup.");
+    }
     window.clearTimeout(timeout);
     return { channel: opened, cleanup };
   } catch (error) {
@@ -188,18 +224,23 @@ function isDescription(
   );
 }
 
-function waitForIceGathering(peer: RTCPeerConnection): Promise<void> {
+function waitForIceGathering(
+  peer: RTCPeerConnection,
+  registerCleanup: (cleanup: () => void) => void,
+): Promise<void> {
   if (peer.iceGatheringState === "complete") {
     return Promise.resolve();
   }
   return new Promise((resolve) => {
+    const cleanup = () => peer.removeEventListener("icegatheringstatechange", onChange);
     const onChange = () => {
       if (peer.iceGatheringState !== "complete") {
         return;
       }
-      peer.removeEventListener("icegatheringstatechange", onChange);
+      cleanup();
       resolve();
     };
     peer.addEventListener("icegatheringstatechange", onChange);
+    registerCleanup(cleanup);
   });
 }

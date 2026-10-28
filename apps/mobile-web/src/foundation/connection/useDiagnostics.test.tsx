@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MobileHostDiagnosticsSnapshot } from "../protocol/messages";
 import { useDiagnostics } from "./useDiagnostics";
 
@@ -36,10 +36,13 @@ const snapshot: MobileHostDiagnosticsSnapshot = {
 };
 
 describe("useDiagnostics", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
   it("sends one request per user action and never schedules polling", () => {
     const send = vi.fn();
     const setIntervalSpy = vi.spyOn(globalThis, "setInterval");
-    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
     const { result } = renderHook(() => useDiagnostics("paired", 1, send));
 
     let operationId: string | null = null;
@@ -52,7 +55,66 @@ describe("useDiagnostics", () => {
 
     expect(send).toHaveBeenCalledExactlyOnceWith({ type: "diagnostics.get", operationId });
     expect(setIntervalSpy).not.toHaveBeenCalled();
-    expect(setTimeoutSpy).not.toHaveBeenCalled();
+  });
+
+  it("expires a lost reply, permits retry, and ignores the late response", () => {
+    vi.useFakeTimers();
+    const send = vi.fn();
+    const { result, unmount } = renderHook(() => useDiagnostics("paired", 1, send));
+    let operationId = "";
+    act(() => {
+      operationId = result.current.requestDiagnostics()!;
+    });
+    act(() => {
+      vi.advanceTimersByTime(15_000);
+    });
+    expect(result.current.pending).toBe(false);
+    expect(result.current.failure?.code).toBe("diagnostics-timeout");
+    act(() => {
+      expect(
+        result.current.completeDiagnostics({
+          type: "diagnostics.get.result",
+          operationId,
+          succeeded: true,
+          message: "ready",
+          snapshot,
+        }),
+      ).toBe(false);
+      expect(result.current.requestDiagnostics()).not.toBeNull();
+    });
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("invalidates pending responses on disconnect even before the epoch changes", () => {
+    const send = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ connected }) => useDiagnostics(connected ? "paired" : "unavailable", 1, send),
+      {
+        initialProps: { connected: true },
+      },
+    );
+    let operationId = "";
+    act(() => {
+      operationId = result.current.requestDiagnostics()!;
+    });
+    rerender({ connected: false });
+    act(() => {
+      expect(
+        result.current.completeDiagnostics({
+          type: "diagnostics.get.result",
+          operationId,
+          succeeded: true,
+          message: "ready",
+          snapshot,
+        }),
+      ).toBe(false);
+    });
+    rerender({ connected: true });
+    act(() => {
+      expect(result.current.requestDiagnostics()).not.toBeNull();
+    });
+    expect(result.current.snapshot).toBeNull();
   });
 
   it("keeps the last snapshot usable when a manual refresh fails", () => {

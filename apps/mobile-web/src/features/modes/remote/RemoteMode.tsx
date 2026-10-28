@@ -70,7 +70,8 @@ export function RemoteMode({
   const shortcuts = remoteShortcutMaps[remoteSettings.mode];
   const { getRepeatablePressProps, miniTrackpadProps, navigationPanelProps } =
     useRemoteInteractions({
-      isKodiMode,
+      isConnected,
+      mode: remoteSettings.mode,
       navigationRing: remoteSettings.navigationRing,
       onPointerButtonClick,
       onPointerMove,

@@ -57,6 +57,10 @@ const stalledStatsSampleLimit = 3;
 const stalledRecoveryCooldownMs = 10_000;
 const startResponseTimeoutMs = 10_000;
 
+function isEndedTrack(track: MediaStreamTrack) {
+  return track.readyState === "ended";
+}
+
 export default function PhoneWebcamWorkspace({
   activePc,
   capability,
@@ -83,6 +87,8 @@ export default function PhoneWebcamWorkspace({
   const [quality, setQuality] = useState<SendQuality>({});
   const videoRef = useRef<HTMLVideoElement>(null);
   const permissionLoadingRef = useRef(false);
+  const permissionGenerationRef = useRef(0);
+  const permissionStreamRef = useRef<MediaStream | null>(null);
   const microphoneRequestGenerationRef = useRef(0);
   const microphoneAvailableRef = useRef(capability.microphoneAvailable);
   const streamRef = useRef<MediaStream | null>(null);
@@ -114,6 +120,13 @@ export default function PhoneWebcamWorkspace({
 
   const releaseLocal = useCallback(
     (notifyHost: boolean, message: string) => {
+      permissionGenerationRef.current += 1;
+      microphoneRequestGenerationRef.current += 1;
+      permissionLoadingRef.current = false;
+      setPermissionLoading(false);
+      setMicrophonePermissionLoading(false);
+      permissionStreamRef.current?.getTracks().forEach((track) => track.stop());
+      permissionStreamRef.current = null;
       generationRef.current += 1;
       replacementGenerationRef.current += 1;
       window.clearTimeout(renewalTimerRef.current);
@@ -171,15 +184,26 @@ export default function PhoneWebcamWorkspace({
       return;
     }
     let permissionStream: MediaStream | null = null;
+    const generation = ++permissionGenerationRef.current;
     permissionLoadingRef.current = true;
     setPermissionLoading(true);
     try {
       permissionStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+      if (permissionGenerationRef.current !== generation) {
+        return;
+      }
+      permissionStreamRef.current = permissionStream;
       if (document.visibilityState !== "visible") {
         setStatus("Camera access is paused while Voltura Air is in the background.");
         return;
       }
       const devices = await navigator.mediaDevices.enumerateDevices();
+      if (
+        permissionGenerationRef.current !== generation ||
+        document.visibilityState !== "visible"
+      ) {
+        return;
+      }
       const choices = devices
         .filter((device) => device.kind === "videoinput" && device.deviceId)
         .map((device, index) => ({
@@ -199,6 +223,9 @@ export default function PhoneWebcamWorkspace({
         choices.length > 0 ? "Choose a camera, then start webcam." : "No camera is available.",
       );
     } catch (error) {
+      if (permissionGenerationRef.current !== generation) {
+        return;
+      }
       setStatus(
         error instanceof DOMException && error.name === "NotAllowedError"
           ? "Camera access was not allowed."
@@ -208,14 +235,20 @@ export default function PhoneWebcamWorkspace({
       for (const track of permissionStream?.getTracks() ?? []) {
         track.stop();
       }
-      permissionLoadingRef.current = false;
-      setPermissionLoading(false);
+      if (permissionStreamRef.current === permissionStream) {
+        permissionStreamRef.current = null;
+      }
+      if (permissionGenerationRef.current === generation) {
+        permissionLoadingRef.current = false;
+        setPermissionLoading(false);
+      }
     }
   }, []);
 
   const requestMicrophone = useCallback(async (enabled: boolean) => {
     const requestGeneration = ++microphoneRequestGenerationRef.current;
     if (!enabled) {
+      setMicrophonePermissionLoading(false);
       setUseMicrophone(false);
       setMicrophonePermissionGranted(false);
       return;
@@ -224,7 +257,7 @@ export default function PhoneWebcamWorkspace({
     let stream: MediaStream | null = null;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      if (!stream.getAudioTracks()[0]) {
+      if (!stream.getAudioTracks()[0] || stream.getAudioTracks()[0]?.readyState === "ended") {
         throw new Error("No audio track.");
       }
       if (
@@ -237,6 +270,9 @@ export default function PhoneWebcamWorkspace({
       setUseMicrophone(true);
       setStatus("Phone microphone is ready. Start when you are ready.");
     } catch {
+      if (microphoneRequestGenerationRef.current !== requestGeneration) {
+        return;
+      }
       setMicrophonePermissionGranted(false);
       setUseMicrophone(false);
       setStatus("Microphone access was not allowed or no microphone is available.");
@@ -251,6 +287,7 @@ export default function PhoneWebcamWorkspace({
   const openSelectedCamera = useCallback(
     async (
       includeMicrophone: boolean,
+      generation: number,
     ): Promise<{
       stream: MediaStream;
       settings: MediaTrackSettings;
@@ -271,7 +308,10 @@ export default function PhoneWebcamWorkspace({
       let microphoneFallback = false;
       try {
         stream = await navigator.mediaDevices.getUserMedia(constraints);
-        if (includeMicrophone && !stream.getAudioTracks()[0]) {
+        if (
+          includeMicrophone &&
+          (!stream.getAudioTracks()[0] || stream.getAudioTracks()[0]?.readyState === "ended")
+        ) {
           throw new Error("No audio track.");
         }
       } catch (error) {
@@ -279,26 +319,36 @@ export default function PhoneWebcamWorkspace({
           throw error;
         }
         stream?.getTracks().forEach((track) => track.stop());
+        if (generationRef.current !== generation) {
+          throw error;
+        }
         stream = await navigator.mediaDevices.getUserMedia({ ...constraints, audio: false });
         microphoneIncluded = false;
         microphoneFallback = true;
-        setUseMicrophone(false);
-        setMicrophonePermissionGranted(false);
+        if (generationRef.current === generation) {
+          setUseMicrophone(false);
+          setMicrophonePermissionGranted(false);
+        }
       }
       if (!stream) {
         throw new Error("Camera stream unavailable.");
       }
-      const track = stream.getVideoTracks()[0];
-      if (!track) {
-        throw new Error("No video track.");
+      try {
+        const track = stream.getVideoTracks()[0];
+        if (!track || track.readyState === "ended") {
+          throw new Error("No live video track.");
+        }
+        track.contentHint = "motion";
+        return {
+          stream,
+          settings: track.getSettings(),
+          useMicrophone: microphoneIncluded,
+          microphoneFallback,
+        };
+      } catch (error) {
+        stream.getTracks().forEach((track) => track.stop());
+        throw error;
       }
-      track.contentHint = "motion";
-      return {
-        stream,
-        settings: track.getSettings(),
-        useMicrophone: microphoneIncluded,
-        microphoneFallback,
-      };
     },
     [selectedCameraId],
   );
@@ -323,7 +373,10 @@ export default function PhoneWebcamWorkspace({
     setPhase("connecting");
     setStatus("Opening the selected camera…");
     try {
-      const opened = await openSelectedCamera(useMicrophone && microphonePermissionGranted);
+      const opened = await openSelectedCamera(
+        useMicrophone && microphonePermissionGranted,
+        generation,
+      );
       if (generationRef.current !== generation || acquiringGenerationRef.current !== generation) {
         opened.stream.getTracks().forEach((track) => track.stop());
         return;
@@ -380,7 +433,7 @@ export default function PhoneWebcamWorkspace({
       operationIdRef.current = operationId;
       if (videoRef.current) {
         videoRef.current.srcObject = opened.stream;
-        await videoRef.current.play().catch(() => undefined);
+        void videoRef.current.play().catch(() => undefined);
         if (generationRef.current !== generation || streamRef.current !== opened.stream) {
           if (streamRef.current === opened.stream) {
             opened.stream.getTracks().forEach((track) => track.stop());
@@ -551,7 +604,7 @@ export default function PhoneWebcamWorkspace({
   const acceptOffer = useCallback(
     async (message: Extract<PhoneWebcamServerMessage, { type: "phone.webcam.start.result" }>) => {
       const pending = pendingRef.current;
-      if (pending?.operationId !== message.operationId) {
+      if (pending?.operationId !== message.operationId || peerRef.current) {
         return;
       }
       window.clearTimeout(startResponseTimerRef.current);
@@ -869,7 +922,7 @@ export default function PhoneWebcamWorkspace({
         };
         replacementRef.current = ownedReplacement;
         const nextTrack = replacement.getVideoTracks()[0];
-        if (!nextTrack) {
+        if (!nextTrack || isEndedTrack(nextTrack)) {
           if (acquiringReplacementGenerationRef.current === replacementGeneration) {
             acquiringReplacementGenerationRef.current = null;
           }
@@ -884,6 +937,7 @@ export default function PhoneWebcamWorkspace({
           return;
         }
         nextTrack.contentHint = "motion";
+        const settings = nextTrack.getSettings();
         nextTrack.addEventListener(
           "ended",
           () => {
@@ -895,6 +949,16 @@ export default function PhoneWebcamWorkspace({
           { once: true },
         );
         await sender.replaceTrack(nextTrack);
+        if (isEndedTrack(nextTrack)) {
+          if (ownsReplacement()) {
+            try {
+              await sender.replaceTrack(streamRef.current?.getVideoTracks()[0] ?? null);
+            } catch {
+              releaseLocal(true, "The camera connection could not be restored.");
+            }
+          }
+          throw new Error("The replacement camera stopped.");
+        }
         if (
           replacementGenerationRef.current !== replacementGeneration ||
           generationRef.current !== generation ||
@@ -927,7 +991,6 @@ export default function PhoneWebcamWorkspace({
           void videoRef.current.play().catch(() => undefined);
         }
         previous?.getVideoTracks().forEach((track) => track.stop());
-        const settings = nextTrack.getSettings();
         setQuality((current) => ({
           ...current,
           ...(settings.width === undefined ? {} : { width: settings.width }),
@@ -1011,6 +1074,9 @@ export default function PhoneWebcamWorkspace({
   useEffect(() => {
     let resumeTimer: number | undefined;
     const pauseForBackground = () => {
+      if (permissionLoadingRef.current) {
+        releaseRef.current(true, "Camera access is paused while Voltura Air is in the background.");
+      }
       if (
         acquiringGenerationRef.current !== null ||
         streamRef.current ||
@@ -1042,7 +1108,8 @@ export default function PhoneWebcamWorkspace({
     let resumeTimer: number | undefined;
     if (
       state !== "paired" &&
-      (acquiringGenerationRef.current !== null ||
+      (permissionLoadingRef.current ||
+        acquiringGenerationRef.current !== null ||
         streamRef.current ||
         pendingRef.current ||
         peerRef.current)
@@ -1084,6 +1151,7 @@ export default function PhoneWebcamWorkspace({
     }
     resumeRef.current = false;
     if (
+      permissionLoadingRef.current ||
       acquiringGenerationRef.current !== null ||
       streamRef.current ||
       replacementRef.current ||

@@ -163,8 +163,13 @@ export function RemoteUtilityPanel({
     };
 
     document.addEventListener("visibilitychange", cancelHiddenSwitcher);
+    const cancelSwitcher = () => finishSwitcherOnVisibilityChange(false);
+    window.addEventListener("blur", cancelSwitcher);
+    window.addEventListener("pagehide", cancelSwitcher);
     return () => {
       document.removeEventListener("visibilitychange", cancelHiddenSwitcher);
+      window.removeEventListener("blur", cancelSwitcher);
+      window.removeEventListener("pagehide", cancelSwitcher);
       clearSwitcherTimer();
       if (switcherPointerRef.current?.active) {
         sendSpecialRef.current("Escape");
@@ -173,8 +178,17 @@ export function RemoteUtilityPanel({
     };
   }, []);
 
+  useEffect(() => {
+    if (!isConnected) {
+      finishSwitcherOnVisibilityChange(false);
+    }
+  }, [isConnected]);
+
   const pressSwitcher = (event: PointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) {
+      return;
+    }
+    if (switcherPointerRef.current) {
       return;
     }
 
@@ -259,6 +273,7 @@ export function RemoteUtilityPanel({
     onPointerMove: moveSwitcher,
     onPointerUp: releaseSwitcher,
     onPointerCancel: cancelSwitcher,
+    onLostPointerCapture: cancelSwitcher,
     onClick: () => {
       if (ignoreSwitcherClickRef.current) {
         ignoreSwitcherClickRef.current = false;

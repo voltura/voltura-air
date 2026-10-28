@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { copyTextToClipboard } from "../../foundation/diagnostics/mobileDiagnostics";
 import type { MobileHostDiagnosticsSnapshot } from "../../foundation/protocol/messages";
@@ -56,6 +56,68 @@ const baseProps = {
 };
 
 describe("DiagnosticsWorkspace", () => {
+  it("does not start overlapping clipboard writes while a copy is pending", async () => {
+    let finish!: (value: "copied") => void;
+    vi.mocked(copyTextToClipboard).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    render(<DiagnosticsWorkspace {...baseProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy all" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Browser" }));
+    expect(copyTextToClipboard).toHaveBeenCalledOnce();
+    await act(async () => {
+      finish("copied");
+      await Promise.resolve();
+    });
+  });
+  it("does not post clipboard completion after diagnostics unmounts", async () => {
+    let finish!: (value: "copied") => void;
+    vi.mocked(copyTextToClipboard).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const feedback = vi.fn();
+    const view = render(<DiagnosticsWorkspace {...baseProps} onCopyFeedback={feedback} />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy all" }));
+    view.unmount();
+    await act(async () => {
+      finish("copied");
+      await Promise.resolve();
+    });
+    expect(feedback).not.toHaveBeenCalled();
+  });
+  it("does not restore an old snapshot fallback after diagnostics refreshes", async () => {
+    let finish!: (value: "manual") => void;
+    vi.mocked(copyTextToClipboard).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const view = render(<DiagnosticsWorkspace {...baseProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy all" }));
+    view.rerender(
+      <DiagnosticsWorkspace {...baseProps} snapshot={{ ...snapshot, pcName: "Other PC" }} />,
+    );
+    await act(async () => {
+      finish("manual");
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole("textbox", { name: "Diagnostics text" })).toBeNull();
+  });
+  it("clears manual snapshot text when diagnostics permission is revoked", async () => {
+    vi.mocked(copyTextToClipboard).mockResolvedValueOnce("manual");
+    const view = render(<DiagnosticsWorkspace {...baseProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy all" }));
+    await screen.findByRole("textbox", { name: "Diagnostics text" });
+    view.rerender(<DiagnosticsWorkspace {...baseProps} permission={false} snapshot={null} />);
+    expect(screen.queryByRole("textbox", { name: "Diagnostics text" })).toBeNull();
+  });
   beforeEach(() => {
     vi.stubGlobal("__APP_VERSION__", "web-test");
     vi.stubGlobal(

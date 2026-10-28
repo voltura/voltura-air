@@ -78,6 +78,170 @@ function sourceRequestId(send: ReturnType<typeof vi.fn<(message: ClientMessage) 
 }
 
 describe("ScreenViewWorkspace", () => {
+  function soundPreview() {
+    return render(
+      <ScreenViewWorkspace
+        activePc={{ customName: false, id: "preview", name: "PC", url: "http://127.0.0.1" }}
+        browserPreviewState="active"
+        capability={capability}
+        clientId="preview-client"
+        onBack={vi.fn()}
+        onOpenKeyboard={vi.fn()}
+        send={vi.fn()}
+        state="paired"
+        trackpadSettings={defaultTrackpadSettings}
+      />,
+    );
+  }
+  function sourcePreview() {
+    const send = vi.fn<(message: ClientMessage) => void>();
+    const view = render(
+      <ScreenViewWorkspace
+        activePc={{ customName: false, id: "preview", name: "PC", url: "http://127.0.0.1" }}
+        browserPreviewState="active"
+        capability={capability}
+        clientId="preview-client"
+        onBack={vi.fn()}
+        onOpenKeyboard={vi.fn()}
+        send={send}
+        state="paired"
+        trackpadSettings={defaultTrackpadSettings}
+      />,
+    );
+    act(() =>
+      publishScreenViewResult({
+        type: "screen.view.sources.result",
+        operationId: sourceRequestId(send),
+        succeeded: true,
+        message: "Ready",
+        sources: [
+          { id: "a", label: "A", width: 1920, height: 1080, isPrimary: true },
+          { id: "b", label: "B", width: 1920, height: 1080, isPrimary: false },
+          { id: "c", label: "C", width: 1920, height: 1080, isPrimary: false },
+        ],
+      }),
+    );
+    return { ...view, send, selector: screen.getByLabelText("Display") as HTMLSelectElement };
+  }
+  it("serializes display switches until the PC confirms the current source", () => {
+    const { send, selector } = sourcePreview();
+    fireEvent.change(selector, { target: { value: "b" } });
+    fireEvent.change(selector, { target: { value: "c" } });
+    const requests = send.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message.type === "screen.view.source.set");
+    expect(requests).toHaveLength(1);
+    expect(selector.disabled).toBe(true);
+    const request = requests[0]!;
+    act(() =>
+      publishScreenViewResult({
+        type: "screen.view.source.result",
+        operationId: request.operationId,
+        displayId: "b",
+        succeeded: true,
+        message: "Switched",
+      }),
+    );
+    expect(selector.disabled).toBe(false);
+    expect(selector.value).toBe("b");
+  });
+  it("stops an unconfirmed display switch at its response deadline", () => {
+    vi.useFakeTimers();
+    const { send, selector, unmount } = sourcePreview();
+    fireEvent.change(selector, { target: { value: "b" } });
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(screen.getByRole("status").textContent).toContain("did not confirm the display switch");
+    expect(send.mock.calls.some(([message]) => message.type === "screen.view.stop")).toBe(true);
+    expect(selector.disabled).toBe(false);
+    unmount();
+  });
+  it.each(["Stop", "unmount"])("clears a pending display switch deadline on %s", (boundary) => {
+    vi.useFakeTimers();
+    const { send, selector, unmount } = sourcePreview();
+    fireEvent.change(selector, { target: { value: "b" } });
+    if (boundary === "Stop") {
+      fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    } else {
+      unmount();
+    }
+    const count = send.mock.calls.length;
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(send).toHaveBeenCalledTimes(count);
+    if (boundary === "Stop") {
+      unmount();
+    }
+  });
+  it("lets Sound be muted while browser playback is still pending", async () => {
+    let finish!: () => void;
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    soundPreview();
+    fireEvent.click(screen.getByRole("button", { name: "Play PC sound" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mute PC sound" }));
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("button", { name: "Play PC sound" }).getAttribute("aria-pressed")).toBe(
+      "false",
+    );
+    expect(play).toHaveBeenCalledOnce();
+    play.mockRestore();
+  });
+  it("does not revive Sound after a pending playback finishes following Stop", async () => {
+    let finish!: () => void;
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    soundPreview();
+    fireEvent.click(screen.getByRole("button", { name: "Play PC sound" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole("button", { name: "Mute PC sound" })).toBeNull();
+    play.mockRestore();
+  });
+  it("does not let an old failed playback mute a newer successful Sound choice", async () => {
+    let fail!: (error: Error) => void;
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            fail = reject;
+          }),
+      )
+      .mockResolvedValue(undefined);
+    const view = soundPreview();
+    fireEvent.click(screen.getByRole("button", { name: /^(Mute|Play) PC sound$/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^(Mute|Play) PC sound$/ }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /^(Mute|Play) PC sound$/ }));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      fail(new Error("Old playback failed"));
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("button", { name: "Mute PC sound" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+    expect(view.container.querySelector("video")!.muted).toBe(false);
+    play.mockRestore();
+  });
   it("starts each visible Sound control muted and toggles playback locally", async () => {
     const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
     render(

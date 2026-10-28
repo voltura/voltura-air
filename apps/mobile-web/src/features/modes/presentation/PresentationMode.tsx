@@ -277,7 +277,7 @@ export function PresentationMode({
     commandPending && !baseDisabled && !showPendingCommandDisabled ? "deferred" : undefined;
 
   useEffect(() => {
-    if (target !== "powerpoint" || activationRequestId === 0) {
+    if (target !== "powerpoint" || activationRequestId === 0 || !canControl || commandPending) {
       return;
     }
 
@@ -300,6 +300,8 @@ export function PresentationMode({
     onActivationRequestHandled?.();
   }, [
     activationRequestId,
+    canControl,
+    commandPending,
     capability?.powerPoint?.foregroundActivationSupported,
     onActivationRequestHandled,
     onCommand,
@@ -436,6 +438,9 @@ export function PresentationMode({
     }
   };
   const goToSlide = (requestedSlideNumber?: number) => {
+    if (commandControlsDisabled) {
+      return;
+    }
     const slideNumber = requestedSlideNumber ?? Number(gotoSlideNumber);
     if (
       !Number.isInteger(slideNumber) ||
@@ -526,6 +531,7 @@ export function PresentationMode({
   if (target === "powerpoint" && isPowerPointChooserOpen && capability?.powerPoint) {
     return (
       <PowerPointPresentationChooser
+        enabled={canControl}
         appLaunchAction={powerPointAppLaunchAction}
         appLaunchResult={powerPointAppLaunchResult}
         appLaunchPending={pendingPowerPointAppLaunch}
@@ -1354,6 +1360,7 @@ export function PresentationMode({
               id="presentation-slide-range"
               type="range"
               aria-label="Slide number"
+              disabled={commandControlsDisabled}
               min="1"
               max={directSlideMaximum}
               step="1"

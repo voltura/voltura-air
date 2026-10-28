@@ -1,5 +1,5 @@
 import { ClipboardPaste, Keyboard, MousePointer2, Send } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import "./text-transfer.css";
 import {
   canReadTextFromDeviceClipboard,
@@ -48,12 +48,19 @@ export function TextTransferMode(props: TextTransferModeProps) {
   const [phoneClipboardPending, setPhoneClipboardPending] = useState(false);
   const [canPasteFromPhone] = useState(canReadTextFromDeviceClipboard);
   const [isEditing, setIsEditing] = useState(true);
+  const [clipboardContext, setClipboardContext] = useState({ clientId: props.clientId, isEditing });
+  if (clipboardContext.clientId !== props.clientId || clipboardContext.isEditing !== isEditing) {
+    setClipboardContext({ clientId: props.clientId, isEditing });
+    setPhoneClipboardPending(false);
+  }
   const [keyboardInputMode, setKeyboardInputMode] = useState<KeyboardInputMode>("text");
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const draftRevision = useRef(0);
   const draftRef = useRef(props.draft);
   const mountedRef = useRef(true);
   const phoneClipboardPendingRef = useRef(false);
+  const clipboardGenerationRef = useRef(0);
+  const editingRef = useRef(isEditing);
   const pendingClearOperation = useRef<{
     operationId: string;
     submittedText: string;
@@ -98,11 +105,33 @@ export function TextTransferMode(props: TextTransferModeProps) {
 
   useEffect(() => {
     mountedRef.current = true;
+    const retire = () => {
+      clipboardGenerationRef.current += 1;
+      phoneClipboardPendingRef.current = false;
+      setPhoneClipboardPending(false);
+    };
+    window.addEventListener("pagehide", retire);
     return () => {
       mountedRef.current = false;
+      clipboardGenerationRef.current += 1;
       phoneClipboardPendingRef.current = false;
+      window.removeEventListener("pagehide", retire);
     };
   }, []);
+
+  useLayoutEffect(() => {
+    clipboardGenerationRef.current += 1;
+    phoneClipboardPendingRef.current = false;
+    pendingClearOperation.current = null;
+  }, [props.clientId]);
+
+  useLayoutEffect(() => {
+    editingRef.current = isEditing;
+    if (!isEditing) {
+      clipboardGenerationRef.current += 1;
+      phoneClipboardPendingRef.current = false;
+    }
+  }, [isEditing]);
 
   useEffect(() => {
     draftRef.current = props.draft;
@@ -176,12 +205,13 @@ export function TextTransferMode(props: TextTransferModeProps) {
     const sourceRevision = draftRevision.current;
     const selectionStart = editor.selectionStart;
     const selectionEnd = editor.selectionEnd;
+    const generation = ++clipboardGenerationRef.current;
     phoneClipboardPendingRef.current = true;
     setPhoneClipboardPending(true);
     setPhoneClipboardFeedback(null);
 
     const result = await readTextFromDeviceClipboard();
-    if (!mountedRef.current) {
+    if (!mountedRef.current || generation !== clipboardGenerationRef.current) {
       return;
     }
 
@@ -199,7 +229,12 @@ export function TextTransferMode(props: TextTransferModeProps) {
       return;
     }
 
-    if (draftRevision.current !== sourceRevision || draftRef.current !== sourceText) {
+    if (
+      draftRevision.current !== sourceRevision ||
+      draftRef.current !== sourceText ||
+      editor.selectionStart !== selectionStart ||
+      editor.selectionEnd !== selectionEnd
+    ) {
       setPhoneClipboardFeedback({
         message: "The draft changed. Paste from this device's clipboard again.",
         tone: "error",
@@ -225,7 +260,12 @@ export function TextTransferMode(props: TextTransferModeProps) {
     });
     window.requestAnimationFrame(() => {
       const nextEditor = editorRef.current;
-      if (!nextEditor || !mountedRef.current) {
+      if (
+        !nextEditor ||
+        !mountedRef.current ||
+        !editingRef.current ||
+        generation !== clipboardGenerationRef.current
+      ) {
         return;
       }
       nextEditor.focus({ preventScroll: true });
@@ -246,7 +286,7 @@ export function TextTransferMode(props: TextTransferModeProps) {
     editor.focus({ preventScroll: true });
     window.requestAnimationFrame(() => {
       const currentEditor = editorRef.current;
-      if (!currentEditor) {
+      if (!currentEditor || !editingRef.current) {
         return;
       }
 

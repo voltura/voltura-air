@@ -65,6 +65,41 @@ function renderNavigation(onEnterRemote: () => void, strict = false) {
 }
 
 describe("useAppNavigation remote entry ownership", () => {
+  it.each(["presentation", "files", "terminal"] as const)(
+    "keeps an explicitly chosen fallback after %s becomes available again",
+    (mode) => {
+      const hook = renderHook(
+        ({ available }) =>
+          useAppNavigation({
+            fourthMode: "dictation",
+            isPaired: true,
+            onEnterRemote: vi.fn(),
+            presentationAvailable: available,
+            filesAvailable: available,
+            terminalAvailable: available,
+            supportsGestureDebug: false,
+            trackpadSettings,
+          }),
+        { initialProps: { available: true } },
+      );
+      act(() => hook.result.current.selectModeTab(mode));
+      hook.rerender({ available: false });
+      expect(hook.result.current.tab).toBe("dictation");
+      act(() => hook.result.current.selectModeTab("dictation"));
+      hook.rerender({ available: true });
+      expect(hook.result.current.tab).toBe("dictation");
+    },
+  );
+  it("closes the remote utility surface when retiring transient UI", () => {
+    const hook = renderNavigation(vi.fn());
+    act(() => {
+      hook.result.current.selectModeTab("remote");
+      hook.result.current.setIsRemoteUtilityPanelOpen(true);
+    });
+    expect(hook.result.current.isRemoteUtilityPanelOpen).toBe(true);
+    act(() => hook.result.current.closeTransientSurfaces());
+    expect(hook.result.current.isRemoteUtilityPanelOpen).toBe(false);
+  });
   it("uses the effective host appearance setting to hide both mode-button rows", () => {
     const { result } = renderHook(() =>
       useAppNavigation({

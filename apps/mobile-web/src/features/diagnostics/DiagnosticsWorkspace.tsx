@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Activity, ChevronLeft, Clipboard, RefreshCw } from "lucide-react";
 import type {
   MobileHostDiagnosticsSnapshot,
@@ -35,6 +35,27 @@ interface DiagnosticsWorkspaceProps {
 export function DiagnosticsWorkspace(props: DiagnosticsWorkspaceProps) {
   const { pending, permission, requestDiagnostics, state } = props;
   const [manualCopy, setManualCopy] = useState("");
+  const [copyPending, setCopyPending] = useState(false);
+  const copyOwnerRef = useRef(0);
+  const copyingRef = useRef(false);
+  const [copyContext, setCopyContext] = useState({ snapshot: props.snapshot, state, permission });
+  if (
+    copyContext.snapshot !== props.snapshot ||
+    copyContext.state !== state ||
+    copyContext.permission !== permission
+  ) {
+    setCopyContext({ snapshot: props.snapshot, state, permission });
+    setManualCopy("");
+    setCopyPending(false);
+  }
+  useLayoutEffect(() => {
+    copyOwnerRef.current += 1;
+    copyingRef.current = false;
+    return () => {
+      copyOwnerRef.current += 1;
+      copyingRef.current = false;
+    };
+  }, [props.snapshot, state, permission]);
   const initialRequestSentRef = useRef(false);
 
   useEffect(() => {
@@ -56,8 +77,20 @@ export function DiagnosticsWorkspace(props: DiagnosticsWorkspaceProps) {
   );
   const rows = groups.flatMap((group) => group.rows);
   const copy = async (text: string, success: string) => {
+    if (copyingRef.current) {
+      return;
+    }
+    copyingRef.current = true;
+    setCopyPending(true);
+    const owner = ++copyOwnerRef.current;
     setManualCopy("");
-    if ((await copyTextToClipboard(text)) === "copied") {
+    const copied = await copyTextToClipboard(text);
+    if (owner !== copyOwnerRef.current) {
+      return;
+    }
+    copyingRef.current = false;
+    setCopyPending(false);
+    if (copied === "copied") {
       props.onCopyFeedback(success, "success");
       return;
     }
@@ -147,6 +180,7 @@ export function DiagnosticsWorkspace(props: DiagnosticsWorkspaceProps) {
                       type="button"
                       className="icon-button"
                       aria-label={`Copy ${row.label}`}
+                      disabled={copyPending}
                       onClick={() => {
                         void copy(line, `${row.label} copied.`);
                       }}
@@ -163,6 +197,7 @@ export function DiagnosticsWorkspace(props: DiagnosticsWorkspaceProps) {
         <div className="diagnostics-copy-all">
           <button
             type="button"
+            disabled={copyPending}
             onClick={() => {
               void copy(buildDiagnosticsText(rows), "Diagnostics copied.");
             }}

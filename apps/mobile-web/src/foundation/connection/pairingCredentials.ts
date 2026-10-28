@@ -223,6 +223,12 @@ export function clearStoredReconnectKey(clientId: string, pcId: string): void {
   removeLocalStorage(privateKeyStoreKey(clientId, pcId));
 }
 
+export function captureReconnectKeyOwnership(clientId: string, pcId: string): () => boolean {
+  const key = privateKeyStoreKey(clientId, pcId);
+  const stored = readLocalStorage(key);
+  return () => readLocalStorage(key) === stored;
+}
+
 export function shouldClearStoredReconnectKeyForRejection(reason: string): boolean {
   return reason === "device-revoked" || reason === "invalid-proof";
 }

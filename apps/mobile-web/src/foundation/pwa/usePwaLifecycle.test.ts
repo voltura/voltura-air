@@ -74,6 +74,77 @@ beforeEach(() => {
 });
 
 describe("PWA web build refresh", () => {
+  it("consumes an install prompt once even for simultaneous clicks", async () => {
+    const choice = deferred<{ outcome: "accepted" | "dismissed"; platform: string }>();
+    const prompt = vi.fn(() => Promise.resolve());
+    const { result } = renderHook(() =>
+      usePwaLifecycle({ ...createOptions(), autoRefresh: false }),
+    );
+    act(() => {
+      window.dispatchEvent(
+        Object.assign(new Event("beforeinstallprompt"), { prompt, userChoice: choice.promise }),
+      );
+    });
+    let install!: Promise<void>;
+    act(() => {
+      install = result.current.installApp();
+      void result.current.installApp();
+    });
+    expect(prompt).toHaveBeenCalledOnce();
+    await act(async () => {
+      choice.resolve({ outcome: "accepted", platform: "web" });
+      await install;
+    });
+    expect(result.current.isInstalled).toBe(true);
+  });
+
+  it("contains rejected install prompts and exposes recovery feedback", async () => {
+    const { result } = renderHook(() =>
+      usePwaLifecycle({ ...createOptions(), autoRefresh: false }),
+    );
+    act(() => {
+      window.dispatchEvent(
+        Object.assign(new Event("beforeinstallprompt"), {
+          prompt: () => Promise.reject(new Error("unavailable")),
+          userChoice: Promise.resolve({ outcome: "dismissed", platform: "web" }),
+        }),
+      );
+    });
+    await act(() => result.current.installApp());
+    expect(result.current.installPrompt).toBeNull();
+    expect(result.current.refreshMessage).toContain("browser's install menu");
+  });
+
+  it("does not clear a replacement prompt when an older choice completes", async () => {
+    const choice = deferred<{ outcome: "accepted" | "dismissed"; platform: string }>();
+    const { result } = renderHook(() =>
+      usePwaLifecycle({ ...createOptions(), autoRefresh: false }),
+    );
+    act(() => {
+      window.dispatchEvent(
+        Object.assign(new Event("beforeinstallprompt"), {
+          prompt: () => Promise.resolve(),
+          userChoice: choice.promise,
+        }),
+      );
+    });
+    let install!: Promise<void>;
+    act(() => {
+      install = result.current.installApp();
+    });
+    const replacement = Object.assign(new Event("beforeinstallprompt"), {
+      prompt: () => Promise.resolve(),
+      userChoice: Promise.resolve({ outcome: "dismissed", platform: "web" }),
+    });
+    act(() => {
+      window.dispatchEvent(replacement);
+    });
+    await act(async () => {
+      choice.resolve({ outcome: "dismissed", platform: "web" });
+      await install;
+    });
+    expect(result.current.installPrompt).toBe(replacement);
+  });
   it("refreshes only when a direct host serves a different compiled web build", () => {
     expect(shouldRefreshWebClient(activePc, undefined)).toBe(false);
     expect(shouldRefreshWebClient(activePc, "build-a")).toBe(false);

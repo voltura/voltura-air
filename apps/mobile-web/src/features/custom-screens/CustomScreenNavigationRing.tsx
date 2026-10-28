@@ -38,12 +38,18 @@ export function CustomScreenNavigationRing({
 }: CustomScreenNavigationRingProps) {
   const repeatTimeoutRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
+  const pointerRef = useRef<number | null>(null);
+  const sendSpecialRef = useRef(sendSpecial);
+  useEffect(() => {
+    sendSpecialRef.current = sendSpecial;
+  }, [sendSpecial]);
 
   const stopRepeat = useCallback(() => {
     window.clearTimeout(repeatTimeoutRef.current ?? undefined);
     window.clearInterval(repeatIntervalRef.current ?? undefined);
     repeatTimeoutRef.current = null;
     repeatIntervalRef.current = null;
+    pointerRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -56,9 +62,11 @@ export function CustomScreenNavigationRing({
       }
     };
     window.addEventListener("blur", stopWhenBlurred);
+    window.addEventListener("pagehide", stopWhenBlurred);
     document.addEventListener("visibilitychange", stopWhenHidden);
     return () => {
       window.removeEventListener("blur", stopWhenBlurred);
+      window.removeEventListener("pagehide", stopWhenBlurred);
       document.removeEventListener("visibilitychange", stopWhenHidden);
       stopRepeat();
     };
@@ -71,20 +79,27 @@ export function CustomScreenNavigationRing({
   }, [enabled, stopRepeat]);
 
   const startRepeat = (event: PointerEvent<HTMLButtonElement>) => {
-    if (!enabled || event.button !== 0) {
+    if (!enabled || event.button !== 0 || pointerRef.current !== null) {
       return;
     }
     const key = event.currentTarget.dataset.key as NavigationKey;
     event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     stopRepeat();
-    sendSpecial(key);
+    pointerRef.current = event.pointerId;
+    sendSpecialRef.current(key);
     repeatTimeoutRef.current = window.setTimeout(() => {
-      sendSpecial(key);
+      sendSpecialRef.current(key);
       repeatIntervalRef.current = window.setInterval(() => {
-        sendSpecial(key);
+        sendSpecialRef.current(key);
       }, repeatMs);
     }, repeatDelayMs);
+  };
+
+  const finishPointer = (event: PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerId === pointerRef.current) {
+      stopRepeat();
+    }
   };
 
   const click = (event: MouseEvent<HTMLButtonElement>) => {
@@ -125,10 +140,10 @@ export function CustomScreenNavigationRing({
           disabled={!enabled}
           aria-label="D-pad up"
           onClick={click}
-          onLostPointerCapture={stopRepeat}
-          onPointerCancel={stopRepeat}
+          onLostPointerCapture={finishPointer}
+          onPointerCancel={finishPointer}
           onPointerDown={startRepeat}
-          onPointerUp={stopRepeat}
+          onPointerUp={finishPointer}
           onTouchCancel={stopTouchPropagation}
           onTouchEnd={stopTouchPropagation}
           onTouchMove={stopTouchPropagation}
@@ -143,10 +158,10 @@ export function CustomScreenNavigationRing({
           disabled={!enabled}
           aria-label="D-pad left"
           onClick={click}
-          onLostPointerCapture={stopRepeat}
-          onPointerCancel={stopRepeat}
+          onLostPointerCapture={finishPointer}
+          onPointerCancel={finishPointer}
           onPointerDown={startRepeat}
-          onPointerUp={stopRepeat}
+          onPointerUp={finishPointer}
           onTouchCancel={stopTouchPropagation}
           onTouchEnd={stopTouchPropagation}
           onTouchMove={stopTouchPropagation}
@@ -161,10 +176,10 @@ export function CustomScreenNavigationRing({
           disabled={!enabled}
           aria-label="D-pad right"
           onClick={click}
-          onLostPointerCapture={stopRepeat}
-          onPointerCancel={stopRepeat}
+          onLostPointerCapture={finishPointer}
+          onPointerCancel={finishPointer}
           onPointerDown={startRepeat}
-          onPointerUp={stopRepeat}
+          onPointerUp={finishPointer}
           onTouchCancel={stopTouchPropagation}
           onTouchEnd={stopTouchPropagation}
           onTouchMove={stopTouchPropagation}
@@ -179,10 +194,10 @@ export function CustomScreenNavigationRing({
           disabled={!enabled}
           aria-label="D-pad down"
           onClick={click}
-          onLostPointerCapture={stopRepeat}
-          onPointerCancel={stopRepeat}
+          onLostPointerCapture={finishPointer}
+          onPointerCancel={finishPointer}
           onPointerDown={startRepeat}
-          onPointerUp={stopRepeat}
+          onPointerUp={finishPointer}
           onTouchCancel={stopTouchPropagation}
           onTouchEnd={stopTouchPropagation}
           onTouchMove={stopTouchPropagation}

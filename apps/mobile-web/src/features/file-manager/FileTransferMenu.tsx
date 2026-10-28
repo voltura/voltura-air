@@ -47,15 +47,33 @@ export function FileTransferMenu({
   const supportsDownload = supportsDeviceFileStorage();
   const canDownload = supportsDownload && target.entry?.kind === "file";
   const busy = transfer.presentation.active || transfer.presentation.readyToSave;
+  const destinationKey = JSON.stringify([
+    activePc.id,
+    clientId,
+    target.sessionId,
+    target.panel,
+    target.revision,
+  ]);
+  const pickerDestinationRef = useRef(destinationKey);
   const uploadSelectedFile = (input: HTMLInputElement) => {
     const file = input.files?.[0];
     input.value = "";
     setOpen(false);
     if (file) {
+      if (!enabled || !canModify || busy || pickerDestinationRef.current !== destinationKey) {
+        onTransferNotice?.(
+          "The destination or file permissions changed. Choose the file again.",
+          "error",
+        );
+        return;
+      }
       setReplacementName(file.name);
       transfer.startUpload(target, file);
     }
   };
+  if (!enabled && open) {
+    setOpen(false);
+  }
   useEffect(() => {
     onPresentationChange?.(busy);
     return () => onPresentationChange?.(false);
@@ -73,7 +91,19 @@ export function FileTransferMenu({
       }
     };
     document.addEventListener("pointerdown", closeOutside);
-    return () => document.removeEventListener("pointerdown", closeOutside);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, [open]);
   return (
     <>
@@ -83,6 +113,7 @@ export function FileTransferMenu({
         aria-label="Transfer"
         title="Transfer"
         data-file-menu-trigger
+        disabled={!enabled}
         onClick={() => setOpen((value) => !value)}
       >
         <ArrowRightLeft />
@@ -98,7 +129,7 @@ export function FileTransferMenu({
           {supportsDownload && (
             <button
               role="menuitem"
-              disabled={!canDownload || busy}
+              disabled={!enabled || !canDownload || busy}
               onClick={() => {
                 setOpen(false);
                 transfer.startDownload(target);
@@ -110,9 +141,10 @@ export function FileTransferMenu({
           )}
           <button
             role="menuitem"
-            disabled={!canModify || busy}
+            disabled={!enabled || !canModify || busy}
             onClick={() => {
               setOpen(false);
+              pickerDestinationRef.current = destinationKey;
               inputRef.current?.click();
             }}
           >
@@ -121,9 +153,10 @@ export function FileTransferMenu({
           </button>
           <button
             role="menuitem"
-            disabled={!canModify || busy}
+            disabled={!enabled || !canModify || busy}
             onClick={() => {
               setOpen(false);
+              pickerDestinationRef.current = destinationKey;
               photoInputRef.current?.click();
             }}
           >

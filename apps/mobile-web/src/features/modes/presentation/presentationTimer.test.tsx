@@ -12,6 +12,31 @@ describe("usePresentationTimer", () => {
     vi.useRealTimers();
   });
 
+  it("keeps presenting, slide, and break durations stable across wall-clock changes", () => {
+    const { result } = renderHook(() => usePresentationTimer());
+    act(() => result.current.startSlideshow("powerpoint"));
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    vi.setSystemTime(new Date("2026-07-23T07:00:01.000Z"));
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(result.current.elapsedSeconds).toBe(2);
+    act(() => result.current.pause());
+    vi.setSystemTime(new Date("2026-07-23T10:00:02.000Z"));
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(result.current.breakElapsedSeconds).toBe(3);
+    expect(result.current.slides[0]?.elapsedSeconds).toBe(2);
+    act(() => result.current.start("powerpoint"));
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(result.current.elapsedSeconds).toBe(3);
+  });
+
   it("accumulates revisited slide time and keeps the current session slide range", () => {
     const { result } = renderHook(() => usePresentationTimer());
 

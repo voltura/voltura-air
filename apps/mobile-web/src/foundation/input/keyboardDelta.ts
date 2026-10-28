@@ -4,31 +4,41 @@ type KeyboardInputMessage = KeyboardSpecialMessage | KeyboardTextMessage;
 
 export const liveKeyboardSentinel = "\u2060";
 
-export function getKeyboardDeltaMessages(previous: string, next: string): KeyboardInputMessage[] {
+export function getKeyboardDeltaMessages(
+  previous: string,
+  next: string,
+  caretAtEnd = true,
+): KeyboardInputMessage[] {
   if (previous === next) {
     return [];
   }
 
+  const previousPoints = Array.from(previous);
+  const nextPoints = Array.from(next);
   let prefixLength = 0;
   while (
-    prefixLength < previous.length &&
-    prefixLength < next.length &&
-    previous[prefixLength] === next[prefixLength]
+    prefixLength < previousPoints.length &&
+    prefixLength < nextPoints.length &&
+    previousPoints[prefixLength] === nextPoints[prefixLength]
   ) {
     prefixLength += 1;
   }
 
   let suffixLength = 0;
-  while (
-    suffixLength < previous.length - prefixLength &&
-    suffixLength < next.length - prefixLength &&
-    previous[previous.length - 1 - suffixLength] === next[next.length - 1 - suffixLength]
-  ) {
-    suffixLength += 1;
+  if (!caretAtEnd) {
+    while (
+      suffixLength < previousPoints.length - prefixLength &&
+      suffixLength < nextPoints.length - prefixLength &&
+      previousPoints[previousPoints.length - 1 - suffixLength] ===
+        nextPoints[nextPoints.length - 1 - suffixLength]
+    ) {
+      suffixLength += 1;
+    }
   }
-
-  const removedCount = previous.length - prefixLength - suffixLength;
-  const insertedText = next.slice(prefixLength, next.length - suffixLength);
+  // At the end, replace the complete tail so autocorrect preserves its suffix.
+  // After explicit navigation, leave the text beyond the remote caret alone.
+  const removedCount = previousPoints.length - prefixLength - suffixLength;
+  const insertedText = nextPoints.slice(prefixLength, nextPoints.length - suffixLength).join("");
   const messages: KeyboardInputMessage[] = [];
 
   for (let index = 0; index < removedCount; index += 1) {

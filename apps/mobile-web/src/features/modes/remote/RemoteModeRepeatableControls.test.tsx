@@ -2,6 +2,7 @@ import { act, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultRemoteSettings } from "../../../foundation/settings/remoteSettings";
 import { renderRemote } from "./remoteModeTestUtils";
+import { RemoteMode } from "./RemoteMode";
 
 const repeatStartDelayMs = 400;
 const repeatIntervalMs = 55;
@@ -12,6 +13,60 @@ describe("RemoteMode repeatable controls", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("keeps a newer held shortcut repeating when the old pointer releases", () => {
+    const sendSpecial = vi.fn();
+    renderRemote({ sendSpecial });
+    const first = screen.getByRole("button", { name: "Volume up" });
+    const second = screen.getByRole("button", { name: "Volume down" });
+    fireEvent.pointerDown(first, { button: 0, pointerId: 1 });
+    fireEvent.pointerDown(second, { button: 0, pointerId: 2 });
+    fireEvent.pointerUp(first, { pointerId: 1 });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    expect(sendSpecial).toHaveBeenCalledTimes(3);
+    expect(sendSpecial.mock.lastCall?.[0]).toBe("VolumeDown");
+  });
+
+  it("stops a held shortcut when the page leaves", () => {
+    const sendSpecial = vi.fn();
+    renderRemote({ sendSpecial });
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Volume up" }), {
+      button: 0,
+      pointerId: 1,
+    });
+    fireEvent(window, new Event("pagehide"));
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(sendSpecial).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["disconnect", "mode"])("cancels a held shortcut on %s", (boundary) => {
+    const sendSpecial = vi.fn();
+    const view = renderRemote({ sendSpecial });
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Volume up" }), {
+      button: 0,
+      pointerId: 1,
+    });
+    view.rerender(
+      <RemoteMode
+        {...view}
+        isConnected={boundary !== "disconnect"}
+        remoteSettings={
+          boundary === "mode"
+            ? { ...defaultRemoteSettings, mode: "youtube" }
+            : defaultRemoteSettings
+        }
+      />,
+    );
+    const count = sendSpecial.mock.calls.length;
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(sendSpecial).toHaveBeenCalledTimes(count);
   });
 
   it.each([

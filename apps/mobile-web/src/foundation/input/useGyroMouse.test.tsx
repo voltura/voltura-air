@@ -3,12 +3,73 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useGyroMouse } from "./useGyroMouse";
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
 });
 
 describe("useGyroMouse lifecycle", () => {
+  it("cancels a pending Gyro activation when the page leaves while visible", async () => {
+    let resolve!: (value: boolean) => void;
+    const activationRequest = {
+      id: 100,
+      permission: new Promise<boolean>((done) => {
+        resolve = done;
+      }),
+    };
+    const { result } = renderHook(() =>
+      useGyroMouse({
+        activationRequest,
+        connected: true,
+        enabledSurface: true,
+        onMove: vi.fn(),
+        onSelectedChange: vi.fn(),
+        onStop: vi.fn(),
+        sensitivity: 100,
+        sessionKey: 1,
+      }),
+    );
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    await act(async () => {
+      resolve(true);
+      await activationRequest.permission;
+    });
+    expect(result.current.selected).toBe(false);
+  });
+
+  it("preserves permission-denied guidance without allocating sensor timers or a wake lock", async () => {
+    vi.useFakeTimers();
+    const request = vi.fn(() => Promise.resolve({ release: vi.fn(() => Promise.resolve()) }));
+    vi.stubGlobal("navigator", { wakeLock: { request } });
+    vi.stubGlobal("isSecureContext", true);
+    const listener = vi.spyOn(window, "addEventListener");
+    const activationRequest = { id: 10, permission: Promise.resolve(false) };
+    const { result } = renderHook(() =>
+      useGyroMouse({
+        activationRequest,
+        connected: true,
+        enabledSurface: true,
+        onMove: vi.fn(),
+        onSelectedChange: vi.fn(),
+        onStop: vi.fn(),
+        sensitivity: 100,
+        sessionKey: 1,
+      }),
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.availability).toBe("denied");
+    act(() => {
+      vi.advanceTimersByTime(2_000);
+    });
+    expect(result.current.availability).toBe("denied");
+    expect(listener.mock.calls.some(([type]) => type === "devicemotion")).toBe(false);
+    expect(request).not.toHaveBeenCalled();
+  });
   it("does not turn Gyro off for a benign mobile window blur", async () => {
     let resolvePermission: ((granted: boolean) => void) | null = null;
     const permission = new Promise<boolean>((resolve) => {

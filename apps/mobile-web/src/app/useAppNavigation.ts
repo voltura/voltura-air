@@ -109,6 +109,7 @@ export function useAppNavigation({
     source: "tabs" | "selector" | "settings" | "menu" = "tabs",
   ) => {
     if (tab === nextTab) {
+      setRequestedTab(nextTab);
       if (source !== "settings" && source !== "menu") {
         setAreModeTabsCollapsed(source === "tabs");
         if (source === "tabs") {
@@ -149,6 +150,7 @@ export function useAppNavigation({
   const closeTransientSurfaces = () => {
     setModeSelectorAnchor(null);
     setIsSettingsOpen(false);
+    setIsRemoteUtilityPanelOpen(false);
   };
 
   const shouldShowSplitMode =

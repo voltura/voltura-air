@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AppsPreviewOfferMessage } from "../../foundation/protocol/messages";
+import type { AppsPreviewOfferMessage, ClientMessage } from "../../foundation/protocol/messages";
 import { useAppsPreviews } from "./useAppsPreviews";
 
 vi.mock("../../foundation/connection/pairingCredentials", () => ({
@@ -37,6 +37,51 @@ describe("Apps preview lifetime", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("cancels retired-image timers and revokes both image generations when closed", async () => {
+    vi.useFakeTimers();
+    const createObjectURL = vi
+      .fn()
+      .mockReturnValueOnce("blob:first")
+      .mockReturnValueOnce("blob:second");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+    const { result, unmount } = setup(true);
+    await act(() => result.current.acceptPreviewOffer(offer));
+    const channel = new PreviewChannel();
+    act(() => {
+      peers[0]!.deliver(channel);
+      channel.dispatchEvent(new Event("open"));
+    });
+    const windowId = "33333333333333333333333333333333";
+    const header = new Uint8Array(43);
+    header[0] = 0x12;
+    header.set(new TextEncoder().encode(windowId), 1);
+    header[33] = 1;
+    const view = new DataView(header.buffer);
+    view.setUint16(34, 2);
+    view.setUint16(36, 2);
+    view.setUint32(38, 1);
+    header[42] = 1;
+    const data = new Uint8Array(38);
+    data[0] = 0x13;
+    data.set(new TextEncoder().encode(windowId), 1);
+    data[37] = 1;
+    const deliver = () => {
+      channel.dispatchEvent(new MessageEvent("message", { data: header.buffer }));
+      channel.dispatchEvent(new MessageEvent("message", { data: data.buffer }));
+    };
+    act(deliver);
+    act(() => result.current.refreshPreview(windowId));
+    act(deliver);
+    expect(createObjectURL).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(1);
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:first");
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:second");
   });
 
   it("does not create a peer for an offer delivered while hidden", async () => {
@@ -45,6 +90,42 @@ describe("Apps preview lifetime", () => {
     await act(() => result.current.acceptPreviewOffer(offer));
     expect(peers).toHaveLength(0);
     expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: "apps.preview.answer" }));
+  });
+
+  it("ignores an answer failure from a replaced preview", async () => {
+    const { result, send } = setup();
+    await act(() => result.current.acceptPreviewOffer(offer));
+    const firstAnswer = send.mock.calls.find(
+      ([message]) => message.type === "apps.preview.answer",
+    )?.[0] as { operationId: string };
+    const replacementId = "22222222222222222222222222222222";
+    await act(() => result.current.acceptPreviewOffer({ ...offer, previewId: replacementId }));
+    act(() => {
+      expect(
+        result.current.completePreviewAnswer({
+          type: "apps.preview.answer.result",
+          operationId: firstAnswer.operationId,
+          succeeded: false,
+          message: "old failure",
+        }),
+      ).toBe(false);
+    });
+    expect(result.current.ownsPreview(replacementId)).toBe(true);
+    expect(peers[1]!.close).not.toHaveBeenCalled();
+    const currentAnswer = send.mock.calls
+      .filter(([message]) => message.type === "apps.preview.answer")
+      .at(-1)?.[0] as { operationId: string };
+    act(() => {
+      expect(
+        result.current.completePreviewAnswer({
+          type: "apps.preview.answer.result",
+          operationId: currentAnswer.operationId,
+          succeeded: false,
+          message: "current failure",
+        }),
+      ).toBe(true);
+    });
+    expect(peers[1]!.close).toHaveBeenCalledOnce();
   });
 
   it("closes a late data channel after the preview has been stopped", async () => {
@@ -105,8 +186,8 @@ describe("Apps preview lifetime", () => {
   });
 });
 
-function setup() {
-  const send = vi.fn();
+function setup(withWindow = false) {
+  const send = vi.fn<(message: ClientMessage) => void>();
   const setMessage = vi.fn();
   return {
     send,
@@ -123,12 +204,24 @@ function setup() {
           capability: { enabled: true, permissionGranted: true, canUse: true, previewAvailable },
           clientId: "client",
           isListOperationPending: () => false,
-          revision: null,
+          revision: withWindow ? "44444444444444444444444444444444" : null,
           selectedIndex: 0,
           send,
           setMessage,
           state: "paired",
-          windows: [],
+          windows: withWindow
+            ? [
+                {
+                  windowId: "33333333333333333333333333333333",
+                  title: "sample",
+                  applicationName: "sample",
+                  active: true,
+                  minimized: false,
+                  maximizeSupported: true,
+                  previewSupported: true,
+                },
+              ]
+            : [],
         }),
       { initialProps: { previewAvailable: true } },
     ),
@@ -138,6 +231,8 @@ function setup() {
 class PreviewChannel extends EventTarget {
   readonly label = "voltura-apps-preview";
   readonly close = vi.fn();
+  readonly readyState = "open";
+  readonly send = vi.fn();
 }
 
 class PreviewPeer extends EventTarget {

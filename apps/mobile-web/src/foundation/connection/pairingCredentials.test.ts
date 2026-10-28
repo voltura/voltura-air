@@ -80,6 +80,90 @@ class MockDataChannel extends EventTarget {
 }
 
 describe("revokePcPairing", () => {
+  it.each(["hello", "proof"])(
+    "cleans a direct revocation socket when %s sending throws",
+    async (stage) => {
+      localStorage.setItem(
+        "voltura-air.reconnect-key.client-a.pc-b",
+        createPairingKeyMaterial()!.privateKey,
+      );
+      const pending = revokePcPairing(
+        { customName: false, id: "pc-b", name: "PC B", url: "http://pc-b.local:51395" },
+        "client-a",
+        "Phone",
+        null,
+      );
+      const socket = MockWebSocket.instances[0]!;
+      socket.readyState = MockWebSocket.OPEN;
+      if (stage === "hello") {
+        socket.send.mockImplementationOnce(() => {
+          throw new Error("send failed");
+        });
+      }
+      socket.dispatch("open");
+      if (stage === "proof") {
+        socket.send.mockImplementationOnce(() => {
+          throw new Error("send failed");
+        });
+        socket.dispatch(
+          "message",
+          JSON.stringify({
+            type: "pair.challenge",
+            clientId: "client-a",
+            challenge: "c".repeat(43),
+          }),
+        );
+      }
+      await expect(pending).resolves.toBe(false);
+      expect(socket.close).toHaveBeenCalledOnce();
+    },
+  );
+  it.each(["hello", "proof"])(
+    "cleans Secure Direct revocation when %s sending throws",
+    async (stage) => {
+      const channel = new MockDataChannel(),
+        cleanup = vi.fn();
+      secureDirectMock.connect.mockResolvedValue({ channel, cleanup });
+      localStorage.setItem(
+        "voltura-air.reconnect-key.client-a.pc-b",
+        createPairingKeyMaterial()!.privateKey,
+      );
+      if (stage === "hello") {
+        channel.send.mockImplementationOnce(() => {
+          throw new Error("send failed");
+        });
+      }
+      const pending = revokePcPairing(
+        {
+          customName: false,
+          id: "pc-b",
+          name: "PC B",
+          url: "https://voltura.se/s/" + "r".repeat(22),
+          relayRouteId: "r".repeat(22),
+          hostIdentityFingerprint: "f".repeat(22),
+          transportMode: "secure-direct",
+        },
+        "client-a",
+        "Phone",
+        null,
+      );
+      if (stage === "proof") {
+        await vi.waitFor(() => expect(channel.send).toHaveBeenCalled());
+        channel.send.mockImplementationOnce(() => {
+          throw new Error("send failed");
+        });
+        channel.message(
+          JSON.stringify({
+            type: "pair.challenge",
+            clientId: "client-a",
+            challenge: "c".repeat(43),
+          }),
+        );
+      }
+      await expect(pending).resolves.toBe(false);
+      expect(cleanup).toHaveBeenCalledOnce();
+    },
+  );
   beforeEach(() => {
     MockWebSocket.instances = [];
     secureDirectMock.connect.mockReset();
@@ -104,6 +188,7 @@ describe("revokePcPairing", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.useRealTimers();
   });
 
@@ -295,7 +380,7 @@ describe("revokePcPairing", () => {
     expect(cleanup).toHaveBeenCalledOnce();
   });
 
-  it("completes relay key exchange before revoking an inactive pairing", async () => {
+  function beginRelayRevocation() {
     const hostIdentity = p256.keygen();
     const hostEphemeral = p256.keygen();
     const routeId = "r".repeat(22);
@@ -369,6 +454,79 @@ describe("revokePcPairing", () => {
       )
       .slice(1, 33);
     const hostChannel = RelayEncryptedChannel.createHostForConformance(shared, transcript);
+    return { revocation, socket, hostChannel };
+  }
+
+  it.each(["decrypt", "reply"])("cleans encrypted revocation when %s fails", async (boundary) => {
+    const { revocation, socket } = beginRelayRevocation();
+    const decrypt = vi.spyOn(RelayEncryptedChannel.prototype, "decryptText");
+    if (boundary === "decrypt") {
+      decrypt.mockRejectedValueOnce(new Error("Decryption failed"));
+    } else {
+      decrypt.mockResolvedValueOnce(
+        JSON.stringify({ type: "pair.challenge", clientId: "client-a", challenge: "c".repeat(43) }),
+      );
+      socket.send.mockImplementationOnce(() => {
+        throw new Error("Reply send failed");
+      });
+    }
+    socket.dispatch("message", new ArrayBuffer(26));
+    await expect(revocation).resolves.toBe(false);
+    expect(socket.close).toHaveBeenCalledOnce();
+  });
+
+  it("ignores delayed encrypted authentication after revocation has timed out", async () => {
+    vi.useFakeTimers();
+    const { revocation, socket } = beginRelayRevocation();
+    let finish!: (text: string) => void;
+    vi.spyOn(RelayEncryptedChannel.prototype, "decryptText").mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    socket.dispatch("message", new ArrayBuffer(26));
+    await vi.advanceTimersByTimeAsync(10_000);
+    await expect(revocation).resolves.toBe(false);
+    const count = socket.send.mock.calls.length;
+    finish(
+      JSON.stringify({ type: "pair.challenge", clientId: "client-a", challenge: "c".repeat(43) }),
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(socket.send).toHaveBeenCalledTimes(count);
+  });
+
+  it("does not send queued encrypted disconnect work after revocation ends", async () => {
+    vi.useFakeTimers();
+    const { revocation, socket } = beginRelayRevocation();
+    vi.spyOn(RelayEncryptedChannel.prototype, "decryptText").mockResolvedValueOnce(
+      JSON.stringify({ type: "pair.accepted", clientId: "client-a", pcName: "PC B", paired: true }),
+    );
+    let queued!: (data: ArrayBuffer) => void;
+    let finish!: () => void;
+    vi.spyOn(RelayEncryptedChannel.prototype, "send").mockImplementationOnce(
+      (rawSend) =>
+        new Promise((resolve) => {
+          queued = rawSend;
+          finish = resolve;
+        }),
+    );
+    socket.dispatch("message", new ArrayBuffer(26));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(queued).toBeDefined();
+    await vi.advanceTimersByTimeAsync(10_000);
+    await expect(revocation).resolves.toBe(false);
+    const count = socket.send.mock.calls.length;
+    expect(() => queued(new ArrayBuffer(26))).toThrow(DOMException);
+    finish();
+    await Promise.resolve();
+    expect(socket.send).toHaveBeenCalledTimes(count);
+  });
+
+  it("completes relay key exchange before revoking an inactive pairing", async () => {
+    const { revocation, socket, hostChannel } = beginRelayRevocation();
     let acceptedFrame: ArrayBuffer | null = null;
     await hostChannel.send(
       (frame) => {

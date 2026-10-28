@@ -148,6 +148,419 @@ function oversizedBlob(size: number): Blob {
 }
 
 describe("useScreenViewRecording", () => {
+  async function readyRecording() {
+    const source = sourceStream();
+    const hook = renderHook(() => useScreenViewRecording());
+    await act(async () => {
+      await hook.result.current.start(source.stream, false);
+    });
+    act(() => FakeMediaRecorder.instances.at(-1)!.emitData(new Blob(["chunk"])));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    act(() => hook.result.current.stop());
+    await waitFor(() => expect(hook.result.current.presentation.phase).toBe("ready"));
+    return { ...hook, source };
+  }
+  it.each(["write", "close", "commit"])(
+    "bounds a stalled final %s and rejects its late completion",
+    async (boundary) => {
+      vi.useFakeTimers();
+      let finish!: () => void;
+      if (boundary === "write") {
+        storage.writable.write.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finish = () => resolve();
+            }),
+        );
+      }
+      if (boundary === "close") {
+        storage.writable.close.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finish = () => resolve();
+            }),
+        );
+      }
+      if (boundary === "commit") {
+        storage.handle.getFile.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finish = () => resolve(new File(["chunk"], "recording.partial"));
+            }),
+        );
+      }
+      const source = sourceStream();
+      const hook = renderHook(() => useScreenViewRecording());
+      await act(async () => {
+        await hook.result.current.start(source.stream, false);
+      });
+      await act(async () => {
+        FakeMediaRecorder.instances.at(-1)!.emitData(new Blob(["chunk"]));
+        await Promise.resolve();
+      });
+      await act(async () => {
+        hook.result.current.stop();
+        await Promise.resolve();
+      });
+      await act(() => vi.advanceTimersByTimeAsync(15_000));
+      expect(hook.result.current.presentation.phase).toBe("error");
+      expect(source.video.clones[0]!.stop).toHaveBeenCalledOnce();
+      expect(storage.remove).toHaveBeenCalledOnce();
+      await act(async () => {
+        finish();
+        await Promise.resolve();
+      });
+      expect(hook.result.current.presentation.phase).toBe("error");
+    },
+  );
+  it.each(["close", "commit"])(
+    "contains %s failure together with abort and removal failure",
+    async (boundary) => {
+      if (boundary === "close") {
+        storage.writable.close.mockRejectedValueOnce(new Error("close failed"));
+      } else {
+        storage.handle.getFile.mockRejectedValueOnce(new Error("commit failed"));
+      }
+      storage.writable.abort.mockRejectedValueOnce(new Error("abort failed"));
+      storage.remove.mockRejectedValueOnce(new Error("remove failed"));
+      const source = sourceStream();
+      const hook = renderHook(() => useScreenViewRecording());
+      await act(async () => {
+        await hook.result.current.start(source.stream, false);
+      });
+      act(() => FakeMediaRecorder.instances.at(-1)!.emitData(new Blob(["chunk"])));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        hook.result.current.stop();
+        await Promise.resolve();
+      });
+      expect(hook.result.current.presentation.phase).toBe("error");
+      expect(storage.remove).toHaveBeenCalledOnce();
+      expect(source.video.clones[0]!.stop).toHaveBeenCalledOnce();
+      expect(source.video.stop).not.toHaveBeenCalled();
+    },
+  );
+  it("excludes delayed final storage commit time from the recorded duration", async () => {
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    let finish!: () => void;
+    storage.writable.close.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const hook = renderHook(() => useScreenViewRecording());
+    await act(async () => {
+      await hook.result.current.start(sourceStream().stream, false);
+    });
+    act(() => FakeMediaRecorder.instances.at(-1)!.emitData(new Blob(["chunk"])));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    now.mockReturnValue(2000);
+    act(() => hook.result.current.stop());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    now.mockReturnValue(6000);
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+    expect(hook.result.current.presentation.elapsedMs).toBe(1000);
+    now.mockRestore();
+  });
+  it("shows recording failure without waiting for a stalled abort", async () => {
+    let finish!: () => void;
+    storage.writable.abort.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const hook = renderHook(() => useScreenViewRecording());
+    await act(async () => {
+      await hook.result.current.start(sourceStream().stream, false);
+    });
+    act(() => FakeMediaRecorder.instances.at(-1)!.emitError());
+    expect(hook.result.current.presentation.phase).toBe("error");
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+  });
+  it("unblocks recording controls without waiting for discard cleanup", async () => {
+    let finish!: () => void;
+    storage.writable.abort.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const hook = renderHook(() => useScreenViewRecording());
+    await act(async () => {
+      await hook.result.current.start(sourceStream().stream, false);
+    });
+    let pending!: Promise<void>;
+    act(() => {
+      pending = hook.result.current.discard();
+    });
+    expect(hook.result.current.busy).toBe(false);
+    await act(async () => {
+      finish();
+      await pending;
+    });
+  });
+  it("acknowledges a successful save before temporary-file cleanup finishes", async () => {
+    const hook = await readyRecording();
+    let finish!: () => void;
+    storage.remove.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = hook.result.current.saveReadyFile();
+      await Promise.resolve();
+    });
+    expect(hook.result.current.presentation.message).toBe("Download started.");
+    expect(hook.result.current.busy).toBe(false);
+    await act(async () => {
+      finish();
+      await pending;
+    });
+  });
+  it("does not let cancellation of preparation hide a newer preparation", async () => {
+    let first!: (value: typeof storage.prepared) => void,
+      second!: (value: typeof storage.prepared) => void;
+    storage.prepare
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            first = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            second = resolve;
+          }),
+      );
+    const hook = renderHook(() => useScreenViewRecording());
+    let a!: Promise<boolean>, b!: Promise<boolean>;
+    act(() => {
+      a = hook.result.current.start(sourceStream().stream, false);
+    });
+    await act(async () => {
+      hook.result.current.stop();
+      b = hook.result.current.start(sourceStream().stream, false);
+      await Promise.resolve();
+    });
+    expect(hook.result.current.presentation.phase).toBe("recording");
+    await act(async () => {
+      first(storage.prepared);
+      await a;
+      second(storage.prepared);
+      await b;
+    });
+  });
+  it("releases cloned capture before a delayed writable abort completes", async () => {
+    let finish!: () => void;
+    storage.writable.abort.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const source = sourceStream();
+    const hook = renderHook(() => useScreenViewRecording());
+    await act(async () => {
+      await hook.result.current.start(source.stream, false);
+    });
+    let pending!: Promise<void>;
+    act(() => {
+      pending = hook.result.current.discard();
+    });
+    expect(source.video.clones[0]!.stop).toHaveBeenCalledOnce();
+    await act(async () => {
+      finish();
+      await pending;
+    });
+  });
+  it("releases cloned capture while a final file close is stalled", async () => {
+    let finish!: () => void;
+    storage.writable.close.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const source = sourceStream();
+    const hook = renderHook(() => useScreenViewRecording());
+    await act(async () => {
+      await hook.result.current.start(source.stream, false);
+    });
+    act(() => FakeMediaRecorder.instances.at(-1)!.emitData(new Blob(["chunk"])));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    act(() => hook.result.current.stop());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(source.video.clones[0]!.stop).toHaveBeenCalledOnce();
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+  });
+  it.each(["discard", "error"])(
+    "does not let old %s cleanup reset a newer recording",
+    async (reason) => {
+      let finish!: () => void;
+      storage.remove.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const first = sourceStream();
+      const hook = renderHook(() => useScreenViewRecording());
+      await act(async () => {
+        await hook.result.current.start(first.stream, false);
+      });
+      let pending: Promise<void> | undefined;
+      act(() => {
+        if (reason === "discard") {
+          pending = hook.result.current.discard();
+        } else {
+          FakeMediaRecorder.instances.at(-1)!.emitError();
+        }
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      const next = sourceStream();
+      await act(async () => {
+        await hook.result.current.start(next.stream, false);
+      });
+      await act(async () => {
+        finish();
+        await pending;
+      });
+      expect(hook.result.current.presentation.phase).toBe("recording");
+      expect(FakeMediaRecorder.instances.at(-1)!.state).toBe("recording");
+    },
+  );
+  it.each(["video", "audio"])(
+    "rejects a cloned %s track that ends during storage preparation",
+    async (kind) => {
+      let prepare!: (value: typeof storage.prepared) => void;
+      storage.prepare.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            prepare = resolve;
+          }),
+      );
+      const source = sourceStream(true);
+      const hook = renderHook(() => useScreenViewRecording());
+      let pending!: Promise<boolean>;
+      act(() => {
+        pending = hook.result.current.start(source.stream, true);
+      });
+      source[kind === "video" ? "video" : "audio"].clones[0]!.end();
+      await act(async () => {
+        prepare(storage.prepared);
+        expect(await pending).toBe(false);
+      });
+      expect(FakeMediaRecorder.instances).toHaveLength(0);
+      expect(storage.writable.abort).toHaveBeenCalledOnce();
+      expect(storage.remove).toHaveBeenCalledOnce();
+    },
+  );
+  it("does not open two native share dialogs for one ready recording", async () => {
+    let finish!: (value: "shared") => void;
+    storage.save.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const hook = await readyRecording();
+    let first!: Promise<void>;
+    act(() => {
+      first = hook.result.current.saveReadyFile();
+      void hook.result.current.saveReadyFile();
+    });
+    expect(storage.save).toHaveBeenCalledOnce();
+    await act(async () => {
+      finish("shared");
+      await first;
+    });
+  });
+  it.each(["success", "failure"])(
+    "ignores stale share %s after discarding and starting again",
+    async (outcome) => {
+      let resolve!: (value: "shared") => void;
+      let reject!: (reason: Error) => void;
+      storage.save.mockImplementationOnce(
+        () =>
+          new Promise((done, fail) => {
+            resolve = done;
+            reject = fail;
+          }),
+      );
+      const hook = await readyRecording();
+      let pending!: Promise<void>;
+      act(() => {
+        pending = hook.result.current.saveReadyFile();
+      });
+      await act(() => hook.result.current.discard());
+      await act(async () => {
+        await hook.result.current.start(sourceStream().stream, false);
+      });
+      await act(async () => {
+        if (outcome === "success") {
+          resolve("shared");
+        } else {
+          reject(new Error("share failed"));
+        }
+        await pending;
+      });
+      expect(hook.result.current.presentation.phase).toBe("recording");
+      expect(hook.result.current.presentation.message).not.toContain("could not be saved");
+      expect(await hook.result.current.start(sourceStream().stream, false)).toBe(false);
+    },
+  );
+  it("retires recording UI on pagehide so a restored page can record again", async () => {
+    const hook = renderHook(() => useScreenViewRecording());
+    await act(async () => {
+      await hook.result.current.start(sourceStream().stream, false);
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event("pagehide"));
+      await Promise.resolve();
+    });
+    expect(hook.result.current.busy).toBe(false);
+  });
+  it("bounds a recorder stop that never emits its stop event", async () => {
+    vi.useFakeTimers();
+    const hook = renderHook(() => useScreenViewRecording());
+    await act(async () => {
+      await hook.result.current.start(sourceStream().stream, false);
+    });
+    FakeMediaRecorder.instances.at(-1)!.stop.mockImplementation(() => undefined);
+    act(() => hook.result.current.stop());
+    await act(() => vi.advanceTimersByTimeAsync(15_000));
+    expect(hook.result.current.presentation.phase).toBe("error");
+    expect(storage.remove).toHaveBeenCalledOnce();
+  });
   beforeEach(() => {
     storage.parts.length = 0;
     storage.prepare.mockReset().mockResolvedValue(storage.prepared);

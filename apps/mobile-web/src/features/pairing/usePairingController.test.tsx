@@ -61,6 +61,81 @@ describe("usePairingController", () => {
     vi.restoreAllMocks();
   });
 
+  it.each(["host", "pairing"] as const)(
+    "does not replace a newer manual %s target with an older photo result",
+    async (kind) => {
+      const decoding = deferred<string>();
+      vi.mocked(decodePairingQrImage).mockReturnValue(decoding.promise);
+      const { result } = renderHook(() => usePairingController(createOptions()));
+      let scan!: Promise<void>;
+      act(() => {
+        scan = result.current.onPairingQrSelected(qrSelection());
+      });
+      act(() => {
+        result.current.connectManualHost(
+          kind === "host"
+            ? { kind, pcUrl: "http://manual.local:51395" }
+            : { kind, pcUrl: "http://manual.local:51395", pairToken: secondPairToken },
+        );
+      });
+      await act(async () => {
+        decoding.resolve(pairingUrl(pairToken, "http://old.local:51395"));
+        await scan;
+      });
+      expect(result.current.pendingPairing).toEqual(
+        kind === "host" ? null : { pairToken: secondPairToken, pcUrl: "http://manual.local:51395" },
+      );
+      expect(result.current.isPairingQrReading).toBe(false);
+    },
+  );
+  it("retires a live scan when a manual host is selected", () => {
+    vi.mocked(canUseLivePairingQrScanner).mockReturnValue(true);
+    const { result } = renderHook(() => usePairingController(createOptions()));
+    act(() => result.current.scanPairingQr());
+    const attempt = result.current.livePairingScannerAttempt!;
+    act(() =>
+      result.current.connectManualHost({ kind: "host", pcUrl: "http://manual.local:51395" }),
+    );
+    let accepted = true;
+    act(() => {
+      accepted = result.current.acceptLivePairingQr(
+        attempt,
+        pairingUrl(pairToken, "http://old.local:51395"),
+      );
+    });
+    expect(accepted).toBe(false);
+    expect(result.current.livePairingScannerAttempt).toBeNull();
+  });
+  it("does not let a canceled empty selection strand an in-flight photo decode", async () => {
+    const decoding = deferred<string>();
+    vi.mocked(decodePairingQrImage).mockReturnValue(decoding.promise);
+    const { result } = renderHook(() => usePairingController(createOptions()));
+    let scan!: Promise<void>;
+    act(() => {
+      scan = result.current.onPairingQrSelected(qrSelection());
+    });
+    await act(async () => {
+      await result.current.onPairingQrSelected({
+        target: { files: [], value: "" },
+      } as unknown as ChangeEvent<HTMLInputElement>);
+    });
+    await act(async () => {
+      decoding.resolve(pairingUrl(pairToken, "http://pc.local:51395"));
+      await scan;
+    });
+    expect(result.current.isPairingQrReading).toBe(false);
+    expect(result.current.pendingPairing?.pairToken).toBe(pairToken);
+  });
+  it("does not log decoder exceptions or image metadata that may contain pairing material", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.mocked(decodePairingQrImage).mockRejectedValue(new Error(`decoder input ${pairToken}`));
+    const { result } = renderHook(() => usePairingController(createOptions()));
+    await act(async () => {
+      await result.current.onPairingQrSelected(qrSelection());
+    });
+    expect(error).toHaveBeenCalledExactlyOnceWith("QR image could not be read.");
+  });
+
   it("uses the detected device default as an empty field placeholder", () => {
     const options = { ...createOptions(), deviceName: "Mobile device" };
     const { result } = renderHook(() => usePairingController(options));

@@ -35,6 +35,9 @@ export function AccentColorPickerDialog({
 
   const pickSurface = (element: HTMLElement, clientX: number, clientY: number) => {
     const bounds = element.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      return;
+    }
     updateFromHsv({
       hue: hsv.hue,
       saturation: clamp((clientX - bounds.left) / bounds.width, 0, 1),
@@ -113,17 +116,28 @@ export function AccentColorPickerDialog({
           }
         }}
         onPointerDown={(event) => {
-          event.currentTarget.setPointerCapture(event.pointerId);
+          if (event.button !== 0 || event.isPrimary === false) {
+            return;
+          }
+          try {
+            event.currentTarget.setPointerCapture?.(event.pointerId);
+          } catch {
+            // A browser can retire the pointer before capture is assigned.
+          }
           pickSurface(event.currentTarget, event.clientX, event.clientY);
         }}
         onPointerMove={(event) => {
-          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
             pickSurface(event.currentTarget, event.clientX, event.clientY);
           }
         }}
-        onPointerUp={(event) => event.currentTarget.releasePointerCapture(event.pointerId)}
+        onPointerUp={(event) => {
+          if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }
+        }}
         onPointerCancel={(event) => {
-          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
             event.currentTarget.releasePointerCapture(event.pointerId);
           }
         }}

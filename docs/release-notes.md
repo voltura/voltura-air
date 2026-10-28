@@ -6,6 +6,16 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.4.6
+
+- Windows now checks for updates at startup after connected devices disconnect, with clearer checking and download status. Installing a staged update remains an explicit action.
+- Improved connection, QR pairing, and reconnect reliability, including cancellation and cleanup when switching PCs or forgetting a pairing. Failed Forget PC requests now preserve saved settings.
+- Fixed delayed or repeated keyboard, trackpad, Remote, and Custom screen actions after gestures are canceled, controls change, or the app leaves the foreground.
+- Improved Screen View display switching, Sound, full-screen transitions, and recording cleanup. Older playback or recording work no longer overrides newer choices.
+- Fixed interrupted file transfers, duplicate completion handling, and stale clipboard, text, and AI Assistant results affecting a newer interaction.
+- Improved Apps previews, Phone webcam camera and microphone changes, Terminal gestures, and Presentation controls and timing.
+- Fixed nested dialog dismissal, focus restoration, compact mode-menu keyboard navigation, and diagnostics copying.
+
 ## v1.4.5
 
 - Both Windows installers now carry a timestamped Voltura AB publisher signature. Windows may still show SmartScreen or unknown-publisher warnings because the certificate is self-signed.

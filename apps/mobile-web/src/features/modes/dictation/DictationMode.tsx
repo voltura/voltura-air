@@ -1,6 +1,7 @@
 import { Mic, Power, RotateCcw, Send } from "lucide-react";
 
 interface DictationModeProps {
+  connected?: boolean;
   canUseSpeech: boolean;
   dictationText: string;
   isListening: boolean;
@@ -14,6 +15,7 @@ interface DictationModeProps {
 }
 
 export function DictationMode({
+  connected = true,
   canUseSpeech,
   dictationText,
   isListening,
@@ -27,6 +29,9 @@ export function DictationMode({
 }: DictationModeProps) {
   const speechActive = isListening || isStarting;
   const sendDictationText = () => {
+    if (!connected || !dictationText) {
+      return;
+    }
     sendText(dictationText);
     setDictationText("");
   };
@@ -88,6 +93,7 @@ export function DictationMode({
           <button
             type="button"
             className="dictation-listen-button"
+            disabled={!connected && !speechActive}
             onClick={speechActive ? stopSpeech : startSpeech}
             aria-pressed={speechActive}
           >
@@ -95,7 +101,12 @@ export function DictationMode({
             <span>{speechActive ? "Pause" : "Listen"}</span>
           </button>
         )}
-        <button type="button" className="dictation-send-button" onClick={sendDictationText}>
+        <button
+          type="button"
+          className="dictation-send-button"
+          disabled={!connected || !dictationText}
+          onClick={sendDictationText}
+        >
           <Send aria-hidden="true" />
           <span>Send</span>
         </button>

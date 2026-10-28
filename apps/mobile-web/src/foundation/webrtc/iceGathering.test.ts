@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { IceGatheringTimeoutError, waitForIceGathering } from "./iceGathering";
 
 class GatheringPeer extends EventTarget {
+  connectionState: RTCPeerConnectionState = "new";
   iceGatheringState: RTCIceGatheringState = "gathering";
   localDescription = { type: "answer", sdp: "v=0\r\n" };
 
@@ -28,6 +29,26 @@ class GatheringPeer extends EventTarget {
 afterEach(() => vi.useRealTimers());
 
 describe("complete ICE answer snapshot", () => {
+  it.each(["closed", "failed"] as const)(
+    "retires candidate gathering immediately when the connection is %s",
+    async (state) => {
+      vi.useFakeTimers();
+      const peer = new GatheringPeer();
+      const remove = vi.spyOn(peer, "removeEventListener");
+      let failed = false;
+      const waiting = peer.wait().catch(() => {
+        failed = true;
+      });
+      peer.connectionState = state;
+      peer.dispatchEvent(new Event("connectionstatechange"));
+      await Promise.resolve();
+      expect(failed).toBe(true);
+      await waiting;
+      expect(vi.getTimerCount()).toBe(0);
+      expect(remove).toHaveBeenCalledWith("icegatheringstatechange", expect.any(Function));
+    },
+  );
+
   it("includes a later TURN candidate instead of signing an incomplete answer after 350ms", async () => {
     vi.useFakeTimers();
     const peer = new GatheringPeer();

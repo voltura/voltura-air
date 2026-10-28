@@ -12,6 +12,7 @@ interface PostedRequest {
 class FakeWorker {
   static instances: FakeWorker[] = [];
   onerror: ((event: Event) => void) | null = null;
+  onmessageerror: ((event: Event) => void) | null = null;
   onmessage: ((event: MessageEvent<{ id: number; data?: string }>) => void) | null = null;
   posted: PostedRequest[] = [];
   responses: (string | null)[] = [];
@@ -82,6 +83,35 @@ describe("QR decoder worker boundary", () => {
 
     await expect(pending).rejects.toThrow("QR decoder was cancelled.");
   });
+
+  it("clears the pending slot after a synchronous postMessage failure", async () => {
+    const session = createQrDecoderSession();
+    const worker = FakeWorker.instances[0]!;
+    const post = vi.spyOn(worker, "postMessage").mockImplementationOnce(() => {
+      throw new DOMException("clone failed", "DataCloneError");
+    });
+    const image = { data: new Uint8ClampedArray(4), height: 1, width: 1 } as ImageData;
+    await expect(session.decode(image)).rejects.toThrow("QR decoder request failed.");
+    worker.responses.push("retry-result");
+    await expect(session.decode(image)).resolves.toBe("retry-result");
+    expect(post).toHaveBeenCalledTimes(2);
+    session.dispose();
+  });
+
+  it.each(["onerror", "onmessageerror"] as const)(
+    "terminates a failed worker and rejects future work after %s",
+    async (eventName) => {
+      const session = createQrDecoderSession();
+      const worker = FakeWorker.instances[0]!;
+      const image = { data: new Uint8ClampedArray(4), height: 1, width: 1 } as ImageData;
+      const pending = session.decode(image);
+      worker[eventName]?.(new Event("error"));
+      await expect(pending).rejects.toThrow("QR decoder worker failed.");
+      await expect(session.decode(image)).rejects.toThrow("QR decoder is disposed.");
+      expect(worker.terminated).toBe(true);
+      session.dispose();
+    },
+  );
 
   it("preserves normal, center-crop, and inverted photo attempts through one worker", async () => {
     const createObjectUrl = vi.fn(() => "blob:qr");

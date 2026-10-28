@@ -9,7 +9,12 @@ import type {
 import { deviceNameKey, normalizeDeviceNameInput } from "./clientIdentity";
 import { getDisplayPcName, normalizePointerSpeed } from "./connectionProtocol";
 import type { ConnectionError, ConnectionState, PairingAttempt } from "./connectionTypes";
-import { clearStoredReconnectKey } from "./pairingCredentials";
+import { captureReconnectKeyOwnership, clearStoredReconnectKey } from "./pairingCredentials";
+import {
+  clearAppSettings,
+  clearRemoteSettings,
+  clearTrackpadSettings,
+} from "../settings/appStorage";
 import type { RelayEncryptedSend } from "./relaySessionCrypto";
 import type { ControllerSocket } from "./controllerSocket";
 import { revokePcPairing } from "./relayPairingRevocation";
@@ -194,6 +199,7 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
 
       const isActivePc = activePcId === pcId;
       const activeSocket = isActivePc ? socketRef.current : null;
+      const ownsReconnectKey = captureReconnectKeyOwnership(clientId, pcId);
       forgettingPcIdsRef.current.add(pcId);
       void revokePcPairing(
         pc,
@@ -204,11 +210,14 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
       )
         .then((revoked) => {
           forgettingPcIdsRef.current.delete(pcId);
-          if (!revoked) {
+          if (!revoked || !ownsReconnectKey()) {
             return;
           }
 
           clearStoredReconnectKey(clientId, pcId);
+          clearTrackpadSettings(clientId, pcId);
+          clearRemoteSettings(clientId, pcId);
+          clearAppSettings(clientId, pcId);
           setPairedPcs((current) => forgetPcProfile(current, activePcId, pcId).profiles);
           if (!isActivePc) {
             return;

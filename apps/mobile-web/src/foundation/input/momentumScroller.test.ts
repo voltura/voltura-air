@@ -2,6 +2,20 @@ import { describe, expect, it, vi } from "vitest";
 import { MomentumScroller } from "./momentumScroller";
 
 describe("MomentumScroller", () => {
+  it("does not create a second animation chain on a duplicate release", () => {
+    let now = 0;
+    const requestFrame = vi.fn(() => 1);
+    const cancelFrame = vi.fn();
+    const scroller = new MomentumScroller(vi.fn(), { now: () => now, requestFrame, cancelFrame });
+    scroller.begin();
+    now = 16;
+    scroller.move("vertical", 32);
+    scroller.end();
+    scroller.end();
+    expect(requestFrame).toHaveBeenCalledOnce();
+    scroller.stop();
+    expect(cancelFrame).toHaveBeenCalledExactlyOnceWith(1);
+  });
   it("coasts after a fast flick and stops immediately on the next touch", () => {
     let now = 0;
     let nextFrame = 1;

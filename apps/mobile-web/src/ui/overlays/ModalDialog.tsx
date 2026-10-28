@@ -100,6 +100,16 @@ export function ModalDialog({
 
   useEffect(() => {
     const dialog = dialogRef.current;
+    return () => {
+      if (dialog && !dialog.isConnected && invokingElementRef.current?.isConnected) {
+        invokingElementRef.current.focus({ preventScroll: true });
+        invokingElementRef.current = null;
+      }
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
     if (!isOpen || !dialog) {
       return;
     }
@@ -173,6 +183,9 @@ export function ModalDialog({
     }
 
     const dismissFromBackdrop = (event: MouseEvent) => {
+      if (event.target !== dialog) {
+        return;
+      }
       const bounds = dialog.getBoundingClientRect();
       const outsideSurface =
         event.clientX < bounds.left ||
@@ -183,18 +196,9 @@ export function ModalDialog({
         closeDialog();
       }
     };
-    const closeFromEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        closeDialog();
-      }
-    };
-
     dialog.addEventListener("click", dismissFromBackdrop);
-    dialog.addEventListener("keydown", closeFromEscape);
     return () => {
       dialog.removeEventListener("click", dismissFromBackdrop);
-      dialog.removeEventListener("keydown", closeFromEscape);
     };
   }, [closeDialog, isOpen]);
 
@@ -211,8 +215,20 @@ export function ModalDialog({
       aria-modal="true"
       tabIndex={-1}
       onCancel={(event) => {
+        if (event.target !== event.currentTarget) {
+          return;
+        }
         event.preventDefault();
         closeDialog();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.stopPropagation();
+          if (!event.defaultPrevented) {
+            event.preventDefault();
+            closeDialog();
+          }
+        }
       }}
       onClose={(event) => {
         if (event.target === event.currentTarget) {
@@ -238,6 +254,8 @@ export function ModalDialog({
           className={`modal-dialog-form${formClassName ? ` ${formClassName}` : ""}`}
           noValidate={noValidate}
           onSubmit={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
             if (onSubmit(event)) {
               closeDialog();
             }

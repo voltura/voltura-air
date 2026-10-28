@@ -8,6 +8,7 @@ interface DeveloperRefreshLongPressHandlers {
   className: string;
   onContextMenu: (event: MouseEvent<HTMLDivElement>) => void;
   onPointerCancel: (event: PointerEvent<HTMLDivElement>) => void;
+  onLostPointerCapture: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerMove: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerUp: (event: PointerEvent<HTMLDivElement>) => void;
@@ -87,10 +88,27 @@ export function useDeveloperRefreshLongPress(
 
   useEffect(() => cancel, [cancel, enabled]);
 
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        cancel();
+      }
+    };
+    window.addEventListener("blur", cancel);
+    window.addEventListener("pagehide", cancel);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("blur", cancel);
+      window.removeEventListener("pagehide", cancel);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [cancel]);
+
   return {
     className: enabled ? "developer-long-press-target" : "",
     onContextMenu,
     onPointerCancel: onPointerEnd,
+    onLostPointerCapture: onPointerEnd,
     onPointerDown,
     onPointerMove,
     onPointerUp: onPointerEnd,

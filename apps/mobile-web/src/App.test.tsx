@@ -1080,13 +1080,13 @@ describe("App header and mode navigation", () => {
     expect(within(menu).queryByRole("button", { name: "Phone webcam" })).toBeNull();
   });
 
-  it("leaves third-party notices through the compact mode selector", () => {
+  it("leaves third-party notices through the compact mode selector", async () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     const menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
     fireEvent.click(within(menu).getByRole("button", { name: "Third-party notices" }));
-    expect(screen.getByRole("heading", { name: "Third-party notices" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Third-party notices" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Change mode" }));
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Keyboard" }));

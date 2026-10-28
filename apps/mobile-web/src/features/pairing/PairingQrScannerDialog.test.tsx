@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createQrDecoderSession } from "../../foundation/pairing/qrCode";
 import { PairingQrScannerDialog } from "./PairingQrScannerDialog";
@@ -56,6 +56,33 @@ describe("PairingQrScannerDialog", () => {
     expect(canUseLivePairingQrScanner("https:", undefined as unknown as MediaDevices)).toBe(false);
   });
 
+  it("does not request the camera when opened while the document is already hidden", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    const getUserMedia = vi.fn();
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia },
+    });
+    const fallback = vi.fn();
+    render(<PairingQrScannerDialog attemptId={30} onAccept={vi.fn()} onFallback={fallback} />);
+    await waitFor(() => expect(fallback).toHaveBeenCalledOnce());
+    expect(getUserMedia).not.toHaveBeenCalled();
+  });
+
+  it("releases an already-ended camera track instead of waiting for frames forever", async () => {
+    const owned = fakeStream();
+    Object.defineProperty(owned.track, "readyState", { value: "ended" });
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: () => Promise.resolve(owned.stream) },
+    });
+    const fallback = vi.fn();
+    render(<PairingQrScannerDialog attemptId={31} onAccept={vi.fn()} onFallback={fallback} />);
+    await waitFor(() => expect(fallback).toHaveBeenCalledOnce());
+    expect(owned.track.stop).toHaveBeenCalledOnce();
+    expect(createQrDecoderSession).not.toHaveBeenCalled();
+  });
+
   it("requests only the preferred rear video camera and stops a late grant after unmount", async () => {
     const camera = deferred<MediaStream>();
     const getUserMedia = vi.fn(() => camera.promise);
@@ -97,6 +124,67 @@ describe("PairingQrScannerDialog", () => {
         false,
       );
     });
+  });
+
+  it("contains synchronous camera API failures and offers photo fallback", async () => {
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: () => {
+          throw new Error("camera unavailable");
+        },
+      },
+    });
+    const onFallback = vi.fn();
+    render(<PairingQrScannerDialog attemptId={20} onAccept={vi.fn()} onFallback={onFallback} />);
+    await waitFor(() => expect(onFallback).toHaveBeenCalledOnce());
+    expect(onFallback).toHaveBeenCalledWith(20, expect.stringContaining("Camera access"), false);
+  });
+
+  it("does not schedule decoding after a canceled video play resolves late", async () => {
+    const owned = fakeStream();
+    const playback = deferred<void>();
+    vi.mocked(HTMLMediaElement.prototype.play).mockReturnValue(playback.promise);
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: () => Promise.resolve(owned.stream) },
+    });
+    const view = render(
+      <PairingQrScannerDialog attemptId={21} onAccept={vi.fn()} onFallback={vi.fn()} />,
+    );
+    await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalledOnce());
+    view.unmount();
+    const timeout = vi.spyOn(window, "setTimeout");
+    await act(async () => {
+      playback.resolve();
+      await playback.promise;
+    });
+    expect(timeout).not.toHaveBeenCalled();
+    expect(owned.track.stop).toHaveBeenCalledOnce();
+  });
+
+  it("resets camera readiness and permission feedback for a replacement attempt", async () => {
+    const owned = fakeStream();
+    const nextCamera = deferred<MediaStream>();
+    const getUserMedia = vi
+      .fn()
+      .mockResolvedValueOnce(owned.stream)
+      .mockReturnValue(nextCamera.promise);
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia },
+    });
+    const view = render(
+      <PairingQrScannerDialog attemptId={22} onAccept={vi.fn()} onFallback={vi.fn()} />,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("status").textContent).toContain("Point the camera"),
+    );
+    view.rerender(
+      <PairingQrScannerDialog attemptId={23} onAccept={vi.fn()} onFallback={vi.fn()} />,
+    );
+    expect(screen.getByRole("status").textContent).toBe("Waiting for camera permission…");
+    expect(document.querySelector(".pairing-qr-waiting")).not.toBeNull();
   });
 
   it("decodes one centered frame at a time and releases the complete attempt after acceptance", async () => {

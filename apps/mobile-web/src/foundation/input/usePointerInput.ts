@@ -66,7 +66,24 @@ export function usePointerInput({
   useEffect(() => {
     sendRef.current = send;
     stateRef.current = state;
-  }, [send, state]);
+    if (state !== "paired") {
+      cancel();
+    }
+  }, [cancel, send, state]);
+
+  useEffect(() => {
+    const cancelWhenHidden = () => {
+      if (document.visibilityState === "hidden") {
+        cancel();
+      }
+    };
+    document.addEventListener("visibilitychange", cancelWhenHidden);
+    window.addEventListener("pagehide", cancel);
+    return () => {
+      document.removeEventListener("visibilitychange", cancelWhenHidden);
+      window.removeEventListener("pagehide", cancel);
+    };
+  }, [cancel]);
 
   useEffect(
     () => () => {

@@ -1,8 +1,3 @@
-import {
-  clearAppSettings,
-  clearRemoteSettings,
-  clearTrackpadSettings,
-} from "../../foundation/settings/appStorage";
 import type { AppSettings } from "../../foundation/settings/appSettings";
 import type { TrackpadSettings } from "../../foundation/input/gestures";
 import { triggerHapticFeedback } from "../../foundation/input/hapticFeedback";
@@ -27,7 +22,6 @@ interface SettingsActionOptions {
 }
 
 export function createSettingsActions({
-  clientId,
   effectiveTrackpadSettings,
   forgetPc,
   setHostPointerSpeed,
@@ -77,9 +71,6 @@ export function createSettingsActions({
   };
 
   const forgetPcAndSettings = (pcId: string) => {
-    clearTrackpadSettings(clientId, pcId);
-    clearRemoteSettings(clientId, pcId);
-    clearAppSettings(clientId, pcId);
     forgetPc(pcId);
   };
 

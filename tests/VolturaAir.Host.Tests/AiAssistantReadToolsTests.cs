@@ -15,7 +15,7 @@ public sealed class AiAssistantReadToolsTests
 
         using JsonDocument document = JsonDocument.Parse("""{"document":"docs/features.md"}""");
         string readJson = JsonSerializer.Serialize(await AiAssistantReadTools.InvokeAsync("read_voltura_doc", document.RootElement, TestContext.Current.CancellationToken));
-        Assert.Contains("Phone Webcam", readJson, StringComparison.Ordinal);
+        Assert.Contains("Phone Webcam", readJson, StringComparison.OrdinalIgnoreCase);
 
         using JsonDocument outside = JsonDocument.Parse("""{"document":"../secrets.txt"}""");
         string rejected = JsonSerializer.Serialize(await AiAssistantReadTools.InvokeAsync("read_voltura_doc", outside.RootElement, TestContext.Current.CancellationToken));

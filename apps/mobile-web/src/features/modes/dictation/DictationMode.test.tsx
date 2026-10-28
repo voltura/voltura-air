@@ -4,11 +4,13 @@ import { describe, expect, it, vi } from "vitest";
 import { DictationMode } from "./DictationMode";
 
 function DictationModeHarness({
+  connected = true,
   canUseSpeech = true,
   sendText = vi.fn(),
   isStarting = false,
   stopSpeech = vi.fn(),
 }: {
+  connected?: boolean;
   canUseSpeech?: boolean;
   sendText?: (text: string) => void;
   isStarting?: boolean;
@@ -18,6 +20,7 @@ function DictationModeHarness({
 
   return (
     <DictationMode
+      connected={connected}
       canUseSpeech={canUseSpeech}
       dictationText={dictationText}
       isListening={false}
@@ -32,6 +35,13 @@ function DictationModeHarness({
 }
 
 describe("DictationMode", () => {
+  it("preserves dictated text when Send is pressed while disconnected", () => {
+    const sendText = vi.fn();
+    render(<DictationModeHarness connected={false} sendText={sendText} />);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(sendText).not.toHaveBeenCalled();
+    expect(screen.getByRole<HTMLTextAreaElement>("textbox").value).toBe("Hello Windows");
+  });
   it("shows starting without claiming to listen and keeps Pause available", () => {
     const stopSpeech = vi.fn();
     render(<DictationModeHarness isStarting stopSpeech={stopSpeech} />);

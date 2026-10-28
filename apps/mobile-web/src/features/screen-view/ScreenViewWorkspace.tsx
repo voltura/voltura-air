@@ -129,6 +129,8 @@ export default function ScreenViewWorkspace({
 }: Props) {
   const [sources, setSources] = useState<ScreenViewSource[]>([]);
   const [selected, setSelected] = useState("");
+  const [sourcePending, setSourcePending] = useState(false);
+  const sourceResponseTimerRef = useRef<number | undefined>(undefined);
   const [status, setStatus] = useState(
     browserPreviewState
       ? "Live - Encrypted WebRTC"
@@ -146,6 +148,8 @@ export default function ScreenViewWorkspace({
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
   const [qualityText, setQualityText] = useState("");
   const [soundOn, setSoundOn] = useState(false);
+  const soundOnRef = useRef(false);
+  const soundRequestRef = useRef(0);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [audioAvailable, setAudioAvailable] = useState(browserPreviewState !== undefined);
   const [audioTrackReady, setAudioTrackReady] = useState(browserPreviewState !== undefined);
@@ -201,7 +205,9 @@ export default function ScreenViewWorkspace({
     inputContext: "screen-view",
   });
   const viewTransformRef = useRef(viewTransform);
-  const pinchRef = useRef<(ScreenViewPinchStart & { mode: "local" | "remote" }) | null>(null);
+  const pinchRef = useRef<
+    (ScreenViewPinchStart & { mode: "local" | "remote"; touchIds: number[] }) | null
+  >(null);
   const suppressPointerUntilClearRef = useRef(false);
   const directPointerActiveRef = useRef(browserPreviewState === "active");
   const heldDirectButtonsRef = useRef<Set<"left" | "right">>(new Set());
@@ -266,6 +272,7 @@ export default function ScreenViewWorkspace({
     releaseDirectButtons();
     directPointerActiveRef.current = false;
     pendingDirectMoveRef.current = null;
+    directWheelRemainderRef.current = { dx: 0, dy: 0 };
     window.cancelAnimationFrame(directMoveFrameRef.current ?? 0);
     directMoveFrameRef.current = undefined;
     window.clearTimeout(directGuidanceTimeoutRef.current);
@@ -398,6 +405,23 @@ export default function ScreenViewWorkspace({
   const sendDirectButtonEffect = useEffectEvent(sendDirectButton);
 
   useEffect(() => {
+    const release = () => disableDirectPointerEffect();
+    const hidden = () => {
+      if (document.visibilityState === "hidden") {
+        release();
+      }
+    };
+    window.addEventListener("blur", release);
+    window.addEventListener("pagehide", release);
+    document.addEventListener("visibilitychange", hidden);
+    return () => {
+      window.removeEventListener("blur", release);
+      window.removeEventListener("pagehide", release);
+      document.removeEventListener("visibilitychange", hidden);
+    };
+  }, []);
+
+  useEffect(() => {
     const stage = stageRef.current;
     if (!stage || typeof ResizeObserver === "undefined") {
       return;
@@ -431,6 +455,15 @@ export default function ScreenViewWorkspace({
       return;
     }
     const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest(
+          "input, select, [contenteditable], [role=dialog], textarea:not(.screen-view-keyboard-input)",
+        )
+      ) {
+        return;
+      }
       const message = screenKeyboardMessage(event);
       if (!message) {
         return;
@@ -489,6 +522,7 @@ export default function ScreenViewWorkspace({
       ...geometry,
       transform: viewTransformRef.current,
       mode: local ? "local" : "remote",
+      touchIds: Array.from(event.targetTouches).map((touch) => touch.identifier),
     };
     if (local) {
       pointerInput.onTouchCancel(event);
@@ -501,6 +535,19 @@ export default function ScreenViewWorkspace({
       return;
     }
     const pinch = pinchRef.current;
+    if (
+      pinch &&
+      event.targetTouches.length >= 2 &&
+      (event.targetTouches.length !== 2 ||
+        !Array.from(event.targetTouches).every((touch) =>
+          pinch.touchIds.includes(touch.identifier),
+        ))
+    ) {
+      event.preventDefault();
+      cancelScreenGesture();
+      suppressPointerUntilClearRef.current = true;
+      return;
+    }
     if (!pinch || event.targetTouches.length < 2 || !stageRef.current) {
       if (!suppressPointerUntilClearRef.current) {
         pointerInput.onTouchMove(event);
@@ -637,6 +684,9 @@ export default function ScreenViewWorkspace({
   }
 
   function selectSource(displayId: string) {
+    if (pendingSourceRef.current) {
+      return;
+    }
     disableDirectPointer();
     if (!streaming) {
       setSelected(displayId);
@@ -644,6 +694,15 @@ export default function ScreenViewWorkspace({
     }
     const operationId = createLocalId();
     pendingSourceRef.current = { operationId, displayId, previousDisplayId: selected };
+    setSourcePending(true);
+    window.clearTimeout(sourceResponseTimerRef.current);
+    sourceResponseTimerRef.current = window.setTimeout(() => {
+      if (pendingSourceRef.current?.operationId !== operationId) {
+        return;
+      }
+      stop();
+      setStatus("The PC did not confirm the display switch. Start screen viewing again.");
+    }, 10_000);
     setStatus("Switching display...");
     send({ type: "screen.view.source.set", operationId, displayId });
   }
@@ -694,21 +753,40 @@ export default function ScreenViewWorkspace({
       return;
     }
     const video = videoRef.current;
+    const request = ++soundRequestRef.current;
     if (!video || !audioAvailable || !audioTrackReady) {
       setAudioNotice("PC sound is unavailable. Video is still available.");
       return;
     }
-    if (soundOn) {
+    if (soundOnRef.current) {
+      soundOnRef.current = false;
       video.muted = true;
       setSoundOn(false);
       return;
     }
+    const source = video.srcObject;
+    soundOnRef.current = true;
+    setSoundOn(true);
     try {
       video.muted = false;
       await video.play();
-      setSoundOn(true);
+      if (
+        request !== soundRequestRef.current ||
+        videoRef.current !== video ||
+        video.srcObject !== source
+      ) {
+        return;
+      }
       setAudioNotice("");
     } catch {
+      if (
+        request !== soundRequestRef.current ||
+        videoRef.current !== video ||
+        video.srcObject !== source
+      ) {
+        return;
+      }
+      soundOnRef.current = false;
       video.muted = true;
       setSoundOn(false);
       setAudioNotice("Tap Sound again to allow PC audio playback.");
@@ -799,6 +877,8 @@ export default function ScreenViewWorkspace({
       return;
     }
     if (!renewing) {
+      soundRequestRef.current += 1;
+      soundOnRef.current = false;
       relayRecoveryRef.current = null;
       activeOperationRef.current = message.operationId;
       setSoundOn(false);
@@ -1094,6 +1174,8 @@ export default function ScreenViewWorkspace({
         setAudioAvailable(record.available);
         setAudioNotice(record.message);
         if (!record.available) {
+          soundRequestRef.current += 1;
+          soundOnRef.current = false;
           recording.reportAudioUnavailable();
           if (videoRef.current) {
             videoRef.current.muted = true;
@@ -1212,6 +1294,10 @@ export default function ScreenViewWorkspace({
   }
 
   function closeStream(preserveRelaySession = false) {
+    soundRequestRef.current += 1;
+    if (!preserveRelaySession) {
+      soundOnRef.current = false;
+    }
     traceScreenView("stream_closed");
     abandonRenewal();
     setCredentialExpires(0);
@@ -1248,6 +1334,9 @@ export default function ScreenViewWorkspace({
     }
     pendingOfferRef.current = null;
     pendingSourceRef.current = null;
+    setSourcePending(false);
+    window.clearTimeout(sourceResponseTimerRef.current);
+    sourceResponseTimerRef.current = undefined;
     pendingAnswerRef.current = null;
     eventsRef.current?.close();
     eventsRef.current = null;
@@ -1435,6 +1524,9 @@ export default function ScreenViewWorkspace({
           return;
         }
         pendingSourceRef.current = null;
+        setSourcePending(false);
+        window.clearTimeout(sourceResponseTimerRef.current);
+        sourceResponseTimerRef.current = undefined;
         setSelected(message.succeeded ? pending.displayId : pending.previousDisplayId);
         setStatus(message.message);
       } else if (message.type === "screen.view.stop.result") {
@@ -1544,6 +1636,9 @@ export default function ScreenViewWorkspace({
 
   useEffect(
     () => () => {
+      window.clearTimeout(sourceResponseTimerRef.current);
+      sourceResponseTimerRef.current = undefined;
+      pendingSourceRef.current = null;
       if (browserPreviewState) {
         return;
       }
@@ -1966,7 +2061,11 @@ export default function ScreenViewWorkspace({
         {sources.length > 1 && (
           <label>
             Display
-            <select value={selected} onChange={(event) => selectSource(event.target.value)}>
+            <select
+              value={selected}
+              disabled={sourcePending}
+              onChange={(event) => selectSource(event.target.value)}
+            >
               {sources.map((source) => (
                 <option key={source.id} value={source.id}>
                   {source.label} - {source.width}x{source.height}

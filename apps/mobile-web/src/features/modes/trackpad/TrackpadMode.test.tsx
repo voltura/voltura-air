@@ -30,6 +30,53 @@ afterEach(() => {
 });
 
 describe("TrackpadMode volume control", () => {
+  it("does not send a primary PC press for a secondary mouse press", () => {
+    const down = vi.fn();
+    render(<TrackpadMode {...baseProps} onMouseButtonDown={down} />);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Left" }), {
+      button: 2,
+      pointerId: 1,
+    });
+    expect(down).not.toHaveBeenCalled();
+  });
+  it.each([false, true])(
+    "supports keyboard activation of mouse buttons in expanded=%s",
+    (isExpanded) => {
+      const click = vi.fn();
+      render(<TrackpadMode {...baseProps} isExpanded={isExpanded} onMouseButtonClick={click} />);
+      fireEvent.click(screen.getByRole("button", { name: "Left" }), { detail: 0 });
+      expect(click).toHaveBeenCalledWith("left");
+    },
+  );
+  it.each(["pagehide", "layout", "hidden-buttons", "handedness"])(
+    "releases a held mouse button after %s",
+    (reason) => {
+      const up = vi.fn();
+      const view = render(<TrackpadMode {...baseProps} onMouseButtonUp={up} />);
+      up.mockClear();
+      fireEvent.pointerDown(screen.getByRole("button", { name: "Left" }), {
+        button: 0,
+        pointerId: 1,
+      });
+      if (reason === "pagehide") {
+        window.dispatchEvent(new Event("pagehide"));
+      } else {
+        view.rerender(
+          <TrackpadMode
+            {...baseProps}
+            onMouseButtonUp={up}
+            isExpanded={reason === "layout"}
+            showRestoredMouseButtons={reason !== "hidden-buttons"}
+            trackpadSettings={{
+              ...defaultTrackpadSettings,
+              leftHandedButtons: reason === "handedness",
+            }}
+          />,
+        );
+      }
+      expect(up).toHaveBeenCalledExactlyOnceWith("left");
+    },
+  );
   it("renders in normal mode when enabled and audio state exists", () => {
     render(<TrackpadMode {...baseProps} />);
 

@@ -57,6 +57,199 @@ describe("FileManagerWorkspace pagination and selection", () => {
     vi.useRealTimers();
   });
 
+  it("cleans up read deadlines when Files unmounts", () => {
+    vi.useFakeTimers();
+    const sent: ClientMessage[] = [];
+    const view = renderWorkspace(sent);
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    view.unmount();
+    vi.runAllTicks();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it("does not let an older mirror-open timeout replace newer opening feedback", () => {
+    vi.useFakeTimers();
+    const sent: ClientMessage[] = [];
+    renderWorkspace(sent);
+    openSession(sent, entries(0, 1), []);
+    fireEvent.click(screen.getByRole("button", { name: "file-0.txt" }));
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    act(() => {
+      vi.advanceTimersByTime(14_000);
+    });
+    expect(screen.getByText("Opening the file on the PC before starting the mirror…")).toBeTruthy();
+  });
+
+  it("bounds a Files session open with no response and ignores its late reply", () => {
+    vi.useFakeTimers();
+    const sent: ClientMessage[] = [];
+    renderWorkspace(sent);
+    act(() => {
+      vi.advanceTimersByTime(15_000);
+    });
+    expect(
+      screen.getByText(
+        "The PC did not respond to the Files request. Check the connection and the PC before retrying.",
+      ),
+    ).toBeTruthy();
+    openSession(sent, entries(0, 1), []);
+    expect(screen.queryByRole("button", { name: "file-0.txt" })).toBeNull();
+  });
+  it("does not replay a duplicate session result over a current file view", () => {
+    const sent: ClientMessage[] = [];
+    renderWorkspace(sent);
+    openSession(sent, entries(0, 1), []);
+    openSession(sent, entries(20, 1), []);
+    expect(screen.getByRole("button", { name: "file-0.txt" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "file-20.txt" })).toBeNull();
+  });
+  it("ignores a Files session response that arrives after disconnect", async () => {
+    const sent: ClientMessage[] = [];
+    const sender = (message: ClientMessage) => {
+      sent.push(message);
+    };
+    const props = {
+      capability: {
+        canBrowse: true,
+        canModify: true,
+        hidesProtectedSystemItems: true,
+        maxPageSize: 100,
+      },
+      canMirrorView: true,
+      connectionEpoch: 1,
+      mirrorViewUnavailableMessage: "Unavailable",
+      onMirrorView: vi.fn(),
+      send: sender,
+      state: "paired" as const,
+    };
+    const view = render(<FileManagerWorkspace {...props} />);
+    view.rerender(<FileManagerWorkspace {...props} state="connecting" />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    openSession(sent, entries(0, 1), []);
+    expect(screen.queryByRole("button", { name: "file-0.txt" })).toBeNull();
+  });
+  it.each(["refresh", "properties", "view"])("bounds an unanswered Files %s request", (kind) => {
+    vi.useFakeTimers();
+    const sent: ClientMessage[] = [];
+    const mirror = vi.fn();
+    renderWorkspace(sent, mirror);
+    openSession(sent, entries(0, 1), []);
+    if (kind === "refresh") {
+      fireEvent.click(screen.getByRole("button", { name: "Refresh left panel" }));
+    } else {
+      fireEvent.click(screen.getByRole("button", { name: "file-0.txt" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: kind === "view" ? "View" : "Properties" }),
+      );
+    }
+    act(() => {
+      vi.advanceTimersByTime(15_000);
+    });
+    expect(
+      screen.getByText(
+        "The PC did not respond to the Files request. Check the connection and the PC before retrying.",
+      ),
+    ).toBeTruthy();
+    if (kind === "view") {
+      const open = [...sent].reverse().find((message) => message.type === "file.open");
+      if (open?.type !== "file.open") {
+        throw new Error("Expected file open");
+      }
+      act(() =>
+        publishFileManagerResult({
+          type: "file.open.result",
+          operationId: open.operationId,
+          succeeded: true,
+          message: "Late open",
+        }),
+      );
+      expect(mirror).not.toHaveBeenCalled();
+    }
+  });
+  it("expires a missing continuation page so pagination can be retried", () => {
+    vi.useFakeTimers();
+    const sent: ClientMessage[] = [];
+    renderWorkspace(sent);
+    const request = sent.find((message) => message.type === "file.session.open");
+    if (request?.type !== "file.session.open") {
+      throw new Error("Expected session");
+    }
+    act(() =>
+      publishFileManagerResult({
+        type: "file.session.open.result",
+        operationId: request.operationId,
+        succeeded: true,
+        message: "Opened",
+        session: {
+          sessionId: "session-a",
+          drives: [{ id: "drive-a", label: "C:", driveType: "fixed" }],
+          shortcuts: [],
+          left: page("left", entries(0, 100), "more"),
+          right: page("right", [], null),
+        },
+      }),
+    );
+    fireEvent.scroll(document.querySelector(".file-panel:first-child .file-list")!, {
+      target: { scrollTop: 4300 },
+    });
+    expect(sent.some((message) => message.type === "file.page.get")).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(15_000);
+    });
+    expect(screen.queryByText("Loading more…")).toBeNull();
+    expect(screen.getByRole("button", { name: "Retry loading more" })).toBeTruthy();
+  });
+
+  it("does not apply an old continuation timeout to a newly refreshed folder", () => {
+    vi.useFakeTimers();
+    const sent: ClientMessage[] = [];
+    renderWorkspace(sent);
+    const request = sent.find((message) => message.type === "file.session.open")!;
+    act(() =>
+      publishFileManagerResult({
+        type: "file.session.open.result",
+        operationId: request.operationId!,
+        succeeded: true,
+        message: "Opened",
+        session: {
+          sessionId: "session-a",
+          drives: [],
+          shortcuts: [],
+          left: page("left", entries(0, 100), "more"),
+          right: page("right", [], null),
+        },
+      }),
+    );
+    fireEvent.scroll(document.querySelector(".file-panel:first-child .file-list")!, {
+      target: { scrollTop: 4300 },
+    });
+    expect(sent.some((message) => message.type === "file.page.get")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Refresh left panel" }));
+    const refresh = sent.find((message) => message.type === "file.refresh")!;
+    act(() =>
+      publishFileManagerResult({
+        type: "file.refresh.result",
+        operationId: refresh.operationId!,
+        succeeded: true,
+        message: "Refreshed",
+        page: { ...page("left", entries(200, 1), null), revision: "new" },
+      }),
+    );
+    act(() => {
+      vi.advanceTimersByTime(15_000);
+    });
+    fireEvent.scroll(document.querySelector(".file-panel:first-child .file-list")!, {
+      target: { scrollTop: 0 },
+    });
+    expect(screen.getByRole("button", { name: "file-200.txt" })).toBeTruthy();
+    expect(screen.queryByText("The PC did not respond. Retry this folder.")).toBeNull();
+  });
+
   it("uses row taps for one-file selection while checkboxes retain multi-select", () => {
     const sent: ClientMessage[] = [];
     renderWorkspace(sent);
@@ -417,7 +610,7 @@ describe("FileManagerWorkspace pagination and selection", () => {
 });
 
 function renderWorkspace(sent: ClientMessage[], onMirrorView = vi.fn()) {
-  render(
+  return render(
     <FileManagerWorkspace
       capability={{
         canBrowse: true,

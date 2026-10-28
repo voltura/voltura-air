@@ -16,7 +16,7 @@ export function ScreenViewKeyboard({
       send({ ...message, inputContext: "screen-view" });
     }
   }, true);
-  const { keyboardTextareaRef, isComposingRef } = keyboard;
+  const { keyboardTextareaRef, isComposingRef, resetKeyboardInput } = keyboard;
   const [supportsInputMode] = useState(() => "inputMode" in document.createElement("textarea"));
 
   useLayoutEffect(() => {
@@ -41,11 +41,12 @@ export function ScreenViewKeyboard({
       if (textarea) {
         textarea.value = "";
       }
+      resetKeyboardInput();
       if (overlayKeyboard) {
         overlayKeyboard.overlaysContent = previousOverlay;
       }
     };
-  }, [enabled, keyboardTextareaRef, supportsInputMode]);
+  }, [enabled, keyboardTextareaRef, resetKeyboardInput, supportsInputMode]);
 
   function showKeyboard(mode: "text" | "numeric") {
     const textarea = keyboardTextareaRef.current;

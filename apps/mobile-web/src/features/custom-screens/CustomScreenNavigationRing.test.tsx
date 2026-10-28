@@ -8,6 +8,69 @@ describe("CustomScreenNavigationRing", () => {
     vi.useRealTimers();
   });
 
+  it("ends a direction repeat on pagehide", () => {
+    vi.useFakeTimers();
+    const sendSpecial = vi.fn();
+    renderRing({ sendSpecial });
+    fireEvent.pointerDown(screen.getByRole("button", { name: "D-pad up" }), {
+      button: 0,
+      pointerId: 1,
+    });
+    fireEvent(window, new Event("pagehide"));
+    vi.advanceTimersByTime(1000);
+    expect(sendSpecial).toHaveBeenCalledOnce();
+  });
+  it("does not replace the first direction owner when another finger presses", () => {
+    vi.useFakeTimers();
+    const sendSpecial = vi.fn();
+    renderRing({ sendSpecial });
+    fireEvent.pointerDown(screen.getByRole("button", { name: "D-pad up" }), {
+      button: 0,
+      pointerId: 1,
+    });
+    fireEvent.pointerDown(screen.getByRole("button", { name: "D-pad down" }), {
+      button: 0,
+      pointerId: 2,
+    });
+    vi.advanceTimersByTime(450);
+    expect(sendSpecial.mock.calls.every(([key]) => key === "ArrowUp")).toBe(true);
+  });
+  it("does not stop the owner when another finger releases", () => {
+    vi.useFakeTimers();
+    const sendSpecial = vi.fn();
+    renderRing({ sendSpecial });
+    const up = screen.getByRole("button", { name: "D-pad up" });
+    fireEvent.pointerDown(up, { button: 0, pointerId: 1 });
+    fireEvent.pointerUp(up, { pointerId: 2 });
+    vi.advanceTimersByTime(450);
+    expect(sendSpecial).toHaveBeenCalledTimes(2);
+  });
+  it("uses the latest sender for a direction that is already held", () => {
+    vi.useFakeTimers();
+    const original = vi.fn();
+    const current = vi.fn();
+    const view = renderRing({ sendSpecial: original });
+    fireEvent.pointerDown(screen.getByRole("button", { name: "D-pad up" }), {
+      button: 0,
+      pointerId: 1,
+    });
+    view.rerender(
+      <CustomScreenNavigationRing
+        enabled
+        name="Navigation ring"
+        onCenterKey={vi.fn()}
+        onTouchCancel={vi.fn()}
+        onTouchEnd={vi.fn()}
+        onTouchMove={vi.fn()}
+        onTouchStart={vi.fn()}
+        sendSpecial={current}
+      />,
+    );
+    vi.advanceTimersByTime(450);
+    expect(original).toHaveBeenCalledOnce();
+    expect(current).toHaveBeenCalledExactlyOnceWith("ArrowUp");
+  });
+
   it("repeats directions and exposes a keyboard-accessible mini-trackpad", () => {
     vi.useFakeTimers();
     const sendSpecial = vi.fn();

@@ -11,7 +11,8 @@ export function useClipboardRead(state: ConnectionState, send: (payload: ClientM
   const [clipboardReadResult, setClipboardReadResult] = useState<ClipboardGetResultMessage | null>(
     null,
   );
-  const [pendingClipboardRead, setPendingClipboardRead] = useState(false);
+  const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
+  const pendingClipboardRead = pendingOperationId !== null;
   const pendingOperationRef = useRef<string | null>(null);
   const pendingDeviceClipboardOperationRef = useRef<{
     operationId: string;
@@ -44,18 +45,18 @@ export function useClipboardRead(state: ConnectionState, send: (payload: ClientM
   }, [settlePendingDeviceClipboardRead]);
 
   useEffect(() => {
-    if (!pendingClipboardRead || pendingOperationRef.current === null) {
+    if (pendingOperationId === null || pendingOperationRef.current !== pendingOperationId) {
       return;
     }
 
-    const operationId = pendingOperationRef.current;
+    const operationId = pendingOperationId;
     const timeout = window.setTimeout(() => {
       if (pendingOperationRef.current !== operationId) {
         return;
       }
 
       pendingOperationRef.current = null;
-      setPendingClipboardRead(false);
+      setPendingOperationId(null);
       setClipboardReadResult({
         type: "clipboard.get.result",
         operationId,
@@ -67,7 +68,7 @@ export function useClipboardRead(state: ConnectionState, send: (payload: ClientM
     return () => {
       window.clearTimeout(timeout);
     };
-  }, [pendingClipboardRead]);
+  }, [pendingOperationId]);
 
   useEffect(() => {
     if (state === "paired") {
@@ -81,7 +82,7 @@ export function useClipboardRead(state: ConnectionState, send: (payload: ClientM
     pendingOperationRef.current = null;
     setClipboardText("");
     setClipboardReadResult(null);
-    setPendingClipboardRead(false);
+    setPendingOperationId(null);
   }, [settlePendingDeviceClipboardRead, state]);
 
   useEffect(
@@ -111,7 +112,7 @@ export function useClipboardRead(state: ConnectionState, send: (payload: ClientM
 
     const operationId = createLocalId();
     pendingOperationRef.current = operationId;
-    setPendingClipboardRead(true);
+    setPendingOperationId(operationId);
     setClipboardReadResult(null);
     send({ type: "clipboard.get", operationId });
     return operationId;
@@ -170,7 +171,7 @@ export function useClipboardRead(state: ConnectionState, send: (payload: ClientM
     }
 
     pendingOperationRef.current = null;
-    setPendingClipboardRead(false);
+    setPendingOperationId(null);
     setClipboardReadResult(result);
     if (result.succeeded && typeof result.text === "string") {
       setClipboardText(result.text);

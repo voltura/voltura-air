@@ -44,6 +44,10 @@ ignoreDevSocketResets();
 
 export default defineConfig({
   base: appBase,
+  optimizeDeps: {
+    // QR photo decoding must not trigger a dev reload after its one-time pairing URL is consumed.
+    include: ["jsqr"],
+  },
   build: {
     chunkSizeWarningLimit: 750,
     outDir: buildOutputDirectory,

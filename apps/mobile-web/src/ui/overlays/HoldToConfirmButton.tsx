@@ -21,8 +21,16 @@ export const HoldToConfirmButton = forwardRef<
   const timeoutRef = useRef<number | null>(null);
   const startedAtRef = useRef(0);
   const completedRef = useRef(false);
+  const pointerRef = useRef<number | null>(null);
+  const keyRef = useRef<string | null>(null);
+  const confirmRef = useRef(onConfirm);
+  useEffect(() => {
+    confirmRef.current = onConfirm;
+  }, [onConfirm]);
 
   const clearHold = (reset = true) => {
+    pointerRef.current = null;
+    keyRef.current = null;
     if (intervalRef.current !== null) {
       window.clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -46,22 +54,24 @@ export const HoldToConfirmButton = forwardRef<
       }
     };
     window.addEventListener("blur", cancelOnWindowBlur);
+    window.addEventListener("pagehide", cancelOnWindowBlur);
     document.addEventListener("visibilitychange", cancelWhenHidden);
     return () => {
       clearHold(false);
       window.removeEventListener("blur", cancelOnWindowBlur);
+      window.removeEventListener("pagehide", cancelOnWindowBlur);
       document.removeEventListener("visibilitychange", cancelWhenHidden);
     };
   }, []);
 
   useEffect(() => {
+    clearHold();
     if (disabled) {
-      clearHold();
       return;
     }
     completedRef.current = false;
     setProgress(0);
-  }, [disabled]);
+  }, [disabled, label]);
 
   const beginHold = () => {
     if (disabled || timeoutRef.current !== null || completedRef.current) {
@@ -76,28 +86,42 @@ export const HoldToConfirmButton = forwardRef<
       completedRef.current = true;
       setProgress(1);
       clearHold(false);
-      onConfirm();
+      confirmRef.current();
     }, holdDurationMs);
   };
 
   const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
-    if (event.button !== 0) {
+    if (event.button !== 0 || timeoutRef.current !== null || completedRef.current) {
       return;
     }
     event.preventDefault();
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    try {
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    } catch {
+      /* Capture is optional; leaving the button cancels. */
+    }
+    pointerRef.current = event.pointerId;
     beginHold();
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if ((event.key === " " || event.key === "Enter") && !event.repeat) {
       event.preventDefault();
+      if (timeoutRef.current !== null) {
+        return;
+      }
+      keyRef.current = event.key;
       beginHold();
     }
   };
 
   const cancelHold = () => {
     clearHold();
+  };
+  const finishPointer = (event: PointerEvent<HTMLButtonElement>) => {
+    if (pointerRef.current === null || pointerRef.current === event.pointerId) {
+      clearHold();
+    }
   };
   const style = { "--hold-progress": `${Math.round(progress * 100)}%` } as CSSProperties;
 
@@ -113,12 +137,17 @@ export const HoldToConfirmButton = forwardRef<
         event.preventDefault();
       }}
       onKeyDown={onKeyDown}
-      onKeyUp={cancelHold}
+      onKeyUp={(event) => {
+        if (event.key === keyRef.current) {
+          clearHold();
+        }
+      }}
       onBlur={cancelHold}
-      onPointerCancel={cancelHold}
+      onPointerCancel={finishPointer}
+      onLostPointerCapture={finishPointer}
       onPointerDown={onPointerDown}
-      onPointerLeave={cancelHold}
-      onPointerUp={cancelHold}
+      onPointerLeave={finishPointer}
+      onPointerUp={finishPointer}
     >
       <span>
         {disabled

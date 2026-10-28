@@ -1,7 +1,7 @@
-import { Fragment, type Ref } from "react";
+import { Fragment, useEffect, useRef, type Ref } from "react";
+import { remoteModeIds, type RemoteModeId } from "../foundation/settings/remoteSettings";
 import { ChevronDown } from "lucide-react";
 import type { AppTab, MainAppTab, ModeDefinition } from "./appModeTabs";
-import { remoteModeIds, type RemoteModeId } from "../foundation/settings/remoteSettings";
 
 interface ModeNavigationProps {
   className: string;
@@ -54,6 +54,13 @@ export function ModeSelector({
   remoteMode,
   tab,
 }: ModeSelectorProps) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const invokingRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    invokingRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    menuRef.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus();
+  }, []);
   return (
     <>
       <button
@@ -62,7 +69,47 @@ export function ModeSelector({
         aria-label="Close mode selector"
         onClick={onClose}
       />
-      <div className="mode-selector-popover" role="menu" aria-label="Change mode">
+      <div
+        ref={menuRef}
+        className="mode-selector-popover"
+        role="menu"
+        tabIndex={-1}
+        aria-label="Change mode"
+        onKeyDown={(event) => {
+          if (event.key === "Tab") {
+            event.stopPropagation();
+            onClose();
+            return;
+          }
+          if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
+            onClose();
+            invokingRef.current?.focus();
+            return;
+          }
+          const direction = event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
+          if (!direction && event.key !== "Home" && event.key !== "End") {
+            return;
+          }
+          const items = Array.from(
+            event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="menuitemradio"]'),
+          );
+          if (!items.length) {
+            return;
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          const index = items.indexOf(document.activeElement as HTMLButtonElement);
+          items[
+            event.key === "Home"
+              ? 0
+              : event.key === "End"
+                ? items.length - 1
+                : (index + direction + items.length) % items.length
+          ]?.focus();
+        }}
+      >
         {modeTabs.map(({ id, label, ariaLabel, Icon }) => (
           <Fragment key={id}>
             <button

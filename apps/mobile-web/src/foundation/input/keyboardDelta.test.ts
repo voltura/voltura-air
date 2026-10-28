@@ -9,6 +9,35 @@ import {
 } from "./keyboardDelta";
 
 describe("getKeyboardDeltaMessages", () => {
+  function applyMessages(previous: string, next: string) {
+    let remote = previous;
+    for (const message of getKeyboardDeltaMessages(previous, next)) {
+      if (message.type === "keyboard.text") {
+        expect(
+          Array.from(message.text).every(
+            (point) => point.length === 2 || !/[\uD800-\uDFFF]/u.test(point),
+          ),
+        ).toBe(true);
+        remote += message.text;
+      } else if (message.key === "Backspace") {
+        remote = Array.from(remote).slice(0, -1).join("");
+      }
+    }
+    return remote;
+  }
+
+  it("replaces the remote tail when autocorrect edits before an unchanged suffix", () => {
+    expect(applyMessages("helo world", "hello world")).toBe("hello world");
+  });
+
+  it.each([
+    ["a😀", "a😁"],
+    ["a😀", "a"],
+    ["a𐀀", "a𐐀"],
+  ])("edits complete Unicode code points from %s to %s", (previous, next) => {
+    expect(applyMessages(previous, next)).toBe(next);
+  });
+
   it("sends inserted text", () => {
     expect(getKeyboardDeltaMessages("hel", "hello")).toEqual([
       { type: "keyboard.text", text: "lo" },

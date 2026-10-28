@@ -234,6 +234,10 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   Recording and screenshot staging are mutually exclusive. The five-minute
   limit, Screen View stop, stream loss, or foreground loss finalizes the usable
   partial for Save/Share or Discard; leaving the workspace or page discards it.
+  Stopping and final storage each have a 15-second completion deadline; failure
+  releases cloned media and reports the error while owned staging cleanup
+  continues. The displayed duration ends when capture stops, excluding storage
+  finalization time.
   A canceled native share remains ready to retry, while successful Save/Share or
   Discard removes the staged file. No recording history, upload, background
   recorder, PC-side copy, permission, protocol, host, or Relay behavior is added.
@@ -678,9 +682,10 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   before collecting any computer information and returns no partial snapshot when
   access is blocked.
 - One snapshot is requested when the page opens and one more only when the user
-  selects Refresh. There is no polling, timer, history, or proactive diagnostics
-  push. The host and mobile views include whether enhanced HTTPS capabilities
-  are enabled. Copy actions use only visible `Label: value` rows and report the
+  selects Refresh. There is no polling, scheduled refresh, history, or proactive
+  diagnostics push. A pending mobile request expires after 15 seconds so Refresh
+  becomes available again if the reply is lost. The host and mobile views include
+  whether enhanced HTTPS capabilities are enabled. Copy actions use only visible `Label: value` rows and report the
   result through the existing temporary toast; the device response excludes
   local paths, Windows usernames, other device names, raw host or WebSocket URLs,
   credentials, tokens, and logs.
@@ -719,6 +724,7 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 
 - Live typing or buffered multiline send, mobile text/numeric keyboard choice,
   IME composition, and repeatable editing/navigation keys.
+- Buffered keyboard Send and Dictation Send require a paired connection and preserve unsent text while disconnected. Live keyboard repeats stop on connection loss.
 - Optional F1–F12, arrow, control/shortcut, and sleep rows. Sleep requires host
   permission, a local setting, and confirmation.
 - Visible shortcuts include select/cut/copy/paste, undo/redo, and forward/reverse
@@ -777,6 +783,9 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 - The PC resolves every opaque button ID at invocation time. Missing approved
   applications and denied permissions leave the control in place but disabled
   with a reason. A stale revision cannot execute; mobile refetches the screen.
+  A missing definition reply expires after 15 seconds with reopen guidance;
+  unconfirmed button actions stop showing pending after 30 seconds and advise
+  checking the PC before retrying. Disconnect releases pending request owners.
 - Laser pointer buttons use Presentation-control permission, not Remote input.
   The host remains authoritative for their pressed color and single-device
   ownership. Buttons resolving to the same concrete color appear pressed
@@ -822,7 +831,9 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   Change action. The chooser remains available during a session and explains
   that starting another deck saves the current session automatically.
 - Google Slides and PDF/browser retain their reviewed shortcut controls and
-  local timer/report path.
+  local timer/report path. Browser-local presenting, slide, and break durations
+  use a monotonic clock, so changing the device clock does not alter elapsed
+  time; report dates retain wall-clock timestamps.
 - The laser is Voltura Air's custom cursor, not PowerPoint's native laser.
   PowerPoint's arrow visibility is adjusted on a best-effort basis and restored
   to automatic on disable or mandatory cleanup; a native pointer-option failure
@@ -874,10 +885,11 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 - Below 640 CSS pixels Files shows one panel; at 640 pixels or wider it shows two equal, independently scrollable panels. Each panel has a drive selector, its own location, selection, sort, and scroll state. The active panel receives the shared Windows-known-folder menu. Valid panel locations are restored per paired device, initially preferring Downloads and Documents.
 - Folders sort before files. `..` is first when a parent exists. Name, Size, Type, and Modified are host-sorted across the complete directory; ordinary hidden-only or system-only items, read-only, archive, and reparse-point attributes remain visible. **Hide protected operating system files and folders (recommended)** is enabled globally by default with a per-device Use global/Hide/Show override. The host excludes items carrying both Windows Hidden and System attributes before counts, sorting, pagination, selection, or operations; disabling the effective setting exposes them with their attributes.
 - Directory responses contain at most 100 entries and an opaque continuation. Near-end scrolling loads and appends the next page; a failed page preserves loaded rows and shows Retry. Rows are virtualized. Select all represents the complete current directory revision with explicit exclusions, including entries not loaded when Select all was pressed.
+- Mobile session, folder, page, Properties, and file-opening acknowledgements have a 15-second wait. Expired replies cannot replace the current view or start a late mirror; unconfirmed opening shows guidance to check the connection and the PC before retrying.
 - Folder taps navigate; file taps select; checkboxes explicitly multi-select files or folders. A long press on a file, folder, or the current location opens Properties. Names use up to two lines before truncating, and the `..` navigation row carries no file metadata. Navigation is atomic: an unavailable or Windows-protected destination leaves the current panel and connection unchanged and reports the local folder error. File operations distinguish a missing or unavailable item from Windows denying the PC account permission to change it. In one-panel layouts Cut and Copy target the Windows clipboard. In two-panel layouts the primary Copy and Move actions target the other panel's current folder, while a secondary Clipboard menu retains Windows Cut and Copy. Paste, Properties, Delete, Rename, View, Open, Select all, and Unselect all remain directly available.
 - Cut, Copy, and Paste use the real Windows Shell file clipboard and interoperate with Explorer. **Open** delegates to the Windows default application and stays in Files; opening a folder launches Explorer. **View** is available for files when both effective Browse/open and PC Screen authorization permit it: the host first confirms the Shell open, then mobile enters the independently authorized encrypted PC Screen mirror. A failed Shell open or unavailable/denied Screen permission leaves Files active with guidance. With one display the mirror starts automatically; multiple displays retain the Screen chooser. Back returns to Files. Delete is confirmed on mobile and uses only the Recycle Bin; the host rejects the whole request before queueing when any item cannot be recycled.
 - Copy, Move, Paste, Rename, and Delete return a host job immediately. One mutation runs host-wide while the rest queue within a bounded, fully inspectable operation window. Direct Copy/Move binds both rendered panel revisions before queueing, so later navigation cannot redirect an operation. Jobs expose preparing, running, pause/resume/cancel, conflict attention with Replace/Skip/Cancel and apply-to-all, byte/item progress, rate, ETA, completion/failure, and restart interruption. Every completed, failed, or canceled tracked operation refreshes each panel that may already have changed; refreshed revisions reset their selections, while a failed Copy can preserve the unchanged source selection. Jobs continue across mobile mode changes and reconnects and are visible and controllable only to their originating paired device. The newest completed, failed, canceled, and interrupted history remains available and can be removed individually or cleared together; dismissing history never discards the host's private recovery responsibility. Partial-copy and replacement paths are created only after their recovery records are durably saved. Restart recovery removes journaled partial destinations, restores an original destination interrupted during replacement, retains temporarily unavailable cleanup for a later retry, and does not automatically resume work.
-- A compact **Transfer** menu handles one file at a time. **Save to this device** is available for exactly one explicitly selected PC file when the browser can write OPFS; after transfer it exposes a fresh **Save to Files / Share** action, with browser download fallback and explicit discard. Canceling the native share sheet leaves that action ready to retry while Files remains open; a completed handoff frees the transfer slot. **Choose file from this device** remains available without OPFS and uploads into the active PC folder. **Take photo** requests the rear camera through the browser's native capture flow and uploads the returned original image through the same path; browsers without direct capture may show an image picker instead. Upload completion refreshes the destination and selects the host-confirmed row when it is within the bounded loaded pages. There are no device folders, batches, image processing, synchronization, resume, or transfer history.
+- A compact **Transfer** menu handles one file at a time. **Save to this device** is available for exactly one explicitly selected PC file when the browser can write OPFS; after transfer it exposes a fresh **Save to Files / Share** action, with browser download fallback and explicit discard. Canceling the native share sheet leaves that action ready to retry while Files remains open; a completed handoff frees the transfer slot. **Choose file from this device** remains available without OPFS and uploads into the active PC folder. If the destination folder, paired identity, or upload permission changes while the native picker is open, choose the file again for the new context. **Take photo** requests the rear camera through the browser's native capture flow and uploads the returned original image through the same path; browsers without direct capture may show an image picker instead. Upload completion refreshes the destination and selects the host-confirmed row when it is within the bounded loaded pages. There are no device folders, batches, image processing, synchronization, resume, or transfer history.
 - One transfer runs host-wide beside existing screen/webcam peers. Transfers show bounded progress and Cancel; 60 seconds without committed progress cancels them, and retry starts from zero. Downloads use a tab-owned temporary browser directory that only that tab sweeps when Files starts or exits, on reload/disconnect/permission loss, and after save. Uploads use the existing mutation queue and Operation Center, cannot pause/resume, validate available PC volume space and Windows names, and resolve conflicts with Replace, Keep both, or Cancel. Refreshing or navigating the panel after admission does not change the captured upload destination. Browser quota and PC free-space checks reject early when available; actual I/O remains authoritative.
 - Files keeps the app header and compact mode selector fixed and hides the large mode rows. File lists own ordinary native touch scrolling, including two-finger scrolling, without feature-specific magnification or transformed layout state.
 - Separate **Browse and open files**, **Change files**, and **Transfer files** permissions follow the
@@ -897,7 +909,7 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 
 - **Apps** is a lazy-loaded Menu tool for switching between ordinary top-level application windows on the signed-in Windows session and current virtual desktop. Its global quick mode selector remains available, and the Apps header provides a direct Trackpad shortcut beside Refresh. It presents a circular, orientation-responsive horizontal carousel with the same decelerating flick momentum as Terminal scrolling; touching a coasting deck stops it immediately. Tapping the centered card restores a minimized window, maximizes a suitable normal window, and asks Windows to focus it. Swipe up or the explicit Close button posts the application's normal close request, so unsaved-work prompts remain on the PC. A final **Open app** card expands into a vertically scrollable panel of existing host-approved application-launch shortcuts and closes back to the same deck position; the shortcuts retain their separate permission.
 - The host applies Windows' generic visible root-owner/last-active-popup and extended-style rules, then filters cloaked, other-session, other-desktop, and untitled windows before returning at most 48 bounded summaries. Voltura Air itself is included only when the separate host-application control setting permits that device. The browser receives a fresh connection-scoped revision and random opaque window IDs; the same verified native identity retains its opaque ID across title changes, while recycled or changed identities do not. Native handles, process IDs, executable paths, icons, commands, and arguments never cross the wire. Every action revalidates the current native window against that revision and current policy. Higher-integrity windows that Windows will not let Voltura Air lifetime-tag remain visible and may be focused, but fail closed for preview and close instead of being omitted or risking a recycled-window action.
-- Opening Apps performs one list request and holds the deck on a centered loading card until that first result and, when available, the active window's initial preview are ready. The preview wait is bounded so failure cannot leave Apps stuck; **Open app** is the initial card when no windows are open. Refresh, activate, close, a confirmed stale action, a successful launcher action, and returning to Apps after the browser was backgrounded each cause one explicit refresh; a confirmed stale card disappears locally without an error toast. There is no polling, timer-driven capture, background discovery, or work while the tool is closed. The selected title is preserved when possible and the active window is otherwise centered.
+- Opening Apps performs one list request and holds the deck on a centered loading card until that first result and, when available, the active window's initial preview are ready. The preview wait is bounded so failure cannot leave Apps stuck; **Open app** is the initial card when no windows are open. Missing list replies expire after 15 seconds with Refresh guidance; unconfirmed activate/close actions expire after 30 seconds with guidance to check the PC and refresh before retrying. Refresh, activate, close, a confirmed stale action, a successful launcher action, and returning to Apps after the browser was backgrounded each cause one explicit refresh; a confirmed stale card disappears locally without an error toast. There is no polling, timer-driven capture, background discovery, or work while the tool is closed. The selected title is preserved when possible and the active window is otherwise centered.
 - Static card previews require both **Control open applications** and the independently resolved **View PC screen** permission. Apps owns one short-lived, data-channel-only WebRTC peer and requests only the centered window and immediate neighbors; rapid deck changes coalesce to the newest pending request instead of accumulating capture work. Previews are bounded in size and memory, are unavailable for minimized or uncapturable windows, and are revoked on replacement, close, disconnect, permission loss, or failure. A loaded preview remains painted until its refreshed replacement is ready, then cross-fades without an empty frame. Direct, Secure Direct, and Relay reuse the existing ICE/TURN and bounded TLS bridge primitives without sharing Screen, Phone webcam, or Files lifecycle owners.
 - **My device** and **Remote controls** allow **Control open applications**. Custom exposes an explicit Allow/Block value; older complete Custom matrices migrate with it blocked. **View PC screen** separately gates previews, Application launch separately gates the final launcher card, and host-window control separately gates the Voltura Air window.
 
@@ -908,6 +920,7 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 - One Terminal session is active host-wide. Only its paired-device owner can type, resize, stop, or resume it. A PC tray indicator names that device and exposes Stop; the start notification and lifecycle records never include commands, output, working directories, or environment values.
 - Input and output use a dedicated reliable ordered encrypted WebRTC DataChannel. Records are at most 16 KiB, queued input is capped at 256 KiB, retained unacknowledged output and WebRTC buffered output are each capped at 1 MiB, and one paste gesture is capped at 64 KiB. Backpressure reaches the ConPTY pipes without delaying ordinary commands. One-finger vertical swipes scroll xterm's in-memory scrollback without sending terminal input.
 - Navigating within the PWA keeps Terminal active. A transient WebRTC `disconnected` state is allowed to recover without replacing the control or Terminal peer; terminal `failed` or `closed` states enter the reconnect lifecycle. An unexpected connection loss retains the process for 15 minutes and only the same authenticated device may resume from its acknowledged output offset. Reload does not persist terminal contents; starting after reload replaces the detached session. Relay transport renews independently without restarting PowerShell.
+- Mobile start, resume, and media setup waits expire after 15 seconds. Late or duplicate replies and offers cannot replace the current connection; an already-confirmed shell remains available to Stop after a setup timeout.
 - Stop, permission or pairing revocation, device removal, reconnect expiry, natural shell exit, host shutdown, and lifecycle failures close a kill-on-close Windows Job Object so PowerShell and its complete child-process tree terminate. **My device** allows Terminal, **Remote controls** blocks it, and Custom exposes Allow/Block; older complete Custom matrices migrate with Terminal blocked.
 
 ### AI Assistant
@@ -920,6 +933,7 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   available; it has no Developer tools toggle or separate permission. Remote
   controls, Custom, unpaired, and stale-host-identity devices cannot open it.
   Availability is re-evaluated on demand without background polling.
+- The mobile tool bounds open, question-acceptance, and new-conversation acknowledgement waits to 30 seconds and offers reconnect guidance if the PC does not confirm. This does not limit the time allowed to produce an answer. Closing or disconnecting the tool invalidates pending replies; reconnect opens a fresh live attachment.
 - The Windows host starts a hidden `codex app-server --stdio` child using the
   signed-in user's existing Codex installation, configuration, account, and
   authentication. The phone never connects to an app-server port. Voltura Air
@@ -1007,7 +1021,9 @@ Trackpad, Keyboard, and Remote are fixed primary modes. The configurable fourth
 mode is Presentation, Files, Terminal, Dictation, Send text, or Get text and defaults to
 Presentation. An unavailable Files or Terminal choice falls back to Presentation, then
 Dictation; an unavailable Presentation choice falls back to Dictation.
-All tools remain directly available from Menu.
+All tools remain directly available from Menu. Explicitly choosing an available fallback keeps that choice when a previously
+unavailable tool returns. The compact mode menu focuses the active mode and
+supports arrows, Home/End, Escape, and Tab dismissal.
 
 Wide landscape can show keyboard and trackpad side by side with selectable pane
 order, a scrollable keyboard, fixed trackpad, optional header, and

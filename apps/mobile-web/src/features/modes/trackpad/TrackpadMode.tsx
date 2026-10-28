@@ -149,13 +149,25 @@ export function TrackpadMode({
     };
 
     window.addEventListener("blur", releaseAllMouseButtons);
+    window.addEventListener("pagehide", releaseAllMouseButtons);
     document.addEventListener("visibilitychange", releaseOnHidden);
     return () => {
       window.removeEventListener("blur", releaseAllMouseButtons);
+      window.removeEventListener("pagehide", releaseAllMouseButtons);
       document.removeEventListener("visibilitychange", releaseOnHidden);
       releaseAllMouseButtons();
     };
   }, []);
+
+  useEffect(() => {
+    if (
+      activeButtonPointers.current.size > 0 ||
+      clutchPointerRef.current !== null ||
+      gyroScrollActiveRef.current
+    ) {
+      releaseAllMouseButtons();
+    }
+  }, [isExpanded, showRestoredMouseButtons, trackpadSettings.leftHandedButtons]);
 
   useEffect(() => {
     if (gyro.selected && gyro.availability === "ready") {
@@ -203,6 +215,9 @@ export function TrackpadMode({
     event: React.PointerEvent<HTMLButtonElement>,
     button: MouseButtonName,
   ) => {
+    if (event.button !== 0) {
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     if (clutchPointerRef.current !== null) {
@@ -583,6 +598,11 @@ export function TrackpadMode({
                   pressMouseButton(event, button.button);
                 }}
                 onPointerUp={releaseMouseButton}
+                onClick={(event) => {
+                  if (event.detail === 0) {
+                    onMouseButtonClick(button.button);
+                  }
+                }}
                 onTouchEnd={stopTouchPropagation}
                 onTouchMove={stopTouchPropagation}
                 onTouchStart={stopTouchPropagation}
@@ -604,6 +624,11 @@ export function TrackpadMode({
                 pressMouseButton(event, button.button);
               }}
               onPointerUp={releaseMouseButton}
+              onClick={(event) => {
+                if (event.detail === 0) {
+                  onMouseButtonClick(button.button);
+                }
+              }}
               type="button"
             >
               <span>{button.label}</span>

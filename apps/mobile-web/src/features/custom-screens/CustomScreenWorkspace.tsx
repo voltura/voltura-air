@@ -85,12 +85,20 @@ export function CustomScreenWorkspace({
     definitionKey: string;
     values: ReadonlyMap<string, boolean>;
   }>({ definitionKey: "", values: noExpansionOverrides });
-  const [fullscreenTrackpadId, setFullscreenTrackpadId] = useState<string | null>(null);
+  const [fullscreenTrackpad, setFullscreenTrackpad] = useState<{
+    definitionKey: string;
+    id: string;
+  } | null>(null);
+  const fullscreenTrackpadId =
+    fullscreenTrackpad?.definitionKey === definitionKey ? fullscreenTrackpad.id : null;
+  const setFullscreenTrackpadId = (id: string | null) =>
+    setFullscreenTrackpad(id ? { definitionKey, id } : null);
   const expansionOverrides =
     expansionState.definitionKey === definitionKey ? expansionState.values : noExpansionOverrides;
   const repeatTimeoutRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
-  const pressedPointerButtonsRef = useRef(new Set<"left" | "right">());
+  const repeatPointerRef = useRef<number | null>(null);
+  const pressedPointerButtonsRef = useRef(new Map<"left" | "right", number>());
   const gyroClutchPointerRef = useRef<number | null>(null);
   const gyroClutchTimerRef = useRef<number | null>(null);
   const gyroClutchEngagedRef = useRef(false);
@@ -130,15 +138,18 @@ export function CustomScreenWorkspace({
   });
   const setGyroEngaged = gyro.setEngaged;
   const emitRef = useRef(emit);
+  const invokeRef = useRef(invoke);
   useEffect(() => {
     emitRef.current = emit;
-  }, [emit]);
+    invokeRef.current = invoke;
+  }, [emit, invoke]);
 
   const stopRepeat = useCallback(() => {
     window.clearTimeout(repeatTimeoutRef.current ?? undefined);
     window.clearInterval(repeatIntervalRef.current ?? undefined);
     repeatTimeoutRef.current = null;
     repeatIntervalRef.current = null;
+    repeatPointerRef.current = null;
   }, []);
 
   const clearGyroClutchTimer = useCallback(() => {
@@ -157,7 +168,7 @@ export function CustomScreenWorkspace({
   }, [clearGyroClutchTimer, setGyroEngaged]);
 
   const releasePointerButtons = useCallback(() => {
-    for (const button of pressedPointerButtonsRef.current) {
+    for (const button of pressedPointerButtonsRef.current.keys()) {
       emitRef.current({ type: "pointer.button", button, action: "up" });
     }
     pressedPointerButtonsRef.current.clear();
@@ -256,21 +267,28 @@ export function CustomScreenWorkspace({
     };
     window.addEventListener("resize", update);
     window.addEventListener("blur", releaseOnBlur);
+    window.addEventListener("pagehide", releaseOnBlur);
     document.addEventListener("visibilitychange", stopWhenHidden);
     return () => {
       stopRepeat();
       releasePointerButtons();
       window.removeEventListener("resize", update);
       window.removeEventListener("blur", releaseOnBlur);
+      window.removeEventListener("pagehide", releaseOnBlur);
       document.removeEventListener("visibilitychange", stopWhenHidden);
     };
   }, [releasePointerButtons, stopRepeat]);
 
   useEffect(() => {
+    stopRepeat();
+    releasePointerButtons();
+  }, [definition, expansionOverrides, orientation, releasePointerButtons, state, stopRepeat]);
+
+  useEffect(() => {
     if (state !== "paired") {
       releasePointerButtons();
       const clearFullscreen = window.setTimeout(() => {
-        setFullscreenTrackpadId(null);
+        setFullscreenTrackpad(null);
       }, 0);
       return () => {
         window.clearTimeout(clearFullscreen);
@@ -288,24 +306,21 @@ export function CustomScreenWorkspace({
     }
   }, [definition, send, state]);
 
+  const screenId = definition?.id;
+  const screenRevision = definition?.revision;
+  const laserButtonId = definition?.sections
+    .flatMap((section) => section.buttons)
+    .find(
+      (button) => button.laserPointerColor !== null && button.laserPointerColor !== undefined,
+    )?.id;
   useEffect(() => {
-    if (!definition) {
+    if (!screenId || !screenRevision || !laserButtonId) {
       return undefined;
     }
-
-    const laserButton = definition.sections
-      .flatMap((section) => section.buttons)
-      .find(
-        (button) => button.laserPointerColor !== null && button.laserPointerColor !== undefined,
-      );
-    if (!laserButton) {
-      return undefined;
-    }
-
     return () => {
-      invoke(definition.id, definition.revision, laserButton.id, false, true);
+      invokeRef.current(screenId, screenRevision, laserButtonId, false, true);
     };
-  }, [definition, invoke]);
+  }, [laserButtonId, screenId, screenRevision]);
 
   const sections = useMemo(() => {
     if (!definition) {
@@ -355,19 +370,32 @@ export function CustomScreenWorkspace({
   }, [sections]);
 
   const press = (event: PointerEvent<HTMLButtonElement>, button: CustomScreenButtonDefinition) => {
-    if (!definition || event.button !== 0 || !button.repeat) {
+    if (
+      !definition ||
+      state !== "paired" ||
+      !button.enabled ||
+      event.button !== 0 ||
+      !button.repeat ||
+      repeatPointerRef.current !== null
+    ) {
       return;
     }
     event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     stopRepeat();
-    invoke(definition.id, definition.revision, button.id);
+    repeatPointerRef.current = event.pointerId;
+    invokeRef.current(definition.id, definition.revision, button.id);
     repeatTimeoutRef.current = window.setTimeout(() => {
-      invoke(definition.id, definition.revision, button.id);
+      invokeRef.current(definition.id, definition.revision, button.id);
       repeatIntervalRef.current = window.setInterval(() => {
-        invoke(definition.id, definition.revision, button.id);
+        invokeRef.current(definition.id, definition.revision, button.id);
       }, repeatMs);
     }, repeatDelayMs);
+  };
+  const finishRepeat = (event: PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerId === repeatPointerRef.current) {
+      stopRepeat();
+    }
   };
 
   return (
@@ -381,7 +409,7 @@ export function CustomScreenWorkspace({
             type="button"
             className="custom-screen-back"
             onClick={() => {
-              setFullscreenTrackpadId(null);
+              setFullscreenTrackpad(null);
               onBack();
             }}
           >
@@ -771,6 +799,7 @@ export function CustomScreenWorkspace({
                           />
                         ) : (
                           <CustomScreenButtonGrid
+                            connected={state === "paired"}
                             collapsible={collapsible}
                             contentId={contentId}
                             invoke={(button, enabled) => {
@@ -785,9 +814,9 @@ export function CustomScreenWorkspace({
                             laserPointerDefaultColor={laserPointerDefaultColor}
                             laserPointerPending={laserPointerPending}
                             onPointerDown={press}
-                            onPointerCancel={stopRepeat}
-                            onPointerUp={stopRepeat}
-                            onLostPointerCapture={stopRepeat}
+                            onPointerCancel={finishRepeat}
+                            onPointerUp={finishRepeat}
+                            onLostPointerCapture={finishRepeat}
                             orientation={orientation}
                             orientationLayoutsEnabled={definition.orientationLayoutsEnabled}
                             pendingButtonIds={pendingButtonIds}
@@ -823,13 +852,16 @@ export function CustomScreenWorkspace({
             gyroTapRef.current = null;
           }
           event.currentTarget.setPointerCapture?.(event.pointerId);
-          pressedPointerButtonsRef.current.add(button);
+          pressedPointerButtonsRef.current.set(button, event.pointerId);
           emit({ type: "pointer.button", button, action: "down" });
           if (gyro.selected) {
             updateGyroEngagement();
           }
         }}
-        onPointerUp={() => {
+        onPointerUp={(event) => {
+          if (pressedPointerButtonsRef.current.get(button) !== event.pointerId) {
+            return;
+          }
           if (pressedPointerButtonsRef.current.delete(button)) {
             emit({ type: "pointer.button", button, action: "up" });
             if (gyro.selected) {
@@ -837,7 +869,10 @@ export function CustomScreenWorkspace({
             }
           }
         }}
-        onPointerCancel={() => {
+        onPointerCancel={(event) => {
+          if (pressedPointerButtonsRef.current.get(button) !== event.pointerId) {
+            return;
+          }
           if (pressedPointerButtonsRef.current.delete(button)) {
             emit({ type: "pointer.button", button, action: "up" });
             if (gyro.selected) {
@@ -845,7 +880,10 @@ export function CustomScreenWorkspace({
             }
           }
         }}
-        onLostPointerCapture={() => {
+        onLostPointerCapture={(event) => {
+          if (pressedPointerButtonsRef.current.get(button) !== event.pointerId) {
+            return;
+          }
           if (pressedPointerButtonsRef.current.delete(button)) {
             emit({ type: "pointer.button", button, action: "up" });
             if (gyro.selected) {

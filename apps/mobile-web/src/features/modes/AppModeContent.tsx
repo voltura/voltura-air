@@ -1,13 +1,23 @@
-import { useState, type ComponentProps } from "react";
-import { ClipboardReadMode } from "./clipboard-read/ClipboardReadMode";
+import { lazy, Suspense, useState, type ComponentProps } from "react";
 import { DictationMode } from "./dictation/DictationMode";
-import { GestureDebugMode } from "./gesture-debug/GestureDebugMode";
 import { KeyboardMode } from "./keyboard/KeyboardMode";
 import { PresentationMode } from "./presentation/PresentationMode";
 import { RemoteMode } from "./remote/RemoteMode";
 import { TrackpadMode } from "./trackpad/TrackpadMode";
 import { TextTransferMode } from "./text-transfer/TextTransferMode";
 import type { AppTab as Tab } from "./modeTypes";
+
+const ClipboardReadMode = lazy(() =>
+  import("./clipboard-read/ClipboardReadMode").then((module) => ({
+    default: module.ClipboardReadMode,
+  })),
+);
+
+const GestureDebugMode = lazy(() =>
+  import("./gesture-debug/GestureDebugMode").then((module) => ({
+    default: module.GestureDebugMode,
+  })),
+);
 
 interface AppModeContentProps {
   tab: Tab;
@@ -112,8 +122,16 @@ export function AppModeContent({
   }
 
   if (tab === "clipboard-read") {
-    return <ClipboardReadMode {...clipboardReadMode} />;
+    return (
+      <Suspense fallback={<div className="workspace-loading">Opening Get text from PC…</div>}>
+        <ClipboardReadMode {...clipboardReadMode} />
+      </Suspense>
+    );
   }
 
-  return supportsGestureDebug ? <GestureDebugMode {...gestureDebugMode} /> : null;
+  return supportsGestureDebug ? (
+    <Suspense fallback={<div className="workspace-loading">Opening Gesture debug…</div>}>
+      <GestureDebugMode {...gestureDebugMode} />
+    </Suspense>
+  ) : null;
 }

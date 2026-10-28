@@ -38,6 +38,7 @@ interface RecordingRuntime {
   fileName: string;
   includesSound: boolean;
   startedAt: number;
+  stoppedAt: number | null;
   bytesWritten: number;
   queuedBytes: number;
   writeChain: Promise<void>;
@@ -48,6 +49,8 @@ interface RecordingRuntime {
   finalizationStarted: boolean;
   videoEnded: (() => void) | null;
   audioEnded: (() => void) | null;
+  tracksStopped: boolean;
+  saving: boolean;
 }
 
 export function useScreenViewRecording(
@@ -57,6 +60,7 @@ export function useScreenViewRecording(
     idlePresentation(),
   );
   const runtimeRef = useRef<RecordingRuntime | null>(null);
+  const generationRef = useRef(0);
   const noticeRef = useRef(onNotice);
   const notify = (message: string, tone: "success" | "error" | "neutral") =>
     noticeRef.current?.(message, tone);
@@ -72,6 +76,10 @@ export function useScreenViewRecording(
   }, [onNotice]);
 
   function stopOwnedTracks(runtime: RecordingRuntime) {
+    if (runtime.tracksStopped) {
+      return;
+    }
+    runtime.tracksStopped = true;
     if (runtime.videoEnded) {
       runtime.tracks[0]?.removeEventListener("ended", runtime.videoEnded);
       runtime.videoEnded = null;
@@ -103,6 +111,7 @@ export function useScreenViewRecording(
       return;
     }
     runtime.discarding = true;
+    stopOwnedTracks(runtime);
     window.clearTimeout(runtime.stopTimer);
     runtime.stopTimer = undefined;
     if (runtime.recorder?.state !== "inactive") {
@@ -120,7 +129,6 @@ export function useScreenViewRecording(
       }
       runtime.writable = null;
     }
-    stopOwnedTracks(runtime);
     await removeStoredRuntime(runtime);
   }
 
@@ -129,7 +137,7 @@ export function useScreenViewRecording(
       return;
     }
     runtimeRef.current = null;
-    await disposeRuntime(runtime);
+    generationRef.current += 1;
     setPresentation({
       phase: "error",
       fileName: "",
@@ -138,6 +146,7 @@ export function useScreenViewRecording(
       includesSound: false,
     });
     notify(message, "error");
+    await disposeRuntime(runtime);
   }
 
   async function finalizeRuntime(runtime: RecordingRuntime) {
@@ -145,6 +154,15 @@ export function useScreenViewRecording(
       return;
     }
     runtime.finalizationStarted = true;
+    runtime.stoppedAt ??= performance.now();
+    stopOwnedTracks(runtime);
+    window.clearTimeout(runtime.stopTimer);
+    runtime.stopTimer = window.setTimeout(() => {
+      void failRuntime(
+        runtime,
+        "This device did not finish storing the recording. Try recording again.",
+      );
+    }, 15_000);
     try {
       await runtime.writeChain;
       if (
@@ -157,6 +175,9 @@ export function useScreenViewRecording(
       }
       await runtime.writable.close();
       runtime.writable = null;
+      if (runtimeRef.current !== runtime || runtime.discarding) {
+        return;
+      }
       const stored = await runtime.storage.handle.getFile();
       if (stored.size === 0 || stored.size !== runtime.bytesWritten) {
         throw new Error("The recorded file was incomplete.");
@@ -174,7 +195,7 @@ export function useScreenViewRecording(
         message: runtime.stopMessage,
         elapsedMs: Math.min(
           screenViewRecordingMaximumDurationMs,
-          Math.max(0, performance.now() - runtime.startedAt),
+          Math.max(0, runtime.stoppedAt - runtime.startedAt),
         ),
         includesSound: runtime.includesSound,
       });
@@ -193,17 +214,24 @@ export function useScreenViewRecording(
       return;
     }
     runtime.stopRequested = true;
+    runtime.stoppedAt ??= performance.now();
     runtime.stopMessage = message;
     window.clearTimeout(runtime.stopTimer);
     runtime.stopTimer = undefined;
     setPresentation((current) => ({ ...current, phase: "finalizing", message: "Finalizing…" }));
     if (!runtime.recorder) {
       runtimeRef.current = null;
-      void disposeRuntime(runtime).then(() =>
-        setPresentation(idlePresentation("Recording canceled.")),
-      );
+      const generation = ++generationRef.current;
+      void disposeRuntime(runtime).then(() => {
+        if (generationRef.current === generation) {
+          setPresentation(idlePresentation("Recording canceled."));
+        }
+      });
       return;
     }
+    runtime.stopTimer = window.setTimeout(() => {
+      void failRuntime(runtime, "This browser did not finish the recording. Try recording again.");
+    }, 15_000);
     if (runtime.recorder.state === "inactive") {
       return;
     }
@@ -337,6 +365,7 @@ export function useScreenViewRecording(
       fileName: "PC screen recording",
       includesSound: includeSound,
       startedAt: performance.now(),
+      stoppedAt: null,
       bytesWritten: 0,
       queuedBytes: 0,
       writeChain: Promise.resolve(),
@@ -347,7 +376,10 @@ export function useScreenViewRecording(
       finalizationStarted: false,
       videoEnded: null,
       audioEnded: null,
+      tracksStopped: false,
+      saving: false,
     };
+    generationRef.current += 1;
     runtimeRef.current = runtime;
     setPresentation({
       phase: "recording",
@@ -377,6 +409,9 @@ export function useScreenViewRecording(
           /* The next page initialization retries the shared owner sweep. */
         }
         return false;
+      }
+      if (tracks.some((track) => track.readyState === "ended")) {
+        throw new Error("The recording stream ended while storage was being prepared.");
       }
       const recorder = new MediaRecorder(recordingStream, {
         mimeType: format.mimeType,
@@ -412,6 +447,9 @@ export function useScreenViewRecording(
         audioTrack.addEventListener("ended", runtime.audioEnded);
       }
       recorder.start(recordingChunkIntervalMs);
+      if (runtimeRef.current !== runtime || runtime.discarding || runtime.finalizationStarted) {
+        return false;
+      }
       runtime.stopTimer = window.setTimeout(
         () => requestStop(runtime, "Five-minute recording complete."),
         screenViewRecordingMaximumDurationMs,
@@ -437,31 +475,42 @@ export function useScreenViewRecording(
 
   async function saveReadyFile() {
     const runtime = runtimeRef.current;
-    if (!runtime?.readyFile || presentation.phase !== "ready") {
+    if (!runtime?.readyFile || runtime.saving || presentation.phase !== "ready") {
       return;
     }
+    runtime.saving = true;
     try {
       const result = await saveOrShareDeviceFile(runtime.readyFile, runtime.fileName);
+      if (runtimeRef.current !== runtime || runtime.discarding) {
+        return;
+      }
       runtimeRef.current = null;
-      await removeStoredRuntime(runtime);
+      generationRef.current += 1;
       setPresentation(idlePresentation(result === "shared" ? "Shared." : "Download started."));
       notify(result === "shared" ? "Shared." : "Download started.", "success");
+      await removeStoredRuntime(runtime);
     } catch (error) {
+      if (runtimeRef.current !== runtime || runtime.discarding) {
+        return;
+      }
       if (error instanceof DOMException && error.name === "AbortError") {
         return;
       }
       setPresentation((current) => ({ ...current, message: "The recording could not be saved." }));
       notify("The recording could not be saved.", "error");
+    } finally {
+      runtime.saving = false;
     }
   }
 
   async function discard() {
+    generationRef.current += 1;
     const runtime = runtimeRef.current;
     runtimeRef.current = null;
+    setPresentation(idlePresentation("Recording discarded."));
     if (runtime) {
       await disposeRuntime(runtime);
     }
-    setPresentation(idlePresentation("Recording discarded."));
   }
 
   function stop(message = "Recording ready to save or share.") {
@@ -495,15 +544,18 @@ export function useScreenViewRecording(
       }
     };
     const onPageHide = () => {
+      generationRef.current += 1;
       const runtime = runtimeRef.current;
       runtimeRef.current = null;
       if (runtime) {
         void disposeRuntime(runtime);
+        setPresentation(idlePresentation("Recording discarded."));
       }
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("pagehide", onPageHide);
     return () => {
+      generationRef.current += 1;
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pagehide", onPageHide);
       const runtime = runtimeRef.current;

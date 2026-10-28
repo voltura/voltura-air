@@ -27,6 +27,7 @@ const previewSwapDurationMs = 180;
 function AppsPreviewImage({ url }: { url: string }) {
   const [displayedUrl, setDisplayedUrl] = useState(url);
   const [readyUrl, setReadyUrl] = useState<string | null>(null);
+  const [currentReadyUrl, setCurrentReadyUrl] = useState<string | null>(null);
   const incomingUrl = url === displayedUrl ? null : url;
   const incomingReady = incomingUrl !== null && readyUrl === incomingUrl;
 
@@ -45,9 +46,9 @@ function AppsPreviewImage({ url }: { url: string }) {
       <img
         src={displayedUrl}
         alt=""
-        className={`apps-preview-image-current${readyUrl === displayedUrl ? " is-ready" : ""}`}
+        className={`apps-preview-image-current${readyUrl === displayedUrl || currentReadyUrl === displayedUrl ? " is-ready" : ""}`}
         draggable={false}
-        onLoad={() => setReadyUrl(displayedUrl)}
+        onLoad={() => setCurrentReadyUrl(displayedUrl)}
       />
       {incomingUrl && (
         <img
@@ -93,12 +94,38 @@ export function AppsWindowCard({
   previewState,
   previewUrl,
   selected,
-  window,
+  window: appWindow,
 }: Props) {
   const cardRef = useRef<HTMLElement | null>(null);
   const gestureRef = useRef<Gesture | null>(null);
   const suppressClickRef = useRef(false);
   const wasBusyRef = useRef(busy);
+
+  useEffect(() => {
+    const cancelGesture = () => {
+      if (!gestureRef.current) {
+        return;
+      }
+      gestureRef.current = null;
+      suppressClickRef.current = true;
+      if (cardRef.current) {
+        showCloseProgress(cardRef.current, 0);
+      }
+    };
+    const hidden = () => {
+      if (document.visibilityState === "hidden") {
+        cancelGesture();
+      }
+    };
+    window.addEventListener("blur", cancelGesture);
+    window.addEventListener("pagehide", cancelGesture);
+    document.addEventListener("visibilitychange", hidden);
+    return () => {
+      window.removeEventListener("blur", cancelGesture);
+      window.removeEventListener("pagehide", cancelGesture);
+      document.removeEventListener("visibilitychange", hidden);
+    };
+  }, []);
 
   useEffect(() => {
     if (wasBusyRef.current && !busy && cardRef.current) {
@@ -108,9 +135,17 @@ export function AppsWindowCard({
   }, [busy]);
 
   const onPointerDown = (event: PointerEvent<HTMLElement>) => {
+    if (event.button !== 0 || gestureRef.current || busy) {
+      return;
+    }
     suppressClickRef.current = false;
     showCloseProgress(event.currentTarget, 0);
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    const target = event.target instanceof Element ? event.target.closest("button") : null;
+    try {
+      (target ?? event.currentTarget).setPointerCapture?.(event.pointerId);
+    } catch {
+      // Capture is optional when the browser has already retired the pointer.
+    }
     gestureRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -137,18 +172,20 @@ export function AppsWindowCard({
 
   const finishGesture = (event: PointerEvent<HTMLElement>) => {
     const gesture = gestureRef.current;
-    gestureRef.current = null;
     if (!gesture || gesture.pointerId !== event.pointerId) {
-      showCloseProgress(event.currentTarget, 0);
       return;
+    }
+    gestureRef.current = null;
+    const dx = event.clientX - gesture.startX;
+    const dy = event.clientY - gesture.startY;
+    if (gesture.axis === "pending" && Math.hypot(dx, dy) >= 8) {
+      gesture.axis = Math.abs(dx) >= Math.abs(dy) ? "horizontal" : "vertical";
     }
     suppressClickRef.current = gesture.axis !== "pending";
     if (gesture.axis !== "vertical") {
       showCloseProgress(event.currentTarget, 0);
       return;
     }
-    const dx = event.clientX - gesture.startX;
-    const dy = event.clientY - gesture.startY;
     if (selected && !busy && dy <= -closeThreshold && Math.abs(dy) > Math.abs(dx) * 1.25) {
       commitClose(event.currentTarget);
       onClose();
@@ -163,23 +200,26 @@ export function AppsWindowCard({
       className={`apps-window-card${selected ? " is-selected" : ""}`}
       aria-current={selected ? "true" : undefined}
       onClickCapture={(event) => {
-        if (suppressClickRef.current) {
+        if (suppressClickRef.current && event.detail > 0) {
           suppressClickRef.current = false;
           event.preventDefault();
           event.stopPropagation();
         }
       }}
       onPointerCancel={(event) => {
-        gestureRef.current = null;
-        suppressClickRef.current = false;
-        showCloseProgress(event.currentTarget, 0);
-      }}
-      onLostPointerCapture={(event) => {
-        if (!gestureRef.current) {
+        if (gestureRef.current?.pointerId !== event.pointerId) {
           return;
         }
         gestureRef.current = null;
-        suppressClickRef.current = false;
+        suppressClickRef.current = true;
+        showCloseProgress(event.currentTarget, 0);
+      }}
+      onLostPointerCapture={(event) => {
+        if (gestureRef.current?.pointerId !== event.pointerId) {
+          return;
+        }
+        gestureRef.current = null;
+        suppressClickRef.current = true;
         showCloseProgress(event.currentTarget, 0);
       }}
       onPointerDown={onPointerDown}
@@ -191,8 +231,8 @@ export function AppsWindowCard({
         className="apps-card-main"
         aria-label={
           selected
-            ? `Activate ${window.title}`
-            : `Select ${window.title}, ${window.applicationName}`
+            ? `Activate ${appWindow.title}`
+            : `Select ${appWindow.title}, ${appWindow.applicationName}`
         }
         disabled={busy}
         onClick={selected ? onActivate : onSelect}
@@ -211,8 +251,8 @@ export function AppsWindowCard({
               </small>
             </span>
           )}
-          {(window.active || window.minimized) && (
-            <span className="apps-active-badge">{window.active ? "Active" : "Minimized"}</span>
+          {(appWindow.active || appWindow.minimized) && (
+            <span className="apps-active-badge">{appWindow.active ? "Active" : "Minimized"}</span>
           )}
           <span className="apps-swipe-close-cue" aria-hidden="true">
             <X />
@@ -221,19 +261,23 @@ export function AppsWindowCard({
         </span>
         <span className="apps-card-details">
           <span className="apps-card-copy">
-            <strong>{window.title}</strong>
-            <span>{window.applicationName}</span>
+            <strong>{appWindow.title}</strong>
+            <span>{appWindow.applicationName}</span>
           </span>
           <span className="apps-activation-hint" aria-hidden="true">
-            {window.minimized ? (
+            {appWindow.minimized ? (
               <Minus />
-            ) : window.maximizeSupported ? (
+            ) : appWindow.maximizeSupported ? (
               <Maximize2 />
             ) : (
               <AppWindow />
             )}
             <span>
-              {window.minimized ? "Restore" : window.maximizeSupported ? "Open full" : "Focus"}
+              {appWindow.minimized
+                ? "Restore"
+                : appWindow.maximizeSupported
+                  ? "Open full"
+                  : "Focus"}
             </span>
           </span>
         </span>
@@ -242,7 +286,7 @@ export function AppsWindowCard({
         <button
           type="button"
           className="apps-close-button"
-          aria-label={`Close ${window.title}`}
+          aria-label={`Close ${appWindow.title}`}
           disabled={busy}
           onClick={(event) => {
             event.stopPropagation();

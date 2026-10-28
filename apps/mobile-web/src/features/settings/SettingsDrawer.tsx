@@ -83,6 +83,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
 
   const closeThen = (action: (() => void) | undefined) => {
     closeDialog();
+    returnFocusRef.current = null;
     action?.();
   };
 
@@ -94,11 +95,14 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
       aria-modal="true"
       tabIndex={-1}
       onCancel={(event) => {
+        if (event.target !== event.currentTarget) {
+          return;
+        }
         event.preventDefault();
         closeDialog();
       }}
       onClose={(event) => {
-        if (event.target !== event.currentTarget) {
+        if (event.target !== event.currentTarget || event.currentTarget.open) {
           return;
         }
 

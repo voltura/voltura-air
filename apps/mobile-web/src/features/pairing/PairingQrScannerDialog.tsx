@@ -23,6 +23,12 @@ export function PairingQrScannerDialog({
   const releaseAttemptRef = useRef<() => void>(() => undefined);
   const [cameraReady, setCameraReady] = useState(false);
   const [status, setStatus] = useState("Waiting for camera permission…");
+  const [previousAttemptId, setPreviousAttemptId] = useState(attemptId);
+  if (previousAttemptId !== attemptId) {
+    setPreviousAttemptId(attemptId);
+    setCameraReady(false);
+    setStatus("Waiting for camera permission…");
+  }
 
   useEffect(() => {
     onAcceptRef.current = onAccept;
@@ -145,12 +151,21 @@ export function PairingQrScannerDialog({
 
     document.addEventListener("visibilitychange", leaveForeground);
     window.addEventListener("pagehide", pageHide);
-    void navigator.mediaDevices
-      .getUserMedia({
+    const requestCamera = async () => {
+      if (document.visibilityState === "hidden") {
+        pageHide();
+        return null;
+      }
+      return navigator.mediaDevices.getUserMedia({
         audio: false,
         video: { facingMode: { ideal: "environment" } },
-      })
+      });
+    };
+    void requestCamera()
       .then((candidate) => {
+        if (!candidate) {
+          return;
+        }
         if (!active || finished) {
           candidate.getTracks().forEach((track) => {
             track.stop();
@@ -160,7 +175,7 @@ export function PairingQrScannerDialog({
 
         stream = candidate;
         videoTrack = candidate.getVideoTracks()[0] ?? null;
-        if (!videoTrack) {
+        if (!videoTrack || videoTrack.readyState === "ended") {
           fallback("No camera is available. Take a photo of the QR code instead.");
           return;
         }
@@ -182,6 +197,9 @@ export function PairingQrScannerDialog({
         void video
           .play()
           .then(() => {
+            if (!active || finished) {
+              return;
+            }
             setCameraReady(true);
             scheduleFrame(0);
           })

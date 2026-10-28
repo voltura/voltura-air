@@ -116,7 +116,7 @@ export default function FileManagerWorkspace({
   connectionEpoch,
   mirrorViewUnavailableMessage,
   onMirrorView,
-  send,
+  send: sendMessage,
   state,
 }: Props) {
   const [session, setSession] = useState<FileManagerSession | null>(null);
@@ -150,6 +150,72 @@ export default function FileManagerWorkspace({
   const trackedJobs = useRef(new Map<string, TrackedJob>());
   const terminalJobEffects = useRef(new Set<string>());
   const jobsRef = useRef<FileJobSnapshot[]>([]);
+  const readTimersRef = useRef(new Map<string, number>());
+  const send = useCallback(
+    (message: ClientMessage) => {
+      if (
+        message.type === "file.session.open" ||
+        message.type === "file.navigate" ||
+        message.type === "file.page.get" ||
+        message.type === "file.refresh" ||
+        message.type === "file.sort" ||
+        message.type === "file.properties.get" ||
+        message.type === "file.open"
+      ) {
+        const operationId = message.operationId;
+        const mirrorOpen =
+          message.type === "file.open" && pendingMirrorOpenRef.current === operationId;
+        const timeout = window.setTimeout(() => {
+          readTimersRef.current.delete(operationId);
+          const panelRequest = pendingPanelRequests.current.get(operationId);
+          pendingPanelRequests.current.delete(operationId);
+          if (panelRequest) {
+            if (
+              panelRequest.kind === "page" &&
+              panelsRef.current?.[panelRequest.panel].page.revision !== panelRequest.revision
+            ) {
+              return;
+            }
+            if (
+              panelRequest.kind === "replace" &&
+              latestReplacementRequest.current[panelRequest.panel] !== operationId
+            ) {
+              return;
+            }
+            setPanels((current) =>
+              current
+                ? {
+                    ...current,
+                    [panelRequest.panel]: {
+                      ...current[panelRequest.panel],
+                      loadingMore: false,
+                      pageError: "The PC did not respond. Retry this folder.",
+                    },
+                  }
+                : current,
+            );
+          } else if (sessionRequestRef.current === operationId) {
+            sessionRequestRef.current = "";
+          } else if (pendingPropertiesRef.current === operationId) {
+            pendingPropertiesRef.current = "";
+          } else if (pendingMirrorOpenRef.current === operationId) {
+            pendingMirrorOpenRef.current = "";
+          } else if (mirrorOpen) {
+            return;
+          } else if (message.type !== "file.open") {
+            return;
+          }
+          setStatus(
+            "The PC did not respond to the Files request. Check the connection and the PC before retrying.",
+          );
+          setStatusTone("error");
+        }, 15_000);
+        readTimersRef.current.set(operationId, timeout);
+      }
+      sendMessage(message);
+    },
+    [sendMessage],
+  );
 
   useEffect(() => {
     sessionRef.current = session;
@@ -223,10 +289,14 @@ export default function FileManagerWorkspace({
     const jobRequests = pendingJobRequests.current;
     const currentTrackedJobs = trackedJobs.current;
     const currentTerminalJobEffects = terminalJobEffects.current;
+    const readTimers = readTimersRef.current;
     sessionRequestRef.current = operationId;
     send({ type: "file.session.open", operationId });
     send({ type: "file.jobs.get", operationId: createLocalId() });
     return () => {
+      sessionRequestRef.current = "";
+      readTimers.forEach((timeout) => window.clearTimeout(timeout));
+      readTimers.clear();
       sessionRef.current = null;
       panelsRef.current = null;
       panelRequests.clear();
@@ -280,10 +350,20 @@ export default function FileManagerWorkspace({
       refreshPanels.forEach(refreshPanel);
     };
     return subscribeFileManagerResults((message) => {
+      const wasPendingRead =
+        "operationId" in message && readTimersRef.current.has(message.operationId);
+      if ("operationId" in message) {
+        window.clearTimeout(readTimersRef.current.get(message.operationId));
+        readTimersRef.current.delete(message.operationId);
+      }
+      if (message.type === "file.open.result" && !wasPendingRead) {
+        return;
+      }
       if (message.type === "file.session.open.result") {
         if (message.operationId !== sessionRequestRef.current) {
           return;
         }
+        sessionRequestRef.current = "";
         if (!message.succeeded || !message.session) {
           setStatus(message.message);
           setStatusTone("error");

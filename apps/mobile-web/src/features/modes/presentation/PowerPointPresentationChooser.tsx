@@ -11,6 +11,7 @@ import type {
 type Selection = { kind: "open"; id: string } | { kind: "saved"; id: string } | null;
 
 interface PowerPointPresentationChooserProps {
+  enabled?: boolean;
   appLaunchAction?: AppLaunchActionSummary | undefined;
   appLaunchResult?: AppLaunchResultMessage | null | undefined;
   capability: PowerPointCapability;
@@ -28,6 +29,7 @@ interface PowerPointPresentationChooserProps {
 }
 
 export function PowerPointPresentationChooser({
+  enabled = true,
   appLaunchAction,
   appLaunchResult,
   appLaunchPending,
@@ -53,7 +55,8 @@ export function PowerPointPresentationChooser({
     selection?.kind === "saved"
       ? saved.find((item) => item.presentationId === selection.id)
       : undefined;
-  const commitDisabled = launchPending || (!selectedOpen && !selectedSaved);
+  const commitDisabled =
+    !enabled || launchPending || appLaunchPending || (!selectedOpen && !selectedSaved);
   const replacesCurrentSession =
     capability.session?.state !== undefined && capability.session.state !== "inactive";
 
@@ -71,7 +74,7 @@ export function PowerPointPresentationChooser({
         <button
           type="button"
           className="presentation-chooser-refresh"
-          disabled={refreshPending || launchPending}
+          disabled={!enabled || refreshPending || launchPending}
           onClick={onRefresh}
         >
           <RefreshCw aria-hidden="true" />
@@ -91,7 +94,7 @@ export function PowerPointPresentationChooser({
                   ? `Slide ${presentation.currentSlideIndex ?? "–"} of ${presentation.slideCount} · Presenting`
                   : `${presentation.slideCount} slides · Ready`
               }
-              disabled={launchPending}
+              disabled={!enabled || launchPending}
               id={`open-${presentation.runtimePresentationId}`}
               key={presentation.runtimePresentationId}
               name={presentation.name}
@@ -111,7 +114,7 @@ export function PowerPointPresentationChooser({
                   ? "Saved presentation"
                   : presentation.fileName
               }
-              disabled={launchPending}
+              disabled={!enabled || launchPending}
               id={`saved-${presentation.presentationId}`}
               key={presentation.presentationId}
               name={presentation.title}
@@ -150,7 +153,7 @@ export function PowerPointPresentationChooser({
           {capability.state !== "ready" && appLaunchAction && onLaunchApp && (
             <button
               type="button"
-              disabled={appLaunchPending || launchPending}
+              disabled={!enabled || appLaunchPending || launchPending}
               onClick={() => {
                 onLaunchApp(appLaunchAction.id);
               }}

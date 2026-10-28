@@ -9,23 +9,24 @@ const responseTimeoutMs = 15000;
 const resultVisibilityMs = 5000;
 
 export function useTextTransfer(state: ConnectionState, send: (payload: ClientMessage) => void) {
-  const [pendingTextTransfer, setPendingTextTransfer] = useState(false);
+  const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
+  const pendingTextTransfer = pendingOperationId !== null;
   const [textTransferResult, setTextTransferResult] = useState<TextSendResultMessage | null>(null);
   const pendingOperationRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!pendingTextTransfer || pendingOperationRef.current === null) {
+    if (pendingOperationId === null || pendingOperationRef.current !== pendingOperationId) {
       return;
     }
 
-    const operationId = pendingOperationRef.current;
+    const operationId = pendingOperationId;
     const timeout = window.setTimeout(() => {
       if (pendingOperationRef.current !== operationId) {
         return;
       }
 
       pendingOperationRef.current = null;
-      setPendingTextTransfer(false);
+      setPendingOperationId(null);
       setTextTransferResult({
         type: "text.send.result",
         operationId,
@@ -37,7 +38,7 @@ export function useTextTransfer(state: ConnectionState, send: (payload: ClientMe
     return () => {
       window.clearTimeout(timeout);
     };
-  }, [pendingTextTransfer]);
+  }, [pendingOperationId]);
 
   useEffect(() => {
     if (state === "paired") {
@@ -45,7 +46,7 @@ export function useTextTransfer(state: ConnectionState, send: (payload: ClientMe
     }
 
     pendingOperationRef.current = null;
-    setPendingTextTransfer(false);
+    setPendingOperationId(null);
     setTextTransferResult(null);
   }, [state]);
 
@@ -69,7 +70,7 @@ export function useTextTransfer(state: ConnectionState, send: (payload: ClientMe
 
     const operationId = createLocalId();
     pendingOperationRef.current = operationId;
-    setPendingTextTransfer(true);
+    setPendingOperationId(operationId);
     setTextTransferResult(null);
     send({ type: "text.send", operationId, text, sendEnter });
     return operationId;
@@ -81,7 +82,7 @@ export function useTextTransfer(state: ConnectionState, send: (payload: ClientMe
     }
 
     pendingOperationRef.current = null;
-    setPendingTextTransfer(false);
+    setPendingOperationId(null);
     setTextTransferResult(result);
     return true;
   };

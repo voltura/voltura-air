@@ -46,6 +46,7 @@ export function usePwaLifecycle({
     setKeepDeviceScreenOnState(enabled);
   }, []);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const installPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(() => isRunningStandalone());
   const [refreshMessage, setRefreshMessage] = useState(
     "Reload from the PC if the home screen app looks stale.",
@@ -65,10 +66,12 @@ export function usePwaLifecycle({
   useEffect(() => {
     const onBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
+      installPromptRef.current = event as BeforeInstallPromptEvent;
       setInstallPrompt(event as BeforeInstallPromptEvent);
     };
     const onAppInstalled = () => {
       setIsInstalled(true);
+      installPromptRef.current = null;
       setInstallPrompt(null);
     };
 
@@ -82,16 +85,24 @@ export function usePwaLifecycle({
   }, []);
 
   const installApp = async () => {
-    if (!installPrompt) {
+    const prompt = installPromptRef.current;
+    if (!prompt) {
       return;
     }
-
-    await installPrompt.prompt();
-    const choice = await installPrompt.userChoice;
-    if (choice.outcome === "accepted") {
-      setIsInstalled(true);
-    }
+    installPromptRef.current = null;
     setInstallPrompt(null);
+    try {
+      const [, choice] = await Promise.all([prompt.prompt(), prompt.userChoice]);
+      if (choice.outcome === "accepted" && isMountedRef.current) {
+        setIsInstalled(true);
+      }
+    } catch {
+      if (isMountedRef.current) {
+        setRefreshMessage(
+          "Could not open the install prompt. Use your browser's install menu to try again.",
+        );
+      }
+    }
   };
 
   const runRefreshAttempt = useCallback((refreshKey?: string): Promise<FreshAppRefreshResult> => {

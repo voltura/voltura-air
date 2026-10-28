@@ -73,6 +73,9 @@ export function TerminalWorkspace({
   const reconnectEpochRef = useRef(-1);
   const connectionEpochRef = useRef(connectionEpoch);
   const pendingAttachRef = useRef<{ epoch: number; operationId: string } | null>(null);
+  const pendingStartRef = useRef<string | null>(null);
+  const offerOperationRef = useRef<string | null>(null);
+  const setupTimerRef = useRef<number | undefined>(undefined);
   const observedActiveRef = useRef(false);
   const renewalTimerRef = useRef<number | undefined>(undefined);
   const inputQueueRef = useRef<TerminalInputQueue | null>(null);
@@ -106,6 +109,8 @@ export function TerminalWorkspace({
     [],
   );
   const closePeer = useCallback(() => {
+    window.clearTimeout(setupTimerRef.current);
+    setupTimerRef.current = undefined;
     const channel = channelRef.current;
     channelRef.current = null;
     inputQueueRef.current?.disconnect(channel ?? undefined);
@@ -121,6 +126,20 @@ export function TerminalWorkspace({
     }
     renewalTimerRef.current = undefined;
   }, []);
+
+  const beginSetupDeadline = useCallback(() => {
+    window.clearTimeout(setupTimerRef.current);
+    setupTimerRef.current = window.setTimeout(() => {
+      pendingStartRef.current = null;
+      pendingAttachRef.current = null;
+      offerOperationRef.current = null;
+      closePeer();
+      setConnecting(false);
+      setStatus(
+        "The PC did not finish the Terminal connection. Check the connection or stop Terminal.",
+      );
+    }, 15_000);
+  }, [closePeer]);
 
   const sendBytes = useCallback((bytes: Uint8Array) => {
     if (!terminalIdRef.current) {
@@ -243,7 +262,7 @@ export function TerminalWorkspace({
       }
     };
     const momentum = new MomentumScroller(scrollByDistance);
-    stopMomentumRef.current = () => momentum.stop();
+    stopMomentumRef.current = () => touchCancel();
     const cancelSelectionHold = () => {
       if (selectionHoldTimer !== undefined) {
         window.clearTimeout(selectionHoldTimer);
@@ -252,9 +271,7 @@ export function TerminalWorkspace({
     };
     const stopMomentumWhenHidden = () => {
       if (document.visibilityState === "hidden") {
-        momentum.stop();
-        cancelSelectionHold();
-        selectionAnchor = null;
+        touchCancel();
       }
     };
     document.addEventListener("visibilitychange", stopMomentumWhenHidden);
@@ -398,6 +415,8 @@ export function TerminalWorkspace({
       pendingTouchDistance = 0;
       touchAxis = null;
     };
+    window.addEventListener("blur", touchCancel);
+    window.addEventListener("pagehide", touchCancel);
     host.addEventListener("paste", paste, { capture: true });
     host.addEventListener("touchstart", touchStart, { passive: true });
     host.addEventListener("touchmove", touchMove, { passive: false });
@@ -411,6 +430,8 @@ export function TerminalWorkspace({
       window.removeEventListener("orientationchange", scheduleLayout);
       window.visualViewport?.removeEventListener("resize", scheduleLayout);
       document.removeEventListener("visibilitychange", stopMomentumWhenHidden);
+      window.removeEventListener("blur", touchCancel);
+      window.removeEventListener("pagehide", touchCancel);
       cancelSelectionHold();
       host?.removeEventListener("paste", paste, { capture: true });
       host?.removeEventListener("touchstart", touchStart);
@@ -486,6 +507,9 @@ export function TerminalWorkspace({
     terminalIdRef.current = terminalId;
     reconnectEpochRef.current = epoch;
     pendingAttachRef.current = { epoch, operationId };
+    offerOperationRef.current = operationId;
+    pendingStartRef.current = null;
+    beginSetupDeadline();
     receivedRef.current = acknowledgedRef.current;
     setCurrentTerminalId(terminalId);
     setConnecting(true);
@@ -499,11 +523,15 @@ export function TerminalWorkspace({
       rows,
       clientSignature: signature,
     });
-  }, [activePc, capability.terminalId, clientId, dimensions, send]);
+  }, [activePc, beginSetupDeadline, capability.terminalId, clientId, dimensions, send]);
 
   const acceptOffer = useCallback(
     async (message: TerminalOfferMessage) => {
-      if (!activePc.hostIdentityPublicKey || terminalIdRef.current !== message.terminalId) {
+      if (
+        !activePc.hostIdentityPublicKey ||
+        terminalIdRef.current !== message.terminalId ||
+        offerOperationRef.current !== message.operationId
+      ) {
         return;
       }
       if (pendingAttachRef.current?.operationId === message.operationId) {
@@ -527,10 +555,14 @@ export function TerminalWorkspace({
           transcript,
         )
       ) {
+        closePeer();
+        setConnecting(false);
         setStatus("The PC identity signature was invalid.");
         return;
       }
+      offerOperationRef.current = null;
       closePeer();
+      beginSetupDeadline();
       let peer: RTCPeerConnection | null = null;
       try {
         const relay = activePc.transportMode === "relay";
@@ -543,14 +575,23 @@ export function TerminalWorkspace({
         });
         peerRef.current = peer;
         peer.addEventListener("datachannel", ({ channel }) => {
-          if (channel.label !== "voltura-terminal") {
+          if (
+            peerRef.current !== peer ||
+            channelRef.current !== null ||
+            channel.label !== "voltura-terminal"
+          ) {
             channel.close();
             return;
           }
           channel.binaryType = "arraybuffer";
           channelRef.current = channel;
           channel.addEventListener("open", () => {
+            if (peerRef.current !== peer || channelRef.current !== channel) {
+              return;
+            }
             inputQueueRef.current?.connect(channel);
+            window.clearTimeout(setupTimerRef.current);
+            setupTimerRef.current = undefined;
             setConnecting(false);
             setRunning(true);
             setInputReady(true);
@@ -568,6 +609,9 @@ export function TerminalWorkspace({
             }
           });
           channel.addEventListener("message", (event) => {
+            if (peerRef.current !== peer || channelRef.current !== channel) {
+              return;
+            }
             if (!(event.data instanceof ArrayBuffer)) {
               channel.close();
               return;
@@ -581,11 +625,18 @@ export function TerminalWorkspace({
             receivedRef.current += record.payload.length;
             const acknowledgedOffset = receivedRef.current;
             terminalRef.current?.write(record.payload, () => {
+              if (peerRef.current !== peer || channelRef.current !== channel) {
+                return;
+              }
               if (acknowledgedOffset > acknowledgedRef.current) {
                 acknowledgedRef.current = acknowledgedOffset;
               }
               if (channel.readyState === "open" && acknowledgedOffset === acknowledgedRef.current) {
-                channel.send(createTerminalAcknowledgement(acknowledgedRef.current));
+                try {
+                  channel.send(createTerminalAcknowledgement(acknowledgedRef.current));
+                } catch {
+                  transportFailureRef.current();
+                }
               }
             });
           });
@@ -648,7 +699,7 @@ export function TerminalWorkspace({
         setStatus(error instanceof Error ? error.message : "Terminal connection failed.");
       }
     },
-    [activePc, attach, clientId, closePeer, send],
+    [activePc, attach, beginSetupDeadline, clientId, closePeer, send],
   );
 
   useEffect(() => {
@@ -670,10 +721,22 @@ export function TerminalWorkspace({
     () =>
       subscribeTerminalResults((message) => {
         if (message.type === "terminal.start.result" || message.type === "terminal.attach.result") {
+          const expected =
+            message.type === "terminal.start.result"
+              ? pendingStartRef.current
+              : pendingAttachRef.current?.operationId;
+          if (message.operationId !== expected) {
+            return;
+          }
+          if (message.type === "terminal.start.result") {
+            pendingStartRef.current = null;
+          }
           if (!message.succeeded || !message.terminalId) {
             if (message.type === "terminal.attach.result") {
               pendingAttachRef.current = null;
             }
+            offerOperationRef.current = null;
+            closePeer();
             setConnecting(false);
             setStatus(message.message);
             return;
@@ -694,6 +757,8 @@ export function TerminalWorkspace({
           receivedRef.current = 0;
           reconnectEpochRef.current = -1;
           pendingAttachRef.current = null;
+          pendingStartRef.current = null;
+          offerOperationRef.current = null;
           inputQueueRef.current?.clear();
           terminalRef.current?.clearSelection();
           setRunning(false);
@@ -751,7 +816,7 @@ export function TerminalWorkspace({
   }, [attach, capability, closePeer, connectionEpoch, currentTerminalId, state]);
 
   const start = () => {
-    if (!activePc.hostIdentityPublicKey) {
+    if (!activePc.hostIdentityPublicKey || state !== "paired" || !capability.canUse || connecting) {
       return;
     }
     fitAndResizeRef.current();
@@ -774,6 +839,9 @@ export function TerminalWorkspace({
     receivedRef.current = 0;
     reconnectEpochRef.current = connectionEpoch;
     pendingAttachRef.current = null;
+    pendingStartRef.current = operationId;
+    offerOperationRef.current = operationId;
+    beginSetupDeadline();
     terminalIdRef.current = null;
     setCurrentTerminalId(null);
     setConnecting(true);

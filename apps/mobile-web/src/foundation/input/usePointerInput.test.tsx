@@ -6,9 +6,41 @@ import { usePointerInput } from "./usePointerInput";
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("usePointerInput", () => {
+  it.each(["disconnect", "hidden"])("drops queued input across %s and return", (reason) => {
+    const send = vi.fn();
+    let frame: FrameRequestCallback | undefined;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frame = callback;
+      return 1;
+    });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const { result, rerender } = renderHook(
+      ({ state }: { state: ConnectionState }) =>
+        usePointerInput({ send, state, trackpadSettings: defaultTrackpadSettings }),
+      { initialProps: { state: "paired" as ConnectionState } },
+    );
+    act(() => {
+      result.current.emit({ type: "pointer.move", dx: 4, dy: 2 });
+    });
+    if (reason === "disconnect") {
+      rerender({ state: "connecting" });
+      rerender({ state: "paired" });
+    } else {
+      const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      visibility.mockReturnValue("visible");
+    }
+    act(() => {
+      frame?.(0);
+    });
+    expect(send).not.toHaveBeenCalled();
+  });
   it("cancels queued pointer input when the owning surface becomes unavailable", () => {
     const send = vi.fn();
     let frame: FrameRequestCallback | undefined;

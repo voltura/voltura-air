@@ -28,13 +28,15 @@ import { CustomScreenWorkspace } from "./features/custom-screens";
 import { incompatibleCustomScreenResponseCode } from "./foundation/connection/useCustomScreens";
 import { WorkspaceErrorBoundary } from "./app/WorkspaceErrorBoundary";
 import { subscribeFileManagerResults } from "./foundation/connection/fileManagerResultBus";
-import { ThirdPartyNoticesWorkspace } from "./features/legal";
 import { requestGyroPermission, type GyroActivationRequest } from "./foundation/input/gyroMouse";
 import {
   clearChunkLoadUpdateNotice,
   hasChunkLoadUpdateNotice,
 } from "./foundation/pwa/freshAppRefresh";
 
+const ThirdPartyNoticesWorkspace = lazy(() =>
+  import("./features/legal").then((module) => ({ default: module.ThirdPartyNoticesWorkspace })),
+);
 const ScreenViewWorkspace = lazy(() => import("./features/screen-view"));
 const FileManagerWorkspace = lazy(() => import("./features/file-manager"));
 const PhoneWebcamWorkspace = lazy(() => import("./features/phone-webcam"));
@@ -1109,11 +1111,13 @@ export function App() {
             />
           </Suspense>
         ) : isThirdPartyNoticesOpen ? (
-          <ThirdPartyNoticesWorkspace
-            onBack={() => {
-              setIsThirdPartyNoticesOpen(false);
-            }}
-          />
+          <Suspense fallback={<div className="workspace-loading">Opening notices…</div>}>
+            <ThirdPartyNoticesWorkspace
+              onBack={() => {
+                setIsThirdPartyNoticesOpen(false);
+              }}
+            />
+          </Suspense>
         ) : isPhoneWebcamOpen && activePc && activePhoneWebcamCapability ? (
           <WorkspaceErrorBoundary
             featureName="Phone webcam"

@@ -24,6 +24,95 @@ describe("PresentationMode", () => {
     Reflect.deleteProperty(navigator, "vibrate");
   });
 
+  it.each(["disconnect", "permission", "pending"])(
+    "defers automatic foreground activation during %s",
+    (reason) => {
+      const onCommand = vi.fn();
+      const handled = vi.fn();
+      const capability = {
+        ...defaultProps.capability,
+        powerPoint: {
+          state: "ready" as const,
+          foregroundActivationSupported: true,
+          presentations: [
+            {
+              runtimePresentationId: "deck",
+              name: "Deck",
+              state: "presenting" as const,
+              slideCount: 10,
+              currentSlideIndex: 2,
+              slideShowState: "running" as const,
+            },
+          ],
+        },
+      };
+      const props = {
+        ...defaultProps,
+        capability,
+        onCommand,
+        activationRequestId: 4,
+        onActivationRequestHandled: handled,
+      };
+      const view = render(
+        <PresentationMode
+          {...props}
+          connected={reason !== "disconnect"}
+          capability={reason === "permission" ? { ...capability, canControl: false } : capability}
+          pending={
+            reason === "pending"
+              ? { operationId: "busy", target: "powerpoint", action: "next" }
+              : null
+          }
+        />,
+      );
+      expect(onCommand).not.toHaveBeenCalled();
+      expect(handled).not.toHaveBeenCalled();
+      view.rerender(<PresentationMode {...props} />);
+      expect(onCommand).toHaveBeenCalledExactlyOnceWith("powerpoint", "activate", {
+        runtimePresentationId: "deck",
+      });
+    },
+  );
+  it.each(["disconnect", "pending"])("does not submit a slide slider after %s", (reason) => {
+    const onCommand = vi.fn();
+    const capability = {
+      ...defaultProps.capability,
+      powerPoint: {
+        state: "ready" as const,
+        presentations: [
+          {
+            runtimePresentationId: "deck",
+            name: "Deck",
+            state: "presenting" as const,
+            slideCount: 10,
+            currentSlideIndex: 2,
+            slideShowState: "running" as const,
+          },
+        ],
+      },
+    };
+    const props = { ...defaultProps, capability, onCommand };
+    const view = render(<PresentationMode {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Go to slide" }));
+    view.rerender(
+      <PresentationMode
+        {...props}
+        connected={reason !== "disconnect"}
+        pending={
+          reason === "pending"
+            ? { operationId: "busy", target: "powerpoint", action: "next" }
+            : null
+        }
+      />,
+    );
+    fireEvent.change(screen.getByRole("slider", { name: "Slide number" }), {
+      target: { value: "5" },
+    });
+    fireEvent.pointerUp(screen.getByRole("slider", { name: "Slide number" }));
+    expect(onCommand).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Go to slide" })).toBeTruthy();
+  });
+
   it("uses target-specific controls and hides shortcuts that are unsafe for the selected target", () => {
     const onCommand = vi.fn();
     render(<PresentationMode {...defaultProps} onCommand={onCommand} />);

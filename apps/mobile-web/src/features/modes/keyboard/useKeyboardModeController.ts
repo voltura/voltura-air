@@ -20,6 +20,7 @@ type RepeatableKey =
   | "PageUp"
   | "PageDown";
 interface KeyboardModeControllerOptions {
+  connected?: boolean;
   committedKeyboardTextRef: React.RefObject<string>;
   keyboardTextareaRef: React.RefObject<HTMLTextAreaElement | null>;
   liveKeyboard: boolean;
@@ -29,6 +30,7 @@ interface KeyboardModeControllerOptions {
 }
 
 export function useKeyboardModeController({
+  connected = true,
   committedKeyboardTextRef,
   keyboardTextareaRef,
   liveKeyboard,
@@ -38,12 +40,16 @@ export function useKeyboardModeController({
 }: KeyboardModeControllerOptions) {
   const repeatTimeoutRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
+  const repeatPointerRef = useRef<number | null>(null);
+  const focusFrameRef = useRef<number | null>(null);
+  const focusGenerationRef = useRef(0);
   const liveKeyboardRef = useRef(liveKeyboard);
   const sendSpecialRef = useRef(sendSpecial);
   const [keyboardInputMode, setKeyboardInputMode] = useState<KeyboardInputMode>("text");
   const liveTypingId = useId();
 
   const stopRepeatingKey = useCallback(() => {
+    repeatPointerRef.current = null;
     if (repeatTimeoutRef.current !== null) {
       window.clearTimeout(repeatTimeoutRef.current);
       repeatTimeoutRef.current = null;
@@ -62,9 +68,11 @@ export function useKeyboardModeController({
       }
     };
     window.addEventListener("blur", stopRepeatingKey);
+    window.addEventListener("pagehide", stopRepeatingKey);
     document.addEventListener("visibilitychange", stopOnVisibilityLoss);
     return () => {
       window.removeEventListener("blur", stopRepeatingKey);
+      window.removeEventListener("pagehide", stopRepeatingKey);
       document.removeEventListener("visibilitychange", stopOnVisibilityLoss);
       stopRepeatingKey();
     };
@@ -73,11 +81,40 @@ export function useKeyboardModeController({
   useEffect(() => {
     liveKeyboardRef.current = liveKeyboard;
     stopRepeatingKey();
-  }, [liveKeyboard, stopRepeatingKey]);
+  }, [connected, liveKeyboard, stopRepeatingKey]);
 
   useEffect(() => {
     sendSpecialRef.current = sendSpecial;
   }, [sendSpecial]);
+
+  useEffect(() => {
+    return () => {
+      focusGenerationRef.current += 1;
+      if (focusFrameRef.current !== null) {
+        window.cancelAnimationFrame(focusFrameRef.current);
+      }
+      focusFrameRef.current = null;
+    };
+  }, [connected, liveKeyboard]);
+
+  const scheduleFocus = (callback: FrameRequestCallback) => {
+    const generation = ++focusGenerationRef.current;
+    const invoking = document.activeElement;
+    if (focusFrameRef.current !== null) {
+      window.cancelAnimationFrame(focusFrameRef.current);
+    }
+    focusFrameRef.current = window.requestAnimationFrame((time) => {
+      focusFrameRef.current = null;
+      if (
+        generation !== focusGenerationRef.current ||
+        (document.activeElement !== invoking &&
+          document.activeElement !== keyboardTextareaRef.current)
+      ) {
+        return;
+      }
+      callback(time);
+    });
+  };
 
   const focusLiveKeyboardTarget = (inputMode = keyboardInputMode) => {
     const textarea = keyboardTextareaRef.current;
@@ -87,7 +124,7 @@ export function useKeyboardModeController({
 
     textarea.inputMode = inputMode;
     textarea.focus({ preventScroll: true });
-    window.requestAnimationFrame(() => {
+    scheduleFocus(() => {
       const currentTextarea = keyboardTextareaRef.current;
       if (!currentTextarea) {
         return;
@@ -127,7 +164,7 @@ export function useKeyboardModeController({
     setKeyboardText(nextText);
     committedKeyboardTextRef.current = nextText;
 
-    window.requestAnimationFrame(() => {
+    scheduleFocus(() => {
       const currentTextarea = keyboardTextareaRef.current;
       if (!currentTextarea || liveKeyboard) {
         return;
@@ -142,7 +179,7 @@ export function useKeyboardModeController({
     setKeyboardText(nextText);
     committedKeyboardTextRef.current = nextText;
 
-    window.requestAnimationFrame(() => {
+    scheduleFocus(() => {
       const textarea = keyboardTextareaRef.current;
       if (!textarea) {
         return;
@@ -234,12 +271,15 @@ export function useKeyboardModeController({
     }
 
     if (key === "ArrowLeft") {
-      setLiveKeyboardText(currentText, start === end ? Math.max(0, start - 1) : start);
+      setLiveKeyboardText(
+        currentText,
+        start === end ? previousTextBoundary(currentText, start) : start,
+      );
       return;
     }
 
     if (key === "ArrowRight") {
-      setLiveKeyboardText(currentText, start === end ? Math.min(currentText.length, end + 1) : end);
+      setLiveKeyboardText(currentText, start === end ? nextTextBoundary(currentText, end) : end);
       return;
     }
 
@@ -313,12 +353,12 @@ export function useKeyboardModeController({
     }
 
     if (key === "ArrowLeft") {
-      setBufferedKeyboardText(value, start === end ? Math.max(0, start - 1) : start);
+      setBufferedKeyboardText(value, start === end ? previousTextBoundary(value, start) : start);
       return;
     }
 
     if (key === "ArrowRight") {
-      setBufferedKeyboardText(value, start === end ? Math.min(value.length, end + 1) : end);
+      setBufferedKeyboardText(value, start === end ? nextTextBoundary(value, end) : end);
       return;
     }
 
@@ -343,6 +383,9 @@ export function useKeyboardModeController({
 
   const pressRepeatableKey = (key: RepeatableKey) => {
     if (liveKeyboardRef.current) {
+      if (!connected) {
+        return;
+      }
       sendSpecialRef.current(key);
       applyLiveSpecialKey(key);
       return;
@@ -353,6 +396,9 @@ export function useKeyboardModeController({
 
   const sendSpace = () => {
     if (liveKeyboard) {
+      if (!connected) {
+        return;
+      }
       sendSpecial("Space");
       insertLiveKeyboardText(" ");
       return;
@@ -379,6 +425,7 @@ export function useKeyboardModeController({
       event.preventDefault();
       event.currentTarget.setPointerCapture?.(event.pointerId);
       stopRepeatingKey();
+      repeatPointerRef.current = event.pointerId;
       pressRepeatableKey(key);
       repeatTimeoutRef.current = window.setTimeout(() => {
         pressRepeatableKey(key);
@@ -387,16 +434,22 @@ export function useKeyboardModeController({
         }, repeatIntervalMs);
       }, repeatStartDelayMs);
     },
-    onPointerUp: stopRepeatingKey,
-    onPointerCancel: stopRepeatingKey,
-    onPointerLeave: stopRepeatingKey,
-    onLostPointerCapture: stopRepeatingKey,
+    onPointerUp: finishRepeatingPointer,
+    onPointerCancel: finishRepeatingPointer,
+    onPointerLeave: finishRepeatingPointer,
+    onLostPointerCapture: finishRepeatingPointer,
     onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
       if (event.detail === 0) {
         pressRepeatableKey(key);
       }
     },
   });
+
+  function finishRepeatingPointer(event: React.PointerEvent<HTMLButtonElement>) {
+    if (event.pointerId === repeatPointerRef.current) {
+      stopRepeatingKey();
+    }
+  }
 
   return {
     getRepeatableKeyProps,
@@ -409,7 +462,7 @@ export function useKeyboardModeController({
   };
 }
 function getLineStart(value: string, caret: number): number {
-  return value.lastIndexOf("\n", Math.max(0, caret - 1)) + 1;
+  return caret <= 0 ? 0 : value.lastIndexOf("\n", caret - 1) + 1;
 }
 
 function getLineEnd(value: string, caret: number): number {
@@ -427,8 +480,8 @@ function getVerticalCaretPosition(value: string, caret: number, direction: -1 | 
     }
 
     const previousLineEnd = currentLineStart - 1;
-    const previousLineStart = value.lastIndexOf("\n", previousLineEnd - 1) + 1;
-    return Math.min(previousLineStart + currentColumn, previousLineEnd);
+    const previousLineStart = getLineStart(value, previousLineEnd);
+    return snapTextBoundary(value, Math.min(previousLineStart + currentColumn, previousLineEnd));
   }
 
   const currentLineEndIndex = value.indexOf("\n", caret);
@@ -439,7 +492,15 @@ function getVerticalCaretPosition(value: string, caret: number, direction: -1 | 
   const nextLineStart = currentLineEndIndex + 1;
   const nextLineEndIndex = value.indexOf("\n", nextLineStart);
   const nextLineEnd = nextLineEndIndex === -1 ? value.length : nextLineEndIndex;
-  return Math.min(nextLineStart + currentColumn, nextLineEnd);
+  return snapTextBoundary(value, Math.min(nextLineStart + currentColumn, nextLineEnd));
+}
+
+function snapTextBoundary(value: string, caret: number): number {
+  return caret === value.length
+    ? caret
+    : (textBoundaries(value)
+        .filter((boundary) => boundary <= caret)
+        .at(-1) ?? 0);
 }
 
 function textBoundaries(value: string): number[] {

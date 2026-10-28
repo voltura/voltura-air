@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createLocalId } from "../identity/localId";
 import type {
   ClientMessage,
@@ -47,9 +47,24 @@ export function useCustomScreens(
         buttonId: string;
         connectionEpoch: number;
         suppressResult: boolean;
+        timeout: number;
       }
     >(),
   );
+
+  const getTimeoutRef = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    const invokes = pendingInvokesRef.current;
+    return () => {
+      window.clearTimeout(getTimeoutRef.current);
+      pendingGetRef.current = null;
+      for (const pending of invokes.values()) {
+        window.clearTimeout(pending.timeout);
+      }
+      invokes.clear();
+    };
+  }, [connectionEpoch, state]);
 
   const requestCustomScreen = useCallback(
     (screenId: string) => {
@@ -60,39 +75,25 @@ export function useCustomScreens(
       const operationId = createLocalId();
       pendingGetRef.current = { connectionEpoch, operationId, screenId };
       setGetResultState(null);
+      window.clearTimeout(getTimeoutRef.current);
+      getTimeoutRef.current = window.setTimeout(() => {
+        if (pendingGetRef.current?.operationId !== operationId) {
+          return;
+        }
+        pendingGetRef.current = null;
+        setDefinitionState(null);
+        setGetResultState({
+          connectionEpoch,
+          value: {
+            type: "custom.screen.get.result",
+            operationId,
+            succeeded: false,
+            code: "VAIR-CUSTOM-SCREEN-RESPONSE-TIMEOUT",
+            message: "The PC did not return the custom screen. Reopen it to try again.",
+          },
+        });
+      }, 15_000);
       send({ type: "custom.screen.get", operationId, screenId });
-    },
-    [connectionEpoch, send, state],
-  );
-
-  const invokeCustomScreenButton = useCallback(
-    (
-      screenId: string,
-      screenRevision: string,
-      buttonId: string,
-      enabled?: boolean,
-      suppressResult = false,
-    ) => {
-      if (state !== "paired") {
-        return;
-      }
-
-      const operationId = createLocalId();
-      pendingInvokesRef.current.set(operationId, { buttonId, connectionEpoch, suppressResult });
-      setPendingButtonsState((current) => ({
-        connectionEpoch,
-        values: new Set(current.connectionEpoch === connectionEpoch ? current.values : []).add(
-          buttonId,
-        ),
-      }));
-      send({
-        type: "custom.screen.invoke",
-        operationId,
-        screenId,
-        screenRevision,
-        buttonId,
-        ...(enabled === undefined ? {} : { enabled }),
-      });
     },
     [connectionEpoch, send, state],
   );
@@ -107,6 +108,7 @@ export function useCustomScreens(
       }
 
       pendingGetRef.current = null;
+      window.clearTimeout(getTimeoutRef.current);
       setGetResultState({ connectionEpoch, value: result });
       setDefinitionState({
         catalogRevision,
@@ -135,6 +137,7 @@ export function useCustomScreens(
         message: incompatibleCustomScreenResponseMessage,
       };
       pendingGetRef.current = null;
+      window.clearTimeout(getTimeoutRef.current);
       setGetResultState({ connectionEpoch, value: result });
       setDefinitionState({ catalogRevision, connectionEpoch, value: null });
       return true;
@@ -149,6 +152,7 @@ export function useCustomScreens(
         return false;
       }
 
+      window.clearTimeout(pending.timeout);
       pendingInvokesRef.current.delete(result.operationId);
       setPendingButtonsState((current) => {
         const next = new Set(current.connectionEpoch === connectionEpoch ? current.values : []);
@@ -171,6 +175,54 @@ export function useCustomScreens(
       return !pending.suppressResult;
     },
     [connectionEpoch],
+  );
+
+  const invokeCustomScreenButton = useCallback(
+    (
+      screenId: string,
+      screenRevision: string,
+      buttonId: string,
+      enabled?: boolean,
+      suppressResult = false,
+    ) => {
+      if (state !== "paired") {
+        return;
+      }
+
+      const operationId = createLocalId();
+      const timeout = window.setTimeout(() => {
+        completeCustomScreenInvoke({
+          type: "custom.screen.invoke.result",
+          operationId,
+          screenId,
+          buttonId,
+          succeeded: false,
+          code: "VAIR-CUSTOM-SCREEN-INVOKE-TIMEOUT",
+          message: "The PC did not confirm the action. Check the PC before retrying.",
+        });
+      }, 30_000);
+      pendingInvokesRef.current.set(operationId, {
+        buttonId,
+        connectionEpoch,
+        suppressResult,
+        timeout,
+      });
+      setPendingButtonsState((current) => ({
+        connectionEpoch,
+        values: new Set(current.connectionEpoch === connectionEpoch ? current.values : []).add(
+          buttonId,
+        ),
+      }));
+      send({
+        type: "custom.screen.invoke",
+        operationId,
+        screenId,
+        screenRevision,
+        buttonId,
+        ...(enabled === undefined ? {} : { enabled }),
+      });
+    },
+    [completeCustomScreenInvoke, connectionEpoch, send, state],
   );
 
   const isCurrentConnection = state === "paired";

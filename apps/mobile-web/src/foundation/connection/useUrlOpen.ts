@@ -7,23 +7,24 @@ const responseTimeoutMs = 8000;
 const resultVisibilityMs = 8000;
 
 export function useUrlOpen(state: ConnectionState, send: (payload: ClientMessage) => void) {
-  const [pendingUrlOpen, setPendingUrlOpen] = useState(false);
+  const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
+  const pendingUrlOpen = pendingOperationId !== null;
   const [urlOpenResult, setUrlOpenResult] = useState<UrlOpenResultMessage | null>(null);
   const pendingOperationRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!pendingUrlOpen || pendingOperationRef.current === null) {
+    if (pendingOperationId === null || pendingOperationRef.current !== pendingOperationId) {
       return;
     }
 
-    const operationId = pendingOperationRef.current;
+    const operationId = pendingOperationId;
     const timeout = window.setTimeout(() => {
       if (pendingOperationRef.current !== operationId) {
         return;
       }
 
       pendingOperationRef.current = null;
-      setPendingUrlOpen(false);
+      setPendingOperationId(null);
       setUrlOpenResult({
         type: "url.open.result",
         operationId,
@@ -35,7 +36,7 @@ export function useUrlOpen(state: ConnectionState, send: (payload: ClientMessage
     return () => {
       window.clearTimeout(timeout);
     };
-  }, [pendingUrlOpen]);
+  }, [pendingOperationId]);
 
   useEffect(() => {
     if (state === "paired") {
@@ -43,7 +44,7 @@ export function useUrlOpen(state: ConnectionState, send: (payload: ClientMessage
     }
 
     pendingOperationRef.current = null;
-    setPendingUrlOpen(false);
+    setPendingOperationId(null);
     setUrlOpenResult(null);
   }, [state]);
 
@@ -67,7 +68,7 @@ export function useUrlOpen(state: ConnectionState, send: (payload: ClientMessage
 
     const operationId = createLocalId();
     pendingOperationRef.current = operationId;
-    setPendingUrlOpen(true);
+    setPendingOperationId(operationId);
     setUrlOpenResult(null);
     send({ type: "url.open", operationId, url });
     return operationId;
@@ -79,7 +80,7 @@ export function useUrlOpen(state: ConnectionState, send: (payload: ClientMessage
     }
 
     pendingOperationRef.current = null;
-    setPendingUrlOpen(false);
+    setPendingOperationId(null);
     setUrlOpenResult(result);
     return true;
   };

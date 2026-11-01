@@ -5,6 +5,23 @@ namespace VolturaAir.Host.Tests;
 
 public sealed class Nv12FrameComposerTests
 {
+    [Theory]
+    [InlineData(4, 0, 0, 4)]
+    [InlineData(8, 2, 2, 8)]
+    public void FullCanvasPreservesEveryPixelAndExcludesPadding(int stride, int left, int top, int bufferHeight)
+    {
+        byte[] source = Enumerable.Range(0, stride * bufferHeight * 3 / 2).Select(value => (byte)value).ToArray();
+        byte[] target = Enumerable.Repeat((byte)255, 28).ToArray();
+
+        Nv12FrameComposer.FitIntoCanvas(source, 4, 4, stride, left, top, bufferHeight, target, 4, 4);
+
+        for (int row = 0; row < 4; ++row)
+            Assert.Equal(source.AsSpan((top + row) * stride + left, 4).ToArray(), target.AsSpan(row * 4, 4).ToArray());
+        for (int row = 0; row < 2; ++row)
+            Assert.Equal(source.AsSpan(stride * bufferHeight + (top / 2 + row) * stride + left, 4).ToArray(), target.AsSpan(16 + row * 4, 4).ToArray());
+        Assert.All(target[24..], value => Assert.Equal(255, value));
+    }
+
     [Fact]
     public void CentersNv12WithoutScaling()
     {

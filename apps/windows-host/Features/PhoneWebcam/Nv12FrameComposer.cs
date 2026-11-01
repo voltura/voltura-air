@@ -27,13 +27,26 @@ internal static class Nv12FrameComposer
 
         int targetBytes = checked(targetWidth * targetHeight * 3 / 2);
         if (target.Length < targetBytes) throw new ArgumentException("The NV12 target buffer is truncated.", nameof(target));
-        target[..(targetWidth * targetHeight)].Fill(16);
-        target.Slice(targetWidth * targetHeight, targetWidth * targetHeight / 2).Fill(128);
         double scale = Math.Min(1.0, Math.Min((double)targetWidth / sourceWidth, (double)targetHeight / sourceHeight));
         int fittedWidth = Math.Max(2, ((int)(sourceWidth * scale)) & ~1);
         int fittedHeight = Math.Max(2, ((int)(sourceHeight * scale)) & ~1);
         int left = ((targetWidth - fittedWidth) / 2) & ~1;
         int top = ((targetHeight - fittedHeight) / 2) & ~1;
+
+        // Every pixel is overwritten when the visible frame fills the canvas.
+        if (fittedWidth != targetWidth || fittedHeight != targetHeight)
+        {
+            target[..(targetWidth * targetHeight)].Fill(16);
+            target.Slice(targetWidth * targetHeight, targetWidth * targetHeight / 2).Fill(128);
+        }
+
+        if (sourceWidth == targetWidth && sourceHeight == targetHeight &&
+            sourceStride == targetWidth && sourceLeft == 0 && sourceTop == 0 &&
+            sourceBufferHeight == targetHeight)
+        {
+            source[..targetBytes].CopyTo(target);
+            return;
+        }
 
         if (fittedWidth == sourceWidth && fittedHeight == sourceHeight)
         {

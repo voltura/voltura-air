@@ -6,6 +6,12 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.4.7
+
+- Improved Screen View and Phone webcam efficiency by removing repeated video-frame copies and reusing audio buffers, while preserving the existing video and sound quality settings.
+- Reduced memory allocation during TURN relay media uploads, helping keep Screen View and Phone webcam streaming steady.
+- Screen View cursor updates now share one browser layout pass per paint, reducing work during rapid pointer movement.
+
 ## v1.4.6
 
 - Windows now checks for updates at startup after connected devices disconnect, with clearer checking and download status. Installing a staged update remains an explicit action.

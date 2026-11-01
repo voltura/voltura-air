@@ -6,6 +6,30 @@ namespace VolturaAir.Host.Tests;
 public sealed class MediaFoundationH264DecoderStartupTests
 {
     [Fact]
+    public void PublishedFrameRemainsIndependentOfLaterDecoderOutputAndShutdown()
+    {
+        byte[] accessUnit = ReadFixture("chromium-bear-320x192-baseline-keyframe.h264.b64");
+        byte[]? retained = null;
+        try
+        {
+            byte[] expected;
+            using (var decoder = new MediaFoundationH264Decoder())
+            {
+                retained = decoder.Decode(accessUnit);
+                Assert.NotNull(retained);
+                expected = retained.AsSpan(0, MediaFoundationH264Decoder.FrameBytes).ToArray();
+                for (int iteration = 0; iteration < 5; ++iteration)
+                    DecodeAndReturn(decoder, accessUnit);
+            }
+            Assert.Equal(expected, retained.AsSpan(0, MediaFoundationH264Decoder.FrameBytes).ToArray());
+        }
+        finally
+        {
+            MediaFoundationH264Decoder.ReturnFrame(retained);
+        }
+    }
+
+    [Fact]
     public void ConsecutiveKeyAndPredictedFramesDecodeWithoutFailure()
     {
         byte[][] accessUnits =

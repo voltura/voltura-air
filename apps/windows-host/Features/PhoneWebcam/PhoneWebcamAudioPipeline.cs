@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using System.Runtime.InteropServices;
 using Concentus;
 using NAudio.Wave;
 
@@ -95,13 +96,11 @@ internal sealed class PhoneWebcamAudioPipeline : IAsyncDisposable
                 int samplesPerChannel = decoder.Decode(packet, pcm, MaximumFrameSamplesPerChannel, false);
                 if (samplesPerChannel <= 0) continue;
                 int byteCount = checked(samplesPerChannel * Channels * sizeof(short));
-                var bytes = new byte[byteCount];
-                Buffer.BlockCopy(pcm, 0, bytes, 0, byteCount);
                 if (_buffer.BufferedDuration >= MaximumBufferedAudio)
                 {
                     _buffer.ClearBuffer();
                 }
-                _buffer.AddSamples(bytes, 0, bytes.Length);
+                _buffer.AddSamples(MemoryMarshal.AsBytes(pcm.AsSpan())[..byteCount]);
             }
         }
         catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)

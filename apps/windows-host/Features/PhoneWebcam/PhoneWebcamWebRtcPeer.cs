@@ -231,19 +231,22 @@ internal sealed class PhoneWebcamWebRtcPeer : IPhoneWebcamWebRtcPeer
 
     private void ReceiveRtp(nint message, int size)
     {
-        if (size <= 0 || size > 64 * 1024) return;
-        byte[] packet = new byte[size];
-        Marshal.Copy(message, packet, 0, size);
-        H264DepacketizeResult result;
-        lock (_depacketizer)
-        {
-            result = _depacketizer.Push(packet);
-        }
+        H264DepacketizeResult result = DepacketizeVideoRtpPacket(_depacketizer, message, size);
         if (result.RequestKeyFrame) RequestKeyFrame();
         if (result is { AccessUnit: not null, RtpTimestamp: not null })
         {
             AccessUnitReceived?.Invoke(result.AccessUnit, result.RtpTimestamp.Value);
             _receiveFailureReported = false;
+        }
+    }
+
+    internal static H264DepacketizeResult DepacketizeVideoRtpPacket(H264RtpDepacketizer depacketizer, nint message, int size)
+    {
+        if (size <= 0 || size > 64 * 1024) return default;
+        lock (depacketizer)
+        {
+            // Push copies accepted payloads into its owned access unit before this callback returns.
+            unsafe { return depacketizer.Push(new ReadOnlySpan<byte>(message.ToPointer(), size)); }
         }
     }
 

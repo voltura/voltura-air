@@ -299,6 +299,8 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
             ScreenViewSoundQuality appliedSoundQuality = getSoundQuality();
             using IOpusEncoder encoder = CreateEncoder(appliedSoundQuality);
             byte[] pending = new byte[FrameBytes * MaximumQueuedFrames];
+            short[] pcm = new short[FrameSamples * Channels];
+            byte[] encodedPacket = new byte[MaximumOpusPacketBytes];
             int pendingLength = 0;
             uint timestamp = NonZeroRandomTimestamp();
             await foreach (AudioBlock block in _blocks.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
@@ -329,13 +331,11 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
                         ApplyEncodingProfile(encoder, soundQuality);
                         appliedSoundQuality = soundQuality;
                     }
-                    short[] pcm = new short[FrameSamples * Channels];
                     Buffer.BlockCopy(pending, 0, pcm, 0, FrameBytes);
-                    byte[] packet = new byte[MaximumOpusPacketBytes];
-                    int encoded = encoder.Encode(pcm, FrameSamples, packet, MaximumOpusPacketBytes);
+                    int encoded = encoder.Encode(pcm, FrameSamples, encodedPacket, MaximumOpusPacketBytes);
                     if (encoded > 0)
                     {
-                        Array.Resize(ref packet, encoded);
+                        byte[] packet = encodedPacket.AsSpan(0, encoded).ToArray();
                         _ = send(new(packet, timestamp));
                     }
                     timestamp = unchecked(timestamp + FrameSamples);

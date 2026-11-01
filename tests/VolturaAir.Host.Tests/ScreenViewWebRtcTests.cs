@@ -96,6 +96,24 @@ public sealed class ScreenViewWebRtcTests
     }
 
     [Fact]
+    public void NormalizationOwnsItsOutputAndPreservesCompressedPayloadBytes()
+    {
+        byte[] source = [0, 0, 0, 3, 0x65, 1, 2, 0, 0, 0, 2, 0x61, 0xff];
+        byte[] original = source.ToArray();
+        byte[] normalized = ScreenViewHardwareH264Encoder.NormalizeToAnnexB(source);
+
+        Assert.Equal(original, source);
+        Assert.Equal([0, 0, 0, 1, 0x65, 1, 2, 0, 0, 0, 1, 0x61, 0xff], normalized);
+        byte[] annexB = normalized.ToArray();
+        byte[] copied = ScreenViewHardwareH264Encoder.NormalizeToAnnexB(annexB);
+        Array.Clear(annexB);
+        Assert.Equal(normalized, copied);
+        Assert.Throws<ScreenViewCaptureException>(() => ScreenViewHardwareH264Encoder.NormalizeToAnnexB([]));
+        Assert.Throws<ScreenViewCaptureException>(() => ScreenViewHardwareH264Encoder.NormalizeToAnnexB([.. original, 0]));
+        Assert.Throws<ScreenViewCaptureException>(() => ScreenViewHardwareH264Encoder.NormalizeToAnnexB([.. original, 0, 0, 0, 0]));
+    }
+
+    [Fact]
     public void HardwareEncoderSelectionContinuesAfterActivationAndConfigurationFailures()
     {
         var rejected = new FakeEncoderCandidate();

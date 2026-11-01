@@ -94,6 +94,17 @@ internal static class TurnStreamFraming
         return result;
     }
 
+    public static int PrepareDatagramForStream(ReadOnlySpan<byte> datagram, Span<byte> target)
+    {
+        int frameLength = GetDatagramFrameLength(datagram);
+        int streamLength = IsChannelData(datagram) ? AlignToFour(frameLength) : frameLength;
+        if (target.Length < streamLength)
+            throw new ArgumentException("The TURN stream buffer is too small.", nameof(target));
+        datagram[..frameLength].CopyTo(target);
+        target.Slice(frameLength, streamLength - frameLength).Clear();
+        return streamLength;
+    }
+
     public static async ValueTask<byte[]?> ReadStreamFrameAsync(Stream stream, CancellationToken cancellationToken)
     {
         var prefix = new byte[4];
@@ -302,12 +313,14 @@ internal sealed class TurnTlsBridge : ITurnTlsBridge
 
     private async Task UploadAsync(Stream stream, IPEndPoint owner, CancellationToken cancellationToken)
     {
+        // One bounded scratch buffer; each write finishes before it is reused.
+        var frame = new byte[TurnStreamFraming.MaximumFrameBytes];
         while (true)
         {
             TurnDatagram datagram = await _socket.ReceiveAsync(cancellationToken).ConfigureAwait(false);
             if (!datagram.RemoteEndpoint.Equals(owner)) continue;
-            byte[] frame = TurnStreamFraming.PrepareDatagramForStream(datagram.Payload);
-            await stream.WriteAsync(frame, cancellationToken).ConfigureAwait(false);
+            int length = TurnStreamFraming.PrepareDatagramForStream(datagram.Payload, frame);
+            await stream.WriteAsync(frame.AsMemory(0, length), cancellationToken).ConfigureAwait(false);
         }
     }
 

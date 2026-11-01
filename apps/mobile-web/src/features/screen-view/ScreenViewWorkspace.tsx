@@ -171,6 +171,7 @@ export default function ScreenViewWorkspace({
   const directPointerButtonRef = useRef<HTMLButtonElement | null>(null);
   const cursorStateRef = useRef<ScreenCursorRecord | null>(null);
   const cursorUrlRef = useRef<string | null>(null);
+  const cursorFrameRef = useRef<number | undefined>(undefined);
   const hasVisualFrameRef = useRef(false);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
@@ -241,7 +242,7 @@ export default function ScreenViewWorkspace({
   function applyViewTransform(next: ScreenViewTransform) {
     viewTransformRef.current = next;
     setViewTransform(next);
-    requestAnimationFrame(positionCursor);
+    scheduleCursorPosition();
   }
 
   function sendDirectButton(
@@ -435,7 +436,7 @@ export default function ScreenViewWorkspace({
         width = nextWidth;
         height = nextHeight;
         resetViewTransform();
-        requestAnimationFrame(positionCursor);
+        scheduleCursorPosition();
       }
     });
     observer.observe(stage);
@@ -1204,7 +1205,17 @@ export default function ScreenViewWorkspace({
         cursorRef.current.src = cursorUrlRef.current;
       }
     }
-    positionCursor();
+    scheduleCursorPosition();
+  }
+
+  function scheduleCursorPosition() {
+    if (cursorFrameRef.current !== undefined) {
+      return;
+    }
+    cursorFrameRef.current = requestAnimationFrame(() => {
+      cursorFrameRef.current = undefined;
+      positionCursor();
+    });
   }
 
   function positionCursor() {
@@ -1213,15 +1224,15 @@ export default function ScreenViewWorkspace({
     const video = videoRef.current;
     const stage = stageRef.current;
     const surface = directPointerSurfaceRef.current;
+    // Read layout before changing either overlay, once per paint.
+    const stageWidth = stage?.clientWidth ?? 0;
+    const stageHeight = stage?.clientHeight ?? 0;
     if (surface && video && stage && video.videoWidth > 0 && video.videoHeight > 0) {
-      const surfaceScale = Math.min(
-        stage.clientWidth / video.videoWidth,
-        stage.clientHeight / video.videoHeight,
-      );
+      const surfaceScale = Math.min(stageWidth / video.videoWidth, stageHeight / video.videoHeight);
       const surfaceWidth = video.videoWidth * surfaceScale;
       const surfaceHeight = video.videoHeight * surfaceScale;
-      surface.style.left = `${(stage.clientWidth - surfaceWidth) / 2}px`;
-      surface.style.top = `${(stage.clientHeight - surfaceHeight) / 2}px`;
+      surface.style.left = `${(stageWidth - surfaceWidth) / 2}px`;
+      surface.style.top = `${(stageHeight - surfaceHeight) / 2}px`;
       surface.style.width = `${surfaceWidth}px`;
       surface.style.height = `${surfaceHeight}px`;
     }
@@ -1241,14 +1252,11 @@ export default function ScreenViewWorkspace({
       }
       return;
     }
-    const scale = Math.min(
-      stage.clientWidth / video.videoWidth,
-      stage.clientHeight / video.videoHeight,
-    );
+    const scale = Math.min(stageWidth / video.videoWidth, stageHeight / video.videoHeight);
     const renderedWidth = video.videoWidth * scale;
     const renderedHeight = video.videoHeight * scale;
-    const renderedLeft = (stage.clientWidth - renderedWidth) / 2;
-    const renderedTop = (stage.clientHeight - renderedHeight) / 2;
+    const renderedLeft = (stageWidth - renderedWidth) / 2;
+    const renderedTop = (stageHeight - renderedHeight) / 2;
     const cursorPosition = screenCursorImagePosition(
       cursor.x,
       cursor.y,
@@ -1357,6 +1365,10 @@ export default function ScreenViewWorkspace({
     setAudioTrackReady(false);
     setAudioNotice("");
     hasVisualFrameRef.current = false;
+    if (cursorFrameRef.current !== undefined) {
+      cancelAnimationFrame(cursorFrameRef.current);
+      cursorFrameRef.current = undefined;
+    }
     cursorStateRef.current = null;
     if (cursorUrlRef.current) {
       URL.revokeObjectURL(cursorUrlRef.current);
@@ -1939,7 +1951,7 @@ export default function ScreenViewWorkspace({
               setViewing(true);
               setPlaybackBlocked(false);
               setStatus("Live - Encrypted WebRTC");
-              requestAnimationFrame(positionCursor);
+              scheduleCursorPosition();
             }}
             onPlaying={() => {
               traceScreenView("first_frame_rendered", "playing");

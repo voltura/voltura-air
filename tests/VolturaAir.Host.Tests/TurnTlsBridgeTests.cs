@@ -60,6 +60,24 @@ public sealed class TurnTlsBridgeTests
     }
 
     [Fact]
+    public void ReusedStreamBufferClearsPaddingAndKeepsExactFrameBounds()
+    {
+        byte[] buffer = Enumerable.Repeat((byte)0xff, 32).ToArray();
+        byte[] channelData = [0x40, 0x01, 0x00, 0x03, 0x11, 0x22, 0x33, 0xff];
+
+        int length = TurnStreamFraming.PrepareDatagramForStream(channelData, buffer);
+
+        Assert.Equal(8, length);
+        Assert.Equal([0x40, 0x01, 0x00, 0x03, 0x11, 0x22, 0x33, 0x00], buffer[..length]);
+        Assert.All(buffer[length..], value => Assert.Equal(0xff, value));
+        byte[] stun = StunFrame();
+        length = TurnStreamFraming.PrepareDatagramForStream(stun, buffer);
+        Assert.Equal(stun, buffer[..length]);
+        Assert.Throws<ArgumentException>(() => TurnStreamFraming.PrepareDatagramForStream(channelData, new byte[7]));
+        Assert.Throws<InvalidDataException>(() => TurnStreamFraming.PrepareDatagramForStream([0x80, 0, 0, 0], buffer));
+    }
+
+    [Fact]
     public async Task StreamReaderHandlesFragmentationAndRemovesChannelPadding()
     {
         byte[] bytes =
@@ -126,6 +144,11 @@ public sealed class TurnTlsBridgeTests
 
         socket.Queue(StunFrame(), owner);
         Assert.Equal(StunFrame(), await stream.ReadWrittenAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)));
+
+        socket.Queue([0x40, 0x01, 0x00, 0x03, 0x44, 0x55, 0x66], owner);
+        Assert.Equal([0x40, 0x01, 0x00, 0x03, 0x44, 0x55, 0x66, 0], await stream.ReadWrittenAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)));
+        socket.Queue([0x40, 0x01, 0x00, 0x01, 0x77], owner);
+        Assert.Equal([0x40, 0x01, 0x00, 0x01, 0x77, 0, 0, 0], await stream.ReadWrittenAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)));
 
         stream.QueueRead([0x40, 0x01, 0x00, 0x03, 0x11, 0x22, 0x33, 0x00]);
         TurnDatagram relayed = await socket.ReadSentAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));

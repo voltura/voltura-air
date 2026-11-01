@@ -27,7 +27,6 @@ internal sealed partial class MediaFoundationH264Decoder : IDisposable
     private int _visibleLeft;
     private int _visibleTop;
     private bool _decodedLayoutReported;
-    private byte[] _decodedBuffer = [];
     private bool _disposed;
 
     internal (int Width, int Height) DecodedSize => (_decodedWidth, _decodedHeight);
@@ -155,26 +154,29 @@ internal sealed partial class MediaFoundationH264Decoder : IDisposable
                             Console.WriteLine($"Decoder output: {_decodedWidth}x{_decodedHeight} NV12{aperture}; stride {_decodedStride}; sample bytes {contiguous.CurrentLength}.");
                             _decodedLayoutReported = true;
                         }
-                        if (_decodedBuffer.Length < contiguous.CurrentLength)
-                            _decodedBuffer = GC.AllocateUninitializedArray<byte>(contiguous.CurrentLength);
-                        contiguous.Lock(out nint pointer, out _, out int currentLength);
-                        try { Marshal.Copy(pointer, _decodedBuffer, 0, currentLength); }
-                        finally { contiguous.Unlock(); }
-
                         byte[] frame = ArrayPool<byte>.Shared.Rent(FrameBytes);
                         try
                         {
-                            Nv12FrameComposer.FitIntoCanvas(
-                                _decodedBuffer.AsSpan(0, currentLength),
-                                _visibleWidth,
-                                _visibleHeight,
-                                _decodedStride,
-                                _visibleLeft,
-                                _visibleTop,
-                                _decodedHeight,
-                                frame.AsSpan(0, FrameBytes),
-                                Width,
-                                Height);
+                            contiguous.Lock(out nint pointer, out _, out int currentLength);
+                            try
+                            {
+                                // The native view cannot escape the buffer's lock lifetime.
+                                unsafe
+                                {
+                                    Nv12FrameComposer.FitIntoCanvas(
+                                        new ReadOnlySpan<byte>(pointer.ToPointer(), currentLength),
+                                        _visibleWidth,
+                                        _visibleHeight,
+                                        _decodedStride,
+                                        _visibleLeft,
+                                        _visibleTop,
+                                        _decodedHeight,
+                                        frame.AsSpan(0, FrameBytes),
+                                        Width,
+                                        Height);
+                                }
+                            }
+                            finally { contiguous.Unlock(); }
                         }
                         catch
                         {

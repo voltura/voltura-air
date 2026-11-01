@@ -127,7 +127,7 @@ internal sealed class ScreenViewHardwareH264Encoder : IScreenViewFrameEncoder
                 result.CheckError();
                 using IMFSample encodedSample = output.Sample
                     ?? throw new ScreenViewCaptureException("encoder-failed", "The Windows H.264 encoder returned no video sample.");
-                byte[] bytes = NormalizeToAnnexB(ReadSample(encodedSample));
+                byte[] bytes = ReadSample(encodedSample);
                 if (ContainsNalType(bytes, 7)) bytes = ScreenViewH264ColorMetadata.Apply(bytes);
                 if (_parameterSets.Length == 0) RefreshParameterSets();
                 bool keyFrame = ContainsNalType(bytes, 5);
@@ -293,9 +293,7 @@ internal sealed class ScreenViewHardwareH264Encoder : IScreenViewFrameEncoder
         {
             if (length <= 0 || length > 16 * 1024 * 1024)
                 throw new ScreenViewCaptureException("encoder-failed", "The Windows H.264 encoder returned an invalid video sample.");
-            byte[] bytes = new byte[length];
-            Marshal.Copy(pointer, bytes, 0, length);
-            return bytes;
+            unsafe { return NormalizeToAnnexB(new ReadOnlySpan<byte>(pointer.ToPointer(), length)); }
         }
         finally
         {
@@ -357,21 +355,20 @@ internal sealed class ScreenViewHardwareH264Encoder : IScreenViewFrameEncoder
             (accessUnit[2] == 1 || (accessUnit[2] == 0 && accessUnit[3] == 1));
         if (startsWithAnnexB) return accessUnit.ToArray();
 
-        using var output = new MemoryStream(accessUnit.Length);
+        // Four-byte NAL lengths become four-byte start codes, so the size is unchanged.
+        byte[] output = accessUnit.ToArray();
         int offset = 0;
         while (offset + 4 <= accessUnit.Length)
         {
             uint length = BinaryPrimitives.ReadUInt32BigEndian(accessUnit.Slice(offset, 4));
-            offset += 4;
-            if (length == 0 || length > accessUnit.Length - offset)
+            if (length == 0 || length > accessUnit.Length - offset - 4)
                 throw new ScreenViewCaptureException("encoder-failed", "The Windows H.264 encoder returned invalid NAL units.");
-            output.Write([0, 0, 0, 1]);
-            output.Write(accessUnit.Slice(offset, checked((int)length)));
-            offset += checked((int)length);
+            BinaryPrimitives.WriteUInt32BigEndian(output.AsSpan(offset, 4), 1);
+            offset += 4 + checked((int)length);
         }
         if (offset != accessUnit.Length || output.Length == 0)
             throw new ScreenViewCaptureException("encoder-failed", "The Windows H.264 encoder returned invalid NAL units.");
-        return output.ToArray();
+        return output;
     }
 
     private static bool CopyNal(ReadOnlySpan<byte> source, ref int offset, MemoryStream output)

@@ -920,7 +920,7 @@ describe("ScreenViewWorkspace", () => {
     expect(screen.getByRole("button", { name: "Click" }).hasAttribute("disabled")).toBe(false);
   });
 
-  it.each(["blocked", "video-first", "audio-first", "playback-error"] as const)(
+  it.each(["blocked", "video-first", "audio-first", "playback-error", "cursor-burst"] as const)(
     "handles screen playback startup: %s",
     async (scenario) => {
       class FakePeerConnection {
@@ -1114,6 +1114,62 @@ describe("ScreenViewWorkspace", () => {
         writable: true,
         value: null,
       });
+      if (scenario === "cursor-burst") {
+        const callbacks = new Map<number, FrameRequestCallback>();
+        let frameId = 0;
+        const requestFrame = vi.fn((callback: FrameRequestCallback) => {
+          callbacks.set(++frameId, callback);
+          return frameId;
+        });
+        vi.stubGlobal("requestAnimationFrame", requestFrame);
+        vi.stubGlobal("cancelAnimationFrame", (id: number) => callbacks.delete(id));
+        const stage = document.querySelector(".screen-view-stage")!;
+        const width = vi.fn(() => 960);
+        Object.defineProperty(stage, "clientWidth", { configurable: true, get: width });
+        Object.defineProperty(stage, "clientHeight", { configurable: true, value: 540 });
+        Object.defineProperty(video, "videoWidth", { configurable: true, value: 1920 });
+        Object.defineProperty(video, "videoHeight", { configurable: true, value: 1080 });
+        const cursor = document.querySelector<HTMLImageElement>(".screen-view-cursor")!;
+        cursor.src = "data:image/png;base64,AA==";
+        fireEvent.loadedData(video);
+        const sendCursor = (x: number) => {
+          const record = new Uint8Array(39);
+          const view = new DataView(record.buffer);
+          record[0] = 4;
+          record[9] = 1;
+          view.setInt32(10, x, false);
+          view.setInt32(14, 100, false);
+          view.setInt32(26, 16, false);
+          view.setInt32(30, 16, false);
+          staleMessageListener?.(new MessageEvent("message", { data: record.buffer }));
+        };
+        const flushFrames = () => {
+          const pending = [...callbacks.values()];
+          callbacks.clear();
+          act(() => pending.forEach((callback) => callback(0)));
+        };
+        flushFrames();
+        width.mockClear();
+        requestFrame.mockClear();
+        act(() => {
+          for (let x = 0; x < 20; ++x) {
+            sendCursor(x * 10);
+          }
+        });
+        expect(requestFrame).toHaveBeenCalledTimes(1);
+        expect(width).not.toHaveBeenCalled();
+        flushFrames();
+        expect(width).toHaveBeenCalledTimes(1);
+        expect(cursor.hidden).toBe(false);
+        expect(cursor.style.left).toBe("95px");
+        expect(cursor.style.top).toBe("50px");
+        act(() => sendCursor(500));
+        const pendingCursorFrames = [...callbacks.keys()];
+        fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+        expect(pendingCursorFrames.every((id) => !callbacks.has(id))).toBe(true);
+        expect(cursor.hidden).toBe(true);
+        return;
+      }
       if (scenario === "video-first" || scenario === "audio-first") {
         let source: MediaProvider | null = null;
         let finishPlayback: (() => void) | undefined;

@@ -77,7 +77,7 @@ rollback and shutdown release composition-owned resources in reverse order.
 | Logs and files                              | Producers use bounded non-blocking queues. Filesystem work stays off input/UI loops. Stores validate bounds and content, replace atomically, and preserve the last complete state.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Usage statistics                            | While disabled there is no accumulator, channel, worker, timer, or HTTP work. While enabled the runtime owns one fixed saturating accumulator, one capacity-one batch channel, separate scheduler/sender tasks, one in-flight retrying batch, five-second cancellable HTTPS attempts, and one shutdown-only final five-second attempt. Disable publishes the cached false state before cancellation and clears every unsent owner; graceful shutdown sends the active accumulator once, while crashes or power loss can lose unsent counters.                                                                                                                                                                                                                                                  |
 | WPF and tray                                | Dispatcher work is owned and bounded. Timers, hooks, subscriptions, icons, windows, and refresh sessions are released on unload/shutdown.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| Mobile effects                              | Each effect releases sockets, listeners, timers, pointer capture, animation frames, and speech events it acquires. Delayed clipboard, playback, and focus work checks its current interaction owner before publishing results.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Mobile effects                              | Each effect releases sockets, listeners, timers, pointer capture, animation frames, and speech events it acquires. Delayed clipboard, playback, and focus work checks its current interaction owner before publishing results.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Mobile pairing QR capture                   | The pairing feature owns one temporary camera stream and one lazy decoder worker per active scan. Live input is a centered capacity-one frame at a bounded cadence; cancellation, success, hiding, track loss, replacement, or unmount stops every track, timer, listener, and worker. Photo capture uses the same worker and pairing-link parser without retaining frames.                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Cursor recovery                             | Cursor overrides require an independent recovery process. Host exit cannot terminate it. If either process exits, the remaining process restores the Windows cursor scheme.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
@@ -132,6 +132,9 @@ virtual WebSocket. After the existing pairing or reconnect proof, P-256 ECDH,
 signed identity transcripts, HKDF-SHA256, and direction-specific AES-256-GCM
 protect every accepted-session frame. The service forwards opaque envelopes
 and does not own product pairing, permissions, commands, or device identities.
+The mobile encrypted channel lazily imports one non-extractable AES key per
+direction for its session lifetime. Ordered queues retain the same independent
+counters and authenticated record format; failed imports are not cached.
 Relay forwarding contains send failures at the destination socket. A closing
 client cannot turn a valid host message into a host protocol error or propagate
 its send exception through the shared host event.
@@ -216,8 +219,14 @@ H.264 camera track; `PhoneWebcamCoordinator` owns the single pending or active
 producer, signed offer/answer expiry, permission and pairing revocation, Relay
 credential reuse, and terminal cleanup. `PhoneWebcamVideoPipeline` keeps one encoded
 access unit, preserves H.264 configuration through decoder recovery, and publishes
-one latest fixed-size NV12 frame to the feature-owned pipe. The native Frame Server
-media source contains no network or credential logic. The Windows page consumes the
+one latest fixed-size NV12 frame to the feature-owned pipe.
+The decoder owns and reuses its caller-provided native output sample and buffer;
+decoded published frames remain separately owned. Flush retains the scratch
+buffer, resolution changes grow it only when required, and disposal releases it.
+The native Frame Server media source reuses one private receive buffer and one
+published buffer, swapping only after a complete validated read; an interrupted
+read leaves the published frame unchanged. It contains no network or credential
+logic. The Windows page consumes the
 registered virtual camera like any other application and never becomes a second
 media broker. Switching phone cameras replaces the sender track on the active peer;
 it does not replace the peer or command connection. A phone-webcam stop releases
@@ -285,13 +294,16 @@ authenticated routing identity. The Windows peer keeps libjuice as the ICE/TURN
 owner and supplies it a loopback-only TURN endpoint. A host-owned bounded bridge
 connects that endpoint to the issued `turns` service with certificate-validated
 TLS/TCP, translates only RFC 8656 datagram/stream framing, accepts one loopback
-owner, and ends with the peer. Direct sessions create no bridge or TURN service.
+owner, and ends with the peer. Each direction owns one 64 KiB scratch buffer;
+its socket write completes before that buffer is reused. Direct sessions create
+no bridge or TURN service.
 The shared web-client ICE helper waits for gathering completion before signing
 the one-shot answer. If a browser leaves gathering in progress at the 10-second
 deadline, Relay can use the nonempty relay-only SDP available then; a pause
 between candidate events is not completion. Direct requires completion. Changing
-source/profile or ending capture disposes the encoder and duplication session;
-a new source begins with a keyframe.
+source or ending capture disposes the encoder and duplication session;
+a new source begins with a keyframe. Frame-rate changes reset encoder pacing
+and retain GPU conversion resources when the output dimensions are unchanged.
 
 Display-mode changes can invalidate DXGI duplication. The capture source releases
 the invalid native session and identifies recoverable device/display errors. The

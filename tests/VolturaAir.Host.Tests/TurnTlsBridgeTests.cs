@@ -86,12 +86,64 @@ public sealed class TurnTlsBridgeTests
             0x40, 0x01, 0x00, 0x03, 0x11, 0x22, 0x33, 0x00
         ];
         await using var stream = new FragmentedReadStream(bytes);
+        byte[] buffer = new byte[TurnStreamFraming.MaximumFrameBytes];
 
-        Assert.Equal(StunFrame(), await TurnStreamFraming.ReadStreamFrameAsync(stream, CancellationToken.None));
+        int length = await TurnStreamFraming.ReadStreamFrameAsync(stream, buffer, CancellationToken.None);
+        Assert.Equal(StunFrame(), buffer[..length]);
+        length = await TurnStreamFraming.ReadStreamFrameAsync(stream, buffer, CancellationToken.None);
         Assert.Equal(
             [0x40, 0x01, 0x00, 0x03, 0x11, 0x22, 0x33],
-            await TurnStreamFraming.ReadStreamFrameAsync(stream, CancellationToken.None));
-        Assert.Null(await TurnStreamFraming.ReadStreamFrameAsync(stream, CancellationToken.None));
+            buffer[..length]);
+        Assert.Equal(0, await TurnStreamFraming.ReadStreamFrameAsync(stream, buffer, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task StreamReaderAllocationsDoNotGrowWithPacketPayload()
+    {
+        long small = await MeasureAllocationsAsync(1199);
+        long large = await MeasureAllocationsAsync(4799);
+        // Debug async state machines allocate fixed bookkeeping; payload copies must not return.
+        Assert.InRange(large, 0, small + 4096);
+        Assert.InRange(large, 0, 500 * 1024);
+    }
+
+    private static async Task<long> MeasureAllocationsAsync(ushort payloadLength)
+    {
+        byte[] framed = new byte[(4 + payloadLength + 3) & ~3];
+        framed[0] = 0x40;
+        framed[1] = 1;
+        BinaryPrimitives.WriteUInt16BigEndian(framed.AsSpan(2), payloadLength);
+        byte[] bytes = Enumerable.Range(0, 500).SelectMany(_ => framed).ToArray();
+        await using var stream = new MemoryStream(bytes);
+        byte[] buffer = new byte[TurnStreamFraming.MaximumFrameBytes];
+        _ = await TurnStreamFraming.ReadStreamFrameAsync(stream, buffer, CancellationToken.None);
+        stream.Position = 0;
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        int totalLength = 0;
+        for (int index = 0; index < 500; ++index)
+            totalLength += await TurnStreamFraming.ReadStreamFrameAsync(stream, buffer, CancellationToken.None);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Equal((4 + payloadLength) * 500, totalLength);
+        return allocated;
+    }
+
+    [Theory]
+    [InlineData(new byte[] { 0x40 })]
+    [InlineData(new byte[] { 0x40, 0x01, 0x00, 0x03, 0x11, 0x22 })]
+    [InlineData(new byte[] { 0x40, 0x01, 0x00, 0x03, 0x11, 0x22, 0x33 })]
+    public async Task StreamReaderRejectsTruncatedHeadersPayloadsAndPadding(byte[] frame)
+    {
+        await using var stream = new FragmentedReadStream(frame);
+        await Assert.ThrowsAsync<EndOfStreamException>(async () =>
+            await TurnStreamFraming.ReadStreamFrameAsync(stream, new byte[64], CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task StreamReaderRejectsCallerBuffersThatCannotHoldTheFrame()
+    {
+        await using var stream = new MemoryStream([0x40, 0x01, 0x00, 0x03, 0x11, 0x22, 0x33, 0]);
+        await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await TurnStreamFraming.ReadStreamFrameAsync(stream, new byte[7], CancellationToken.None));
     }
 
     [Fact]
@@ -109,7 +161,7 @@ public sealed class TurnTlsBridgeTests
         byte[] oversized = [0, 1, 0xff, 0xff, 0x21, 0x12, 0xa4, 0x42, .. new byte[12]];
         await using var stream = new MemoryStream(oversized);
         await Assert.ThrowsAsync<InvalidDataException>(async () =>
-            await TurnStreamFraming.ReadStreamFrameAsync(stream, CancellationToken.None));
+            await TurnStreamFraming.ReadStreamFrameAsync(stream, new byte[TurnStreamFraming.MaximumFrameBytes], CancellationToken.None));
     }
 
     [Fact]
@@ -153,8 +205,41 @@ public sealed class TurnTlsBridgeTests
         stream.QueueRead([0x40, 0x01, 0x00, 0x03, 0x11, 0x22, 0x33, 0x00]);
         TurnDatagram relayed = await socket.ReadSentAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Equal(owner, relayed.RemoteEndpoint);
-        Assert.Equal([0x40, 0x01, 0x00, 0x03, 0x11, 0x22, 0x33], relayed.Payload);
+        Assert.Equal([0x40, 0x01, 0x00, 0x03, 0x11, 0x22, 0x33], relayed.Payload.ToArray());
 
+        stream.QueueRead([0x40, 0x01, 0x00, 0x01, 0x44, 0x55, 0x66, 0x77]);
+        relayed = await socket.ReadSentAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal([0x40, 0x01, 0x00, 0x01, 0x44], relayed.Payload.ToArray());
+
+        bridge.Dispose();
+        await bridge.Completion.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task BridgeDoesNotReuseUploadBufferUntilTlsWriteCompletes()
+    {
+        var socket = new FakeTurnDatagramSocket(41234);
+        var stream = new ScriptedDuplexStream();
+        var endpoint = new TurnTlsEndpoint("turn.cloudflare.com", 443, "user", "secret");
+        using var bridge = new TurnTlsBridge(endpoint, socket, (_, _) => Task.FromResult<Stream>(stream));
+        var owner = new IPEndPoint(IPAddress.Loopback, 51321);
+        socket.Queue(StunFrame(), owner);
+        _ = await stream.ReadWrittenAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
+
+        var releaseWrite = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        stream.WriteGate = releaseWrite.Task;
+        socket.Queue([0x40, 0x01, 0x00, 0x03, 0x11, 0x22, 0x33], owner);
+        await stream.WriteStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        socket.Queue([0x40, 0x01, 0x00, 0x01, 0x44], owner);
+        stream.QueueRead([0x40, 0x01, 0x00, 0x01, 0x55, 0, 0, 0]);
+        TurnDatagram downloaded = await socket.ReadSentAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal([0x40, 0x01, 0x00, 0x01, 0x55], downloaded.Payload.ToArray());
+
+        releaseWrite.SetResult();
+        Assert.Equal([0x40, 0x01, 0x00, 0x03, 0x11, 0x22, 0x33, 0],
+            await stream.ReadWrittenAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.Equal([0x40, 0x01, 0x00, 0x01, 0x44, 0, 0, 0],
+            await stream.ReadWrittenAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)));
         bridge.Dispose();
         await bridge.Completion.WaitAsync(TimeSpan.FromSeconds(2));
     }
@@ -191,10 +276,12 @@ public sealed class TurnTlsBridgeTests
         public void Queue(byte[] payload, IPEndPoint endpoint) =>
             Assert.True(_receive.Writer.TryWrite(new TurnDatagram(payload, endpoint)));
 
-        public async ValueTask<TurnDatagram> ReceiveAsync(CancellationToken cancellationToken)
+        public async ValueTask<TurnDatagram> ReceiveAsync(Memory<byte> buffer, CancellationToken cancellationToken)
         {
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposed.Token);
-            return await _receive.Reader.ReadAsync(linked.Token);
+            TurnDatagram datagram = await _receive.Reader.ReadAsync(linked.Token);
+            datagram.Payload.CopyTo(buffer);
+            return new TurnDatagram(buffer[..datagram.Payload.Length], datagram.RemoteEndpoint);
         }
 
         public ValueTask SendAsync(ReadOnlyMemory<byte> payload, IPEndPoint endpoint, CancellationToken cancellationToken)
@@ -229,6 +316,8 @@ public sealed class TurnTlsBridgeTests
         private readonly Channel<byte[]> _writes = Channel.CreateUnbounded<byte[]>();
         private byte[]? _currentRead;
         private int _currentOffset;
+        internal Task? WriteGate { get; set; }
+        internal TaskCompletionSource WriteStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public override bool CanRead => true;
         public override bool CanSeek => false;
@@ -252,11 +341,16 @@ public sealed class TurnTlsBridgeTests
             return count;
         }
 
-        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (WriteGate is { } gate)
+            {
+                WriteStarted.TrySetResult();
+                await gate.WaitAsync(cancellationToken);
+                WriteGate = null;
+            }
             Assert.True(_writes.Writer.TryWrite(buffer.ToArray()));
-            return ValueTask.CompletedTask;
         }
 
         public override void Flush()

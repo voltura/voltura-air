@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { RelayEncryptedChannel } from "./relaySessionCrypto";
 
 const secret = Uint8Array.from({ length: 32 }, (_, index) => index);
@@ -7,6 +7,46 @@ const transcript = new TextEncoder().encode(
 );
 
 describe("RelayEncryptedChannel", () => {
+  it("imports each direction once per session while preserving consecutive encrypted messages", async () => {
+    const imports = vi.spyOn(crypto.subtle, "importKey");
+    try {
+      const host = RelayEncryptedChannel.createHostForConformance(secret, transcript);
+      const device = RelayEncryptedChannel.create(secret, transcript);
+      expect(imports).not.toHaveBeenCalled();
+      for (let index = 0; index < 20; ++index) {
+        expect(await device.decryptText(await sendFrame(host, `host ${index}`))).toBe(
+          `host ${index}`,
+        );
+        expect(await host.decryptText(await sendFrame(device, `device ${index}`))).toBe(
+          `device ${index}`,
+        );
+      }
+      expect(imports).toHaveBeenCalledTimes(4);
+      const replacement = RelayEncryptedChannel.create(secret, transcript);
+      await sendFrame(replacement, "new session");
+      expect(imports).toHaveBeenCalledTimes(5);
+    } finally {
+      imports.mockRestore();
+    }
+  });
+
+  it("does not cache a failed key import or advance the receive counter", async () => {
+    const host = RelayEncryptedChannel.createHostForConformance(secret, transcript);
+    const device = RelayEncryptedChannel.create(secret, transcript);
+    const frame = await sendFrame(host, "message");
+    const imports = vi
+      .spyOn(crypto.subtle, "importKey")
+      .mockRejectedValueOnce(new Error("Injected key import failure."));
+    try {
+      expect(await device.decryptText(frame)).toBeNull();
+      expect(await device.decryptText(frame)).toBe("message");
+      expect(await device.decryptText(await sendFrame(host, "next"))).toBe("next");
+      expect(imports).toHaveBeenCalledTimes(2);
+    } finally {
+      imports.mockRestore();
+    }
+  });
+
   it("round trips direction-specific encrypted frames", async () => {
     const host = RelayEncryptedChannel.createHostForConformance(secret, transcript);
     const device = RelayEncryptedChannel.create(secret, transcript);
@@ -32,7 +72,7 @@ describe("RelayEncryptedChannel", () => {
     const alteredBytes = new Uint8Array(altered);
     alteredBytes[12] = alteredBytes[12]! ^ 1;
 
-    expect(await RelayEncryptedChannel.create(secret, transcript).decryptText(altered)).toBeNull();
+    expect(await device.decryptText(altered)).toBeNull();
     expect(await device.decryptText(valid)).toBe("message");
     expect(await device.decryptText(valid)).toBeNull();
     expect(await host.decryptText(await sendFrame(host, "wrong direction"))).toBeNull();

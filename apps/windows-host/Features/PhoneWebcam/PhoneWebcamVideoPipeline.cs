@@ -247,16 +247,9 @@ internal sealed class PhoneWebcamVideoPipeline : IAsyncDisposable
 
     private static int FindStartCode(ReadOnlySpan<byte> value, int start)
     {
-        for (int index = start; index <= value.Length - 4; ++index)
-        {
-            if (value[index] == 0 && value[index + 1] == 0 &&
-                value[index + 2] == 0 && value[index + 3] == 1)
-            {
-                return index;
-            }
-        }
-
-        return -1;
+        ReadOnlySpan<byte> startCode = [0, 0, 0, 1];
+        int offset = value[start..].IndexOf(startCode);
+        return offset < 0 ? -1 : start + offset;
     }
 
     private sealed record EncodedAccessUnit(byte[] Bytes, uint RtpTimestamp);

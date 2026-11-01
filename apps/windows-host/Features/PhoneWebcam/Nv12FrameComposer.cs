@@ -36,8 +36,10 @@ internal static class Nv12FrameComposer
         // Every pixel is overwritten when the visible frame fills the canvas.
         if (fittedWidth != targetWidth || fittedHeight != targetHeight)
         {
-            target[..(targetWidth * targetHeight)].Fill(16);
-            target.Slice(targetWidth * targetHeight, targetWidth * targetHeight / 2).Fill(128);
+            FillMargins(target[..(targetWidth * targetHeight)], targetWidth, targetHeight,
+                left, top, fittedWidth, fittedHeight, 16);
+            FillMargins(target.Slice(targetWidth * targetHeight, targetWidth * targetHeight / 2),
+                targetWidth, targetHeight / 2, left, top / 2, fittedWidth, fittedHeight / 2, 128);
         }
 
         if (sourceWidth == targetWidth && sourceHeight == targetHeight &&
@@ -100,6 +102,21 @@ internal static class Nv12FrameComposer
                     targetRow[column * 2 + 1] = sourceRowData[sourceColumn + 1];
                 }
             }
+        }
+    }
+
+    private static void FillMargins(Span<byte> plane, int stride, int height,
+        int left, int top, int width, int visibleHeight, byte value)
+    {
+        plane[..(top * stride)].Fill(value);
+        plane[((top + visibleHeight) * stride)..(height * stride)].Fill(value);
+        int right = left + width;
+        if (left == 0 && right == stride) return;
+        for (int row = top; row < top + visibleHeight; ++row)
+        {
+            Span<byte> pixels = plane.Slice(row * stride, stride);
+            pixels[..left].Fill(value);
+            pixels[right..].Fill(value);
         }
     }
 }

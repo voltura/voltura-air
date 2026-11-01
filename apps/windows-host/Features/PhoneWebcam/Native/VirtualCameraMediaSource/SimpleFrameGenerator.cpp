@@ -117,11 +117,11 @@ bool SimpleFrameGenerator::ReadFrame(HANDLE pipe)
     }
     const uint64_t sequence = ReadUInt64(header + 8);
     if (sequence == 0 || sequence <= m_latestSequence) return false;
-    std::vector<BYTE> frame(FrameBytes);
-    if (!ReadExact(pipe, frame.data(), FrameBytes)) return false;
+    m_readFrame.resize(FrameBytes);
+    if (!ReadExact(pipe, m_readFrame.data(), FrameBytes)) return false;
     {
         std::lock_guard guard(m_frameLock);
-        m_latestFrame.swap(frame);
+        m_latestFrame.swap(m_readFrame);
         m_latestSequence = sequence;
     }
     return true;
@@ -180,6 +180,11 @@ bool SimpleFrameGenerator::CopyLatestFrame(BYTE* buffer, DWORD length, LONG pitc
     if (m_latestFrame.size() != FrameBytes) return false;
     const DWORD required = static_cast<DWORD>(pitch) * FrameHeight * 3 / 2;
     if (length < required) return false;
+    if (pitch == static_cast<LONG>(FrameWidth))
+    {
+        memcpy(buffer, m_latestFrame.data(), FrameBytes);
+        return true;
+    }
     for (DWORD row = 0; row < FrameHeight; ++row)
         memcpy(buffer + row * pitch, m_latestFrame.data() + row * FrameWidth, FrameWidth);
     BYTE* destinationUv = buffer + static_cast<size_t>(pitch) * FrameHeight;

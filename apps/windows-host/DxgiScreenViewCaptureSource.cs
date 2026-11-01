@@ -370,8 +370,12 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
             _encoding.Configure(width, height, profile.FramesPerSecond, bitrate, forceKeyFrame);
             if (profileChanged)
             {
-                _gpuFrameConverter?.Dispose();
-                _gpuFrameConverter = null;
+                // Conversion shaders and surfaces have no frame-rate state.
+                if (_webRtcProfile?.MaxWidth != profile.MaxWidth || _webRtcProfile.MaxHeight != profile.MaxHeight)
+                {
+                    _gpuFrameConverter?.Dispose();
+                    _gpuFrameConverter = null;
+                }
                 _gpuFrameConversionUnavailable = false;
                 _webRtcProfile = profile;
                 if (frameRateChanged) _webRtcFramePacer.Reset();

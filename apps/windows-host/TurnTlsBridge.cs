@@ -105,39 +105,38 @@ internal static class TurnStreamFraming
         return streamLength;
     }
 
-    public static async ValueTask<byte[]?> ReadStreamFrameAsync(Stream stream, CancellationToken cancellationToken)
+    public static async ValueTask<int> ReadStreamFrameAsync(Stream stream, Memory<byte> buffer, CancellationToken cancellationToken)
     {
-        var prefix = new byte[4];
-        if (!await ReadExactlyOrEofAsync(stream, prefix, cancellationToken).ConfigureAwait(false))
-            return null;
+        if (buffer.Length < 4)
+            throw new ArgumentException("The TURN stream buffer is too small.", nameof(buffer));
+        if (!await ReadExactlyOrEofAsync(stream, buffer[..4], cancellationToken).ConfigureAwait(false))
+            return 0;
 
-        if (IsChannelData(prefix))
+        if (IsChannelData(buffer.Span))
         {
-            int payloadLength = BinaryPrimitives.ReadUInt16BigEndian(prefix.AsSpan(2, 2));
+            int payloadLength = BinaryPrimitives.ReadUInt16BigEndian(buffer.Span.Slice(2, 2));
             int datagramLength = 4 + payloadLength;
             int streamLength = AlignToFour(datagramLength);
             ValidateBound(datagramLength);
-            var result = new byte[datagramLength];
-            prefix.CopyTo(result, 0);
-            await ReadExactlyAsync(stream, result.AsMemory(4, payloadLength), cancellationToken).ConfigureAwait(false);
-            int padding = streamLength - datagramLength;
-            if (padding > 0)
-                await ReadExactlyAsync(stream, new byte[padding], cancellationToken).ConfigureAwait(false);
-            return result;
+            if (streamLength > buffer.Length)
+                throw new ArgumentException("The TURN stream buffer is too small.", nameof(buffer));
+            // Consume payload and stream padding together; only the datagram prefix is forwarded.
+            await ReadExactlyAsync(stream, buffer.Slice(4, streamLength - 4), cancellationToken).ConfigureAwait(false);
+            return datagramLength;
         }
 
-        if ((prefix[0] & 0xC0) != 0)
+        if ((buffer.Span[0] & 0xC0) != 0)
             throw new InvalidDataException("The TURN stream contained a reserved frame type.");
-        int bodyLength = BinaryPrimitives.ReadUInt16BigEndian(prefix.AsSpan(2, 2));
+        int bodyLength = BinaryPrimitives.ReadUInt16BigEndian(buffer.Span.Slice(2, 2));
         if ((bodyLength & 3) != 0)
             throw new InvalidDataException("The TURN STUN message was not four-byte aligned.");
         int totalLength = 20 + bodyLength;
         ValidateBound(totalLength);
-        var stun = new byte[totalLength];
-        prefix.CopyTo(stun, 0);
-        await ReadExactlyAsync(stream, stun.AsMemory(4), cancellationToken).ConfigureAwait(false);
-        ValidateStun(stun);
-        return stun;
+        if (totalLength > buffer.Length)
+            throw new ArgumentException("The TURN stream buffer is too small.", nameof(buffer));
+        await ReadExactlyAsync(stream, buffer.Slice(4, totalLength - 4), cancellationToken).ConfigureAwait(false);
+        ValidateStun(buffer.Span[..totalLength]);
+        return totalLength;
     }
 
     private static int GetDatagramFrameLength(ReadOnlySpan<byte> datagram)
@@ -201,18 +200,20 @@ internal static class TurnStreamFraming
     }
 }
 
-internal readonly record struct TurnDatagram(byte[] Payload, IPEndPoint RemoteEndpoint);
+// Receive payloads borrow the caller's buffer until the next receive.
+internal readonly record struct TurnDatagram(ReadOnlyMemory<byte> Payload, IPEndPoint RemoteEndpoint);
 
 internal interface ITurnDatagramSocket : IDisposable
 {
     int LocalPort { get; }
-    ValueTask<TurnDatagram> ReceiveAsync(CancellationToken cancellationToken);
+    ValueTask<TurnDatagram> ReceiveAsync(Memory<byte> buffer, CancellationToken cancellationToken);
     ValueTask SendAsync(ReadOnlyMemory<byte> payload, IPEndPoint endpoint, CancellationToken cancellationToken);
 }
 
 internal sealed class LoopbackTurnDatagramSocket : ITurnDatagramSocket
 {
     private readonly UdpClient _client = new(AddressFamily.InterNetwork);
+    private readonly IPEndPoint _receiveEndpoint = new(IPAddress.Any, 0);
 
     public LoopbackTurnDatagramSocket()
     {
@@ -223,10 +224,13 @@ internal sealed class LoopbackTurnDatagramSocket : ITurnDatagramSocket
 
     public int LocalPort { get; }
 
-    public async ValueTask<TurnDatagram> ReceiveAsync(CancellationToken cancellationToken)
+    public async ValueTask<TurnDatagram> ReceiveAsync(Memory<byte> buffer, CancellationToken cancellationToken)
     {
-        UdpReceiveResult result = await _client.ReceiveAsync(cancellationToken).ConfigureAwait(false);
-        return new TurnDatagram(result.Buffer, result.RemoteEndPoint);
+        if (buffer.Length < TurnStreamFraming.MaximumFrameBytes)
+            throw new ArgumentException("The TURN datagram buffer is too small.", nameof(buffer));
+        SocketReceiveFromResult result = await _client.Client.ReceiveFromAsync(
+            buffer, SocketFlags.None, _receiveEndpoint, cancellationToken).ConfigureAwait(false);
+        return new TurnDatagram(buffer[..result.ReceivedBytes], (IPEndPoint)result.RemoteEndPoint);
     }
 
     public async ValueTask SendAsync(ReadOnlyMemory<byte> payload, IPEndPoint endpoint, CancellationToken cancellationToken)
@@ -277,11 +281,13 @@ internal sealed class TurnTlsBridge : ITurnTlsBridge
     {
         try
         {
-            TurnDatagram first = await ReceiveLoopbackAsync(_stop.Token).ConfigureAwait(false);
+            var uploadBuffer = new byte[TurnStreamFraming.MaximumFrameBytes];
+            TurnDatagram first = await ReceiveLoopbackAsync(uploadBuffer, _stop.Token).ConfigureAwait(false);
             await using Stream stream = await _connect(_endpoint, _stop.Token).ConfigureAwait(false);
-            await stream.WriteAsync(TurnStreamFraming.PrepareDatagramForStream(first.Payload), _stop.Token).ConfigureAwait(false);
+            int firstLength = TurnStreamFraming.PrepareDatagramForStream(first.Payload.Span, uploadBuffer);
+            await stream.WriteAsync(uploadBuffer.AsMemory(0, firstLength), _stop.Token).ConfigureAwait(false);
             using var active = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);
-            Task upload = UploadAsync(stream, first.RemoteEndpoint, active.Token);
+            Task upload = UploadAsync(stream, first.RemoteEndpoint, uploadBuffer, active.Token);
             Task download = DownloadAsync(stream, first.RemoteEndpoint, active.Token);
             _ = await Task.WhenAny(upload, download).ConfigureAwait(false);
             await active.CancelAsync().ConfigureAwait(false);
@@ -311,34 +317,34 @@ internal sealed class TurnTlsBridge : ITurnTlsBridge
         }
     }
 
-    private async Task UploadAsync(Stream stream, IPEndPoint owner, CancellationToken cancellationToken)
+    private async Task UploadAsync(Stream stream, IPEndPoint owner, Memory<byte> frame, CancellationToken cancellationToken)
     {
-        // One bounded scratch buffer; each write finishes before it is reused.
-        var frame = new byte[TurnStreamFraming.MaximumFrameBytes];
+        // Receive and frame in the same bounded buffer, reused only after the write finishes.
         while (true)
         {
-            TurnDatagram datagram = await _socket.ReceiveAsync(cancellationToken).ConfigureAwait(false);
+            TurnDatagram datagram = await _socket.ReceiveAsync(frame, cancellationToken).ConfigureAwait(false);
             if (!datagram.RemoteEndpoint.Equals(owner)) continue;
-            int length = TurnStreamFraming.PrepareDatagramForStream(datagram.Payload, frame);
-            await stream.WriteAsync(frame.AsMemory(0, length), cancellationToken).ConfigureAwait(false);
+            int length = TurnStreamFraming.PrepareDatagramForStream(datagram.Payload.Span, frame.Span);
+            await stream.WriteAsync(frame[..length], cancellationToken).ConfigureAwait(false);
         }
     }
 
     private async Task DownloadAsync(Stream stream, IPEndPoint owner, CancellationToken cancellationToken)
     {
+        var frame = new byte[TurnStreamFraming.MaximumFrameBytes];
         while (true)
         {
-            byte[]? frame = await TurnStreamFraming.ReadStreamFrameAsync(stream, cancellationToken).ConfigureAwait(false);
-            if (frame is null) return;
-            await _socket.SendAsync(frame, owner, cancellationToken).ConfigureAwait(false);
+            int length = await TurnStreamFraming.ReadStreamFrameAsync(stream, frame, cancellationToken).ConfigureAwait(false);
+            if (length == 0) return;
+            await _socket.SendAsync(frame.AsMemory(0, length), owner, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    private async ValueTask<TurnDatagram> ReceiveLoopbackAsync(CancellationToken cancellationToken)
+    private async ValueTask<TurnDatagram> ReceiveLoopbackAsync(Memory<byte> buffer, CancellationToken cancellationToken)
     {
         while (true)
         {
-            TurnDatagram datagram = await _socket.ReceiveAsync(cancellationToken).ConfigureAwait(false);
+            TurnDatagram datagram = await _socket.ReceiveAsync(buffer, cancellationToken).ConfigureAwait(false);
             if (IPAddress.IsLoopback(datagram.RemoteEndpoint.Address)) return datagram;
         }
     }

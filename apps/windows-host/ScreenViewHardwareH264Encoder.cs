@@ -307,14 +307,15 @@ internal sealed class ScreenViewHardwareH264Encoder : IScreenViewFrameEncoder
             (accessUnit[2] == 1 || (accessUnit[2] == 0 && accessUnit[3] == 1));
         if (startsWithAnnexB)
         {
-            for (int index = 0; index + 3 < accessUnit.Length; index++)
+            ReadOnlySpan<byte> startCode = [0, 0, 1];
+            while (accessUnit.Length >= 4)
             {
-                int header = accessUnit[index] == 0 && accessUnit[index + 1] == 0 && accessUnit[index + 2] == 1
-                    ? index + 3
-                    : index + 4 < accessUnit.Length && accessUnit[index] == 0 && accessUnit[index + 1] == 0 && accessUnit[index + 2] == 0 && accessUnit[index + 3] == 1
-                        ? index + 4
-                        : -1;
-                if (header >= 0 && (accessUnit[header] & 0x1f) == nalType) return true;
+                // A four-byte start code contains the same three-byte suffix.
+                int prefix = accessUnit.IndexOf(startCode);
+                if (prefix < 0 || prefix + 3 >= accessUnit.Length) return false;
+                int header = prefix + 3;
+                if ((accessUnit[header] & 0x1f) == nalType) return true;
+                accessUnit = accessUnit[header..];
             }
             return false;
         }

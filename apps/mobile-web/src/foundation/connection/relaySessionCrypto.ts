@@ -120,6 +120,8 @@ export function verifyRelayHostAcceptance(pending: PendingRelaySession, value: u
 export class RelayEncryptedChannel {
   private sendCounter = 0n;
   private receiveCounter = 0n;
+  private importedSendKey: CryptoKey | undefined;
+  private importedReceiveKey: CryptoKey | undefined;
   private readonly sendQueue: PendingSend[] = [];
   private sending = false;
   private receiveQueue = Promise.resolve();
@@ -241,13 +243,13 @@ export class RelayEncryptedChannel {
       return null;
     }
     try {
-      const key = await crypto.subtle.importKey(
-        "raw",
-        copyBuffer(this.receiveKey),
-        "AES-GCM",
-        false,
-        ["decrypt"],
-      );
+      let key = this.importedReceiveKey;
+      if (!key) {
+        key = await crypto.subtle.importKey("raw", copyBuffer(this.receiveKey), "AES-GCM", false, [
+          "decrypt",
+        ]);
+        this.importedReceiveKey = key;
+      }
       const plaintext = await crypto.subtle.decrypt(
         {
           name: "AES-GCM",
@@ -271,9 +273,13 @@ export class RelayEncryptedChannel {
     header[0] = 1;
     header[1] = this.sendDirection;
     writeCounter(header.subarray(2), counter);
-    const key = await crypto.subtle.importKey("raw", copyBuffer(this.sendKey), "AES-GCM", false, [
-      "encrypt",
-    ]);
+    let key = this.importedSendKey;
+    if (!key) {
+      key = await crypto.subtle.importKey("raw", copyBuffer(this.sendKey), "AES-GCM", false, [
+        "encrypt",
+      ]);
+      this.importedSendKey = key;
+    }
     const encrypted = new Uint8Array(
       await crypto.subtle.encrypt(
         {

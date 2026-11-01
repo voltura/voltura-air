@@ -17,7 +17,11 @@ internal sealed partial class MediaFoundationH264Decoder : IDisposable
     private static readonly Guid MicrosoftH264Decoder = new("62CE7E72-4C71-4D20-B15D-452831A87D9D");
     private static readonly Guid H264VideoFormat = new(0x34363248, 0x0000, 0x0010, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71);
     private readonly IMFTransform _decoder;
+    private readonly Func<int, IMFMediaBuffer> _allocateOutputBuffer;
     private readonly int _minimumInputBytes;
+    private IMFMediaBuffer? _callerOutputBuffer;
+    private IMFSample? _callerOutputSample;
+    private int _callerOutputCapacity;
     private long _sampleTime;
     private int _decodedWidth = Width;
     private int _decodedHeight = Height;
@@ -31,9 +35,11 @@ internal sealed partial class MediaFoundationH264Decoder : IDisposable
 
     internal (int Width, int Height) DecodedSize => (_decodedWidth, _decodedHeight);
     internal (int Width, int Height) VisibleSize => (_visibleWidth, _visibleHeight);
+    internal int OutputBufferAllocationCount { get; private set; }
 
-    internal MediaFoundationH264Decoder()
+    internal MediaFoundationH264Decoder(Func<int, IMFMediaBuffer>? allocateOutputBuffer = null)
     {
+        _allocateOutputBuffer = allocateOutputBuffer ?? (static length => MFCreateMemoryBuffer(length));
         MFStartup(true).CheckError();
         try
         {
@@ -117,11 +123,9 @@ internal sealed partial class MediaFoundationH264Decoder : IDisposable
             {
                 OutputStreamInfo streamInfo = _decoder.GetOutputStreamInfo(0);
                 bool decoderProvidesSample = (streamInfo.Flags & (int)OutputStreamInfoFlags.OutputStreamProvidesSamples) != 0;
-                using IMFMediaBuffer? callerBuffer = decoderProvidesSample
+                IMFSample? callerSample = decoderProvidesSample
                     ? null
-                    : MFCreateMemoryBuffer(Math.Max(Maximum1080pDecoderBytes, streamInfo.Size));
-                using IMFSample? callerSample = decoderProvidesSample ? null : MFCreateSample();
-                callerSample?.AddBuffer(callerBuffer!);
+                    : GetCallerOutputSample(Math.Max(Maximum1080pDecoderBytes, streamInfo.Size));
                 {
                     var output = new OutputDataBuffer { StreamID = 0, Sample = callerSample };
                     Result result = _decoder.ProcessOutput(ProcessOutputFlags.None, 1, ref output, out _);
@@ -203,6 +207,38 @@ internal sealed partial class MediaFoundationH264Decoder : IDisposable
     internal static void ReturnFrame(byte[]? frame)
     {
         if (frame is not null) ArrayPool<byte>.Shared.Return(frame);
+    }
+
+    private IMFSample GetCallerOutputSample(int requiredBytes)
+    {
+        if (_callerOutputBuffer is null || _callerOutputCapacity < requiredBytes)
+        {
+            IMFMediaBuffer buffer = _allocateOutputBuffer(requiredBytes);
+            IMFSample? sample = null;
+            try
+            {
+                sample = MFCreateSample();
+                sample.AddBuffer(buffer);
+            }
+            catch
+            {
+                try { sample?.Dispose(); }
+                finally { buffer.Dispose(); }
+                throw;
+            }
+
+            IMFSample? retiredSample = _callerOutputSample;
+            IMFMediaBuffer? retiredBuffer = _callerOutputBuffer;
+            _callerOutputSample = sample;
+            _callerOutputBuffer = buffer;
+            _callerOutputCapacity = requiredBytes;
+            OutputBufferAllocationCount++;
+            try { retiredSample?.Dispose(); }
+            finally { retiredBuffer?.Dispose(); }
+        }
+
+        _callerOutputBuffer.CurrentLength = 0;
+        return _callerOutputSample!;
     }
 
     private void UpdateDecodedLayout(IMFMediaType outputType)
@@ -325,7 +361,15 @@ internal sealed partial class MediaFoundationH264Decoder : IDisposable
             _decoder.ProcessMessage(TMessageType.MessageNotifyEndStreaming, UIntPtr.Zero);
         }
         catch (SharpGenException) { }
-        _decoder.Dispose();
-        MFShutdown();
+        try { _decoder.Dispose(); }
+        finally
+        {
+            try { _callerOutputSample?.Dispose(); }
+            finally
+            {
+                try { _callerOutputBuffer?.Dispose(); }
+                finally { MFShutdown(); }
+            }
+        }
     }
 }

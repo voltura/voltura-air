@@ -1115,8 +1115,13 @@ describe("ScreenViewWorkspace", () => {
         value: null,
       });
       if (scenario === "cursor-burst") {
+        // Finish work already queued on the browser scheduler before replacing it.
+        await act(async () => {
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        });
         const callbacks = new Map<number, FrameRequestCallback>();
-        let frameId = 0;
+        // Avoid collisions with native animation IDs whose effect cleanup can still run.
+        let frameId = 2 ** 32;
         const requestFrame = vi.fn((callback: FrameRequestCallback) => {
           callbacks.set(++frameId, callback);
           return frameId;

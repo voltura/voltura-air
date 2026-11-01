@@ -86,6 +86,19 @@ public sealed class ScreenViewWebRtcTests
     }
 
     [Fact]
+    public void DetectsNalHeadersAcrossMixedPrefixesAndTruncatedBoundaries()
+    {
+        byte[] mixed = [0, 0, 1, 0x67, 9, 0, 0, 0, 1, 0x68, 8, 0, 0, 1, 0x65];
+        Assert.True(ScreenViewHardwareH264Encoder.ContainsNalType(mixed, 7));
+        Assert.True(ScreenViewHardwareH264Encoder.ContainsNalType(mixed, 8));
+        Assert.True(ScreenViewHardwareH264Encoder.ContainsNalType(mixed, 5));
+        Assert.False(ScreenViewHardwareH264Encoder.ContainsNalType(mixed, 1));
+        Assert.False(ScreenViewHardwareH264Encoder.ContainsNalType([0, 0, 1], 5));
+        Assert.False(ScreenViewHardwareH264Encoder.ContainsNalType([0, 0, 0, 1], 5));
+        Assert.False(ScreenViewHardwareH264Encoder.ContainsNalType([0, 0, 1, 0x61, 0, 0, 1], 5));
+    }
+
+    [Fact]
     public void NormalizesLengthPrefixedEncoderOutputBeforeRtpPacketization()
     {
         Assert.Equal(

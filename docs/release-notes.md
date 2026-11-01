@@ -8,9 +8,11 @@ create one. Keep the shared notices in
 
 ## v1.4.7
 
-- Improved Screen View and Phone webcam efficiency by removing repeated video-frame copies and reusing audio buffers, while preserving the existing video and sound quality settings.
-- Reduced memory allocation during TURN relay media uploads, helping keep Screen View and Phone webcam streaming steady.
+- Improved Screen View and Phone webcam efficiency by removing repeated video-frame copies and reusing video and audio buffers, while preserving the existing video and sound quality settings.
+- Reduced memory allocation during TURN relay media streaming, helping keep Screen View and Phone webcam streaming steady.
+- Reduced encrypted-command overhead during Relay control, including while using Screen View.
 - Screen View cursor updates now share one browser layout pass per paint, reducing work during rapid pointer movement.
+- Phone webcam users may see a Windows permission prompt while its updated camera component is installed.
 
 ## v1.4.6
 

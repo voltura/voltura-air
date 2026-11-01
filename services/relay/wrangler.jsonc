@@ -4,6 +4,17 @@
   "main": "src/cloudflare/worker.ts",
   "compatibility_date": "2026-08-03",
   "workers_dev": false,
+  "logpush": false,
+  "observability": {
+    "enabled": false,
+    "issues": { "enabled": false },
+    "logs": {
+      "enabled": false,
+      "invocation_logs": false,
+      "persist": false,
+    },
+    "traces": { "enabled": false, "persist": false },
+  },
   "durable_objects": {
     "bindings": [
       { "name": "RELAY_ROOMS", "class_name": "RelayRoomObject" },

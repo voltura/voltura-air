@@ -12,6 +12,11 @@ credentials, quota thresholds, deployment, health/usage operations, and release
 orchestration are owned by the private `voltura-air-service` repository. Public
 `npm run relay:check` builds and tests the implementation without production access.
 
+The development Worker configuration explicitly disables Cloudflare Observability,
+logs, traces, Issues, persistence, and Logpush to avoid log/trace ingestion and
+storage charges. The private service configuration maintains the same policy for
+the Voltura-operated Relay; health checks and TURN usage analytics remain available.
+
 This repository split changes no public endpoint, protocol, credential lifetime, or
 quota behavior. Released clients continue to use the configured official service.
 

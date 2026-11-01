@@ -30,6 +30,12 @@ then pushes and creates/resumes the matching release. `release:full` publishes t
 audited GitHub draft as Latest; neither public command deploys hosted infrastructure.
 Prerelease versions remain drafts. Set `NO_COLOR` to disable colored output.
 
+Before release validation, run `pwsh -NoProfile -File scripts/host-preflight.ps1`
+to stop any verified installed or repository Air host, then allow its cursor
+recovery watchdog to exit. Keep Air closed throughout validation: its session-wide
+cursor recovery mutex otherwise prevents the desktop acceptance tests from starting
+their isolated recovery processes.
+
 Run the full build and aggregate test gate when product changes are made, before
 pushing `main`. Release commands package and publish that already validated code;
 they do not rerun the development test suite or recapture screenshots.
@@ -135,6 +141,7 @@ backup/restore. Configured release commands preflight the signing tools/key.
 The complete release already runs these gates. For independent verification:
 
 ```powershell
+pwsh -NoProfile -File scripts/host-preflight.ps1
 npm run build
 npm test
 npm run package:win

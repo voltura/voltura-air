@@ -6,6 +6,10 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.4.8
+
+- Security maintenance release.
+
 ## v1.4.7
 
 - Improved Screen View and Phone webcam efficiency by removing repeated video-frame copies and reusing video and audio buffers, while preserving the existing video and sound quality settings.

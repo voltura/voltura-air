@@ -58,6 +58,8 @@
                 </Border>
             </ui:SpacingStackPanel>
 
+            <ContentControl x:Name="IntroductionSlot" Grid.Row="2" Visibility="Collapsed" />
+
             <Expander x:Name="DetailsExpander"
                       Grid.Row="2"
                       Header="Details"

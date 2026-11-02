@@ -35,6 +35,8 @@ export interface SettingsToolOption {
 }
 
 export interface SettingsDrawerProps {
+  onShowIntroduction?: (() => void) | undefined;
+  introductionConnected?: boolean | undefined;
   activePc: PcProfile | null;
   appSettings: AppSettings;
   keepDeviceScreenOn: boolean;

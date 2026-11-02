@@ -1,0 +1,60 @@
+[data-introduction-target="menu"][data-introduction-highlight] {
+  --introduction-glow-spread: 8px;
+
+  outline-offset: 3px;
+}
+
+body:has([data-introduction-controls]) .settings-drawer-scroll-region > *,
+body:has([data-introduction-controls]) .drawer-tool-list > button {
+  opacity: 0.58;
+}
+
+body:has([data-introduction-controls])
+  .settings-drawer-scroll-region
+  > :has([data-introduction-highlight]),
+body:has([data-introduction-controls])
+  .settings-drawer-scroll-region
+  > [data-introduction-highlight],
+body:has([data-introduction-controls]) .drawer-tool-list > [data-introduction-highlight],
+body:has([data-introduction-controls]) [data-introduction-highlight] {
+  opacity: 1;
+}
+
+.introduction-shell-card {
+  position: fixed;
+  z-index: 30;
+  inset-inline: max(var(--space-md), env(safe-area-inset-left))
+    max(var(--space-md), env(safe-area-inset-right));
+  bottom: max(var(--space-md), env(safe-area-inset-bottom));
+  max-width: 360px;
+  margin-inline: auto;
+}
+
+.settings-drawer-panel:has([data-introduction-controls]) {
+  width: min(100vw, 390px);
+  padding-inline: max(var(--space-lg), env(safe-area-inset-left))
+    max(var(--space-lg), env(safe-area-inset-right));
+}
+
+.settings-drawer-panel:has([data-introduction-controls]) .settings-drawer-scroll-region {
+  padding: 3px;
+}
+
+[data-introduction-slot] {
+  flex: 0 0 auto;
+}
+
+body:has(.introduction-shell-card) [data-introduction-highlight] {
+  position: relative;
+  z-index: 29;
+
+  --introduction-dim-shadow: 0 0 0 100vmax var(--scrim);
+}
+
+@media (height <= 420px) {
+  .settings-drawer-panel:has([data-introduction-controls]) {
+    gap: var(--space-sm);
+    padding-block: max(var(--space-sm), env(safe-area-inset-top))
+      max(var(--space-sm), env(safe-area-inset-bottom));
+  }
+}

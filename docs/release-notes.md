@@ -6,6 +6,12 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.4.9
+
+- New devices receive a guided introduction through the real mobile menu, with pulsing highlights, automatic playback, pause/resume and a layout that keeps each tool visible above the guide.
+- Replay the introduction from Menu → Settings → App. Existing clients keep their current experience without an automatic welcome prompt.
+- Windows shows a passive first-use welcome on Connect, with guidance for paired devices, Custom screens and library installation, presentation reports, connection, appearance and app launch preferences. Replay it from Preferences → Application.
+
 ## v1.4.8
 
 - Security maintenance release.

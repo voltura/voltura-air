@@ -1,0 +1,75 @@
+<UserControl x:Class="VolturaAir.Host.Features.Connect.IntroductionCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:VolturaAir.Host.Ui"
+             FontSize="13">
+    <UserControl.Resources>
+        <Style x:Key="WelcomeStepNumber" TargetType="Border">
+            <Setter Property="Width" Value="24" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+        <Style x:Key="WelcomeNumberText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Resources>
+    <Border Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2"
+            CornerRadius="{DynamicResource RadiusMedium}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Border Background="{DynamicResource AccentBrush}" Padding="{DynamicResource InsetMd}">
+                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
+                    <TextBlock Text="Welcome to Voltura Air" FontSize="13" FontWeight="SemiBold"
+                               Foreground="{DynamicResource AccentTextBrush}" TextWrapping="Wrap" />
+                    <TextBlock Text="Your device is connected" FontSize="22" FontWeight="SemiBold"
+                               Foreground="{DynamicResource AccentTextBrush}" TextWrapping="Wrap" />
+                </ui:SpacingStackPanel>
+            </Border>
+            <ScrollViewer Grid.Row="1" Padding="{DynamicResource InsetMd}"
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceMd}">
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="{DynamicResource GridSpaceSm}" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Border Style="{StaticResource WelcomeStepNumber}"><TextBlock Text="1" Style="{StaticResource WelcomeNumberText}" /></Border>
+                        <TextBlock Grid.Column="2" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap"><Run Text="Devices" FontWeight="SemiBold" /><Run Text=" manages paired devices and access." /></TextBlock>
+                    </Grid>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="{DynamicResource GridSpaceSm}" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Border Style="{StaticResource WelcomeStepNumber}"><TextBlock Text="2" Style="{StaticResource WelcomeNumberText}" /></Border>
+                        <TextBlock Grid.Column="2" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap"><Run Text="Custom screens" FontWeight="SemiBold" /><Run Text=" lets you create controls or install from the library." /></TextBlock>
+                    </Grid>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="{DynamicResource GridSpaceSm}" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Border Style="{StaticResource WelcomeStepNumber}"><TextBlock Text="3" Style="{StaticResource WelcomeNumberText}" /></Border>
+                        <TextBlock Grid.Column="2" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap"><Run Text="Presentations" FontWeight="SemiBold" /><Run Text=" stores your saved presentation reports." /></TextBlock>
+                    </Grid>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="{DynamicResource GridSpaceSm}" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Border Style="{StaticResource WelcomeStepNumber}"><TextBlock Text="4" Style="{StaticResource WelcomeNumberText}" /></Border>
+                        <TextBlock Grid.Column="2" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap"><Run Text="Connection and Preferences" FontWeight="SemiBold" /><Run Text=" configure connections, appearance, app launch buttons and more." /></TextBlock>
+                    </Grid>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="{DynamicResource GridSpaceSm}" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Border Style="{StaticResource WelcomeStepNumber}"><TextBlock Text="5" Style="{StaticResource WelcomeNumberText}" /></Border>
+                        <TextBlock Grid.Column="2" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap"><Run Text="Diagnostics" FontWeight="SemiBold" /><Run Text=" helps troubleshoot problems." /></TextBlock>
+                    </Grid>
+                </ui:SpacingStackPanel>
+            </ScrollViewer>
+            <ui:SpacingStackPanel Grid.Row="2" Margin="{DynamicResource InsetMd}" Spacing="{DynamicResource SpaceMd}">
+                <TextBlock Text="Closing this window keeps Voltura Air running." FontSize="12"
+                           Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" />
+                <Button Content="Got it" Style="{DynamicResource PrimaryButtonStyle}" Click="OnDismiss" />
+            </ui:SpacingStackPanel>
+        </Grid>
+    </Border>
+</UserControl>

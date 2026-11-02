@@ -192,7 +192,10 @@ interface ConnectionSocketLifecycleOptions {
     capabilities: ServerCapabilities | undefined,
     connected?: boolean,
   ) => void;
-  updateHostStatusFromSocket: (metadata: HostStatusMetadata | undefined) => void;
+  updateHostStatusFromSocket: (
+    metadata: HostStatusMetadata | undefined,
+    receivedStatus?: boolean,
+  ) => void;
 }
 
 export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleOptions): void {
@@ -1051,7 +1054,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
               setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName ?? ""));
             }
 
-            updateHostStatusFromSocket(response.host);
+            updateHostStatusFromSocket(response.host, response.connected);
             if (!response.connected) {
               updateCapabilitiesFromSocket(response.capabilities, false);
               markUnavailable(

@@ -17,6 +17,38 @@ const terminalCapability = {
 };
 
 describe("useConnectionRuntimeState", () => {
+  it("waits for status receipt even when pairing includes metadata and accepts older status without metadata", () => {
+    const { result } = renderHook(() =>
+      useConnectionRuntimeState(
+        useRef(new Map<number, number>()),
+        useRef<PendingMovementAck | null>(null),
+      ),
+    );
+    act(() => result.current.updateHostStatus({ pcName: "PC" }));
+    expect(result.current.hasInitialHostStatus).toBe(false);
+    act(() => result.current.updateHostStatus(undefined, true));
+    expect(result.current.hasInitialHostStatus).toBe(true);
+    act(() => result.current.clearRuntimeState());
+    expect(result.current.hasInitialHostStatus).toBe(false);
+  });
+
+  it("retains explicit input denial for guidance and clears it on disconnect or older status", () => {
+    const { result } = renderHook(() =>
+      useConnectionRuntimeState(
+        useRef(new Map<number, number>()),
+        useRef<PendingMovementAck | null>(null),
+      ),
+    );
+    act(() => result.current.updateCapabilities({ remoteInput: false }));
+    expect(result.current.remoteInputPermission).toBe(false);
+    act(() => result.current.updateCapabilities({}));
+    expect(result.current.remoteInputPermission).toBeUndefined();
+    act(() => result.current.updateCapabilities({ remoteInput: true }));
+    expect(result.current.remoteInputPermission).toBe(true);
+    act(() => result.current.clearRuntimeState());
+    expect(result.current.remoteInputPermission).toBeUndefined();
+  });
+
   it("retains Terminal only across transient connection unavailability", () => {
     const { result } = renderHook(() => {
       const pendingInputAcksRef = useRef(new Map<number, number>());

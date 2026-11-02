@@ -239,6 +239,20 @@ selecting it requests browser permission from that gesture. **Mute** appears onl
 after the permitted audio track is active and does not add another negotiation or
 control-message state.
 
+### Guided introduction
+
+The introduction highlights real navigation targets without invoking them. Its
+interactive spotlight/card primitive is separate from noninteractive hints.
+Drawer guidance lives inside the native dialog, outside its content scroller;
+the card reserves intrinsic height and the scroller reveals targets above it.
+Closely related controls share a stop only while their combined bounds fit.
+An accent glow makes the active target visible from the bottom card, with a
+stronger halo on the hamburger. The location cue pulses regardless of the
+reduced-motion preference; forced colors uses a system-color outline. Focus stays in tour controls and returns on
+exit. Resizing repositions the current target without restarting playback. The final stop closes the drawer after
+returning its scroll toward the top and highlights visible mode navigation or
+the compact selector when mode buttons are hidden.
+
 ## Interaction states
 
 | State        | Required outcome                                                             |

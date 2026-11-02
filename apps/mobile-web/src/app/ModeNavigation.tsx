@@ -12,7 +12,7 @@ interface ModeNavigationProps {
 
 export function ModeNavigation({ className, modeTabs, onSelect, tab }: ModeNavigationProps) {
   return (
-    <nav className={className} aria-label="Mode">
+    <nav data-introduction-target="navigation" className={className} aria-label="Mode">
       {modeTabs.map(({ id, label, ariaLabel, Icon }) => (
         <button
           key={id}
@@ -171,6 +171,7 @@ export function CompactModeSelectorButton({
       aria-expanded={isOpen}
       aria-haspopup="menu"
       aria-label="Change mode"
+      data-introduction-target="navigation"
       title={`Change mode (${activeMode.label})`}
       onClick={onToggle}
     >

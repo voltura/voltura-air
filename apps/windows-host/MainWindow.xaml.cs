@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     private readonly HostVisualFactory _visuals;
     private readonly HostToastPresenter _toasts;
     private readonly ConnectPageController _connectPage;
+    private readonly IntroductionController _introduction;
     private readonly DevicesPageController _devicesPage;
     private readonly CustomScreensPageController _customScreensPage;
     private readonly PresentationsPageController _presentationsPage;
@@ -63,9 +64,12 @@ public partial class MainWindow : Window
         IPhoneWebcamFeature? phoneWebcam = null,
         IClipboardTextWriter? clipboardTextWriter = null,
         Action? requestRestart = null,
-        UpdateService? updates = null)
+        UpdateService? updates = null,
+        IntroductionController? introduction = null)
     {
         _pairingManager = pairingManager;
+        _introduction = introduction ?? new IntroductionController(pairingManager.PairedDeviceCount > 0);
+        if (pairingManager.HasActiveController) _introduction.DeviceConnected();
         _awakeService = awakeService ?? webHost.AwakeService;
         _updates = updates;
         var effectiveLockPolicy = workstationLockPolicy ?? webHost.WorkstationLockPolicy;
@@ -96,7 +100,8 @@ public partial class MainWindow : Window
             useDevelopmentHostedApp,
             clipboard,
             RefreshConnectPagePresentation,
-            () => SelectPage(HostPage.Connection));
+            () => SelectPage(HostPage.Connection),
+            _introduction);
         _devicesPage = new DevicesPageController(
             this,
             pairingManager,
@@ -151,7 +156,8 @@ public partial class MainWindow : Window
             _visuals,
             _toasts,
             () => SelectPage(HostPage.Preferences),
-            SetPreferencesTitle);
+            SetPreferencesTitle,
+            () => { _introduction.Replay(); SelectPage(HostPage.Connect); });
         var applicationLog = new ApplicationLogController(
             this,
             effectiveAppLog,
@@ -523,6 +529,7 @@ public partial class MainWindow : Window
 
     private void HandleConnectionChanged()
     {
+        if (_pairingManager.HasActiveController) _introduction.DeviceConnected();
         RefreshStatusText();
         if (!IsVisible)
         {

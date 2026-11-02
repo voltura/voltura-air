@@ -48,7 +48,11 @@ const AiAssistantWorkspace = lazy(() =>
 const AppsWorkspace = lazy(() => import("./features/apps"));
 const PairingQrScannerDialog = lazy(loadPairingQrScannerDialog);
 
+import { Introduction, initializeIntroduction } from "./features/introduction";
+
 export function App() {
+  const [introductionEligibility] = useState(initializeIntroduction);
+  const [introductionReplay, setIntroductionReplay] = useState(0);
   const initialPairing = useMemo(() => parsePairingLink(window.location.href), []);
   const [isUpdateNoticeOpen, setIsUpdateNoticeOpen] = useState(hasChunkLoadUpdateNotice);
   const connection = useVolturaAirConnection();
@@ -826,7 +830,31 @@ export function App() {
           title="Custom screen unavailable"
         />
 
+        <Introduction
+          capabilities={connection}
+          eligible={introductionEligibility === "eligible"}
+          connected={state === "paired" && connection.hasInitialHostStatus}
+          connectionId={`${activePc?.id ?? ""}:${connectionEpoch}`}
+          busy={
+            isUpdateNoticeOpen ||
+            pendingRemoteLaunch !== null ||
+            isPresentationExitOpen ||
+            presentationSessionActive ||
+            presentationConnectionIntent !== null ||
+            isScreenViewOpen ||
+            isPhoneWebcamOpen ||
+            isAppsOpen ||
+            isAiAssistantOpen ||
+            livePairingScannerAttempt !== null ||
+            (inputBlockedByElevation && !isInputRecoveryDialogDismissed)
+          }
+          drawerOpen={isSettingsOpen}
+          setDrawerOpen={setIsSettingsOpen}
+          replay={introductionReplay}
+        />
         <SettingsDrawer
+          onShowIntroduction={() => setIntroductionReplay((value) => value + 1)}
+          introductionConnected={state === "paired"}
           activePc={activePc}
           accentColor={accentColor}
           accentColorOverridden={hostStatus?.accentColorOverridden}

@@ -11,7 +11,8 @@ internal sealed class ConnectPageController(
     bool useDevelopmentHostedApp,
     HostClipboardFeedback clipboard,
     Action requestViewRefresh,
-    Action openConnectionPage)
+    Action openConnectionPage,
+    IntroductionController? introduction = null)
 {
     private bool _includeIcon = true;
     private readonly PairingLinkController _pairingLinks = new(
@@ -59,6 +60,8 @@ internal sealed class ConnectPageController(
             () => clipboard.Copy(GetVisiblePairingUrl(), "Link copied"),
             openConnectionPage,
             usesRelay: webHost.TransportMode == ConnectionTransportMode.Relay,
+            showIntroduction: introduction?.IsVisible == true,
+            dismissIntroduction: () => { introduction?.Dismiss(); requestViewRefresh(); },
             copyStandardLocalLink: _pairingLinks.StandardLocalUrl is null ? null : () => clipboard.Copy(_pairingLinks.StandardLocalUrl, "Standard Local link copied"));
     }
 

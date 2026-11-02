@@ -39,9 +39,17 @@ public partial class ConnectPageView : WpfUserControl
         Action changeAdapter,
         Func<DateTimeOffset>? getCurrentTime = null,
         bool usesRelay = false,
-        Action? copyStandardLocalLink = null)
+        Action? copyStandardLocalLink = null,
+        bool showIntroduction = false,
+        Action? dismissIntroduction = null)
     {
         InitializeComponent();
+        if (showIntroduction && dismissIntroduction is not null)
+        {
+            IntroductionSlot.Content = new IntroductionCard(dismissIntroduction);
+            IntroductionSlot.Visibility = Visibility.Visible;
+            DetailsExpander.Visibility = Visibility.Collapsed;
+        }
         _createNewCode = createNewCode;
         _copyLink = copyLink;
         _copyStandardLocalLink = copyStandardLocalLink;

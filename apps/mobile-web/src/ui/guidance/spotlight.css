@@ -1,0 +1,146 @@
+.spotlight-card {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-top: 3px solid var(--accent);
+  border-radius: var(--radius-large);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--accent) 8%, var(--surface)),
+    var(--surface) 65%
+  );
+  box-shadow: 0 12px 32px var(--floating-shadow);
+  color: var(--text);
+  touch-action: manipulation;
+}
+
+.spotlight-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.spotlight-heading-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.spotlight-kicker {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.spotlight-progress {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.spotlight-card .spotlight-copy {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 550;
+  line-height: 1.3;
+}
+
+.spotlight-track {
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--accent) 12%, var(--border));
+}
+
+.spotlight-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.spotlight-controls {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.spotlight-card .spotlight-controls button {
+  flex: 1;
+  padding-inline: var(--space-sm);
+  box-shadow: none;
+}
+
+.spotlight-card .spotlight-next {
+  border-color: var(--action);
+  background: var(--action);
+  color: var(--on-action);
+  font-weight: 650;
+}
+
+.spotlight-next svg {
+  width: 16px;
+  height: 16px;
+}
+
+.spotlight-card .spotlight-skip {
+  min-width: 0;
+  padding-inline: var(--space-sm);
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+[data-introduction-highlight] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-medium);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent),
+    0 0 18px color-mix(in srgb, var(--accent) 45%, transparent),
+    var(--introduction-dim-shadow, 0 0 0 0 transparent);
+  animation: introduction-location-glow 1800ms ease-in-out infinite;
+}
+
+@keyframes introduction-location-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent),
+      0 0 12px color-mix(in srgb, var(--accent) 35%, transparent),
+      var(--introduction-dim-shadow, 0 0 0 0 transparent);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 var(--introduction-glow-spread, 5px) color-mix(in srgb, var(--accent) 35%, transparent),
+      0 0 26px color-mix(in srgb, var(--accent) 65%, transparent),
+      var(--introduction-dim-shadow, 0 0 0 0 transparent);
+  }
+}
+
+@media (forced-colors: active) {
+  [data-introduction-highlight] {
+    animation: none;
+    box-shadow: none;
+    outline: 3px solid Highlight;
+  }
+
+  .spotlight-card {
+    border-color: Highlight;
+  }
+}
+
+@media (height <= 420px) {
+  .spotlight-card {
+    padding: var(--space-sm);
+    gap: var(--space-xs);
+  }
+}

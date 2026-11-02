@@ -61,6 +61,7 @@ export function AppHeader({
             className="icon-button"
             type="button"
             aria-label="Open menu"
+            data-introduction-target="menu"
             onClick={onOpenSettings}
           >
             <Menu aria-hidden="true" />

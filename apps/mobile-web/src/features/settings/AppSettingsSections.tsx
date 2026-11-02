@@ -101,6 +101,8 @@ export function AppearanceSettingsSection({
 }
 
 export function AppSettingsSection({
+  onShowIntroduction,
+  introductionConnected,
   appSettings,
   keepDeviceScreenOn,
   setKeepDeviceScreenOn,
@@ -118,6 +120,8 @@ export function AppSettingsSection({
   updateAppSetting,
 }: Pick<
   SettingsDrawerProps,
+  | "onShowIntroduction"
+  | "introductionConnected"
   | "appSettings"
   | "keepDeviceScreenOn"
   | "setKeepDeviceScreenOn"
@@ -138,6 +142,14 @@ export function AppSettingsSection({
 
   return (
     <div className="install-card">
+      {onShowIntroduction && (
+        <div className="setting-group">
+          <button type="button" disabled={!introductionConnected} onClick={onShowIntroduction}>
+            Show introduction
+          </button>
+          {!introductionConnected && <p>Connect to your PC to show the introduction.</p>}
+        </div>
+      )}
       <label className="setting-group">
         <span>Fourth mode button</span>
         <select

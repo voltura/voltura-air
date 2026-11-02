@@ -84,6 +84,11 @@ This opens an isolated Vite/Chrome device-mode session with real pairing and
 temporary browser/host state. It does not replace real-device checks for touch,
 installed-PWA, or LAN behavior.
 
+Public captures and automated smoke checks seed a suppressed introduction record
+in disposable browser storage so they retain their intended tool surfaces.
+Interactive `dev:ui` leaves introduction eligibility intact; use Settings replay
+to inspect the guide again.
+
 Temporary review captures may cover changed unavailable/rejected states,
 recovery dialogs, Power warnings, remote layouts, or split mode. Do not add
 them to the public asset set by default.

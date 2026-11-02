@@ -186,6 +186,14 @@ async function launchBrowser(chromium, qrCode, pairingUrl) {
   const url = new URL(pairingUrl);
 
   browserContext = await launchPersistentContext(chromium);
+  if (smokeTest) {
+    await browserContext.addInitScript(() => {
+      localStorage.setItem(
+        "voltura-air.introduction",
+        JSON.stringify({ version: 1, state: "suppressed" }),
+      );
+    });
+  }
   const page = browserContext.pages()[0] ?? (await browserContext.newPage());
   await applyDeviceEmulation(page, debugDevice);
   await page.goto(url.href, { waitUntil: "networkidle" });

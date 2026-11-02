@@ -226,6 +226,10 @@ async function captureMobileScreens(chromium, pairingUrl, filePreviewUrl) {
     });
     await context.addInitScript(() => {
       localStorage.setItem("voltura-air.screenshotMode", "true");
+      localStorage.setItem(
+        "voltura-air.introduction",
+        JSON.stringify({ version: 1, state: "suppressed" }),
+      );
       if (!localStorage.getItem("voltura-air.themeMode")) {
         localStorage.setItem("voltura-air.themeMode", "light");
       }

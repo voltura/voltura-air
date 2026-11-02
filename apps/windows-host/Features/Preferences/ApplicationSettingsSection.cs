@@ -10,10 +10,17 @@ internal sealed class ApplicationSettingsSection(
     IAppLog appLog,
     HostVisualFactory visuals,
     PreferencesVisualFactory preferenceVisuals,
-    Func<bool> isLoading)
+    Func<bool> isLoading,
+    Action? showIntroduction = null)
 {
     public void AddTo(StackPanel parent)
     {
+        if (showIntroduction is not null)
+        {
+            var replay = new System.Windows.Controls.Button { Content = "Show introduction", HorizontalAlignment = HorizontalAlignment.Left };
+            replay.Click += (_, _) => showIntroduction();
+            parent.Children.Add(replay);
+        }
         var toggles = preferenceVisuals.AddToggleGroup(parent);
         var start = preferenceVisuals.Register(
             visuals.CreateCheckBox("Start Voltura Air when I sign in to Windows", AppStartupSettings.IsEnabled()));

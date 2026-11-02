@@ -155,6 +155,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
               {props.appsCapability && (
                 <button
                   type="button"
+                  data-introduction-target="apps"
                   onClick={() => {
                     closeThen(props.onOpenApps);
                   }}
@@ -166,6 +167,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
               {props.screenViewCapability && (
                 <button
                   type="button"
+                  data-introduction-target="screen"
                   onClick={() => {
                     closeThen(props.onOpenScreenView);
                   }}
@@ -177,6 +179,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
               {props.phoneWebcamCapability && (
                 <button
                   type="button"
+                  data-introduction-target="webcam"
                   onClick={() => {
                     closeThen(props.onOpenPhoneWebcam);
                   }}
@@ -187,6 +190,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
               )}
               <button
                 type="button"
+                data-introduction-target="gyro"
                 onClick={() => {
                   closeThen(props.onOpenGyroMouse);
                 }}
@@ -201,6 +205,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
                     <button
                       key={id}
                       type="button"
+                      data-introduction-target={id}
                       onClick={() => {
                         closeThen(() => props.onOpenMode?.(id));
                       }}
@@ -215,7 +220,9 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
 
           {(props.customScreens?.length ?? 0) > 0 && (
             <section className="drawer-group" aria-labelledby="drawer-custom-screens-title">
-              <h3 id="drawer-custom-screens-title">Custom screens</h3>
+              <h3 data-introduction-target="custom" id="drawer-custom-screens-title">
+                Custom screens
+              </h3>
               <div className="drawer-tool-list">
                 {props.customScreens?.map((screen) => (
                   <button
@@ -233,7 +240,9 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
             </section>
           )}
 
-          <h3 className="drawer-settings-title">Settings</h3>
+          <h3 data-introduction-target="settings" className="drawer-settings-title">
+            Settings
+          </h3>
 
           <SettingsSectionDetails
             section="connection"
@@ -324,6 +333,8 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
             onToggle={toggleSection}
           >
             <AppSettingsSection
+              onShowIntroduction={props.onShowIntroduction}
+              introductionConnected={props.introductionConnected}
               appSettings={props.appSettings}
               keepDeviceScreenOn={props.keepDeviceScreenOn}
               setKeepDeviceScreenOn={props.setKeepDeviceScreenOn}
@@ -391,6 +402,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
             <div className="drawer-tool-list">
               <button
                 type="button"
+                data-introduction-target="diagnostics"
                 onClick={() => {
                   closeThen(props.onOpenDiagnostics);
                 }}
@@ -411,6 +423,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
             </button>
           </footer>
         </div>
+        <div data-introduction-slot />
       </div>
     </dialog>
   );

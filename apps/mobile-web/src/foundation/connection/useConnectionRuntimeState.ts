@@ -49,6 +49,9 @@ export function useConnectionRuntimeState(
   const [supportsSleep, setSupportsSleep] = useState(false);
   const [supportsVolumeControl, setSupportsVolumeControl] = useState(false);
   const [supportsRemoteLaunch, setSupportsRemoteLaunch] = useState(false);
+  const [remoteInputPermission, setRemoteInputPermission] = useState<boolean | undefined>(
+    undefined,
+  );
   const [supportsTextTransfer, setSupportsTextTransfer] = useState(false);
   const [clipboardReadPermission, setClipboardReadPermission] = useState<boolean | undefined>(
     undefined,
@@ -82,6 +85,7 @@ export function useConnectionRuntimeState(
   const [aiAssistantCapability, setAiAssistantCapability] = useState<
     AiAssistantCapability | undefined
   >(undefined);
+  const [hasInitialHostStatus, setHasInitialHostStatus] = useState(false);
   const [hostStatus, setHostStatus] = useState<HostStatusMetadata | null>(null);
   const supportsVolumeControlRef = useRef(false);
   const supportsInputAckRef = useRef(false);
@@ -98,6 +102,7 @@ export function useConnectionRuntimeState(
       setSupportsVolumeControl(false);
       setSupportsRemoteLaunch(false);
       setSupportsTextTransfer(false);
+      setRemoteInputPermission(undefined);
       setClipboardReadPermission(undefined);
       setDiagnosticsPermission(undefined);
       setUrlOpenCapability(undefined);
@@ -113,6 +118,7 @@ export function useConnectionRuntimeState(
       }
       setAiAssistantCapability(undefined);
       setHostStatus(null);
+      setHasInitialHostStatus(false);
       supportsVolumeControlRef.current = false;
       supportsInputAckRef.current = false;
       supportsInputContextV1Ref.current = false;
@@ -130,6 +136,7 @@ export function useConnectionRuntimeState(
       setSupportsVolumeControl(nextSupportsVolumeControl);
       setSupportsRemoteLaunch(connected && hasRemoteLaunchCapability(capabilities));
       setSupportsTextTransfer(connected && hasTextTransferCapability(capabilities));
+      setRemoteInputPermission(connected ? capabilities?.remoteInput : undefined);
       setClipboardReadPermission(connected ? getClipboardReadPermission(capabilities) : undefined);
       setDiagnosticsPermission(connected ? getDiagnosticsPermission(capabilities) : undefined);
       setUrlOpenCapability(connected ? getUrlOpenCapability(capabilities) : undefined);
@@ -159,21 +166,29 @@ export function useConnectionRuntimeState(
     [pendingInputAcksRef, pendingMovementAckRef],
   );
 
-  const updateHostStatus = useCallback((metadata: HostStatusMetadata | undefined) => {
-    const normalized = normalizeHostStatus(metadata);
-    if (normalized) {
-      setHostStatus(normalized);
-    }
-  }, []);
+  const updateHostStatus = useCallback(
+    (metadata: HostStatusMetadata | undefined, receivedStatus = false) => {
+      if (receivedStatus) {
+        setHasInitialHostStatus(true);
+      }
+      const normalized = normalizeHostStatus(metadata);
+      if (normalized) {
+        setHostStatus(normalized);
+      }
+    },
+    [],
+  );
 
   return {
     audioState,
     awakeCapability,
     clipboardReadPermission,
+    remoteInputPermission,
     diagnosticsPermission,
     customScreensCapability,
     clearRuntimeState,
     hostStatus,
+    hasInitialHostStatus,
     powerCapabilities,
     presentationCapability,
     phoneWebcamCapability,

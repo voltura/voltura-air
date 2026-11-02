@@ -107,6 +107,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         try
         {
             pairingManager = new PairingManager(new PairingStore(pairingStoreRoot));
+            var introduction = new Features.Connect.IntroductionController(pairingManager.PairedDeviceCount > 0);
             updates = new UpdateService(pairingManager, args, requestUpdate);
             inputInjector = new SendInputInjector();
             activitySimulationService = new ActivitySimulationService(
@@ -221,7 +222,8 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 usageStatistics: usageTelemetry,
                 phoneWebcam: phoneWebcam,
                 requestRestart: requestRestart,
-                updates: updates);
+                updates: updates,
+                introduction: introduction);
 #if DEBUG
             HostCommandLine.WritePairingUrlIfRequested(args, mainWindow.PairingUrl);
 #endif

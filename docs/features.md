@@ -24,6 +24,42 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - The client cannot control or wake a sleeping, shut-down, or unreachable PC.
 - One host runs per signed-in Windows user. A second launch focuses it.
 
+## Introduction and replay
+
+New browser clients see **Welcome to Voltura Air** after authenticated connection
+and initial host status, once dialogs and active input are clear. **Skip** closes
+it; **Show me** guides the real menu in rendered order, then returns to mode
+navigation. Guidance identifies available tools without activating them or
+requesting permissions. AI Assistant keeps its normal visibility without a stop;
+Custom screens receives one group introduction. Restricted tools use limited copy.
+
+The bottom card keeps Back, Next and Pause/Resume together and offers Skip tour.
+Playback waits six seconds after positioning each target; the last stop waits for
+Done. Manual scrolling and keyboard use pause playback; resuming is explicit.
+Reduced motion starts paused. Escape, menu dismissal, a conflicting dialog,
+disconnect, switching PCs or hiding the page ends the tour. Replay is under
+**Menu → Settings → App → Show introduction** and requires a connection.
+
+One versioned browser-local introduction record is initialized before pairing
+saves a PC. Existing saved clients start suppressed; new clients stay eligible
+until their first connection. Skip, Show me and Done suppress later automatic
+prompts. Replay remains available after interruption. Reconnect, updates and
+Forget PC do not reset the record. Malformed/unknown records suppress automatic
+presentation; persistence failure never blocks use and session suppression remains.
+Separate origins or isolated PWA storage can introduce themselves independently;
+clearing website data resets local state.
+
+On new Windows hosts, the first authenticated device connection makes a passive
+**Your device is connected** card available on Connect. Pairing actions and QR
+remain visible. The card explains Devices, Custom screens, Presentations,
+Connection/Preferences, Diagnostics and closing to the tray. It never opens or
+focuses the window or adds a notification; existing device-access notices remain.
+**Got it** dismisses the card. **Preferences → Application → Show introduction**
+opens Connect and replays it. Independent host settings retain a pending card
+across hiding and restart; remembered hosts start suppressed. Unknown/malformed
+records suppress automatic presentation while preserving replay. Persistence
+failure keeps session state without a background retry loop.
+
 ## Windows host
 
 ### Shell, connection, and pairing

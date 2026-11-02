@@ -9,7 +9,10 @@ import { fileURLToPath } from "node:url";
 // appearance routing. Kodi's core remote controls stay in the initial shell while
 // its advanced Functions grid, substantial workspaces, and color picker remain in
 // separate lazy chunks.
-const maximumRawJavaScriptBytes = 645 * 1024;
+// Introduction playback stays lazy. Eager eligibility must precede pairing writes;
+// its record, replay wiring and cached permission projection measure 646.3 KB raw
+// / 154.9 KB Brotli. Allow 2 KB raw growth; retain the existing compressed cap.
+const maximumRawJavaScriptBytes = 647 * 1024;
 const maximumBrotliJavaScriptBytes = 160 * 1024;
 const distDirectory = fileURLToPath(new URL("../apps/mobile-web/dist/", import.meta.url));
 const assetsDirectory = fileURLToPath(new URL("../apps/mobile-web/dist/assets/", import.meta.url));

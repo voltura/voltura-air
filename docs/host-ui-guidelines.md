@@ -50,7 +50,13 @@ aligns separators.
 
 Connect keeps the QR code and immediate pairing actions visible. Its collapsed
 Details section owns adapter information, selection warnings, technical pairing
-details, and their scrolling.
+details, and their scrolling. When the feature-owned introduction is pending or
+explicitly replayed, a declarative nonmodal card occupies that secondary area;
+an accent welcome banner and numbered entry points distinguish first-use guidance.
+Its text scrolls within the available space while the primary Got it action and
+closing-to-tray reminder remain fixed. It never changes window visibility or
+focus. Preferences → Application owns replay.
+The first-connection and local-state rules live in [features](features.md#introduction-and-replay).
 
 Connection uses one constrained information column. Show active adapter,
 endpoint, and automatic/custom state once. **Choose another adapter** owns

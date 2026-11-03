@@ -158,7 +158,7 @@ async function verifyMaintainedInventory() {
     "libdatachannel 0.24.5",
     "OpenSSL 3.6.3",
     "Microsoft WebView2 SDK | 1.0.4314.35",
-    "Markdig | 1.5.0",
+    "Markdig | 1.5.1",
     "QRCoder | 1.8.1",
     "Vortice.Windows | 3.8.3",
     "Vortice.Mathematics | 2.1.1",
@@ -175,7 +175,7 @@ async function verifyMaintainedInventory() {
 
   const directHostPackages = [
     ["Microsoft.Web.WebView2", "1.0.4314.35"],
-    ["Markdig", "1.5.0"],
+    ["Markdig", "1.5.1"],
     ["QRCoder", "1.8.1"],
     ["Vortice.Direct3D11", "3.8.3"],
     ["Vortice.D3DCompiler", "3.8.3"],

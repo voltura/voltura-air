@@ -6,6 +6,10 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.5.0
+
+- Improved Markdown link parsing in AI Assistant answers.
+
 ## v1.4.9
 
 - New devices receive a guided introduction through the real mobile menu, with pulsing highlights, automatic playback, pause/resume and a layout that keeps each tool visible above the guide.

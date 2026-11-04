@@ -46,7 +46,7 @@
     <link rel="icon" href="./favicon-16.png" sizes="16x16" type="image/png">
     <link rel="icon" href="./favicon.ico" sizes="any">
     <link rel="apple-touch-icon" href="./apple-touch-icon.png">
-    <link rel="stylesheet" href="./styles.css?v=20260904-watch">
+    <link rel="stylesheet" href="./styles.css?v=20261104-sourceforge">
   </head>
   <body>
     <header class="site-header">
@@ -606,6 +606,14 @@
           </p>
         </div>
         <a class="button primary" href="https://github.com/voltura/voltura-air/releases/latest">Download latest release</a>
+        <div class="sourceforge-badges" aria-label="SourceForge recognition">
+          <a href="https://sourceforge.net/projects/voltura-air/">
+            <img src="./assets/sourceforge-users-love-us.svg" alt="SourceForge Users Love Us" width="95" height="95" loading="lazy">
+          </a>
+          <a href="https://sourceforge.net/projects/voltura-air/">
+            <img src="./assets/sourceforge-rising-star.svg" alt="SourceForge Rising Star" width="95" height="95" loading="lazy">
+          </a>
+        </div>
       </section>
     </main>
 

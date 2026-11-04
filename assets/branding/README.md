@@ -26,6 +26,18 @@ Do not edit generated copies outside this directory directly.
 `apps/mobile-web/public` is the mobile web source; `apps/mobile-web/dist` and
 packaged host `wwwroot` directories are build outputs.
 
+## SourceForge recognition badges
+
+The website's `apps/public-site/assets/sourceforge-users-love-us.svg` and
+`sourceforge-rising-star.svg` are unmodified SourceForge badge images for
+[Voltura Air](https://sourceforge.net/projects/voltura-air/) (project 4136157).
+They are maintained copies of the `oss-users-love-us-black` and
+`oss-rising-star-black` images from SourceForge's `/cdn/syndication/badge_img/`
+endpoint; the latter uses `achievement=oss-rising-star`. Local copies avoid
+third-party image-loading failures on the website. The README uses the original
+image URLs through GitHub's image proxy. The icon generator does not own these
+third-party assets.
+
 ## YouTube channel artwork
 
 The official channel is <https://www.youtube.com/@voltura-air>.

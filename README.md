@@ -16,6 +16,11 @@ Watch setup and Cloud relay walkthroughs on the official
 [Voltura Air YouTube channel](https://www.youtube.com/@voltura-air), including how
 to use View PC screen while away from home.
 
+<p align="center">
+  <a href="https://sourceforge.net/projects/voltura-air/"><img src="https://sourceforge.net/cdn/syndication/badge_img/4136157/oss-users-love-us-black" alt="SourceForge Users Love Us" width="95"></a>
+  <a href="https://sourceforge.net/projects/voltura-air/"><img src="https://sourceforge.net/cdn/syndication/badge_img/4136157/oss-rising-star-black?achievement=oss-rising-star" alt="SourceForge Rising Star" width="95"></a>
+</p>
+
 ## What you can do
 
 - Use a phone or tablet as a wireless touch trackpad and keyboard—or point the

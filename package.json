@@ -88,9 +88,9 @@
     "setup:windows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/setup-windows.ps1"
   },
   "devDependencies": {
-    "oxfmt": "0.75.0",
-    "oxlint": "1.90.0",
-    "oxlint-tsgolint": "7.0.2005",
+    "oxfmt": "0.76.0",
+    "oxlint": "1.91.0",
+    "oxlint-tsgolint": "7.0.2006",
     "sharp": "0.35.5",
     "typescript": "7.0.2"
   },

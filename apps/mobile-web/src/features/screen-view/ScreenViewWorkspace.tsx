@@ -180,11 +180,15 @@ export default function ScreenViewWorkspace({
   const activeOperationRef = useRef<string | null>(
     browserPreviewState ? "browser-preview-operation" : null,
   );
+  const [activeOperation, setActiveOperation] = useState<string | null>(
+    browserPreviewState ? "browser-preview-operation" : null,
+  );
   const sourcesRequestRef = useRef<string | null>(null);
   const pendingSourceRef = useRef<PendingSource | null>(null);
   const pendingAnswerRef = useRef<string | null>(null);
   const pendingStopRef = useRef<string | null>(null);
   const blockingStopRef = useRef<string | null>(null);
+  const [blockingStop, setBlockingStop] = useState(false);
   const startResponseTimeoutRef = useRef<number | undefined>(undefined);
   const negotiationGenerationRef = useRef(0);
   const credentialRenewalRef = useRef<number | undefined>(undefined);
@@ -237,6 +241,69 @@ export default function ScreenViewWorkspace({
     if (import.meta.env.DEV) {
       globalThis.console?.debug(`[screen_view] ${event}`, detail ?? "");
     }
+  }
+
+  function positionCursor() {
+    const cursor = cursorStateRef.current;
+    const image = cursorRef.current;
+    const video = videoRef.current;
+    const stage = stageRef.current;
+    const surface = directPointerSurfaceRef.current;
+    // Read layout before changing either overlay, once per paint.
+    const stageWidth = stage?.clientWidth ?? 0;
+    const stageHeight = stage?.clientHeight ?? 0;
+    if (surface && video && stage && video.videoWidth > 0 && video.videoHeight > 0) {
+      const surfaceScale = Math.min(stageWidth / video.videoWidth, stageHeight / video.videoHeight);
+      const surfaceWidth = video.videoWidth * surfaceScale;
+      const surfaceHeight = video.videoHeight * surfaceScale;
+      surface.style.left = `${(stageWidth - surfaceWidth) / 2}px`;
+      surface.style.top = `${(stageHeight - surfaceHeight) / 2}px`;
+      surface.style.width = `${surfaceWidth}px`;
+      surface.style.height = `${surfaceHeight}px`;
+    }
+    if (
+      !hasVisualFrameRef.current ||
+      !cursor ||
+      !image ||
+      !video ||
+      !stage ||
+      !cursor.visible ||
+      !image.src ||
+      video.videoWidth === 0 ||
+      video.videoHeight === 0
+    ) {
+      if (image) {
+        image.hidden = true;
+      }
+      return;
+    }
+    const scale = Math.min(stageWidth / video.videoWidth, stageHeight / video.videoHeight);
+    const renderedWidth = video.videoWidth * scale;
+    const renderedHeight = video.videoHeight * scale;
+    const renderedLeft = (stageWidth - renderedWidth) / 2;
+    const renderedTop = (stageHeight - renderedHeight) / 2;
+    const cursorPosition = screenCursorImagePosition(
+      cursor.x,
+      cursor.y,
+      renderedLeft,
+      renderedTop,
+      scale,
+    );
+    image.hidden = false;
+    image.style.left = `${cursorPosition.left}px`;
+    image.style.top = `${cursorPosition.top}px`;
+    image.style.width = `${cursor.width * scale}px`;
+    image.style.height = `${cursor.height * scale}px`;
+  }
+
+  function scheduleCursorPosition() {
+    if (cursorFrameRef.current !== undefined) {
+      return;
+    }
+    cursorFrameRef.current = requestAnimationFrame(() => {
+      cursorFrameRef.current = undefined;
+      positionCursor();
+    });
   }
 
   function applyViewTransform(next: ScreenViewTransform) {
@@ -679,6 +746,7 @@ export default function ScreenViewWorkspace({
     const operationId = createLocalId();
     pendingStopRef.current = operationId;
     blockingStopRef.current = operationId;
+    setBlockingStop(true);
     send({ type: "screen.view.stop", operationId });
     closeStream();
     setStatus(message);
@@ -838,6 +906,7 @@ export default function ScreenViewWorkspace({
         const recovery = relayRecoveryRef.current;
         abandonRenewal();
         activeOperationRef.current = null;
+        setActiveOperation(null);
         if (recovery) {
           setStatus("The previous screen session ended. Starting a new mirror...");
           renewalRestartRef.current = window.setTimeout(() => start(recovery.displayId), 0);
@@ -882,6 +951,7 @@ export default function ScreenViewWorkspace({
       soundOnRef.current = false;
       relayRecoveryRef.current = null;
       activeOperationRef.current = message.operationId;
+      setActiveOperation(message.operationId);
       setSoundOn(false);
       setAudioAvailable(false);
       setAudioTrackReady(false);
@@ -1208,69 +1278,6 @@ export default function ScreenViewWorkspace({
     scheduleCursorPosition();
   }
 
-  function scheduleCursorPosition() {
-    if (cursorFrameRef.current !== undefined) {
-      return;
-    }
-    cursorFrameRef.current = requestAnimationFrame(() => {
-      cursorFrameRef.current = undefined;
-      positionCursor();
-    });
-  }
-
-  function positionCursor() {
-    const cursor = cursorStateRef.current;
-    const image = cursorRef.current;
-    const video = videoRef.current;
-    const stage = stageRef.current;
-    const surface = directPointerSurfaceRef.current;
-    // Read layout before changing either overlay, once per paint.
-    const stageWidth = stage?.clientWidth ?? 0;
-    const stageHeight = stage?.clientHeight ?? 0;
-    if (surface && video && stage && video.videoWidth > 0 && video.videoHeight > 0) {
-      const surfaceScale = Math.min(stageWidth / video.videoWidth, stageHeight / video.videoHeight);
-      const surfaceWidth = video.videoWidth * surfaceScale;
-      const surfaceHeight = video.videoHeight * surfaceScale;
-      surface.style.left = `${(stageWidth - surfaceWidth) / 2}px`;
-      surface.style.top = `${(stageHeight - surfaceHeight) / 2}px`;
-      surface.style.width = `${surfaceWidth}px`;
-      surface.style.height = `${surfaceHeight}px`;
-    }
-    if (
-      !hasVisualFrameRef.current ||
-      !cursor ||
-      !image ||
-      !video ||
-      !stage ||
-      !cursor.visible ||
-      !image.src ||
-      video.videoWidth === 0 ||
-      video.videoHeight === 0
-    ) {
-      if (image) {
-        image.hidden = true;
-      }
-      return;
-    }
-    const scale = Math.min(stageWidth / video.videoWidth, stageHeight / video.videoHeight);
-    const renderedWidth = video.videoWidth * scale;
-    const renderedHeight = video.videoHeight * scale;
-    const renderedLeft = (stageWidth - renderedWidth) / 2;
-    const renderedTop = (stageHeight - renderedHeight) / 2;
-    const cursorPosition = screenCursorImagePosition(
-      cursor.x,
-      cursor.y,
-      renderedLeft,
-      renderedTop,
-      scale,
-    );
-    image.hidden = false;
-    image.style.left = `${cursorPosition.left}px`;
-    image.style.top = `${cursorPosition.top}px`;
-    image.style.width = `${cursor.width * scale}px`;
-    image.style.height = `${cursor.height * scale}px`;
-  }
-
   function beginRelayRecovery(message: string) {
     const operationId = activeOperationRef.current;
     if (
@@ -1317,6 +1324,7 @@ export default function ScreenViewWorkspace({
     if (!preserveRelaySession) {
       relayRecoveryRef.current = null;
       activeOperationRef.current = null;
+      setActiveOperation(null);
     }
     negotiationGenerationRef.current += 1;
     disableDirectPointer();
@@ -1436,19 +1444,19 @@ export default function ScreenViewWorkspace({
     abandonRenewal();
   }
 
+  const restartExpiredConnection = useEffectEvent(() => {
+    send({ type: "screen.view.stop", operationId: createLocalId() });
+    closeStream();
+    setStatus("Renewing secure relay credentials...");
+    renewalRestartRef.current = window.setTimeout(() => start(selected), 250);
+  });
+
   const renewCredentials = useEffectEvent(() => {
     if (activeOperationRef.current && capability.relayRenewal) {
       start(selected, activeOperationRef.current);
     } else {
       restartExpiredConnection();
     }
-  });
-
-  const restartExpiredConnection = useEffectEvent(() => {
-    send({ type: "screen.view.stop", operationId: createLocalId() });
-    closeStream();
-    setStatus("Renewing secure relay credentials...");
-    renewalRestartRef.current = window.setTimeout(() => start(selected), 250);
   });
 
   function scheduleCredentialRenewal(expiresAt: string | null | undefined) {
@@ -1548,6 +1556,7 @@ export default function ScreenViewWorkspace({
             pendingStopRef.current = null;
             if (wasBlocking) {
               blockingStopRef.current = null;
+              setBlockingStop(false);
               setStatus("The pending screen capture was stopped. Tap Start to try again.");
             }
           } else if (wasBlocking) {
@@ -1562,6 +1571,7 @@ export default function ScreenViewWorkspace({
         }
         pendingStopRef.current = null;
         blockingStopRef.current = null;
+        setBlockingStop(false);
         closeStream();
         setStatus(message.message);
       }
@@ -1592,6 +1602,7 @@ export default function ScreenViewWorkspace({
       sourcesRequestRef.current = null;
       pendingStopRef.current = null;
       blockingStopRef.current = null;
+      setBlockingStop(false);
       unsubscribe();
     };
   }, [activePc.id, capability.canView, send, state]);
@@ -1742,7 +1753,7 @@ export default function ScreenViewWorkspace({
             >
               {soundOn ? <Volume2 aria-hidden="true" /> : <VolumeX aria-hidden="true" />}
             </button>
-            {capability.screenshot && activeOperationRef.current && (
+            {capability.screenshot && activeOperation && (
               <button
                 type="button"
                 className="screen-view-camera-action"
@@ -2122,10 +2133,7 @@ export default function ScreenViewWorkspace({
               type="button"
               className="primary"
               disabled={
-                !selected ||
-                !capability.canView ||
-                capability.requiresRepair ||
-                blockingStopRef.current !== null
+                !selected || !capability.canView || capability.requiresRepair || blockingStop
               }
               onClick={() => start()}
             >

@@ -89,7 +89,7 @@
   },
   "devDependencies": {
     "oxfmt": "0.76.0",
-    "oxlint": "1.91.0",
+    "oxlint": "1.92.0",
     "oxlint-tsgolint": "7.0.2006",
     "sharp": "0.35.5",
     "typescript": "7.0.2"
@@ -107,6 +107,6 @@
     "unrs-resolver@1.12.2": true,
     "esbuild@0.28.1": true,
     "esbuild@0.28.2": true,
-    "workerd@1.20261023.1": true
+    "workerd@1.20261104.1": true
   }
 }

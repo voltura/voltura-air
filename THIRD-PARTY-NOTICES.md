@@ -52,7 +52,7 @@ SDK used for that release.
 | --- | --- | --- | --- |
 | Microsoft .NET, ASP.NET Core, and Windows Desktop runtime | 10.0 release family | Self-contained Windows runtime and local web host | Microsoft .NET redistribution terms and bundled third-party notices; source at [dotnet/runtime](https://github.com/dotnet/runtime) and [dotnet/aspnetcore](https://github.com/dotnet/aspnetcore) |
 | Microsoft WebView2 SDK | 1.0.4314.35 | Host WebView integration and loader | BSD 3-Clause; included Microsoft license and NOTICE |
-| Markdig | 1.5.1 | Safe Markdown parsing for AI Assistant answers | [BSD 2-Clause; xoofx/markdig](https://github.com/xoofx/markdig/tree/bbf197eaf3c96b9a6ada6532ec970b59751ca9c6) |
+| Markdig | 1.6.0 | Safe Markdown parsing for AI Assistant answers | [BSD 2-Clause; xoofx/markdig](https://github.com/xoofx/markdig/tree/f3603fec8eddcad2466d4b65717ffd686f7622ff) |
 | QRCoder | 1.8.1 | Pairing QR generation | [MIT; Shane32/QRCoder](https://github.com/Shane32/QRCoder/tree/d050cc7c0bc986f14cfedf24b947e0ec5c1a7736) |
 | Vortice.Windows | 3.8.3 | Direct3D, DXGI, D3DCompiler, and Media Foundation bindings | [MIT; amerkoleci/Vortice.Windows](https://github.com/amerkoleci/Vortice.Windows) |
 | Vortice.Mathematics | 2.1.1 | Pinned Vortice runtime support | [MIT; amerkoleci/Vortice.Mathematics](https://github.com/amerkoleci/Vortice.Mathematics) |
@@ -70,7 +70,7 @@ license text and copyright notices.
 | --- | --- | --- | --- |
 | noble-curves and noble-hashes | 2.4.0 | Pairing and relay-session cryptography fallback | [MIT; paulmillr/noble-curves](https://github.com/paulmillr/noble-curves) and [paulmillr/noble-hashes](https://github.com/paulmillr/noble-hashes) |
 | jsQR | 1.4.0 | Pairing QR decoding | [Apache 2.0; cozmo/jsQR](https://github.com/cozmo/jsQR) |
-| Lucide React | 1.64.0 | User-interface icons | [ISC and derived Feather icons under MIT; lucide-icons/lucide](https://github.com/lucide-icons/lucide) |
+| Lucide React | 1.69.0 | User-interface icons | [ISC and derived Feather icons under MIT; lucide-icons/lucide](https://github.com/lucide-icons/lucide) |
 | React, React DOM, and Scheduler | 19.3.1 / 0.28.0 | Mobile user interface runtime | [MIT; facebook/react](https://github.com/facebook/react) |
 | xterm.js and FitAddon | 6.0.0 / 0.11.0 | Mobile Terminal rendering and responsive sizing | [MIT; xtermjs/xterm.js](https://github.com/xtermjs/xterm.js) |
 
@@ -85,7 +85,7 @@ icons. The ISC and MIT notices are shipped beside `icons.mjs` in
 
 The Cloudflare relay implementation is Voltura Air source. Cloudflare is the
 configured hosting and TURN provider, not the author of Voltura Air. The
-advanced standalone Node.js adapter uses `ws` 8.22.0 under the MIT License;
+advanced standalone Node.js adapter uses `ws` 8.22.1 under the MIT License;
 its package distribution includes the upstream license from
 [websockets/ws](https://github.com/websockets/ws).
 

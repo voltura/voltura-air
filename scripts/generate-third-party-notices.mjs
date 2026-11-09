@@ -158,14 +158,14 @@ async function verifyMaintainedInventory() {
     "libdatachannel 0.24.5",
     "OpenSSL 3.6.3",
     "Microsoft WebView2 SDK | 1.0.4314.35",
-    "Markdig | 1.5.1",
+    "Markdig | 1.6.0",
     "QRCoder | 1.8.1",
     "Vortice.Windows | 3.8.3",
     "Vortice.Mathematics | 2.1.1",
     "SharpGen.Runtime and SharpGen.Runtime.COM | 2.4.2-beta",
     "Concentus | 2.2.2",
     "NAudio.Wasapi and NAudio.Core | 3.3.0",
-    "`ws` 8.22.0",
+    "`ws` 8.22.1",
   ];
   for (const expected of requiredInventoryText) {
     if (!inventory.includes(expected)) {
@@ -175,7 +175,7 @@ async function verifyMaintainedInventory() {
 
   const directHostPackages = [
     ["Microsoft.Web.WebView2", "1.0.4314.35"],
-    ["Markdig", "1.5.1"],
+    ["Markdig", "1.6.0"],
     ["QRCoder", "1.8.1"],
     ["Vortice.Direct3D11", "3.8.3"],
     ["Vortice.D3DCompiler", "3.8.3"],
@@ -202,7 +202,7 @@ async function verifyMaintainedInventory() {
   const installedWsPackage = JSON.parse(
     await readFile(path.join(repoRoot, "node_modules", "ws", "package.json"), "utf8"),
   );
-  if (installedWsPackage.version !== "8.22.0" || relayPackage.dependencies?.ws !== "^8.22.0") {
+  if (installedWsPackage.version !== "8.22.1" || relayPackage.dependencies?.ws !== "^8.22.1") {
     throw new Error("Relay ws dependency no longer matches the maintained third-party inventory.");
   }
 

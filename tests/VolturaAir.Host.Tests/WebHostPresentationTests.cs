@@ -1017,7 +1017,7 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
             var clientId = $"client-{Guid.NewGuid():N}";
             using var socket = await ConnectAsync(fixture.WebHost);
             _ = await PairAsync(socket, fixture, clientId);
-            _ = await SendAndReceiveAsync(socket, new
+            var enabled = await SendPresentationResultAsync(socket, new
             {
                 type = "presentation.command",
                 operationId = "presentation-enable-before-revoke",
@@ -1025,34 +1025,30 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
                 action = "pointer",
                 enabled = true
             });
+            Assert.True(enabled.GetProperty("succeeded").GetBoolean());
+            Assert.True(enabled.GetProperty("laserPointerActive").GetBoolean());
 
             fixture.Manager.SetDevicePermission(
                 clientId,
                 DevicePermissionKind.PresentationControl,
                 false);
             using var statusTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-            JsonDocument? revokedStatus = null;
-            for (var attempt = 0; attempt < 3 && revokedStatus is null; attempt++)
+            while (true)
             {
-                var candidate = JsonDocument.Parse(await ReceiveTextAsync(socket, statusTimeout.Token));
+                using var candidate = JsonDocument.Parse(await ReceiveTextAsync(socket, statusTimeout.Token));
+                if (candidate.RootElement.GetProperty("type").GetString() != "status")
+                {
+                    continue;
+                }
                 var presentation = candidate.RootElement.GetProperty("capabilities").GetProperty("presentation");
                 if (!presentation.GetProperty("canControl").GetBoolean())
                 {
-                    revokedStatus = candidate;
-                }
-                else
-                {
-                    candidate.Dispose();
+                    Assert.False(presentation.GetProperty("laserPointerActive").GetBoolean());
+                    break;
                 }
             }
 
-            using (revokedStatus)
-            {
-                Assert.NotNull(revokedStatus);
-                Assert.False(revokedStatus.RootElement.GetProperty("capabilities").GetProperty("presentation").GetProperty("laserPointerActive").GetBoolean());
-            }
-
-            var cleanup = await SendAndReceiveAsync(socket, new
+            var cleanup = await SendPresentationResultAsync(socket, new
             {
                 type = "presentation.command",
                 operationId = "presentation-cleanup-after-revoke",

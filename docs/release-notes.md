@@ -6,6 +6,10 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.5.2
+
+- Fixed setup mistaking a redirected Voltura Air Webcam for a locally installed camera.
+
 ## v1.5.1
 
 - Improved Screen View capture and restart controls as the session changes.

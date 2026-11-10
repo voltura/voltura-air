@@ -19,6 +19,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using Microsoft::WRL::ComPtr;
@@ -84,6 +85,21 @@ namespace
     bool g_allowFaultInjection = false;
     constexpr wchar_t SourceClsid[] = L"{50AAB70E-38BA-403E-A55B-58F2BCABE4FB}";
     constexpr wchar_t FriendlyName[] = L"Voltura Air Webcam";
+
+    constexpr bool IsLocalCameraName(std::wstring_view name)
+    {
+        constexpr std::wstring_view redirectedSuffix = L" (redirected)";
+        const bool isRedirected = name.size() >= redirectedSuffix.size() &&
+            name.substr(name.size() - redirectedSuffix.size()) == redirectedSuffix;
+        return name.compare(0, std::wstring_view(FriendlyName).size(), FriendlyName) == 0 &&
+            !isRedirected;
+    }
+
+    static_assert(IsLocalCameraName(L"Voltura Air Webcam"));
+    static_assert(IsLocalCameraName(L"Voltura Air Webcam (Windows Virtual Camera)"));
+    static_assert(!IsLocalCameraName(L"Voltura Air Webcam (Windows Virtual Camera) (redirected)"));
+    static_assert(!IsLocalCameraName(L"Integrated Camera"));
+
     constexpr wchar_t InstalledDirectoryName[] = L"Voltura Air Webcam";
     constexpr wchar_t SourceDllName[] = L"VirtualCameraMediaSource.dll";
     constexpr wchar_t SetupHelperName[] = L"VolturaAir.WebcamSetup.exe";
@@ -971,7 +987,7 @@ namespace
             if (SUCCEEDED(nameResult) && value != nullptr)
             {
                 const std::wstring name(value, valueLength);
-                if (name.rfind(FriendlyName, 0) == 0)
+                if (IsLocalCameraName(name))
                 {
                     found = devices[index];
                     friendlyName = name;

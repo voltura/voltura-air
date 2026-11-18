@@ -22,8 +22,3 @@ internal sealed partial class WindowsAwakeExecutionStateBridge : IAwakeExecution
     [LibraryImport("kernel32.dll", SetLastError = true)]
     private static partial AwakeExecutionState SetThreadExecutionState(AwakeExecutionState executionState);
 }
-
-internal sealed class NoOpAwakeExecutionStateBridge : IAwakeExecutionStateBridge
-{
-    public bool TrySet(AwakeExecutionState state) => true;
-}

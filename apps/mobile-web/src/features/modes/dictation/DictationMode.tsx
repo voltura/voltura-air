@@ -1,4 +1,5 @@
 import { Mic, Power, RotateCcw, Send } from "lucide-react";
+import { maxKeyboardTextLength } from "../../../foundation/protocol/messages";
 
 interface DictationModeProps {
   connected?: boolean;
@@ -28,8 +29,10 @@ export function DictationMode({
   stopSpeech,
 }: DictationModeProps) {
   const speechActive = isListening || isStarting;
+  const draftExceedsLimit = dictationText.length > maxKeyboardTextLength;
+  const canSendDraft = connected && dictationText.length > 0 && !draftExceedsLimit;
   const sendDictationText = () => {
-    if (!connected || !dictationText) {
+    if (!canSendDraft) {
       return;
     }
     sendText(dictationText);
@@ -70,6 +73,13 @@ export function DictationMode({
               {speechNotice}
             </p>
           )}
+          {draftExceedsLimit && (
+            <p className="dictation-feedback error" role="alert">
+              Shorten the draft before sending. The limit is{" "}
+              {maxKeyboardTextLength.toLocaleString("en-US")} UTF-16 units. Emoji like 😀 count as
+              two.
+            </p>
+          )}
           {canUseSpeech && (
             <p>
               Pause stops text input, not the microphone. Speech recognition stays active across
@@ -104,7 +114,7 @@ export function DictationMode({
         <button
           type="button"
           className="dictation-send-button"
-          disabled={!connected || !dictationText}
+          disabled={!canSendDraft}
           onClick={sendDictationText}
         >
           <Send aria-hidden="true" />

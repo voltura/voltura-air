@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name = trim((string)$screen['name']);
         $description = trim((string)($_POST['description'] ?? ''));
         $tags = trim((string)($_POST['tags'] ?? ''));
-        if ($name === '' || strlen($name) > 24 || strlen($description) > 1000 || strlen($tags) > 500) {
+        if ($name === '' || !air_screen_fits_text_limit($name, 24) || strlen($description) > 1000 || strlen($tags) > 500) {
             throw new InvalidArgumentException('Metadata exceeds the allowed length.');
         }
         $id = air_screen_uuid();

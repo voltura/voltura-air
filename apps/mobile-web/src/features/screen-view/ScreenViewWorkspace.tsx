@@ -5,7 +5,6 @@ import {
   useState,
   type MouseEvent as ReactMouseEvent,
   type TouchEvent,
-  type WheelEvent as ReactWheelEvent,
 } from "react";
 import {
   ChevronLeft,
@@ -32,12 +31,13 @@ import { signClientPayload } from "../../foundation/connection/pairingCredential
 import { createLocalId } from "../../foundation/identity/localId";
 import type { TrackpadSettings, TwoFingerMode } from "../../foundation/input/gestures";
 import { usePointerInput } from "../../foundation/input/usePointerInput";
-import type {
-  AudioStateMessage,
-  ClientMessage,
-  ScreenViewCapability,
-  ScreenViewSource,
-  ScreenViewStartResultMessage,
+import {
+  maxPointerDelta,
+  type AudioStateMessage,
+  type ClientMessage,
+  type ScreenViewCapability,
+  type ScreenViewSource,
+  type ScreenViewStartResultMessage,
 } from "../../foundation/protocol/messages";
 import { AnchoredHint } from "../../ui/guidance";
 import { subscribeScreenViewResults } from "../../foundation/connection/screenViewResultBus";
@@ -318,6 +318,7 @@ export default function ScreenViewWorkspace({
     point: NormalizedScreenPoint,
   ) {
     if (selected) {
+      flushDirectMove();
       send({
         type: "screen.pointer.button",
         inputContext: "screen-view",
@@ -337,12 +338,11 @@ export default function ScreenViewWorkspace({
   }
 
   function disableDirectPointer() {
-    releaseDirectButtons();
     directPointerActiveRef.current = false;
     pendingDirectMoveRef.current = null;
+    flushDirectMove();
+    releaseDirectButtons();
     directWheelRemainderRef.current = { dx: 0, dy: 0 };
-    window.cancelAnimationFrame(directMoveFrameRef.current ?? 0);
-    directMoveFrameRef.current = undefined;
     window.clearTimeout(directGuidanceTimeoutRef.current);
     directGuidanceTimeoutRef.current = undefined;
     setDirectPointerGuidance(false);
@@ -371,6 +371,27 @@ export default function ScreenViewWorkspace({
       : null;
   }
 
+  function sendPendingDirectMove() {
+    directMoveFrameRef.current = undefined;
+    const point = pendingDirectMoveRef.current;
+    pendingDirectMoveRef.current = null;
+    if (point && directPointerActiveRef.current && selected) {
+      send({
+        type: "screen.pointer.move",
+        inputContext: "screen-view",
+        displayId: selected,
+        ...point,
+      });
+    }
+  }
+
+  function flushDirectMove() {
+    if (directMoveFrameRef.current !== undefined) {
+      cancelAnimationFrame(directMoveFrameRef.current);
+      sendPendingDirectMove();
+    }
+  }
+
   function onDirectMouseMove(event: ReactMouseEvent<HTMLDivElement>) {
     const point = pointFromDirectSurface(event.clientX, event.clientY);
     if (!point) {
@@ -381,22 +402,7 @@ export default function ScreenViewWorkspace({
     }
     lastDirectPointRef.current = point;
     pendingDirectMoveRef.current = point;
-    if (directMoveFrameRef.current !== undefined) {
-      return;
-    }
-    directMoveFrameRef.current = requestAnimationFrame(() => {
-      directMoveFrameRef.current = undefined;
-      const next = pendingDirectMoveRef.current;
-      pendingDirectMoveRef.current = null;
-      if (next && directPointerActiveRef.current && selected) {
-        send({
-          type: "screen.pointer.move",
-          inputContext: "screen-view",
-          displayId: selected,
-          ...next,
-        });
-      }
-    });
+    directMoveFrameRef.current ??= requestAnimationFrame(sendPendingDirectMove);
   }
 
   function onDirectMouseDown(event: ReactMouseEvent<HTMLDivElement>) {
@@ -406,6 +412,7 @@ export default function ScreenViewWorkspace({
       return;
     }
     event.preventDefault();
+    stageRef.current?.focus({ preventScroll: true });
     lastDirectPointRef.current = point;
     if (!heldDirectButtonsRef.current.has(button)) {
       sendDirectButton(button, "down", point);
@@ -426,9 +433,12 @@ export default function ScreenViewWorkspace({
     heldDirectButtonsRef.current.delete(button);
   }
 
-  function onDirectWheel(event: ReactWheelEvent<HTMLDivElement>) {
+  function onDirectWheel(event: WheelEvent) {
+    if (event.ctrlKey) {
+      return;
+    }
     const point = pointFromDirectSurface(event.clientX, event.clientY);
-    if (!point || !selected) {
+    if (!directPointerActiveRef.current || !point || !selected) {
       return;
     }
     event.preventDefault();
@@ -440,13 +450,14 @@ export default function ScreenViewWorkspace({
     const dy = Math.trunc(accumulatedY);
     directWheelRemainderRef.current = { dx: accumulatedX - dx, dy: accumulatedY - dy };
     if (dx !== 0 || dy !== 0) {
+      flushDirectMove();
       send({
         type: "screen.pointer.wheel",
         inputContext: "screen-view",
         displayId: selected,
         ...point,
-        dx,
-        dy,
+        dx: Math.max(-maxPointerDelta, Math.min(maxPointerDelta, dx)),
+        dy: Math.max(-maxPointerDelta, Math.min(maxPointerDelta, dy)),
       });
     }
   }
@@ -471,6 +482,7 @@ export default function ScreenViewWorkspace({
   const resetViewTransform = useEffectEvent(() => applyViewTransform(identityScreenViewTransform));
   const disableDirectPointerEffect = useEffectEvent(disableDirectPointer);
   const sendDirectButtonEffect = useEffectEvent(sendDirectButton);
+  const onDirectWheelEffect = useEffectEvent(onDirectWheel);
 
   useEffect(() => {
     const release = () => disableDirectPointerEffect();
@@ -527,7 +539,7 @@ export default function ScreenViewWorkspace({
       if (
         target instanceof Element &&
         target.closest(
-          "input, select, [contenteditable], [role=dialog], textarea:not(.screen-view-keyboard-input)",
+          "button, a[href], input, select, summary, [contenteditable], [role=dialog], textarea:not(.screen-view-keyboard-input)",
         )
       ) {
         return;
@@ -561,9 +573,13 @@ export default function ScreenViewWorkspace({
     };
     window.addEventListener("keydown", onKeyDown, true);
     window.addEventListener("mouseup", onMouseUp);
+    const surface = directPointerSurfaceRef.current;
+    // React delegates wheel events to a passive listener. Consume scrolling on the remote display.
+    surface?.addEventListener("wheel", onDirectWheelEffect, { passive: false });
     return () => {
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("mouseup", onMouseUp);
+      surface?.removeEventListener("wheel", onDirectWheelEffect);
     };
   }, [directPointerActive, selected, send]);
 
@@ -1987,7 +2003,6 @@ export default function ScreenViewWorkspace({
                   lastDirectPointRef.current,
               )
             }
-            onWheel={onDirectWheel}
             onContextMenu={onDirectContextMenu}
             aria-hidden="true"
           />

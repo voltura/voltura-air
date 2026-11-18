@@ -656,6 +656,40 @@ test("the PHP package boundary executes the current semantic contract", () => {
   sixRows.sections[0].buttons[0].portrait = { order: 0, visible: true, row: 6 };
   sixRows.sections[0].buttons[0].landscape = { order: 0, visible: true, row: 6 };
   assert.equal(run(sixRows).status, 0);
+  const laserScreen = structuredClone(source);
+  const laserButton = laserScreen.sections[0].buttons[0];
+  laserButton.icon = "mouse-pointer-2";
+  laserButton.presentation = "iconLabel";
+  laserButton.repeat = false;
+  for (const color of ["default", "red", "green", "blue"]) {
+    laserButton.action = { kind: "laserPointer", color };
+    const result = run(laserScreen);
+    assert.equal(result.status, 0, result.stderr);
+  }
+  for (const action of [
+    { kind: "laserPointer" },
+    { kind: "laserPointer", color: "purple" },
+    { kind: "laserPointer", color: "red", text: "extra" },
+  ]) {
+    laserButton.action = action;
+    assert.equal(run(laserScreen).status, 2);
+  }
+  laserButton.action = { kind: "laserPointer", color: "red" };
+  laserButton.repeat = true;
+  assert.equal(run(laserScreen).status, 2);
+  const unicode = structuredClone(source);
+  unicode.name = "Å".repeat(24);
+  unicode.sections[0].buttons[0].label = "😀".repeat(8);
+  assert.equal(run(unicode).status, 0);
+  unicode.name = "Écran\u00a0du PC";
+  assert.equal(run(unicode).status, 0);
+  for (const name of ["\u00a0".repeat(24), "\u2028\u2029", `A${"\u0085".repeat(23)}`]) {
+    unicode.name = name;
+    assert.equal(run(unicode).status, 2, JSON.stringify(name));
+  }
+  unicode.name = "Å".repeat(24);
+  unicode.sections[0].buttons[0].label += "😀";
+  assert.equal(run(unicode).status, 2);
   const invalidValues = [
     (screen) => {
       screen.sections[0].widthColumns = 5;

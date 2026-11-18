@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -100,6 +101,20 @@ try {
       await page.setViewportSize(viewport);
       await page.goto(`${baseUrl}/preview?id=${encodeURIComponent(definition.screen.id)}`);
       await page.locator(".custom-screen-preview-notice").waitFor();
+      for (const section of definition.screen.sections) {
+        if (section.kind !== "collapsibleTrackpad") continue;
+
+        const toggle = page.getByRole("button", { name: section.name, exact: true });
+        const trackpad = page.getByRole("application", { name: section.name, exact: true });
+        assert.equal(await toggle.count(), 1, `${definition.screen.id}: missing trackpad toggle`);
+        assert.equal(await toggle.getAttribute("aria-expanded"), String(section.initiallyExpanded));
+        if (!section.initiallyExpanded) {
+          assert.equal(await trackpad.count(), 0);
+          await toggle.click();
+        }
+        await trackpad.waitFor({ state: "visible" });
+        if (!section.initiallyExpanded) await toggle.click();
+      }
       const result = await page.evaluate(
         ({ expectedButtons, expectedRows }) => {
           const buttons = [...document.querySelectorAll(".custom-screen-button")];

@@ -255,7 +255,11 @@ recognized text supplied by the browser.
 
 The standard installer may contact Microsoft to download missing .NET runtimes.
 The full installer includes those runtimes and does not require that download.
-Installed builds with automatic downloads enabled contact GitHub Releases at most once daily to check and, when no controller is active, download a signed installer. No account, cookies, credentials, pairing data, or telemetry are sent for this check. Users choose when to install a staged update.
+Installed builds with automatic downloads enabled contact GitHub Releases at
+startup once no controller is active, then every 24 hours while the host runs,
+to check for updates and stage a signed installer. No account, cookies,
+credentials, pairing data, or telemetry are sent for this check. Users choose
+when to install a staged update.
 Opening a website, support link, or external application at the user's request
 is governed by the privacy practices of that destination.
 

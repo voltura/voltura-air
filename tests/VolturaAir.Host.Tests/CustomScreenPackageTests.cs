@@ -141,6 +141,20 @@ public sealed class CustomScreenPackageTests
     }
 
     [Fact]
+    public void ReadRejectsAButtonWithoutAnAction()
+    {
+        var source = CustomScreenService.CreateDraft();
+        var section = source.Sections[0];
+        var button = section.Buttons[0] with { Action = null! };
+        source = source with { Sections = [section with { Buttons = [button] }] };
+        var package = new CustomScreenPackage(CustomScreenPackages.CurrentPackageVersion, CustomScreenPackages.Format, source);
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(package, CustomScreenJson.Exact);
+
+        Assert.False(CustomScreenPackages.TryRead(bytes, out _, out var error));
+        Assert.Contains("invalid visual, layout, or action data", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ImportDetectsMatchingPortableContentDespiteRegeneratedIds()
     {
         var store = new InMemoryCustomScreenStore();

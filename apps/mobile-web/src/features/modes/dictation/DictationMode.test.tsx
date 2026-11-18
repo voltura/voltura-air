@@ -60,6 +60,20 @@ describe("DictationMode", () => {
     expect(screen.getByRole("textbox")).toHaveProperty("value", "");
   });
 
+  it("preserves a draft that exceeds the text input limit", () => {
+    const sendText = vi.fn();
+    render(<DictationModeHarness sendText={sendText} />);
+    const textarea = screen.getByRole<HTMLTextAreaElement>("textbox");
+    const draft = "😀".repeat(2049);
+    fireEvent.change(textarea, { target: { value: draft } });
+    const send = screen.getByRole("button", { name: "Send" });
+    expect(screen.getByRole("alert").textContent).toMatch(/4,096 UTF-16 units.*😀 count as two/su);
+    expect(send).toHaveProperty("disabled", true);
+    fireEvent.click(send);
+    expect(sendText).not.toHaveBeenCalled();
+    expect(textarea.value).toBe(draft);
+  });
+
   it("omits speech controls when the browser has no speech recognition API", () => {
     render(<DictationModeHarness canUseSpeech={false} />);
 

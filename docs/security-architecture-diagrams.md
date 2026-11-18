@@ -7,7 +7,7 @@ subsystem boundaries; `docs/protocol.md` owns the wire contract.
 
 ```mermaid
 flowchart LR
-  Client["PWA / browser client\nuntrusted UI and private-key storage"] -->|"Standard Local HTTP app shell"| HostWeb["Windows host ASP.NET\nnormal mode: 0.0.0.0:selected port\ntest mode: 127.0.0.1"]
+  Client["PWA / browser client\nuntrusted UI and private-key storage"] -->|"Standard Local HTTP app shell"| HostWeb["Windows host ASP.NET\nDirect: 0.0.0.0:selected port\nRelay or isolated: 127.0.0.1"]
   Client -->|"Relay or Secure Direct\nHTTPS app shell"| Hosted["voltura.se hosted PWA"]
   Client -->|"Standard Local /ws or\nRelay virtual WebSocket"| Session["WebSocketSessionHandler\nOrigin check, authentication,\nmessage validation"]
   Client -->|"HTTPS /s + bounded WSS signaling"| SecureRoom["SecureDirectRoomObject\none offer/answer; no command relay"]
@@ -44,7 +44,7 @@ flowchart LR
   CustomHandler --> Handlers
   AppsHandler --> Windows
   AppsPreview --> Windows
-  LocalBrowser["Default browser on this PC"] -->|"loopback-only saved preview GET"| Preview["Saved preview endpoint\nvisual definition only"]
+  LocalPreview["Read-only WPF WebView2 window"] -->|"loopback-only saved preview GET"| Preview["Saved preview endpoint\nvisual definition only"]
   Preview --> CustomStore
   Handlers --> Windows["Windows user session\nSendInput, clipboard, window actions,\nprocess launch, power APIs"]
 
@@ -167,11 +167,11 @@ the paired device. Ordinary links require an explicit user click.
 
 ```mermaid
 flowchart LR
-  Source["Clean main checkout\nrelease notes prepared"] --> Local["npm run release:draft\nor npm run release:full\nmaintainer Windows PC"]
+  Gate["Development validation complete\nnpm run build, then npm test"] --> Source["Clean main checkout\nrelease notes prepared"]
+  Source --> Local["npm run release:draft\nor npm run release:full\nmaintainer Windows PC"]
   Local --> Prepare["One release lock\nhash-journaled source preparation"]
   Prepare --> Guard["Resolve new version\nor matching resumable draft"]
-  Guard --> Test["npm test\nhost tests\nscript/doc checks"]
-  Test --> Package["package-win.ps1\nmobile build\n.NET publish\nNSIS installers"]
+  Guard --> Package["package-win.ps1\nmobile build\n.NET publish\nNSIS installers"]
   Package --> Artifacts["ZIP + installers\nartifacts/publish"]
   Artifacts --> Mode{"Release command"}
   Mode -->|"release:draft"| Draft["Audited GitHub draft"]
@@ -186,8 +186,6 @@ flowchart LR
   Maintainer["Maintainer"] --> Local
 ```
 
-## Windows installer promotion boundary
-
 ## Signed automatic-update boundary
 
 ```mermaid
@@ -197,6 +195,8 @@ flowchart LR
   Verify --> Pending[owned pending installer]
   Pending --> Explicit[explicit install and restart]
 ```
+
+## Windows installer promotion boundary
 
 ```mermaid
 flowchart LR

@@ -335,10 +335,11 @@ internal static class CustomScreenValidator
         button.Row is >= 0 and <= CustomScreenLimits.MaxButtonRows &&
         ValidOverride(button.Portrait, section: false) &&
         ValidOverride(button.Landscape, section: false) &&
-        (button.Action.Kind != "laserPointer" || !button.Repeat) &&
-        (!CustomScreenService.RequiresLabelOnlyPresentation(button.Action) ||
+        button.Action is { } action &&
+        (action.Kind != "laserPointer" || !button.Repeat) &&
+        (!CustomScreenService.RequiresLabelOnlyPresentation(action) ||
          button.Presentation == "label") &&
-        TryValidateAction(button.Action);
+        TryValidateAction(action);
 
     private static bool TryValidateAction(CustomScreenAction? action)
     {

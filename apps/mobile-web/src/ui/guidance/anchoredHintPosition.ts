@@ -1,5 +1,3 @@
-import type { CSSProperties } from "react";
-
 export type AnchoredHintPlacement =
   | "below-center"
   | "below-start"
@@ -32,7 +30,12 @@ interface Point {
 export interface AnchoredHintLayout {
   clamped: boolean;
   placement: AnchoredHintPlacement;
-  style: CSSProperties;
+  style: {
+    "--anchored-hint-arrow-x": string;
+    "--anchored-hint-arrow-y": string;
+    left: string;
+    top: string;
+  };
 }
 
 interface ComputeAnchoredHintLayoutOptions {
@@ -203,7 +206,7 @@ function createLayout(
       "--anchored-hint-arrow-y": `${arrowY}px`,
       left: `${point.left}px`,
       top: `${point.top}px`,
-    } as CSSProperties,
+    },
   };
 }
 

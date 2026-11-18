@@ -162,8 +162,8 @@ workspace, WebRTC video renderer, event parser, host-identity verification, and
 diagnostics stay in the Screen dynamic chunk and load only when the tool opens.
 Developer Gesture debug also loads only when opened; its diagnostic renderer
 does not increase the initial controller bundle.
-Get text from PC uses the same local lazy boundary, with its clipboard UI loaded
-only when that tool is selected. Third-party notices also load on demand behind their existing Menu entry point.
+Send text to PC and Get text from PC load their editors on entry. Third-party
+notices also load on demand behind their existing Menu entry point.
 The JSON control socket owns discovery, signed offer/answer signaling,
 source-switch, stop, and optional direct-pointer commands. Mobile allows one source switch at a time; an unconfirmed switch stops local viewing after ten seconds so an unknown display is not left active. Direct mouse mode is
 browser-local; `ScreenViewCoordinator` authorizes the active viewer/display,

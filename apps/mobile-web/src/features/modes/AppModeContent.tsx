@@ -1,11 +1,17 @@
 import { lazy, Suspense, useState, type ComponentProps } from "react";
+import { WorkspaceErrorBoundary } from "../../ui/feedback/WorkspaceErrorBoundary";
 import { DictationMode } from "./dictation/DictationMode";
 import { KeyboardMode } from "./keyboard/KeyboardMode";
 import { PresentationMode } from "./presentation/PresentationMode";
 import { RemoteMode } from "./remote/RemoteMode";
 import { TrackpadMode } from "./trackpad/TrackpadMode";
-import { TextTransferMode } from "./text-transfer/TextTransferMode";
 import type { AppTab as Tab } from "./modeTypes";
+
+const TextTransferMode = lazy(() =>
+  import("./text-transfer/TextTransferMode").then((module) => ({
+    default: module.TextTransferMode,
+  })),
+);
 
 const ClipboardReadMode = lazy(() =>
   import("./clipboard-read/ClipboardReadMode").then((module) => ({
@@ -21,6 +27,7 @@ const GestureDebugMode = lazy(() =>
 
 interface AppModeContentProps {
   tab: Tab;
+  onTextTransferBack: () => void;
   shouldShowSplitMode: boolean;
   supportsGestureDebug: boolean;
   trackpadMode: ComponentProps<typeof TrackpadMode>;
@@ -35,6 +42,7 @@ interface AppModeContentProps {
 
 export function AppModeContent({
   tab,
+  onTextTransferBack,
   shouldShowSplitMode,
   supportsGestureDebug,
   trackpadMode,
@@ -56,8 +64,11 @@ export function AppModeContent({
     />
   );
 
-  if (tab === "trackpad") {
-    return shouldShowSplitMode ? (
+  if (tab === "trackpad" || tab === "keyboard") {
+    if (!shouldShowSplitMode) {
+      return tab === "trackpad" ? trackpad : keyboard;
+    }
+    return (
       <div
         className={`split-mode-shell split-trackpad-${trackpadMode.trackpadSettings.splitTrackpadPlacement}`}
       >
@@ -68,25 +79,6 @@ export function AppModeContent({
           {trackpad}
         </div>
       </div>
-    ) : (
-      trackpad
-    );
-  }
-
-  if (tab === "keyboard") {
-    return shouldShowSplitMode ? (
-      <div
-        className={`split-mode-shell split-trackpad-${trackpadMode.trackpadSettings.splitTrackpadPlacement}`}
-      >
-        <div className="split-keyboard-pane" aria-label="Split keyboard panel">
-          {keyboard}
-        </div>
-        <div className="split-trackpad-pane" aria-label="Split trackpad panel">
-          {trackpad}
-        </div>
-      </div>
-    ) : (
-      keyboard
     );
   }
 
@@ -118,7 +110,17 @@ export function AppModeContent({
   }
 
   if (tab === "text-transfer") {
-    return <TextTransferMode {...textTransferMode} />;
+    return (
+      <WorkspaceErrorBoundary
+        featureName="Send text to PC"
+        onBack={onTextTransferBack}
+        recoveryMessage="Go back to Trackpad. To reopen the editor, use Refresh app in Settings."
+      >
+        <Suspense fallback={<div className="workspace-loading">Opening Send text to PC…</div>}>
+          <TextTransferMode {...textTransferMode} />
+        </Suspense>
+      </WorkspaceErrorBoundary>
+    );
   }
 
   if (tab === "clipboard-read") {

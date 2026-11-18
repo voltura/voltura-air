@@ -102,9 +102,13 @@ describe("connection sender movement flow control", () => {
     expect(rescheduleHealthCheck).toHaveBeenCalledTimes(2);
   });
 
-  it("notifies the health scheduler for movement activity", () => {
+  it("lets the health scheduler see the first pending acknowledgement", () => {
     vi.spyOn(Date, "now").mockReturnValue(1_000);
-    const { hook, rescheduleHealthCheck } = createSender();
+    const { hook, options, rescheduleHealthCheck } = createSender();
+    rescheduleHealthCheck.mockImplementation(() => {
+      expect(options.lastUserActivityAtRef.current).toBe(1_000);
+      expect(options.pendingInputAcksRef.current.get(1)).toBe(1_000);
+    });
 
     act(() => {
       hook.result.current.send({ type: "pointer.move", dx: 1, dy: 1 });

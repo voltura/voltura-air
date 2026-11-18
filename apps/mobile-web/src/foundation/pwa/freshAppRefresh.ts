@@ -1,12 +1,14 @@
 interface RegistrationLike {
+  scope: string;
   unregister: () => boolean | Promise<boolean>;
 }
 
 export interface FreshAppRefreshEnvironment {
+  appScope: string;
   createFreshUrl: (refreshValue?: string) => string;
   deleteCache?: ((name: string) => boolean | Promise<boolean>) | undefined;
   getCacheNames?: (() => Promise<string[]>) | undefined;
-  getRegistrations?: (() => Promise<readonly RegistrationLike[]>) | undefined;
+  getRegistration?: ((scope: string) => Promise<RegistrationLike | undefined>) | undefined;
   reload: () => void;
   replace: (url: string) => void;
 }
@@ -110,15 +112,15 @@ export async function refreshWithFreshAppUrl(
 ): Promise<FreshAppRefreshResult> {
   const warnings: string[] = [];
 
-  if (environment.getRegistrations) {
+  if (environment.getRegistration) {
     try {
-      const registrations = await environment.getRegistrations();
-      const results = await Promise.allSettled(
-        registrations.map(async (registration) => registration.unregister()),
-      );
-      addRejectedWarnings(results, "service worker unregister", warnings);
+      const registration = await environment.getRegistration(environment.appScope);
+      // A lookup can return a worker registered at a parent scope.
+      if (registration?.scope === environment.appScope) {
+        await registration.unregister();
+      }
     } catch (error) {
-      warnings.push(formatWarning("service worker lookup", error));
+      warnings.push(formatWarning("service worker reset", error));
     }
   }
 
@@ -165,6 +167,7 @@ export async function refreshWithFreshAppUrl(
 
 function createBrowserEnvironment(): FreshAppRefreshEnvironment {
   return {
+    appScope: new URL(import.meta.env.BASE_URL, window.location.origin).href,
     createFreshUrl: (refreshValue) => {
       const freshUrl = new URL(window.location.href);
       freshUrl.searchParams.delete("t");
@@ -173,9 +176,9 @@ function createBrowserEnvironment(): FreshAppRefreshEnvironment {
     },
     deleteCache: "caches" in window ? (name) => window.caches.delete(name) : undefined,
     getCacheNames: "caches" in window ? () => window.caches.keys() : undefined,
-    getRegistrations:
+    getRegistration:
       "serviceWorker" in navigator
-        ? async () => navigator.serviceWorker.getRegistrations()
+        ? (scope) => navigator.serviceWorker.getRegistration(scope)
         : undefined,
     reload: () => {
       window.location.reload();

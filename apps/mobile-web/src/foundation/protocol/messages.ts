@@ -1288,6 +1288,8 @@ export interface InputErrorMessage {
   message: string;
 }
 
+export const maxPointerDelta = 5000;
+
 export interface PointerMoveMessage {
   type: "pointer.move";
   inputContext?: InputContext;
@@ -1349,6 +1351,8 @@ export interface PointerZoomMessage {
   seq?: number;
   direction: "in" | "out";
 }
+
+export const maxKeyboardTextLength = 4096;
 
 export interface KeyboardTextMessage {
   type: "keyboard.text";

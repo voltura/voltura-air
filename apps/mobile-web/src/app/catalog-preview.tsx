@@ -7,6 +7,7 @@ import type {
   CustomScreenDefinition,
   CustomScreenLayoutOverride,
   CustomScreenSectionDefinition,
+  LaserPointerColor,
 } from "../foundation/protocol/messages";
 import "../styles.css";
 
@@ -64,7 +65,12 @@ function projectSection(source: unknown, index: number): CustomScreenSectionDefi
     return null;
   }
   const sourceKind = text(value(section, "kind"), "buttons");
-  const kind = sourceKind === "collapsible" ? "buttons" : sourceKind;
+  const kind =
+    sourceKind === "collapsible"
+      ? "buttons"
+      : sourceKind === "collapsibleTrackpad"
+        ? "trackpad"
+        : sourceKind;
   const supportedKind = ["buttons", "trackpad", "volume", "navigationRing", "dpad"].includes(kind)
     ? (kind as CustomScreenSectionDefinition["kind"])
     : "buttons";
@@ -78,7 +84,7 @@ function projectSection(source: unknown, index: number): CustomScreenSectionDefi
     rowLimit: integer(value(section, "rowLimit"), 0),
     buttonAlignment: buttonAlignment(value(section, "buttonAlignment")),
     kind: supportedKind,
-    collapsible: sourceKind === "collapsible",
+    collapsible: sourceKind === "collapsible" || sourceKind === "collapsibleTrackpad",
     initiallyExpanded: boolean(value(section, "initiallyExpanded"), true),
     trackpadLeftClick: boolean(value(section, "trackpadLeftClick"), true),
     trackpadRightClick: boolean(value(section, "trackpadRightClick"), true),
@@ -102,6 +108,9 @@ function projectButton(source: unknown, index: number): CustomScreenButtonDefini
   }
   const presentationValue = value(button, "presentation");
   const sizeValue = value(button, "size");
+  const action = object(value(button, "action"));
+  const laserPointerColor =
+    value(action, "kind") === "laserPointer" ? value(action, "color") : undefined;
   return {
     id: text(value(button, "id"), `button-${index}`),
     name: text(value(button, "name"), "Button"),
@@ -120,19 +129,11 @@ function projectButton(source: unknown, index: number): CustomScreenButtonDefini
     portrait: projectLayout(value(button, "portrait")),
     landscape: projectLayout(value(button, "landscape")),
     enabled: true,
-    ...(isLaserPointerColor(value(button, "laserPointerColor"))
-      ? {
-          laserPointerColor: value(button, "laserPointerColor") as
-            | "default"
-            | "red"
-            | "green"
-            | "blue",
-        }
-      : {}),
+    ...(isLaserPointerColor(laserPointerColor) ? { laserPointerColor } : {}),
   };
 }
 
-function isLaserPointerColor(candidate: unknown): boolean {
+function isLaserPointerColor(candidate: unknown): candidate is LaserPointerColor {
   return (
     candidate === "default" || candidate === "red" || candidate === "green" || candidate === "blue"
   );

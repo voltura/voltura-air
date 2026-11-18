@@ -9,7 +9,11 @@ function run(command, args, options = {}) {
   const resolvedCommand = command === "npm" ? process.execPath : command;
   const resolvedArguments =
     command === "npm"
-      ? [join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"), ...args]
+      ? [
+          process.env.npm_execpath ??
+            join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"),
+          ...args,
+        ]
       : args;
   const result = spawnSync(resolvedCommand, resolvedArguments, {
     cwd: repositoryRoot,

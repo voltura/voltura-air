@@ -26,7 +26,7 @@ import { ErrorDialog } from "./ui/overlays/ErrorDialog";
 import { InfoDialog } from "./ui/overlays/InfoDialog";
 import { CustomScreenWorkspace } from "./features/custom-screens";
 import { incompatibleCustomScreenResponseCode } from "./foundation/connection/useCustomScreens";
-import { WorkspaceErrorBoundary } from "./app/WorkspaceErrorBoundary";
+import { WorkspaceErrorBoundary } from "./ui/feedback/WorkspaceErrorBoundary";
 import { subscribeFileManagerResults } from "./foundation/connection/fileManagerResultBus";
 import { requestGyroPermission, type GyroActivationRequest } from "./foundation/input/gyroMouse";
 import {
@@ -1270,6 +1270,7 @@ export function App() {
                 : 0
             }
             onRemoteUtilityPanelOpenChange={setIsRemoteUtilityPanelOpen}
+            onTextTransferBack={() => selectModeTabWithPresentationGuard("trackpad", "selector")}
             remoteSettings={remoteSettings}
             shouldShowSplitMode={shouldShowSplitMode}
             showTrackpadCompactModeSelector={showTrackpadCompactModeSelector}

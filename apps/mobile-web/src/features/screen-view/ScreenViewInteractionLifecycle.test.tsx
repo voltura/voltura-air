@@ -92,6 +92,51 @@ it("cancels direct movement queued before hiding", () => {
   });
   expect(send.mock.calls.some(([m]) => m.type === "screen.pointer.move")).toBe(false);
 });
+it("sends pending direct movement before the next mouse button event", () => {
+  const { surface, send } = setup();
+  vi.useFakeTimers();
+  send.mockClear();
+  fireEvent.mouseDown(surface, { button: 0, clientX: 20, clientY: 20 });
+  fireEvent.mouseMove(surface, { clientX: 40, clientY: 40 });
+  fireEvent.mouseUp(surface, { button: 0, clientX: 60, clientY: 60 });
+  act(() => {
+    vi.advanceTimersByTime(25);
+  });
+  expect(send.mock.calls.map(([message]) => message)).toEqual([
+    expect.objectContaining({ type: "screen.pointer.button", action: "down", x: 0.2 }),
+    expect.objectContaining({ type: "screen.pointer.move", x: 0.4 }),
+    expect.objectContaining({ type: "screen.pointer.button", action: "up", x: 0.6 }),
+  ]);
+});
+it("leaves keyboard activation of the mouse control button with the browser", () => {
+  const { send } = setup();
+  const button = screen.getByRole("button", { name: "Mouse and keyboard control" });
+  button.focus();
+  expect(fireEvent.keyDown(button, { key: "Enter", code: "Enter" })).toBe(true);
+  expect(fireEvent.keyDown(button, { key: " ", code: "Space" })).toBe(true);
+  expect(
+    send.mock.calls.some(
+      ([message]) => message.type === "keyboard.text" || message.type === "keyboard.special",
+    ),
+  ).toBe(false);
+});
+it("restores remote typing when the mirrored display is clicked after a toolbar control", () => {
+  const { surface, send } = setup();
+  const modeButton = screen.getByRole("button", { name: /two-finger mode/i });
+  modeButton.focus();
+  fireEvent.click(modeButton);
+  expect(document.activeElement).toBe(modeButton);
+
+  fireEvent.mouseDown(surface, { button: 0, clientX: 25, clientY: 25 });
+  fireEvent.mouseUp(surface, { button: 0, clientX: 25, clientY: 25 });
+  expect(document.activeElement).toBe(surface.closest(".screen-view-stage"));
+  fireEvent.keyDown(document.activeElement!, { key: "a", code: "KeyA" });
+  expect(send).toHaveBeenCalledWith({
+    type: "keyboard.text",
+    inputContext: "screen-view",
+    text: "a",
+  });
+});
 it("does not carry fractional direct scrolling into a new control session", () => {
   const { surface, send } = setup();
   fireEvent.wheel(surface, { deltaY: 6, clientX: 25, clientY: 25 });
@@ -99,6 +144,30 @@ it("does not carry fractional direct scrolling into a new control session", () =
   fireEvent.click(screen.getByRole("button", { name: "Mouse and keyboard control" }));
   fireEvent.wheel(surface, { deltaY: 6, clientX: 25, clientY: 25 });
   expect(send.mock.calls.some(([m]) => m.type === "screen.pointer.wheel")).toBe(false);
+});
+it("consumes wheel events only on the active PC display", () => {
+  const { surface, send } = setup();
+  expect(fireEvent.wheel(surface, { deltaY: 120, clientX: 25, clientY: 25 })).toBe(false);
+  expect(fireEvent.wheel(surface, { deltaY: 120, clientX: 125, clientY: 25 })).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Mouse and keyboard control" }));
+  expect(fireEvent.wheel(surface, { deltaY: 120, clientX: 25, clientY: 25 })).toBe(true);
+  expect(
+    send.mock.calls.filter(([message]) => message.type === "screen.pointer.wheel"),
+  ).toHaveLength(1);
+});
+it("keeps browser zoom gestures local over the active PC display", () => {
+  const { surface, send } = setup();
+  expect(fireEvent.wheel(surface, { ctrlKey: true, deltaY: 120, clientX: 25, clientY: 25 })).toBe(
+    true,
+  );
+  expect(send.mock.calls.some(([message]) => message.type === "screen.pointer.wheel")).toBe(false);
+});
+it("keeps a large wheel event within the Screen View input limit", () => {
+  const { surface, send } = setup();
+  fireEvent.wheel(surface, { deltaX: 60_012, deltaY: -60_012, clientX: 25, clientY: 25 });
+  expect(send).toHaveBeenCalledWith(
+    expect.objectContaining({ type: "screen.pointer.wheel", dx: 5_000, dy: -5_000 }),
+  );
 });
 it.each(["input", "select", "textarea", "contenteditable", "dialog"])(
   "leaves local %s keystrokes with the local UI",

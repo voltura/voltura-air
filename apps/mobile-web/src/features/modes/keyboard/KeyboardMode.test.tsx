@@ -164,6 +164,24 @@ describe("KeyboardMode live typing", () => {
     expect(sendText).not.toHaveBeenCalled();
     expect(screen.getByRole<HTMLTextAreaElement>("textbox").value).toBe("Unsent draft");
   });
+  it("keeps an oversized buffered draft and sends it after it is shortened", () => {
+    const sendText = vi.fn();
+    const validText = "😀".repeat(2048);
+    const draft = `${validText}😀`;
+    render(<KeyboardModeHarness liveKeyboard={false} initialText={draft} sendText={sendText} />);
+    const send = screen.getByRole("button", { name: "Send" });
+    const textarea = screen.getByRole<HTMLTextAreaElement>("textbox");
+    expect(screen.getByRole("alert").textContent).toMatch(/4,096 UTF-16 units.*😀 count as two/su);
+    expect(send).toHaveProperty("disabled", true);
+    fireEvent.click(send);
+    expect(sendText).not.toHaveBeenCalled();
+    expect(textarea.value).toBe(draft);
+
+    fireEvent.change(textarea, { target: { value: validText } });
+    fireEvent.click(send);
+    expect(sendText).toHaveBeenCalledExactlyOnceWith(validText);
+    expect(textarea.value).toBe("");
+  });
   it("stops an already-held live key when the connection drops", () => {
     vi.useFakeTimers();
     const sendSpecial = vi.fn();

@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Send } from "lucide-react";
 import { useState } from "react";
 import type React from "react";
+import { maxKeyboardTextLength } from "../../../foundation/protocol/messages";
 import "./keyboard.css";
 import "./keyboard-viewport.css";
 import { ConfirmationDialog } from "../../../ui/overlays/ConfirmationDialog";
@@ -78,6 +79,8 @@ export function KeyboardMode({
   isComposingRef,
 }: KeyboardModeProps) {
   const [isSleepConfirmationOpen, setIsSleepConfirmationOpen] = useState(false);
+  const draftExceedsLimit = keyboardText.length > maxKeyboardTextLength;
+  const canSendDraft = connected && keyboardText.length > 0 && !draftExceedsLimit;
   const {
     getRepeatableKeyProps,
     handleLiveTypingChange,
@@ -164,11 +167,18 @@ export function KeyboardMode({
       </div>
       {!liveKeyboard && (
         <div className="keyboard-send-row">
+          {draftExceedsLimit && (
+            <p role="alert">
+              Shorten the draft before sending. The limit is{" "}
+              {maxKeyboardTextLength.toLocaleString("en-US")} UTF-16 units. Emoji like 😀 count as
+              two.
+            </p>
+          )}
           <button
             className="key-send"
-            disabled={!connected || !keyboardText}
+            disabled={!canSendDraft}
             onClick={() => {
-              if (!connected) {
+              if (!canSendDraft) {
                 return;
               }
               sendText(keyboardText);

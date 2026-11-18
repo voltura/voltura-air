@@ -55,9 +55,9 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
 
       const now = Date.now();
       const isMovement = isMovementInput(payload);
-      if (isUserActivityMessage(payload)) {
+      const countsAsActivity = isUserActivityMessage(payload);
+      if (countsAsActivity) {
         lastUserActivityAtRef.current = now;
-        rescheduleHealthCheckRef.current?.();
       }
 
       const pendingMovementAck = pendingMovementAckRef.current;
@@ -66,6 +66,7 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
         (socket.bufferedAmount >= maxBufferedMovementBytes ||
           (pendingMovementAck?.followingMovementCount ?? 0) >= maxMovementsAfterAckBarrier)
       ) {
+        rescheduleHealthCheckRef.current?.();
         return;
       }
 
@@ -91,6 +92,9 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
         }
       }
 
+      if (countsAsActivity) {
+        rescheduleHealthCheckRef.current?.();
+      }
       try {
         socket.send(JSON.stringify(payloadToSend));
         if (

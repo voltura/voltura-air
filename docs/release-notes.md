@@ -6,6 +6,20 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.5.3
+
+- Screen View keeps browser zoom gestures local, sends mouse actions in order,
+  and restores remote typing when you click the mirrored display after using
+  the toolbar.
+- Keyboard and Dictation preserve drafts that exceed the send limit and explain
+  how emoji count. Send text to PC gives you a way back if its editor fails to load.
+- Large pointer and scroll movements stay within the connection limits, and the
+  app detects missing input acknowledgements sooner.
+- Custom Screens previews show collapsible trackpads correctly. The catalog
+  accepts supported laser buttons and Unicode names, and Windows rejects packages
+  with missing button actions cleanly.
+- Refresh app resets the service worker for the current Voltura Air app.
+
 ## v1.5.2
 
 - Fixed setup mistaking a redirected Voltura Air Webcam for a locally installed camera.

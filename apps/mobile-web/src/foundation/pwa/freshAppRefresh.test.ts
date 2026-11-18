@@ -9,10 +9,13 @@ import {
   type FreshAppRefreshResult,
 } from "./freshAppRefresh";
 
+const appScope = "https://phone.local/air/app/";
+
 function createEnvironment(
   overrides: Partial<FreshAppRefreshEnvironment> = {},
 ): FreshAppRefreshEnvironment {
   return {
+    appScope,
     createFreshUrl: vi.fn(() => "https://phone.local/?refresh=1"),
     reload: vi.fn(),
     replace: vi.fn(),
@@ -24,19 +27,18 @@ describe("refreshWithFreshAppUrl", () => {
   it.each([
     [
       "service-worker lookup",
-      { getRegistrations: vi.fn(() => Promise.reject(new Error("lookup"))) },
+      { getRegistration: vi.fn(() => Promise.reject(new Error("lookup"))) },
     ],
     [
       "service-worker unregister",
       {
-        getRegistrations: vi.fn(() =>
-          Promise.resolve([
-            {
-              unregister: () => {
-                throw new Error("unregister");
-              },
+        getRegistration: vi.fn(() =>
+          Promise.resolve({
+            scope: appScope,
+            unregister: () => {
+              throw new Error("unregister");
             },
-          ]),
+          }),
         ),
       },
     ],
@@ -62,6 +64,28 @@ describe("refreshWithFreshAppUrl", () => {
     expect(result.navigationMethod).toBe("replace");
     expect(result.warnings).toHaveLength(1);
     expect(environment.replace).toHaveBeenCalledExactlyOnceWith("https://phone.local/?refresh=1");
+  });
+
+  it("unregisters the worker registered at the app scope", async () => {
+    const unregister = vi.fn(() => true);
+    const getRegistration = vi.fn(() => Promise.resolve({ scope: appScope, unregister }));
+
+    await refreshWithFreshAppUrl(createEnvironment({ getRegistration }));
+
+    expect(getRegistration).toHaveBeenCalledExactlyOnceWith(appScope);
+    expect(unregister).toHaveBeenCalledOnce();
+  });
+
+  it("preserves a parent service worker that controls the app scope", async () => {
+    const unregister = vi.fn(() => true);
+    const environment = createEnvironment({
+      getRegistration: vi.fn(() => Promise.resolve({ scope: "https://phone.local/", unregister })),
+    });
+
+    await refreshWithFreshAppUrl(environment);
+
+    expect(unregister).not.toHaveBeenCalled();
+    expect(environment.replace).toHaveBeenCalledOnce();
   });
 
   it("leaves caches owned by other origin applications untouched", async () => {
@@ -143,7 +167,7 @@ describe("refreshAfterChunkLoadError", () => {
       createFreshUrl: vi.fn((refreshValue) => `https://phone.local/?refresh=${refreshValue}`),
       deleteCache,
       getCacheNames: vi.fn(() => Promise.resolve(["voltura-air-old"])),
-      getRegistrations: vi.fn(() => Promise.resolve([{ unregister }])),
+      getRegistration: vi.fn(() => Promise.resolve({ scope: appScope, unregister })),
     });
 
     const result = await refreshAfterChunkLoadError("build-a", environment);

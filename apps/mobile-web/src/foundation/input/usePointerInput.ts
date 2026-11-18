@@ -6,7 +6,12 @@ import {
   type TrackpadSettings,
   type TwoFingerMode,
 } from "./gestures";
-import type { ClientMessage, InputContext, KeyboardSpecialMessage } from "../protocol/messages";
+import {
+  maxPointerDelta,
+  type ClientMessage,
+  type InputContext,
+  type KeyboardSpecialMessage,
+} from "../protocol/messages";
 import { triggerHapticFeedback } from "./hapticFeedback";
 
 interface PointerInputOptions {
@@ -243,6 +248,7 @@ export function usePointerInput({
 }
 
 function roundDelta(value: number): number {
+  value = Math.max(-maxPointerDelta, Math.min(maxPointerDelta, value));
   const rounded = Math.round(value * 100) / 100;
   return Object.is(rounded, -0) ? 0 : rounded;
 }

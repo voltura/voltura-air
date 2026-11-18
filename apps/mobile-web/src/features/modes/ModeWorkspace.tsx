@@ -82,6 +82,7 @@ interface ModeWorkspaceProps {
   onPresentationActivationRequestHandled: () => void;
   presentationActivationRequestId: number;
   onRemoteUtilityPanelOpenChange: (isOpen: boolean) => void;
+  onTextTransferBack: () => void;
   remoteSettings: RemoteSettings;
   shouldShowSplitMode: boolean;
   showVolumeControl: boolean;
@@ -104,6 +105,7 @@ export function ModeWorkspace({
   onPresentationActivationRequestHandled,
   presentationActivationRequestId,
   onRemoteUtilityPanelOpenChange,
+  onTextTransferBack,
   remoteSettings,
   shouldShowSplitMode,
   showTrackpadCompactModeSelector,
@@ -229,6 +231,7 @@ export function ModeWorkspace({
   return (
     <AppModeContent
       tab={tab}
+      onTextTransferBack={onTextTransferBack}
       shouldShowSplitMode={shouldShowSplitMode}
       supportsGestureDebug={connection.supportsGestureDebug}
       trackpadMode={{

@@ -463,7 +463,7 @@ Authenticated metadata is not authentication state:
   selected adaptive profile bounds the actual stream. Supporting hosts also set
   `receiverQualityFeedback: true` so current controllers can report aggregate
   WebRTC decoder health. `systemAudio` is exactly `{ codec: "opus", sampleRate:
-48000, channels: 2 }` and uses the same **View PC screen** authorization. Sound
+  48000, channels: 2 }` and uses the same **View PC screen** authorization. Sound
   quality support is advertised by the two optional host-status fields above; the
   exact `systemAudio` capability is unchanged.
 
@@ -1161,8 +1161,8 @@ contract. `screen.pointer.move` uses the sampled movement acknowledgement and
 bounded movement backpressure; button and wheel messages are discrete.
 
 Button actions are `click`, `down`, `up`; `click` sends press/release.
-Zoom `in` means spread/pinch-out; `out` means pinch-in. Keyboard text cannot be
-empty, but whitespace is valid. Single-letter virtual keys use
+Zoom `in` means spread/pinch-out; `out` means pinch-in. Keyboard text is 1 through
+4,096 UTF-16 code units and can contain whitespace. Single-letter virtual keys use
 `keyboard.special`. Pointer and wheel `dx`/`dy` are finite values from -5000
 through 5000. `Undo` and `Redo` map to Ctrl+Z/Ctrl+Y.
 

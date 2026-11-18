@@ -654,8 +654,9 @@ failure keeps session state without a background retry loop.
 
 The mobile web app runs in modern browsers and can be installed where
 supported. Its browser profile stores device identity/name, saved PCs, local UI
-preferences, text snippets, and theme. It provides a cache-reset flow and can
-refresh its installed shell once after reconnect.
+preferences, text snippets, and theme. App refresh clears Voltura Air caches,
+unregisters the service worker at the app's own scope, and reloads the shell.
+The app can also refresh its installed shell once after reconnect.
 
 **Settings → App** offers **Keep this device’s screen on**, off by default and
 saved for the current browser installation across PCs. Where the Screen Wake
@@ -760,7 +761,9 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 
 - Live typing or buffered multiline send, mobile text/numeric keyboard choice,
   IME composition, and repeatable editing/navigation keys.
-- Buffered keyboard Send and Dictation Send require a paired connection and preserve unsent text while disconnected. Live keyboard repeats stop on connection loss.
+- Buffered keyboard Send and Dictation Send require a paired connection and
+  preserve unsent drafts while disconnected or when they exceed the 4,096 UTF-16
+  code unit limit. Live keyboard repeats stop on connection loss.
 - Optional F1–F12, arrow, control/shortcut, and sleep rows. Sleep requires host
   permission, a local setting, and confirmation.
 - Visible shortcuts include select/cut/copy/paste, undo/redo, and forward/reverse

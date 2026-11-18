@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = (string)$item['name'];
     $description = trim((string)($_POST['description'] ?? ''));
     $tags = trim((string)($_POST['tags'] ?? ''));
-    if ($name === '' || strlen($name) > 24 || strlen($description) > 1000 || strlen($tags) > 500) {
+    if ($name === '' || !air_screen_fits_text_limit($name, 24) || strlen($description) > 1000 || strlen($tags) > 500) {
         $error = 'Metadata exceeds the allowed length.';
     } else {
         $update = air_screen_db()->prepare("UPDATE air_screen_packages SET name = :name, description = :description, tags = :tags, status = CASE WHEN status IN ('approved', 'rejected') THEN 'pending' ELSE status END, rejection_feedback = NULL, approved_at = CASE WHEN status = 'approved' THEN NULL ELSE approved_at END WHERE id = :id AND owner_id = :owner");

@@ -810,7 +810,7 @@ function air_screen_validate_package(string $json): array
             }
             $action = is_array($button) ? ($button['action'] ?? null) : null;
             $kind = is_array($action) ? ($action['kind'] ?? null) : null;
-            if (!is_array($button) || !is_array($action) || !in_array($kind, ['text', 'shortcut', 'builtIn', 'urlOpen', 'knownApp', 'hostAction'], true)) {
+            if (!is_array($button) || !is_array($action) || !in_array($kind, ['text', 'shortcut', 'builtIn', 'urlOpen', 'knownApp', 'hostAction', 'laserPointer'], true)) {
                 throw new InvalidArgumentException('The package contains an unsupported action.');
             }
             if (!air_screen_validate_button($button, $section)) {
@@ -824,6 +824,7 @@ function air_screen_validate_package(string $json): array
                 'builtIn' => ['kind', 'builtIn'],
                 'urlOpen' => ['kind', 'url'],
                 'knownApp', 'hostAction' => ['kind', 'actionId'],
+                'laserPointer' => ['kind', 'color'],
             };
             air_screen_require_exact_keys($action, $actionKeys, $actionKeys);
             if (!air_screen_validate_action($action)) {
@@ -882,14 +883,15 @@ function air_screen_validate_button(array $button, array $section): bool
     $action = $button['action'] ?? null;
     return air_screen_valid_id($button['id'] ?? null) &&
         air_screen_valid_text($button['name'] ?? null, 24) &&
-        is_string($button['label'] ?? null) && strlen($button['label']) <= 16 &&
-        in_array($button['icon'] ?? null, ['play', 'pause', 'skip-back', 'skip-forward', 'volume-1', 'volume-2', 'volume-x', 'arrow-up', 'arrow-down', 'arrow-left', 'arrow-right', 'corner-down-left', 'escape', 'keyboard', 'clipboard', 'copy', 'app-window', 'monitor', 'minimize', 'square-x', 'search', 'refresh', 'maximize', 'command'], true) &&
+        is_string($button['label'] ?? null) && air_screen_fits_text_limit($button['label'], 16) &&
+        in_array($button['icon'] ?? null, ['play', 'pause', 'skip-back', 'skip-forward', 'volume-1', 'volume-2', 'volume-x', 'arrow-up', 'arrow-down', 'arrow-left', 'arrow-right', 'corner-down-left', 'escape', 'keyboard', 'clipboard', 'copy', 'app-window', 'monitor', 'minimize', 'square-x', 'search', 'refresh', 'maximize', 'command', 'mouse-pointer-2'], true) &&
         in_array($button['presentation'] ?? null, ['iconLabel', 'icon', 'label'], true) &&
         in_array($button['size'] ?? null, ['compact', 'standard', 'wide', 'fill'], true) &&
         is_bool($button['repeat'] ?? null) && is_int($row) && $row >= 0 && $row <= ($section['rowLimit'] ?? -1) &&
         air_screen_validate_layout($button['portrait'] ?? null, false) &&
         air_screen_validate_layout($button['landscape'] ?? null, false) &&
         is_array($action) &&
+        (($action['kind'] ?? null) !== 'laserPointer' || !$button['repeat']) &&
         (!in_array($action['kind'] ?? null, ['text', 'shortcut'], true) || $button['presentation'] === 'label');
 }
 
@@ -917,6 +919,7 @@ function air_screen_validate_action(array $action): bool
     if ($kind === 'builtIn') { return in_array($action['builtIn'], ['media.previous', 'media.playPause', 'media.next', 'media.stop', 'media.seekBack', 'media.seekForward', 'volume.down', 'volume.mute', 'volume.up', 'navigation.up', 'navigation.down', 'navigation.left', 'navigation.right', 'navigation.enter', 'navigation.escape', 'browser.back', 'browser.forward', 'browser.reload', 'browser.fullscreen', 'windows.start', 'windows.previousApp', 'windows.taskView', 'windows.showDesktop', 'windows.minimize', 'windows.maximize', 'windows.snapLeft', 'windows.snapRight', 'windows.explorer', 'windows.run', 'windows.close'], true); }
     if ($kind === 'knownApp') { return in_array($action['actionId'], ['browser', 'spotify', 'vlc', 'zoom', 'plex', 'windowsPhotos', 'blender'], true); }
     if ($kind === 'hostAction') { return in_array($action['actionId'], ['power.lock', 'power.sleep', 'power.hibernate', 'power.restart', 'power.shutdown', 'display.off', 'display.duplicate', 'display.extend', 'display.pcOnly', 'display.secondOnly'], true); }
+    if ($kind === 'laserPointer') { return in_array($action['color'], ['default', 'red', 'green', 'blue'], true); }
     if ($kind !== 'urlOpen' || !is_string($action['url']) || strlen(trim($action['url'])) < 1 || strlen(trim($action['url'])) > 2048 || preg_match('/[\x00-\x1F\x7F]/', $action['url'])) { return false; }
     $candidate = preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', trim($action['url'])) ? trim($action['url']) : 'https://' . trim($action['url']);
     $parts = parse_url($candidate);
@@ -938,7 +941,21 @@ function air_screen_valid_id(mixed $value): bool
 
 function air_screen_valid_text(mixed $value, int $maximumLength): bool
 {
-    return is_string($value) && strlen($value) > 0 && strlen($value) <= $maximumLength && trim($value) !== '' && !preg_match('/[\x00-\x1F\x7F]/', $value);
+    // The host rejects all controls, including the whitespace characters outside Unicode separators.
+    return is_string($value) &&
+        air_screen_fits_text_limit($value, $maximumLength) &&
+        preg_match('/\p{Cc}/u', $value) === 0 &&
+        preg_match('/[^\p{Z}]/u', $value) === 1;
+}
+
+function air_screen_fits_text_limit(string $value, int $maximumLength): bool
+{
+    if (strlen($value) <= $maximumLength) { return true; }
+
+    // The Windows exporter counts UTF-16 code units. Supplementary characters take two.
+    $characters = preg_match_all('/./us', $value);
+    $supplementary = preg_match_all('/[\x{10000}-\x{10FFFF}]/u', $value);
+    return $characters !== false && $supplementary !== false && $characters + $supplementary <= $maximumLength;
 }
 
 function air_screen_require_exact_keys(array $value, array $allowed, array $required): void

@@ -139,6 +139,35 @@ describe("usePointerInput", () => {
     ]);
   });
 
+  it.each(["pointer.move", "pointer.wheel"] as const)(
+    "bounds large coalesced %s deltas before sending",
+    (type) => {
+      const send = vi.fn();
+      let frame: FrameRequestCallback | undefined;
+      vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+        frame = callback;
+        return 1;
+      });
+      vi.stubGlobal("cancelAnimationFrame", vi.fn());
+      const { result } = renderHook(() =>
+        usePointerInput({ send, state: "paired", trackpadSettings: defaultTrackpadSettings }),
+      );
+
+      act(() => {
+        result.current.emit({ type, dx: 3500, dy: -3000 });
+        result.current.emit({ type, dx: 2000, dy: -2500 });
+        frame?.(0);
+      });
+
+      expect(send).toHaveBeenCalledExactlyOnceWith({
+        type,
+        inputContext: "trackpad",
+        dx: 5000,
+        dy: -5000,
+      });
+    },
+  );
+
   it("can force the existing two-finger gesture to scroll without an end action", () => {
     const send = vi.fn();
     const frames: FrameRequestCallback[] = [];

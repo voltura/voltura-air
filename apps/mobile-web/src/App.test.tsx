@@ -580,14 +580,14 @@ describe("App header and mode navigation", () => {
     ).toBe(true);
   });
 
-  it("opens either tool from Menu without changing the configured fourth mode", () => {
+  it("opens either tool from Menu without changing the configured fourth mode", async () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     expect(screen.getByRole("heading", { name: "Menu" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
 
-    expect(screen.getByRole("heading", { name: "Send text to PC" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Send text to PC" })).toBeTruthy();
     expect(screen.getAllByRole("button", { name: "Presentation" })).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "Back to previous mode" })).toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Trackpad" }).at(-1)!);
@@ -603,6 +603,36 @@ describe("App header and mode navigation", () => {
     fireEvent.click(within(menu!).getByRole("button", { name: "Dictation" }));
     expect(screen.getByLabelText("Dictation text")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Back to previous mode" })).toBeNull();
+  });
+
+  it("returns to Trackpad after the Send text to PC chunk fails to load", async () => {
+    vi.resetModules();
+    vi.doMock("./features/modes/text-transfer/TextTransferMode", () => {
+      throw new Error("Failed to load editor chunk");
+    });
+    try {
+      const { App: AppWithUnavailableEditor } = await import("./App");
+      const onCaughtError = vi.fn();
+      render(<AppWithUnavailableEditor />, { onCaughtError });
+
+      fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+      fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
+
+      const error = await screen.findByRole("alert");
+      expect(onCaughtError).toHaveBeenCalledOnce();
+      expect(error.textContent).toContain("Send text to PC could not open");
+      expect(error.textContent).toContain("Refresh app");
+      expect(screen.getByRole("button", { name: "Open menu" })).toBeTruthy();
+      fireEvent.click(within(error).getByRole("button", { name: "Back" }));
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(
+        screen
+          .getAllByRole("button", { name: "Trackpad" })
+          .some((button) => button.getAttribute("aria-current") === "page"),
+      ).toBe(true);
+    } finally {
+      vi.doUnmock("./features/modes/text-transfer/TextTransferMode");
+    }
   });
 
   it("leaves a custom screen when a standard mode is selected from Menu", () => {
@@ -1934,11 +1964,11 @@ describe("Text transfer feedback", () => {
     expect(screen.getByRole("status").textContent).toBe("Text sent successfully.");
   });
 
-  it("uses an in-app dialog to rename saved snippets", () => {
+  it("uses an in-app dialog to rename saved snippets", async () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
-    fireEvent.click(screen.getByText("Saved snippets").closest("summary")!);
+    fireEvent.click((await screen.findByText("Saved snippets")).closest("summary")!);
     fireEvent.click(screen.getByRole("button", { name: "Use device keyboard" }));
     fireEvent.change(screen.getByLabelText("Text to send"), { target: { value: "Saved text" } });
     fireEvent.change(screen.getByLabelText("Snippet name"), { target: { value: "Original name" } });
@@ -1973,12 +2003,12 @@ describe("Text transfer feedback", () => {
     expect(screen.getByText("Renamed snippet copied to the text box.")).toBeTruthy();
   });
 
-  it("starts with saved snippets folded and keeps an exact draft match visually neutral", () => {
+  it("starts with saved snippets folded and keeps an exact draft match visually neutral", async () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
 
-    const summary = screen.getByText("Saved snippets").closest("summary")!;
+    const summary = (await screen.findByText("Saved snippets")).closest("summary")!;
     const details = summary.closest("details")!;
     expect(details.open).toBe(false);
 
@@ -1994,11 +2024,11 @@ describe("Text transfer feedback", () => {
     expect(savedSnippet.getAttribute("aria-pressed")).toBeNull();
   });
 
-  it("requires snippet names to be unique when saving and renaming", () => {
+  it("requires snippet names to be unique when saving and renaming", async () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
-    fireEvent.click(screen.getByText("Saved snippets").closest("summary")!);
+    fireEvent.click((await screen.findByText("Saved snippets")).closest("summary")!);
 
     const editor = screen.getByLabelText("Text to send");
     const nameInput = screen.getByLabelText("Snippet name");
@@ -2030,14 +2060,14 @@ describe("Text transfer feedback", () => {
   });
 
   it("reorders snippet cards after a long press and persists the new order", async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
+    fireEvent.click((await screen.findByText("Saved snippets")).closest("summary")!);
+
     vi.useFakeTimers();
     const originalElementFromPoint = document.elementFromPoint;
     try {
-      render(<App />);
-      fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
-      fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
-      fireEvent.click(screen.getByText("Saved snippets").closest("summary")!);
-
       const editor = screen.getByLabelText("Text to send");
       const nameInput = screen.getByLabelText("Snippet name");
       for (const [name, text] of [
@@ -2144,14 +2174,14 @@ describe("Text transfer feedback", () => {
     }
   });
 
-  it("makes the text editor's touchpad, click, and device-keyboard controls explicit", () => {
+  it("makes the text editor's touchpad, click, and device-keyboard controls explicit", async () => {
     const send = vi.fn();
     mockConnection({ send });
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
     send.mockClear();
-    const editor = screen.getByLabelText<HTMLTextAreaElement>("Text to send");
+    const editor = await screen.findByLabelText<HTMLTextAreaElement>("Text to send");
 
     expect(document.querySelector(".app-shell")?.classList).toContain("text-transfer-active");
     expect(editor.readOnly).toBe(false);
@@ -2230,7 +2260,7 @@ describe("Text transfer feedback", () => {
     expect(screen.queryByRole("tab", { name: "Show numeric keyboard" })).toBeNull();
   });
 
-  it("reverses text-transfer pointer buttons for the left-handed layout", () => {
+  it("reverses text-transfer pointer buttons for the left-handed layout", async () => {
     localStorage.setItem(
       "voltura-air.trackpadSettings.client-a.pc-a",
       JSON.stringify({ leftHandedButtons: true }),
@@ -2238,7 +2268,7 @@ describe("Text transfer feedback", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
-    fireEvent.click(screen.getByRole("button", { name: "Touchpad" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Touchpad" }));
 
     const mouseButtons = screen.getByLabelText("Mouse buttons");
     expect(

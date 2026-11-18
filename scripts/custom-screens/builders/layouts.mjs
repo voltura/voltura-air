@@ -1,5 +1,3 @@
-const defaultLayout = (order) => ({ order, visible: true });
-
 export function button(id, label, action, options = {}) {
   return {
     id,
@@ -66,12 +64,5 @@ export function trackpad(id, options = {}) {
     heightMode: options.heightMode ?? "fill",
     trackpadFullscreenControl: options.fullscreen ?? true,
     trackpadGyroControl: options.gyro ?? false,
-  };
-}
-
-export function portraitLandscape(order, landscape = {}) {
-  return {
-    portrait: defaultLayout(order),
-    landscape: { ...defaultLayout(order), ...landscape },
   };
 }

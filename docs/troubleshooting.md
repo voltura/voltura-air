@@ -203,8 +203,9 @@ retry.
 
 ## Application button missing or failing
 
-Check **Preferences > Application launch buttons**, global launch permission,
-and the device override. Disabled permission advertises no buttons.
+Check **Preferences > Application launch buttons** and the paired device's
+**Application launch** permission in **Devices**. Disabled permission advertises
+no buttons.
 
 Presets require a discoverable installed app. Custom buttons require an existing
 absolute `.exe`; edit/reapprove moved files. Shells, scripts, relative paths,
@@ -213,13 +214,13 @@ optional Application log records action ID/outcome.
 
 ## Presentation disabled or controls wrong app
 
-Check the global and device Presentation permission. Blackout has a separate
+Check the paired device's Presentation permission in **Devices**. Blackout has a separate
 permission. Focus the intended viewer, select its matching target, and start
 Google Slides presenting before sending controls.
 
 ## Files on PC is unavailable or a folder will not open
 
-Check **Browse and open files** globally and for the paired device. Copy, Move,
+Check **Browse and open files** for the paired device in **Devices**. Copy, Move,
 Paste, Rename, and Delete also need **Change files**. **View** additionally needs
 the normal PC Screen permission and a current trusted pairing.
 
@@ -239,7 +240,7 @@ operation history can be removed from **File operations**.
 
 In **Developer tools > Windows locking**, use **Test Lock PC**. If permitted,
 **Enable Windows locking** can clear an explicit current-user block. Also check
-global/device Lock permission. A protected policy reports failure without
+the paired device's Lock permission in **Devices**. A protected policy reports failure without
 closing the connection.
 
 ## Turn off display looks disconnected
@@ -256,7 +257,7 @@ host runs and cannot override manual Sleep, lid close, power button, or
 lock-screen policy.
 
 **Keep screen on** is host-only and uses more power. For disabled mobile control,
-enable global/device Keep awake permission. Optional Diagnostics records
+check the paired device's Keep awake permission in **Devices**. Optional Diagnostics records
 `keep_awake`, `awake.set`, and `VAIR-AWAKE-EXECUTION-FAILED`.
 
 ## Simulated activity has no effect

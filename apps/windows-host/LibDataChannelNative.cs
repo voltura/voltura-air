@@ -97,25 +97,6 @@ internal static partial class LibDataChannelNative
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    internal struct Reliability
-    {
-        internal byte Unordered;
-        internal byte Unreliable;
-        internal uint MaxPacketLifeTime;
-        internal uint MaxRetransmits;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    internal struct DataChannelInit
-    {
-        internal Reliability Reliability;
-        internal nint Protocol;
-        internal byte Negotiated;
-        internal byte ManualStream;
-        internal ushort Stream;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
     internal struct TrackInit
     {
         internal Direction Direction;

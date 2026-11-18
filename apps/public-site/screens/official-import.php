@@ -79,7 +79,7 @@ try {
             isset($officialIds[$officialId]) || isset($filenames[$filename]) ||
             basename($filename) !== $filename || !str_ends_with($filename, '.volturascreen') ||
             !isset($entries[$filename]) ||
-            $name === '' || strlen($name) > 24 ||
+            $name === '' || !air_screen_fits_text_limit($name, 24) ||
             $shortDescription === '' || strlen($shortDescription) > 500 ||
             $longDescription === '' || strlen($longDescription) > 1000 ||
             $category === '' || strlen($category) > 80 ||

@@ -80,7 +80,9 @@ Run `wsl --shutdown`, reopen Ubuntu, then install Docker Engine and the Docker
 Compose plugin from Docker's Ubuntu instructions. Confirm with
 `docker compose version`.
 
-The checked-in composition uses Node 24.20.0, nginx 1.30.4, and coturn 4.15.0.
+The checked-in composition uses Node 26.13.1 LTS, nginx 1.30.4, and coturn 4.15.0.
+The Relay image installs only the standalone workspace's locked runtime
+dependencies, including `tsx` for its TypeScript entry point.
 Treat those image versions and resolved deployment digests as part of the
 reviewed self-hosted service snapshot.
 

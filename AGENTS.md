@@ -16,6 +16,9 @@ Read only task-relevant sections unless changing broad contracts.
 
 ## Work
 
+- Before using a tool that opens a visible app, shows windows, or visibly affects
+  the user's desktop, say in chat what you are about to do and why. Report when
+  a visibly disruptive action finishes. This notice does not require approval.
 - Follow the documented workflow. Ask about missing required steps. Do not invent
   extra work; diagnose workflow failures.
 - Prefer the simplest design that fits existing architecture. Reuse/extend existing

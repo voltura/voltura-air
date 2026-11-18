@@ -63,7 +63,8 @@ export const commandDescriptions = {
   "site:dev:init":
     "Install/check local PHP and MariaDB, then initialize the development catalog database.",
   "site:dev:admin": "Promote an existing local catalog account to administrator.",
-  "site:check": "Verify PHP 8.5.9+, required extensions, and every maintained PHP entry point.",
+  "site:check":
+    "Verify the pinned PHP line, required extensions, and every maintained PHP entry point.",
   "site:dev": "Run the PHP public site locally against the development catalog database.",
   "site:hosted:build": "Build the separately scoped hosted Relay PWA under apps/public-site/app.",
   "site:hosted:dev-build":
@@ -76,6 +77,7 @@ export const commandDescriptions = {
   release: "Prepare a versioned release and update its authoritative version values.",
   "release:bump":
     "Advance version values only through the project's one-digit patch and minor sequence.",
+  "release:check-dependabot": "Check for open Dependabot pull requests before release validation.",
   "release:draft":
     "Build, test, package, push, and create an audited GitHub draft; accepts an optional version.",
   "release:finalize-published":

@@ -49,6 +49,7 @@
     "powershell:check": "pwsh -NoProfile -File scripts/check-powershell.ps1",
     "release": "node scripts/prepare-release.mjs",
     "release:bump": "node scripts/bump-release.mjs",
+    "release:check-dependabot": "node scripts/check-release-dependabot.mjs",
     "release:draft": "node scripts/release-publish.mjs",
     "release:full": "node scripts/release-publish.mjs --publish-latest",
     "release:verify-draft": "node scripts/verify-release-draft.mjs",
@@ -99,14 +100,12 @@
     "sharp": "0.35.5"
   },
   "engines": {
-    "node": ">=24.20.0 <25",
-    "npm": ">=12.0.2 <12.1"
+    "node": ">=26.13.1 <27",
+    "npm": ">=12.2.3 <12.3"
   },
-  "packageManager": "npm@12.0.2",
+  "packageManager": "npm@12.2.3",
   "allowScripts": {
-    "unrs-resolver@1.12.2": true,
-    "esbuild@0.28.1": true,
     "esbuild@0.28.2": true,
-    "workerd@1.20261104.1": true
+    "workerd@1.20261113.1": true
   }
 }

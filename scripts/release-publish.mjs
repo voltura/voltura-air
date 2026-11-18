@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import { getNextReleaseVersion } from "./bump-release.mjs";
+import { checkReleaseDependabot } from "./check-release-dependabot.mjs";
 import {
   getGeneralReleaseNotices,
   getReleaseNotesSection,
@@ -373,6 +374,12 @@ async function runLocalReleaseUnlocked(
         throw new Error(".NET 10 SDK was not found.");
       }
       checked("gh", ["auth", "status", "--hostname", "github.com"], { captureOutput: true });
+      const repository = checked(
+        "gh",
+        ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
+        { captureOutput: true },
+      );
+      checkReleaseDependabot(repository);
       checked("npm", ["run", "tools:check"]);
       if (process.env.VOLTURA_AIR_INSTALLER_SIGNING_CONFIG) {
         checked("pwsh", [
@@ -403,11 +410,6 @@ async function runLocalReleaseUnlocked(
       await assertGitStatePathAbsent("rebase-apply");
       checked("git", ["remote", "get-url", "origin"], { captureOutput: true });
 
-      const repository = checked(
-        "gh",
-        ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
-        { captureOutput: true },
-      );
       const canPush = checked("gh", ["api", `repos/${repository}`, "--jq", ".permissions.push"], {
         captureOutput: true,
       });

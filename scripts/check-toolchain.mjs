@@ -63,7 +63,9 @@ for (const runtime of [
           supportsToolVersion(line.split(" ")[1], version("runtime"), policy("runtime")),
       )
   ) {
-    failures.push(`${runtime} 10.0.11 or a newer 10.0 patch is required.`);
+    failures.push(
+      `${runtime} ${toolVersionExpectation(version("runtime"), policy("runtime"))} is required.`,
+    );
   }
 }
 requireVersion(
@@ -81,31 +83,35 @@ requireVersion(
 
 const globalJson = JSON.parse(readFileSync(join(repositoryRoot, "global.json"), "utf8"));
 if (
-  globalJson.sdk?.version !== "10.0.400" ||
-  globalJson.sdk?.rollForward !== "latestPatch" ||
+  globalJson.sdk?.version !== requirement("dotnet").minimum ||
+  globalJson.sdk?.rollForward !== "disable" ||
   globalJson.sdk?.allowPrerelease !== false
 ) {
-  failures.push("global.json must pin the supported .NET 10.0.400 feature band without previews.");
+  failures.push(
+    `global.json must pin SDK ${requirement("dotnet").minimum} without roll-forward or previews.`,
+  );
 }
 
 const packageJson = JSON.parse(readFileSync(join(repositoryRoot, "package.json"), "utf8"));
+const [nodeMajor] = version("node");
+const [npmMajor, npmMinor] = version("npm");
+const nodeMinimum = requirement("node").minimum;
+const npmMinimum = requirement("npm").minimum;
 if (
-  packageJson.packageManager !== "npm@12.0.2" ||
-  packageJson.engines?.node !== ">=24.20.0 <25" ||
-  packageJson.engines?.npm !== ">=12.0.2 <12.1"
+  packageJson.packageManager !== `npm@${npmMinimum}` ||
+  packageJson.engines?.node !== `>=${nodeMinimum} <${nodeMajor + 1}` ||
+  packageJson.engines?.npm !== `>=${npmMinimum} <${npmMajor}.${npmMinor + 1}`
 ) {
-  failures.push(
-    "package.json must declare the Node 24 LTS and npm 12.0 patch-line toolchain contract.",
-  );
+  failures.push("package.json must match the Node and npm versions in scripts/toolchain.json.");
 }
 
 const dockerfile = readFileSync(join(repositoryRoot, "services", "relay", "Dockerfile"), "utf8");
 if (
-  !dockerfile.startsWith(
-    "FROM node:24.20.0-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS build\n",
-  ) ||
-  !dockerfile.includes("npm@12.0.2") ||
-  !dockerfile.includes("npm ci --workspace")
+  !/^sha256:[a-f0-9]{64}$/u.test(toolchain.relayNodeImageDigest) ||
+  dockerfile.split(/\r?\n/u, 1)[0] !==
+    `FROM node:${nodeMinimum}-alpine@${toolchain.relayNodeImageDigest} AS build` ||
+  !dockerfile.includes(`npm@${npmMinimum}`) ||
+  !dockerfile.includes("npm ci --omit=dev --workspace")
 ) {
   failures.push(
     "The relay Dockerfile is not aligned with the Node/npm contract and locked install.",
@@ -163,5 +169,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  "Toolchain check passed: Node 24 LTS (24.20.0+), npm 12.0.2+, .NET SDK 10.0.4xx/runtime 10.0.11+, PowerShell 7.6.x LTS, PHP 8.5.9+, Visual Studio 2026 18.9+, and NSIS.",
+  `Toolchain check passed: Node ${nodeMinimum} LTS, npm ${npmMinimum}, .NET SDK ${requirement("dotnet").minimum}, runtime ${requirement("runtime").minimum}, PowerShell ${requirement("powershell").minimum} LTS, PHP ${requirement("php").minimum}, Visual Studio 2026, and NSIS.`,
 );

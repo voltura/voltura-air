@@ -1,0 +1,9 @@
+**
+!package.json
+!package-lock.json
+!services/
+!services/relay/
+!services/relay/package.json
+!services/relay/tsconfig.json
+!services/relay/src/
+!services/relay/src/**

@@ -9,22 +9,20 @@ test("repository toolchains are pinned to supported stable releases", () => {
   const root = json("package.json");
   const dotnet = json("global.json");
   const dockerfile = read("services/relay/Dockerfile");
+  const manifest = json("scripts/toolchain.json");
+  const node = manifest.tools.node.minimum;
+  const npm = manifest.tools.npm.minimum;
 
-  assert.equal(root.packageManager, "npm@12.0.2");
-  assert.deepEqual(root.engines, { node: ">=24.20.0 <25", npm: ">=12.0.2 <12.1" });
+  assert.equal(root.packageManager, `npm@${npm}`);
+  assert.deepEqual(root.engines, { node: `>=${node} <27`, npm: `>=${npm} <12.3` });
   assert.deepEqual(dotnet.sdk, {
-    version: "10.0.400",
-    rollForward: "latestPatch",
+    version: manifest.tools.dotnet.minimum,
+    rollForward: "disable",
     allowPrerelease: false,
   });
   const toolchainCheck = read("scripts/check-toolchain.mjs");
-  const manifest = json("scripts/toolchain.json");
-  assert.equal(manifest.tools.dotnet.policy, "feature-band");
-  assert.equal(manifest.tools.powershell.minimum, "7.6.0");
+  assert.equal(manifest.tools.dotnet.policy, "exact");
   assert.equal(manifest.tools.powershell.policy, "patch-line");
-  assert.equal(manifest.tools.dotnet.minimum, dotnet.sdk.version);
-  assert.equal(root.packageManager, `npm@${manifest.tools.npm.minimum}`);
-  assert.equal(root.engines.node, `>=${manifest.tools.node.minimum} <25`);
   assert.equal(manifest.tools.php.policy, "patch-line");
   for (const project of [
     "SetupHelper/SetupHelper.vcxproj",
@@ -42,9 +40,14 @@ test("repository toolchains are pinned to supported stable releases", () => {
   }
   assert.match(toolchainCheck, /process\.env\.npm_execpath/u);
   assert.equal(manifest.tools.visualStudio.minimum, "18.9.0");
-  assert.match(dockerfile, /^FROM node:24\.20\.0-alpine@sha256:[a-f0-9]{64} AS build$/mu);
-  assert.match(dockerfile, /npm install --global npm@12\.0\.2/u);
-  assert.match(dockerfile, /npm ci --workspace/u);
+  assert.match(manifest.relayNodeImageDigest, /^sha256:[a-f0-9]{64}$/u);
+  assert.equal(
+    dockerfile.split(/\r?\n/u, 1)[0],
+    `FROM node:${node}-alpine@${manifest.relayNodeImageDigest} AS build`,
+  );
+  assert.ok(dockerfile.includes(`npm install --global npm@${npm}`));
+  assert.match(dockerfile, /npm ci --omit=dev --workspace/u);
+  assert.ok(json("services/relay/package.json").dependencies.tsx);
 });
 
 test("language toolchains retain their intentional compatibility boundaries", () => {
@@ -71,5 +74,5 @@ test("self-hosted images use reviewed version tags", () => {
   assert.match(composition, /duckdns:af6dcae5-ls86@sha256:[a-f0-9]{64}/u);
   assert.equal((composition.match(/@sha256:[a-f0-9]{64}/gu) ?? []).length, 3);
   assert.doesNotMatch(composition, /:latest/u);
-  assert.doesNotMatch(composition, /node:26|nginx:1\.29|coturn\/coturn:4\.7/u);
+  assert.doesNotMatch(composition, /nginx:1\.29|coturn\/coturn:4\.7/u);
 });

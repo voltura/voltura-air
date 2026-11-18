@@ -88,31 +88,21 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version-file: package.json
           cache: npm
 
-      - name: Check for preinstalled .NET 10 SDK
-        id: dotnet
-        shell: pwsh
-        run: |
-          $available = $false
-          if ($null -ne (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-            $available = [bool](dotnet --list-sdks | Where-Object { $_ -match '^10\.0\.' } | Select-Object -First 1)
-          }
-
-          "available=$($available.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-          if ($available) {
-            dotnet --version
-          }
-
-      - name: Setup .NET 10 fallback
-        if: steps.dotnet.outputs.available != 'true'
+      - name: Setup the pinned .NET SDK
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 10.0.x
+          global-json-file: global.json
 
       - name: Install npm dependencies
-        run: npm ci --no-audit --fund=false
+        shell: pwsh
+        run: |
+          $packageManager = (Get-Content package.json -Raw | ConvertFrom-Json).packageManager
+          npm install --global $packageManager --no-audit --fund=false
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm ci --no-audit --fund=false
 
       - name: Validate release information
         shell: pwsh

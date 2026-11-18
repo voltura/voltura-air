@@ -11,6 +11,7 @@ function Test-SetupVersion {
     $minimum = [version]$Requirement.minimum
     if ($version -lt $minimum) { return $false }
     switch ($Requirement.policy) {
+        'exact' { return $major -eq $minimum.Major -and $minor -eq $minimum.Minor -and $patch -eq $minimum.Build }
         'minimum' { return $true }
         'major-line' { return $major -eq $minimum.Major }
         'patch-line' { return $major -eq $minimum.Major -and $minor -eq $minimum.Minor }
@@ -47,7 +48,10 @@ function Get-SetupTool {
             Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\PHP.PHP.8.5_*" -Filter php.exe -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object FullName
         }
         'nsis' { "$env:ProgramFiles\NSIS\makensis.exe"; "${env:ProgramFiles(x86)}\NSIS\makensis.exe" }
-        'github' { "$env:ProgramFiles\GitHub CLI\gh.exe" }
+        'github' {
+            "$env:ProgramFiles\GitHub CLI\gh.exe"
+            Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\GitHub.cli_*" -Filter gh.exe -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object FullName
+        }
         'git' { "$env:ProgramFiles\Git\cmd\git.exe" }
         'mariadb' { Get-ChildItem "$env:ProgramFiles\MariaDB *\bin\mariadb.exe" -File -ErrorAction SilentlyContinue | ForEach-Object FullName }
     }

@@ -151,9 +151,6 @@ async function verifyMaintainedInventory() {
     "utf8",
   );
   const centralPackages = await readFile(path.join(repoRoot, "Directory.Packages.props"), "utf8");
-  const relayPackage = JSON.parse(
-    await readFile(path.join(repoRoot, "services", "relay", "package.json"), "utf8"),
-  );
   const requiredInventoryText = [
     "libdatachannel 0.24.5",
     "OpenSSL 3.6.3",
@@ -165,7 +162,7 @@ async function verifyMaintainedInventory() {
     "SharpGen.Runtime and SharpGen.Runtime.COM | 2.4.2-beta",
     "Concentus | 2.2.2",
     "NAudio.Wasapi and NAudio.Core | 3.3.0",
-    "`ws` 8.22.1",
+    "System.Numerics.Tensors | 10.0.15",
   ];
   for (const expected of requiredInventoryText) {
     if (!inventory.includes(expected)) {
@@ -199,11 +196,13 @@ async function verifyMaintainedInventory() {
     }
   }
 
-  const installedWsPackage = JSON.parse(
-    await readFile(path.join(repoRoot, "node_modules", "ws", "package.json"), "utf8"),
-  );
-  if (installedWsPackage.version !== "8.22.1" || relayPackage.dependencies?.ws !== "^8.22.1") {
-    throw new Error("Relay ws dependency no longer matches the maintained third-party inventory.");
+  for (const name of ["ws", "tsx", "esbuild"]) {
+    const directory = await resolvePackageDirectory(name, path.join(repoRoot, "services", "relay"));
+    if (!directory) throw new Error(`Relay runtime dependency ${name} is not installed.`);
+    const { version } = JSON.parse(await readFile(path.join(directory, "package.json"), "utf8"));
+    if (!inventory.includes(`| \`${name}\` | ${version} |`)) {
+      throw new Error(`Relay dependency ${name} ${version} no longer matches the maintained inventory.`);
+    }
   }
 
   const nativeBinary = await readFile(

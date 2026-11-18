@@ -6,6 +6,11 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.5.4
+
+- Security and dependency maintenance for the Windows packages, web client, and
+  Relay service.
+
 ## v1.5.3
 
 - Screen View keeps browser zoom gestures local, sends mouse actions in order,

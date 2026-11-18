@@ -78,7 +78,7 @@ function Initialize-SetupTools {
     try {
         $npmVersion = Invoke-SetupNpm @('--version') -Capture
         if (-not (Test-SetupVersion $npmVersion $manifest.tools.npm)) {
-            if ($CheckOnly) { throw 'The selected Node installation needs npm 12.0.x (12.0.2 or newer).' }
+            if ($CheckOnly) { throw "The selected Node installation needs npm $($manifest.tools.npm.minimum) or a newer patch on that line." }
             # npm is installed beside the selected Node executable, not into another user's prefix.
             $npm = Get-SetupNpm
             Invoke-SetupElevated $npm.Node @($npm.Cli, 'install', '--global', '--prefix', (Split-Path -Parent $npm.Node), "npm@$($manifest.tools.npm.minimum)", '--no-audit', '--no-fund')

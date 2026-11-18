@@ -8,6 +8,9 @@ and website deployment is owned by the private `voltura-air-service` repository.
 
 Prepare and commit the target section in
 [release notes](release-notes.md), then start from a clean, synchronized `main`.
+Run `npm run release:check-dependabot` before release validation to surface open
+Dependabot pull requests targeting `main`. Both release commands repeat the check
+and stop with links to unresolved PRs. A failed GitHub lookup also stops release.
 
 Publish a stable release as GitHub Latest:
 
@@ -65,21 +68,31 @@ release, run the equivalent entry point in `voltura-air-service` to additionally
 configure and check production access and the existing update signing key.
 See [machine setup](setup.md#windows-machine-setup).
 
-- Windows, Node.js 24 LTS (24.20.0 or newer within 24.x), npm 12.0.2 or a newer
-  12.0 patch, .NET SDK 10.0.400 or a newer patch in the 10.0.4xx feature band,
-  PowerShell 7.6.x LTS (any stable patch), Git, and NSIS 3.13 or newer.
+- Windows, Node.js 26 LTS (26.13.1 or newer within 26.x), npm 12.2.3 or a newer
+  12.2 patch, .NET SDK 10.0.404, PowerShell 7.6.9 LTS or a newer 7.6 patch, Git,
+  and NSIS 3.13 or newer.
 - Visual Studio 2026 18.9 or newer with the Desktop development with C++ workload,
   v143 toolset, Windows SDK 10.0.26100.0, and bundled CMake.
-- PHP 8.5.9 or newer on the 8.5 line for the public-site validation gate.
+- PHP 8.5.12 or newer on the 8.5 line for the public-site validation gate.
 - Authenticated GitHub CLI with write access to `voltura/voltura-air`.
 - Clean `main`, no merge/rebase, and no divergence from `origin/main`.
 - No workflow YAML under `.github/workflows`.
 - One committed non-empty target section in `docs/release-notes.md`.
 
-Installed .NET runtimes may advance from 10.0.11 within the 10.0 patch line;
+Installed .NET runtimes may advance from 10.0.15 within the 10.0 patch line;
 PSScriptAnalyzer may advance within 1.25.x. Preview versions are not accepted.
-The preferred bootstrap versions, dependency locks, and published image digests
-remain exact so packaged inputs stay reproducible.
+`scripts/toolchain.json` owns the release machine policy. Update its SDK pin and
+`global.json` together with both installer restores because SDK patches can
+change the single-file linker's resolved version. Keep the Node and npm policy
+aligned with both repositories' manifests and with the digest-pinned Relay image.
+
+The root `package-lock.json` owns the npm workspace graph. Keep its lifecycle
+script approvals in `package.json` scoped to the installed versions. NuGet
+versions are managed in `Directory.Packages.props`. Refresh affected project
+locks, including both Windows publish variants if their graph changes, and
+verify the locked restores. Update [Third-party notices](../THIRD-PARTY-NOTICES.md)
+for changed shipped dependencies and run `npm run third-party:generate` to refresh
+the PWA's generated notice file. Check both runtime graphs with `npm run deps:check`.
 
 Outputs are under `artifacts/publish`; the command prints SHA-256 hashes for the
 ZIP and both installers.

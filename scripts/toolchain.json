@@ -2,30 +2,30 @@
   "schema": 1,
   "tools": {
     "node": {
-      "minimum": "24.20.0",
+      "minimum": "26.13.1",
       "policy": "major-line",
       "package": "OpenJS.NodeJS.LTS",
       "command": "node.exe",
       "arguments": ["--version"]
     },
-    "npm": { "minimum": "12.0.2", "policy": "patch-line" },
+    "npm": { "minimum": "12.2.3", "policy": "patch-line" },
     "dotnet": {
-      "minimum": "10.0.400",
-      "policy": "feature-band",
+      "minimum": "10.0.404",
+      "policy": "exact",
       "package": "Microsoft.DotNet.SDK.10",
       "command": "dotnet.exe",
       "arguments": ["--version"]
     },
-    "runtime": { "minimum": "10.0.11", "policy": "patch-line" },
+    "runtime": { "minimum": "10.0.15", "policy": "patch-line" },
     "powershell": {
-      "minimum": "7.6.0",
+      "minimum": "7.6.9",
       "policy": "patch-line",
       "package": "Microsoft.PowerShell",
       "command": "pwsh.exe",
       "arguments": ["-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"]
     },
     "php": {
-      "minimum": "8.5.9",
+      "minimum": "8.5.12",
       "policy": "patch-line",
       "package": "PHP.PHP.8.5",
       "command": "php.exe",
@@ -66,6 +66,7 @@
       "arguments": ["--version"]
     }
   },
+  "relayNodeImageDigest": "sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5",
   "visualStudio": {
     "range": "[18.9,19.0)",
     "components": [

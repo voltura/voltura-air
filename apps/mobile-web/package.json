@@ -27,26 +27,26 @@
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "jsqr": "^1.4.0",
-    "lucide-react": "^1.69.0",
+    "lucide-react": "^1.73.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-markdown": "^10.1.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.65.0",
+    "@playwright/test": "^1.65.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.3",
     "@types/node": "26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.2.1",
+    "@vitejs/plugin-react": "^6.3.0",
     "cross-env": "^10.1.0",
-    "eslint-plugin-react-web-api": "5.28.8",
-    "jsdom": "31.0.0",
+    "eslint-plugin-react-web-api": "5.30.2",
+    "jsdom": "31.0.1",
     "stylelint": "18.0.0",
     "stylelint-config-standard": "41.0.0",
     "typescript": "7.0.2",
-    "vite": "^8.3.6",
+    "vite": "^8.3.8",
     "vitest": "^5.1.0"
   }
 }

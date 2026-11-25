@@ -839,6 +839,28 @@ describe("Relay screen renewal", () => {
     }));
   });
 
+  it("releases the recording request when its Relay renewal fails before handoff", async () => {
+    const view = await openView();
+    const liveStream = view.video.srcObject;
+    await advance(9 * 60_000);
+    fireEvent.click(screen.getByRole("button", { name: "Start screen recording" }));
+    const failed = view.starts().at(-1)!;
+    act(() => publishScreenViewResult({
+      type: "screen.view.start.result",
+      operationId: failed.operationId,
+      displayId: failed.displayId,
+      succeeded: false,
+      code: "renewal-unavailable",
+      message: "The replacement was unavailable.",
+    }));
+    expect(screen.getByRole("status").textContent).toContain("could not renew for recording");
+    expect(recording.start).not.toHaveBeenCalled();
+    expect(view.original.close).not.toHaveBeenCalled();
+    expect(view.video.srcObject).toBe(liveStream);
+    fireEvent.click(screen.getByRole("button", { name: "Start screen recording" }));
+    expect(view.starts().at(-1)!.operationId).not.toBe(failed.operationId);
+  });
+
   it("renews before starting a recording that could overlap credential expiry", async () => {
     const view = await openView();
     await advance(9 * 60_000);

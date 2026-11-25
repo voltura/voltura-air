@@ -272,10 +272,11 @@ failure keeps session state without a background retry loop.
   Recording and screenshot staging are mutually exclusive. The five-minute
   limit, Screen View stop, stream loss, or foreground loss finalizes the usable
   partial for Save/Share or Discard; leaving the workspace or page discards it.
-  Stopping and final storage each have a 15-second completion deadline; failure
-  releases cloned media and reports the error while owned staging cleanup
-  continues. The displayed duration ends when capture stops, excluding storage
-  finalization time.
+  Opening storage, writing a chunk, stopping the recorder, and final storage each have a
+  15-second deadline. A failure releases cloned media and reports the error
+  immediately. If an abandoned file commit is still running, cleanup removes
+  that recording's partial after the commit settles. The displayed duration ends
+  when capture stops, excluding storage finalization time.
   A canceled native share remains ready to retry, while successful Save/Share or
   Discard removes the staged file. No recording history, upload, background
   recorder, PC-side copy, permission, protocol, host, or Relay behavior is added.

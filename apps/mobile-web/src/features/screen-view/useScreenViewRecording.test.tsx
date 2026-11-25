@@ -207,14 +207,127 @@ describe("useScreenViewRecording", () => {
       await act(() => vi.advanceTimersByTimeAsync(15_000));
       expect(hook.result.current.presentation.phase).toBe("error");
       expect(source.video.clones[0]!.stop).toHaveBeenCalledOnce();
-      expect(storage.remove).toHaveBeenCalledOnce();
+      expect(storage.remove).toHaveBeenCalledTimes(boundary === "close" ? 0 : 1);
       await act(async () => {
         finish();
         await Promise.resolve();
       });
       expect(hook.result.current.presentation.phase).toBe("error");
+      expect(storage.remove).toHaveBeenCalledOnce();
     },
   );
+
+  it("settles timed-out storage preparation and disposes the writer if it arrives later", async () => {
+    vi.useFakeTimers();
+    let finish!: (value: typeof storage.prepared) => void;
+    storage.prepare.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const source = sourceStream();
+    const hook = renderHook(() => useScreenViewRecording());
+    let start!: Promise<boolean>;
+    act(() => { start = hook.result.current.start(source.stream, false); });
+    await act(() => vi.advanceTimersByTimeAsync(15_000));
+    await expect(start).resolves.toBe(false);
+    expect(hook.result.current.presentation.phase).toBe("error");
+    expect(hook.result.current.presentation.message).toContain("did not finish opening storage");
+    expect(source.video.clones[0]!.stop).toHaveBeenCalledOnce();
+
+    storage.writable.abort.mockRejectedValueOnce(new Error("The retired writer rejected abort."));
+    await act(async () => {
+      finish({ ...storage.prepared, storedName: "late-recording.partial" });
+      await Promise.resolve();
+    });
+    expect(storage.remove).toHaveBeenCalledExactlyOnceWith(storage.directory, "late-recording.partial");
+    expect(FakeMediaRecorder.instances).toHaveLength(0);
+    expect(hook.result.current.presentation.phase).toBe("error");
+  });
+
+  it("cancels preparation if visibility changes before the recording view rerenders", async () => {
+    let finish!: (value: typeof storage.prepared) => void;
+    storage.prepare.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const source = sourceStream();
+    const hook = renderHook(() => useScreenViewRecording());
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    let start!: Promise<boolean>;
+    act(() => {
+      start = hook.result.current.start(source.stream, false);
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(hook.result.current.presentation.message).toBe("Recording canceled.");
+    await expect(start).resolves.toBe(false);
+    expect(source.video.clones[0]!.stop).toHaveBeenCalledOnce();
+    await act(async () => {
+      finish(storage.prepared);
+      await Promise.resolve();
+    });
+    expect(storage.remove).toHaveBeenCalledOnce();
+  });
+
+  it("releases capture after a live chunk write stalls without waiting for another chunk", async () => {
+    vi.useFakeTimers();
+    let finish!: () => void;
+    storage.writable.write.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const source = sourceStream();
+    const hook = renderHook(() => useScreenViewRecording());
+    await act(() => hook.result.current.start(source.stream, false));
+    await act(async () => {
+      FakeMediaRecorder.instances.at(-1)!.emitData(new Blob(["stalled chunk"]));
+      await Promise.resolve();
+    });
+    await act(() => vi.advanceTimersByTimeAsync(15_000));
+    expect(hook.result.current.presentation.message).toContain("did not finish writing");
+    expect(hook.result.current.busy).toBe(false);
+    expect(source.video.clones[0]!.stop).toHaveBeenCalledOnce();
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+    expect(hook.result.current.presentation.phase).toBe("error");
+    expect(storage.remove).toHaveBeenCalledOnce();
+  });
+
+  it("shows finalizing after spontaneous stop and preserves only the chunks emitted before it", async () => {
+    let finish!: () => void;
+    storage.writable.close.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const hook = renderHook(() => useScreenViewRecording());
+    await act(() => hook.result.current.start(sourceStream().stream, false));
+    const recorder = FakeMediaRecorder.instances.at(-1)!;
+    act(() => {
+      recorder.emitData(new Blob(["final chunk"]));
+      recorder.state = "inactive";
+      recorder.dispatchEvent(new Event("stop"));
+    });
+    await waitFor(() => expect(storage.writable.close).toHaveBeenCalledOnce());
+    expect(hook.result.current.presentation.phase).toBe("finalizing");
+    act(() => recorder.emitData(new Blob(["late chunk"])));
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+    expect(hook.result.current.presentation.phase).toBe("ready");
+    expect(storage.writable.write).toHaveBeenCalledOnce();
+  });
+
+  it("discards only the retired partial after its delayed commit finishes", async () => {
+    let finish!: () => void;
+    storage.writable.close.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    storage.prepare.mockResolvedValueOnce({ ...storage.prepared, storedName: "retired-recording.partial" });
+    const hook = renderHook(() => useScreenViewRecording());
+    await act(() => hook.result.current.start(sourceStream().stream, false));
+    act(() => FakeMediaRecorder.instances.at(-1)!.emitData(new Blob(["chunk"])));
+    act(() => hook.result.current.stop());
+    await waitFor(() => expect(storage.writable.close).toHaveBeenCalledOnce());
+    let discarded!: Promise<void>;
+    act(() => { discarded = hook.result.current.discard(); });
+    expect(storage.remove).not.toHaveBeenCalled();
+    expect(storage.writable.abort).not.toHaveBeenCalled();
+    await act(() => hook.result.current.start(sourceStream().stream, false));
+    await act(async () => {
+      finish();
+      await discarded;
+    });
+    expect(storage.remove).toHaveBeenCalledExactlyOnceWith(storage.directory, "retired-recording.partial");
+    expect(hook.result.current.presentation.phase).toBe("recording");
+  });
   it.each(["close", "commit"])(
     "contains %s failure together with abort and removal failure",
     async (boundary) => {

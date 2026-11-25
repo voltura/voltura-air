@@ -1594,7 +1594,11 @@ export default function ScreenViewWorkspace({
       cancelHostCapture(message);
       return;
     }
+    const recordingWasWaiting = recordAfterRenewalRef.current;
     abandonRenewal();
+    if (recordingWasWaiting) {
+      setStatus("The connection could not renew for recording. Try recording again.");
+    }
   }
 
   const restartExpiredConnection = useEffectEvent(() => {
@@ -2029,8 +2033,11 @@ export default function ScreenViewWorkspace({
                   credentialExpires - Date.now() < screenViewRecordingMaximumDurationMs + 120_000
                 ) {
                   recordAfterRenewalRef.current = true;
-                  start(selected, activeOperationRef.current ?? undefined);
                   setStatus("Preparing screen recording...");
+                  start(selected, activeOperationRef.current ?? undefined);
+                  if (!renewalRef.current) {
+                    recordAfterRenewalRef.current = false;
+                  }
                 } else {
                   void recording.start(remoteStreamRef.current, soundOn);
                 }

@@ -20,6 +20,7 @@ import {
 const recordingChunkIntervalMs = 1_000;
 const recordingVideoBitsPerSecond = 8_000_000;
 const recordingAudioBitsPerSecond = 96_000;
+const recordingOperationDeadlineMs = 15_000;
 
 const idlePresentation = (message = ""): ScreenViewRecordingPresentation => ({
   phase: "idle",
@@ -34,6 +35,8 @@ interface RecordingRuntime {
   tracks: MediaStreamTrack[];
   storage: DeviceFileStorage | null;
   writable: FileSystemWritableFileStream | null;
+  closing: Promise<void> | null;
+  cancelPreparation: (() => void) | null;
   readyFile: File | null;
   fileName: string;
   includesSound: boolean;
@@ -44,6 +47,7 @@ interface RecordingRuntime {
   writeChain: Promise<void>;
   stopMessage: string;
   stopTimer: number | undefined;
+  writeTimer: number | undefined;
   discarding: boolean;
   stopRequested: boolean;
   finalizationStarted: boolean;
@@ -60,7 +64,6 @@ export function useScreenViewRecording(
     idlePresentation(),
   );
   const runtimeRef = useRef<RecordingRuntime | null>(null);
-  const generationRef = useRef(0);
   const noticeRef = useRef(onNotice);
   const notify = (message: string, tone: "success" | "error" | "neutral") =>
     noticeRef.current?.(message, tone);
@@ -95,25 +98,18 @@ export function useScreenViewRecording(
     }
   }
 
-  async function removeStoredRuntime(runtime: RecordingRuntime) {
-    if (!runtime.storage) {
-      return;
-    }
-    try {
-      await removeDeviceFile(runtime.storage.directory, runtime.storage.storedName);
-    } catch {
-      /* The next page initialization retries the shared owner sweep. */
-    }
-  }
-
   async function disposeRuntime(runtime: RecordingRuntime) {
     if (runtime.discarding) {
       return;
     }
     runtime.discarding = true;
+    runtime.cancelPreparation?.();
+    runtime.cancelPreparation = null;
     stopOwnedTracks(runtime);
     window.clearTimeout(runtime.stopTimer);
     runtime.stopTimer = undefined;
+    window.clearTimeout(runtime.writeTimer);
+    runtime.writeTimer = undefined;
     if (runtime.recorder?.state !== "inactive") {
       try {
         runtime.recorder?.stop();
@@ -121,15 +117,16 @@ export function useScreenViewRecording(
         /* Cleanup continues through the owned stream and partial file. */
       }
     }
-    if (runtime.writable) {
+    if (runtime.closing) {
       try {
-        await runtime.writable.abort();
+        await runtime.closing;
       } catch {
-        /* Removal below remains the authoritative cleanup attempt. */
+        /* A failed commit leaves its writable available for abort below. */
       }
-      runtime.writable = null;
     }
-    await removeStoredRuntime(runtime);
+    const writable = runtime.writable;
+    runtime.writable = null;
+    await cleanUpRecordingStorage(runtime.storage, writable);
   }
 
   async function failRuntime(runtime: RecordingRuntime, message: string) {
@@ -137,7 +134,6 @@ export function useScreenViewRecording(
       return;
     }
     runtimeRef.current = null;
-    generationRef.current += 1;
     setPresentation({
       phase: "error",
       fileName: "",
@@ -155,6 +151,7 @@ export function useScreenViewRecording(
     }
     runtime.finalizationStarted = true;
     runtime.stoppedAt ??= performance.now();
+    setPresentation((current) => ({ ...current, phase: "finalizing", message: "Finalizing…" }));
     stopOwnedTracks(runtime);
     window.clearTimeout(runtime.stopTimer);
     runtime.stopTimer = window.setTimeout(() => {
@@ -162,7 +159,7 @@ export function useScreenViewRecording(
         runtime,
         "This device did not finish storing the recording. Try recording again.",
       );
-    }, 15_000);
+    }, recordingOperationDeadlineMs);
     try {
       await runtime.writeChain;
       if (
@@ -173,12 +170,26 @@ export function useScreenViewRecording(
       ) {
         return;
       }
-      await runtime.writable.close();
-      runtime.writable = null;
+      const writable = runtime.writable;
+      const closing = Promise.resolve().then(async () => {
+        if (!runtime.discarding) {
+          await writable.close();
+          runtime.writable = null;
+        }
+      });
+      runtime.closing = closing;
+      try {
+        await closing;
+      } finally {
+        runtime.closing = null;
+      }
       if (runtimeRef.current !== runtime || runtime.discarding) {
         return;
       }
       const stored = await runtime.storage.handle.getFile();
+      if (runtimeRef.current !== runtime || runtime.discarding) {
+        return;
+      }
       if (stored.size === 0 || stored.size !== runtime.bytesWritten) {
         throw new Error("The recorded file was incomplete.");
       }
@@ -186,9 +197,6 @@ export function useScreenViewRecording(
       window.clearTimeout(runtime.stopTimer);
       runtime.stopTimer = undefined;
       stopOwnedTracks(runtime);
-      if (runtimeRef.current !== runtime || runtime.discarding) {
-        return;
-      }
       setPresentation({
         phase: "ready",
         fileName: runtime.fileName,
@@ -218,20 +226,16 @@ export function useScreenViewRecording(
     runtime.stopMessage = message;
     window.clearTimeout(runtime.stopTimer);
     runtime.stopTimer = undefined;
-    setPresentation((current) => ({ ...current, phase: "finalizing", message: "Finalizing…" }));
     if (!runtime.recorder) {
       runtimeRef.current = null;
-      const generation = ++generationRef.current;
-      void disposeRuntime(runtime).then(() => {
-        if (generationRef.current === generation) {
-          setPresentation(idlePresentation("Recording canceled."));
-        }
-      });
+      setPresentation(idlePresentation("Recording canceled."));
+      void disposeRuntime(runtime);
       return;
     }
+    setPresentation((current) => ({ ...current, phase: "finalizing", message: "Finalizing…" }));
     runtime.stopTimer = window.setTimeout(() => {
       void failRuntime(runtime, "This browser did not finish the recording. Try recording again.");
-    }, 15_000);
+    }, recordingOperationDeadlineMs);
     if (runtime.recorder.state === "inactive") {
       return;
     }
@@ -243,7 +247,7 @@ export function useScreenViewRecording(
   }
 
   function acceptChunk(runtime: RecordingRuntime, blob: Blob) {
-    if (runtimeRef.current !== runtime || runtime.discarding || blob.size === 0) {
+    if (runtimeRef.current !== runtime || runtime.discarding || runtime.finalizationStarted || blob.size === 0) {
       return;
     }
     const projectedBytes = runtime.bytesWritten + runtime.queuedBytes + blob.size;
@@ -266,13 +270,18 @@ export function useScreenViewRecording(
         runtime.queuedBytes -= blob.size;
         return;
       }
+      runtime.writeTimer = window.setTimeout(() => {
+        void failRuntime(runtime, "This device did not finish writing a recording chunk.");
+      }, recordingOperationDeadlineMs);
       try {
         await runtime.writable.write({ type: "write", position, data: blob });
         runtime.bytesWritten += blob.size;
-        runtime.queuedBytes -= blob.size;
       } catch {
+        void failRuntime(runtime, "This device could not store the recording.");
+      } finally {
         runtime.queuedBytes -= blob.size;
-        await failRuntime(runtime, "This device could not store the recording.");
+        window.clearTimeout(runtime.writeTimer);
+        runtime.writeTimer = undefined;
       }
     });
     const elapsedMs = Math.min(
@@ -361,6 +370,8 @@ export function useScreenViewRecording(
       tracks,
       storage: null,
       writable: null,
+      closing: null,
+      cancelPreparation: null,
       readyFile: null,
       fileName: "PC screen recording",
       includesSound: includeSound,
@@ -371,6 +382,7 @@ export function useScreenViewRecording(
       writeChain: Promise.resolve(),
       stopMessage: "Recording ready to save or share.",
       stopTimer: undefined,
+      writeTimer: undefined,
       discarding: false,
       stopRequested: false,
       finalizationStarted: false,
@@ -379,7 +391,6 @@ export function useScreenViewRecording(
       tracksStopped: false,
       saving: false,
     };
-    generationRef.current += 1;
     runtimeRef.current = runtime;
     setPresentation({
       phase: "recording",
@@ -390,26 +401,30 @@ export function useScreenViewRecording(
     });
 
     try {
-      const storage = await prepareDeviceFileStorage(
+      const preparation = prepareDeviceFileStorage(
         screenViewRecordingMaximumBytes,
         `screen-recording-${createLocalId()}`,
         true,
       );
-      runtime.storage = storage;
-      runtime.writable = storage.writable;
-      if (runtimeRef.current !== runtime || runtime.discarding) {
-        try {
-          await storage.writable.abort();
-        } catch {
-          /* Removal remains the authoritative cleanup attempt. */
-        }
-        try {
-          await removeDeviceFile(storage.directory, storage.storedName);
-        } catch {
-          /* The next page initialization retries the shared owner sweep. */
-        }
+      const canceled = new Promise<null>((resolve) => {
+        runtime.cancelPreparation = () => resolve(null);
+      });
+      runtime.stopTimer = window.setTimeout(() => {
+        void failRuntime(runtime, "This device did not finish opening storage for the recording.");
+      }, recordingOperationDeadlineMs);
+      const storage = await Promise.race([preparation, canceled]);
+      window.clearTimeout(runtime.stopTimer);
+      runtime.stopTimer = undefined;
+      runtime.cancelPreparation = null;
+      if (!storage || runtimeRef.current !== runtime || runtime.discarding) {
+        void preparation.then(
+          (lateStorage) => cleanUpRecordingStorage(lateStorage, lateStorage.writable),
+          () => undefined,
+        );
         return false;
       }
+      runtime.storage = storage;
+      runtime.writable = storage.writable;
       if (tracks.some((track) => track.readyState === "ended")) {
         throw new Error("The recording stream ended while storage was being prepared.");
       }
@@ -485,10 +500,9 @@ export function useScreenViewRecording(
         return;
       }
       runtimeRef.current = null;
-      generationRef.current += 1;
       setPresentation(idlePresentation(result === "shared" ? "Shared." : "Download started."));
       notify(result === "shared" ? "Shared." : "Download started.", "success");
-      await removeStoredRuntime(runtime);
+      await cleanUpRecordingStorage(runtime.storage);
     } catch (error) {
       if (runtimeRef.current !== runtime || runtime.discarding) {
         return;
@@ -504,7 +518,6 @@ export function useScreenViewRecording(
   }
 
   async function discard() {
-    generationRef.current += 1;
     const runtime = runtimeRef.current;
     runtimeRef.current = null;
     setPresentation(idlePresentation("Recording discarded."));
@@ -531,10 +544,7 @@ export function useScreenViewRecording(
   }
 
   const stopForForegroundLoss = useEffectEvent(() => {
-    const runtime = runtimeRef.current;
-    if (runtime && presentation.phase === "recording") {
-      requestStop(runtime, "Recording stopped when Voltura Air left the foreground.");
-    }
+    stop("Recording stopped when Voltura Air left the foreground.");
   });
 
   useEffect(() => {
@@ -544,7 +554,6 @@ export function useScreenViewRecording(
       }
     };
     const onPageHide = () => {
-      generationRef.current += 1;
       const runtime = runtimeRef.current;
       runtimeRef.current = null;
       if (runtime) {
@@ -555,7 +564,6 @@ export function useScreenViewRecording(
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("pagehide", onPageHide);
     return () => {
-      generationRef.current += 1;
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pagehide", onPageHide);
       const runtime = runtimeRef.current;
@@ -581,4 +589,23 @@ export function useScreenViewRecording(
     supported,
     unsupportedReason,
   };
+}
+
+async function cleanUpRecordingStorage(
+  storage: DeviceFileStorage | null,
+  writable: FileSystemWritableFileStream | null = null,
+) {
+  if (!storage) {
+    return;
+  }
+  try {
+    await writable?.abort();
+  } catch {
+    /* Attempt removal even when the browser rejects abort. */
+  }
+  try {
+    await removeDeviceFile(storage.directory, storage.storedName);
+  } catch {
+    /* The shared owner sweep can retry this recording's partial on reload. */
+  }
 }

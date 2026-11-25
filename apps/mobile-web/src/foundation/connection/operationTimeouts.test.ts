@@ -22,7 +22,7 @@ function useLaunchCase(send: (message: ClientMessage) => void) {
   };
 }
 function useClipboardCase(send: (message: ClientMessage) => void) {
-  const hook = useClipboardRead("paired", send);
+  const hook = useClipboardRead("paired", 1, send);
   return {
     request: hook.requestClipboardRead,
     pending: hook.pendingClipboardRead,

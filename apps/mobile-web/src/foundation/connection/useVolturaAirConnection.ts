@@ -202,7 +202,7 @@ export function useVolturaAirConnection() {
     requestClipboardRead,
     requestClipboardReadForDevice,
     setClipboardText,
-  } = useClipboardRead(state, send);
+  } = useClipboardRead(state, connectionEpoch, send);
   const {
     completeDiagnostics: completeDiagnosticsState,
     failure: diagnosticsFailure,

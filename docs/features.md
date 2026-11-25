@@ -1054,7 +1054,8 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   requests fresh Windows clipboard text on every press and writes it directly
   to the current phone, tablet, or computer clipboard without changing the
   visible field. Both actions remain independently reusable, and failed reads
-  or copies keep existing visible text. Voltura Air never monitors or
+  or copies keep existing visible text. Replacing the authenticated connection
+  clears the visible text and pending requests. Voltura Air never monitors or
   synchronizes either clipboard.
 - Managed destinations never expose executable paths, process/window IDs,
   matching rules, or clipboard content to mobile. Generated drafts expire after

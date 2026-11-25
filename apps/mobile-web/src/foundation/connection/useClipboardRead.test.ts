@@ -9,7 +9,7 @@ describe("useClipboardRead", () => {
 
   it("keeps visible and device clipboard reads separate", async () => {
     const send = vi.fn<(payload: ClientMessage) => void>();
-    const { result } = renderHook(() => useClipboardRead("paired", send));
+    const { result } = renderHook(() => useClipboardRead("paired", 1, send));
 
     let deviceResult: Promise<ClipboardGetResultMessage> | null = null;
     act(() => {
@@ -38,7 +38,7 @@ describe("useClipboardRead", () => {
 
   it("supersedes an unfinished device copy with a fresh request", async () => {
     const send = vi.fn<(payload: ClientMessage) => void>();
-    const { result } = renderHook(() => useClipboardRead("paired", send));
+    const { result } = renderHook(() => useClipboardRead("paired", 1, send));
 
     let first: ReturnType<typeof result.current.requestClipboardReadForDevice> = null;
     let second: ReturnType<typeof result.current.requestClipboardReadForDevice> = null;
@@ -72,7 +72,7 @@ describe("useClipboardRead", () => {
     vi.useFakeTimers();
     const send = vi.fn<(payload: ClientMessage) => void>();
     const { result, rerender } = renderHook(
-      ({ state }: { state: ConnectionState }) => useClipboardRead(state, send),
+      ({ state }: { state: ConnectionState }) => useClipboardRead(state, 1, send),
       { initialProps: { state: "paired" as ConnectionState } },
     );
 
@@ -93,7 +93,7 @@ describe("useClipboardRead", () => {
 
   it("cancels a pending device clipboard read when its screen leaves", async () => {
     const send = vi.fn<(payload: ClientMessage) => void>();
-    const { result } = renderHook(() => useClipboardRead("paired", send));
+    const { result } = renderHook(() => useClipboardRead("paired", 1, send));
     let pending: ReturnType<typeof result.current.requestClipboardReadForDevice> = null;
     act(() => {
       pending = result.current.requestClipboardReadForDevice();
@@ -104,5 +104,43 @@ describe("useClipboardRead", () => {
     });
 
     await expect(pending).resolves.toMatchObject({ code: "VAIR-CLIPBOARD-CANCELED" });
+  });
+
+  it("retires visible text and pending reads when the authenticated connection changes", async () => {
+    const send = vi.fn<(payload: ClientMessage) => void>();
+    const { result, rerender } = renderHook(({ epoch }) => useClipboardRead("paired", epoch, send), {
+      initialProps: { epoch: 1 },
+    });
+    const response = (operationId: string): ClipboardGetResultMessage => ({
+      type: "clipboard.get.result",
+      operationId,
+      succeeded: true,
+      message: "Read",
+      text: "PC text",
+    });
+    let firstId: string | null = null;
+    act(() => {
+      firstId = result.current.requestClipboardRead();
+    });
+    act(() => {
+      expect(result.current.completeClipboardRead(response(firstId!))).toBe(true);
+    });
+    expect(result.current.clipboardText).toBe("PC text");
+    let staleId: string | null = null;
+    let pending: ReturnType<typeof result.current.requestClipboardReadForDevice> = null;
+    act(() => {
+      staleId = result.current.requestClipboardRead();
+      pending = result.current.requestClipboardReadForDevice();
+    });
+
+    rerender({ epoch: 2 });
+
+    expect(result.current.clipboardText).toBe("");
+    expect(result.current.pendingClipboardRead).toBe(false);
+    expect(result.current.completeClipboardRead(response(staleId!))).toBe(false);
+    await expect(pending).resolves.toMatchObject({ code: "VAIR-CLIPBOARD-DISCONNECTED" });
+    act(() => {
+      expect(result.current.requestClipboardRead()).toEqual(expect.any(String));
+    });
   });
 });

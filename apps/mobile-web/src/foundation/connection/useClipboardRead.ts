@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createLocalId } from "../identity/localId";
 import type { ClipboardGetResultMessage, ClientMessage } from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
@@ -6,13 +6,18 @@ import type { ConnectionState } from "./connectionTypes";
 const responseTimeoutMs = 5000;
 const resultVisibilityMs = 5000;
 
-export function useClipboardRead(state: ConnectionState, send: (payload: ClientMessage) => void) {
+export function useClipboardRead(
+  state: ConnectionState,
+  connectionEpoch: number,
+  send: (payload: ClientMessage) => void,
+) {
   const [clipboardText, setClipboardText] = useState("");
   const [clipboardReadResult, setClipboardReadResult] = useState<ClipboardGetResultMessage | null>(
     null,
   );
   const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
   const pendingClipboardRead = pendingOperationId !== null;
+  const lastConnectionEpochRef = useRef(connectionEpoch);
   const pendingOperationRef = useRef<string | null>(null);
   const pendingDeviceClipboardOperationRef = useRef<{
     operationId: string;
@@ -70,8 +75,10 @@ export function useClipboardRead(state: ConnectionState, send: (payload: ClientM
     };
   }, [pendingOperationId]);
 
-  useEffect(() => {
-    if (state === "paired") {
+  useLayoutEffect(() => {
+    const previousEpoch = lastConnectionEpochRef.current;
+    lastConnectionEpochRef.current = connectionEpoch;
+    if (state === "paired" && connectionEpoch === previousEpoch) {
       return;
     }
 
@@ -83,7 +90,7 @@ export function useClipboardRead(state: ConnectionState, send: (payload: ClientM
     setClipboardText("");
     setClipboardReadResult(null);
     setPendingOperationId(null);
-  }, [settlePendingDeviceClipboardRead, state]);
+  }, [connectionEpoch, settlePendingDeviceClipboardRead, state]);
 
   useEffect(
     () => () => {

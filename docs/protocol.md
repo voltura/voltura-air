@@ -685,7 +685,9 @@ send-only Opus/48000/2 audio media section, and the `screen-events` data channel
 the answer contains matching receive-only media. Missing, extra, wrong-codec,
 disabled, or wrong-direction media is rejected. Both SDP hashes therefore bind
 the complete two-track contract without a separate audio command. Device mute is
-browser-local and starts enabled for each new viewing session; renewal preserves it.
+browser-local and starts enabled for each new viewing session. Relay renewal
+preserves it when audio is available and the browser allows playback. If the
+browser blocks sound on the replacement, the browser retries video muted.
 
 Capture remains 48 kHz stereo for all presets. The host configures Opus
 constrained VBR as High = nominal 96 kbps stereo, Standard = nominal 64 kbps
@@ -703,6 +705,8 @@ receiver-quality feedback, health ping/pong, timers, or connection liveness.
 `messageLength:u16be`, then bounded UTF-8 code (1..64 bytes) and message
 (1..512 bytes). `audio-ready`, `audio-unavailable`, and `audio-recovered`
 update the local Sound action; unavailable audio never ends video.
+During renewal, only the promoted peer may update Sound. The browser applies
+the replacement peer's latest availability record when that peer takes over.
 
 When the PC owner uses the tray Stop action, the host sends the current viewer
 one terminal command-channel event as it ends the media session:

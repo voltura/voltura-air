@@ -30,23 +30,29 @@ export type ScreenPlaintextRecord =
   | ScreenStatusRecord
   | ScreenAudioAvailabilityRecord;
 
-export function rememberPendingScreenCursor(
-  data: unknown,
-  previous: ScreenCursorRecord | null,
-): ScreenCursorRecord | null {
+export interface PendingScreenMedia {
+  cursor: ScreenCursorRecord | null;
+  audio: ScreenAudioAvailabilityRecord | null;
+}
+
+export function rememberPendingScreenMedia(data: unknown, previous: PendingScreenMedia): PendingScreenMedia {
   if (!(data instanceof ArrayBuffer)) {
     return previous;
   }
   const bytes = new Uint8Array(data);
-  if (bytes[0] !== 4) {
+  if (bytes[0] !== 4 && bytes[0] !== 7) {
     return previous;
   }
   try {
     const record = parseScreenPlaintextRecord(bytes);
     if (record.type === "cursor") {
-      return !record.pngBytes && previous?.pngBytes
-        ? { ...record, pngBytes: previous.pngBytes }
+      const cursor = !record.pngBytes && previous.cursor?.pngBytes
+        ? { ...record, pngBytes: previous.cursor.pngBytes }
         : record;
+      return { ...previous, cursor };
+    }
+    if (record.type === "audio-availability") {
+      return { ...previous, audio: record };
     }
   } catch {
     // A pending peer has no playback ownership until it is promoted.

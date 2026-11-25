@@ -866,6 +866,7 @@ describe("ScreenViewWorkspace", () => {
     const send = vi.fn<(message: ClientMessage) => void>();
     render(
       <ScreenViewWorkspace
+        browserPreviewState="inactive"
         activePc={{
           customName: false,
           id: "http://192.168.1.10:51396",
@@ -881,7 +882,6 @@ describe("ScreenViewWorkspace", () => {
         trackpadSettings={defaultTrackpadSettings}
       />,
     );
-    fireEvent.loadedData(screen.getByLabelText("Mirrored PC display video"));
     expect(screen.getByRole("button", { name: "Click" }).hasAttribute("disabled")).toBe(false);
     const stage = document.querySelector<HTMLElement>(".screen-view-stage");
     if (!stage) {
@@ -1144,6 +1144,9 @@ describe("ScreenViewWorkspace", () => {
           static createObjectURL = createObjectURL;
           static revokeObjectURL = revokeObjectURL;
         });
+        act(() => {
+          FakePeerConnection.instance?.emit("track", { track: { kind: "video" }, streams: [] });
+        });
         fireEvent.loadedData(video);
         const sendCursor = (x: number, pngBytes: number[] = []) => {
           const record = new Uint8Array(39 + pngBytes.length);
@@ -1228,9 +1231,20 @@ describe("ScreenViewWorkspace", () => {
             }),
         );
         const kinds = scenario === "video-first" ? ["video", "audio"] : ["audio", "video"];
+        const makeTrack = (kind: string) => Object.assign(new EventTarget(), { kind, readyState: "live" });
+        if (scenario === "audio-first") {
+          act(() => {
+            FakePeerConnection.instance?.emit("track", { track: makeTrack("audio"), streams: [] });
+          });
+          fireEvent.loadedData(video);
+          fireEvent.playing(video);
+          expect(assignSource).not.toHaveBeenCalled();
+          expect(play).not.toHaveBeenCalled();
+          expect(screen.queryByText("Live - Encrypted WebRTC")).toBeNull();
+        }
         await act(async () => {
-          for (const kind of kinds) {
-            FakePeerConnection.instance?.emit("track", { track: { kind }, streams: [] });
+          for (const kind of scenario === "audio-first" ? ["video"] : kinds) {
+            FakePeerConnection.instance?.emit("track", { track: makeTrack(kind), streams: [] });
           }
           await Promise.resolve();
         });
@@ -1401,6 +1415,7 @@ describe("ScreenViewWorkspace", () => {
     const send = vi.fn<(message: ClientMessage) => void>();
     render(
       <ScreenViewWorkspace
+        browserPreviewState="inactive"
         activePc={{
           customName: false,
           id: "http://192.168.1.10:51396",
@@ -1417,7 +1432,6 @@ describe("ScreenViewWorkspace", () => {
       />,
     );
 
-    fireEvent.loadedData(screen.getByLabelText("Mirrored PC display video"));
     fireEvent.click(
       screen.getByRole("button", { name: "Two-finger mode: Zoom. Switch to Scroll" }),
     );
@@ -1451,6 +1465,7 @@ describe("ScreenViewWorkspace", () => {
     try {
       render(
         <ScreenViewWorkspace
+          browserPreviewState="inactive"
           activePc={{
             customName: false,
             id: "http://192.168.1.10:51396",
@@ -1467,7 +1482,6 @@ describe("ScreenViewWorkspace", () => {
         />,
       );
 
-      fireEvent.loadedData(screen.getByLabelText("Mirrored PC display video"));
       const workspace = document.querySelector<HTMLElement>(".screen-view-workspace");
       if (!workspace) {
         throw new Error("Screen workspace was not rendered.");
@@ -1505,6 +1519,7 @@ describe("ScreenViewWorkspace", () => {
     vi.stubGlobal("innerHeight", 844);
     render(
       <ScreenViewWorkspace
+        browserPreviewState="inactive"
         activePc={{
           customName: false,
           id: "http://192.168.1.10:51396",
@@ -1521,7 +1536,6 @@ describe("ScreenViewWorkspace", () => {
       />,
     );
 
-    fireEvent.loadedData(screen.getByLabelText("Mirrored PC display video"));
     fireEvent.click(screen.getByRole("button", { name: "View PC screen full screen" }));
     await waitFor(() =>
       expect(document.querySelector(".screen-view-workspace")?.classList).toContain("is-immersive"),
@@ -1538,6 +1552,7 @@ describe("ScreenViewWorkspace", () => {
     const send = vi.fn<(message: ClientMessage) => void>();
     render(
       <ScreenViewWorkspace
+        browserPreviewState="inactive"
         activePc={{
           customName: false,
           id: "http://192.168.1.10:51396",
@@ -1557,7 +1572,6 @@ describe("ScreenViewWorkspace", () => {
     if (!stage) {
       throw new Error("Screen stage was not rendered.");
     }
-    fireEvent.loadedData(screen.getByLabelText("Mirrored PC display video"));
     fireEvent.click(
       screen.getByRole("button", { name: "Two-finger mode: Zoom. Switch to Scroll" }),
     );
@@ -1583,6 +1597,7 @@ describe("ScreenViewWorkspace", () => {
     const send = vi.fn<(message: ClientMessage) => void>();
     render(
       <ScreenViewWorkspace
+        browserPreviewState="inactive"
         activePc={{
           customName: false,
           id: "http://192.168.1.10:51396",
@@ -1604,7 +1619,6 @@ describe("ScreenViewWorkspace", () => {
     }
     Object.defineProperty(stage, "clientWidth", { configurable: true, value: 400 });
     Object.defineProperty(stage, "clientHeight", { configurable: true, value: 220 });
-    fireEvent.loadedData(screen.getByLabelText("Mirrored PC display video"));
     expect(
       screen.getByRole("button", { name: "Two-finger mode: Zoom. Switch to Scroll" }),
     ).toBeTruthy();
@@ -1699,6 +1713,7 @@ describe("ScreenViewWorkspace", () => {
     const send = vi.fn<(message: ClientMessage) => void>();
     render(
       <ScreenViewWorkspace
+        browserPreviewState="inactive"
         activePc={{
           customName: false,
           id: "http://192.168.1.10:51396",
@@ -1725,7 +1740,6 @@ describe("ScreenViewWorkspace", () => {
         ],
       });
     });
-    fireEvent.loadedData(screen.getByLabelText("Mirrored PC display video"));
     const mouse = await screen.findByRole("button", { name: "Mouse and keyboard control" });
     fireEvent.click(mouse);
     expect(mouse.getAttribute("aria-pressed")).toBe("true");
@@ -1787,6 +1801,7 @@ describe("ScreenViewWorkspace", () => {
     );
     render(
       <ScreenViewWorkspace
+        browserPreviewState="inactive"
         activePc={{
           customName: false,
           id: "http://192.168.1.10:51396",
@@ -1802,7 +1817,6 @@ describe("ScreenViewWorkspace", () => {
         trackpadSettings={defaultTrackpadSettings}
       />,
     );
-    fireEvent.loadedData(screen.getByLabelText("Mirrored PC display video"));
     const mouse = screen.getByRole("button", { name: "Mouse and keyboard control" });
     expect(mouse.getAttribute("aria-disabled")).toBe("true");
     fireEvent.click(mouse);

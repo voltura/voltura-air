@@ -51,7 +51,9 @@ import {
 import { runWebRtcSetupStep } from "../../foundation/webrtc/peerSetup";
 import {
   parseScreenPlaintextRecord,
-  rememberPendingScreenCursor,
+  rememberPendingScreenMedia,
+  type PendingScreenMedia,
+  type ScreenAudioAvailabilityRecord,
   type ScreenCursorRecord,
 } from "./screenViewRecords";
 import { screenKeyboardMessage } from "./screenKeyboardInput";
@@ -835,10 +837,11 @@ export default function ScreenViewWorkspace({
     setStatus("Screen viewing stopped.");
   }
 
-  async function playVideo() {
+  async function playVideo(allowMutedFallback = false) {
     const request = ++playbackRequestRef.current;
     const video = videoRef.current;
     const source = video?.srcObject;
+    const peer = peerRef.current;
     if (!video || !source) {
       setPlaybackBlocked(false);
       setStatus("Screen viewing is disconnected. Tap Start to try again.");
@@ -848,9 +851,25 @@ export default function ScreenViewWorkspace({
       request === playbackRequestRef.current &&
       videoRef.current === video &&
       video.srcObject === source &&
-      peerRef.current !== null;
+      peerRef.current === peer &&
+      canReportScreenPlayback(peer);
+    const startedUnmuted = !video.muted;
     try {
-      await video.play();
+      try {
+        await video.play();
+      } catch (error) {
+        if (
+          !allowMutedFallback || !startedUnmuted || !isCurrent() ||
+          !(error instanceof DOMException) || error.name !== "NotAllowedError"
+        ) {
+          throw error;
+        }
+        if (!video.muted) {
+          muteLocalSound();
+          setAudioNotice("Tap Sound again to allow PC audio playback.");
+        }
+        await video.play();
+      }
       if (!isCurrent()) {
         return;
       }
@@ -871,6 +890,24 @@ export default function ScreenViewWorkspace({
     }
   }
 
+  function muteLocalSound() {
+    soundRequestRef.current += 1;
+    soundOnRef.current = false;
+    if (videoRef.current) {
+      videoRef.current.muted = true;
+    }
+    setSoundOn(false);
+  }
+
+  function applyAudioAvailability(record: ScreenAudioAvailabilityRecord) {
+    setAudioAvailable(record.available);
+    setAudioNotice(record.message);
+    if (!record.available) {
+      muteLocalSound();
+      recording.reportAudioUnavailable();
+    }
+  }
+
   async function toggleSound() {
     if (recording.lockSound) {
       setAudioNotice("Sound is fixed until this recording stops.");
@@ -883,12 +920,11 @@ export default function ScreenViewWorkspace({
       return;
     }
     if (soundOnRef.current) {
-      soundOnRef.current = false;
-      video.muted = true;
-      setSoundOn(false);
+      muteLocalSound();
       return;
     }
     const source = video.srcObject;
+    playbackRequestRef.current += 1;
     soundOnRef.current = true;
     setSoundOn(true);
     try {
@@ -901,6 +937,7 @@ export default function ScreenViewWorkspace({
       ) {
         return;
       }
+      setPlaybackBlocked(false);
       setAudioNotice("");
     } catch {
       if (
@@ -910,9 +947,7 @@ export default function ScreenViewWorkspace({
       ) {
         return;
       }
-      soundOnRef.current = false;
-      video.muted = true;
-      setSoundOn(false);
+      muteLocalSound();
       setAudioNotice("Tap Sound again to allow PC audio playback.");
     }
   }
@@ -1051,7 +1086,7 @@ export default function ScreenViewWorkspace({
     let lastIceErrorCode: number | null = null;
     const setup = new AbortController();
     let events: RTCDataChannel | null = null;
-    let pendingCursor: ScreenCursorRecord | null = null;
+    let pendingMedia: PendingScreenMedia = { cursor: null, audio: null };
     if (renewing) {
       renewalRef.current = { operationId: message.operationId, peer, setup };
       startResponseTimeoutRef.current = window.setTimeout(() => {
@@ -1075,7 +1110,7 @@ export default function ScreenViewWorkspace({
       if (
         renewalRef.current?.peer !== peer ||
         peer.connectionState !== "connected" ||
-        !stream.getVideoTracks().some((track) => !track.muted)
+        !stream.getVideoTracks().some((track) => track.readyState !== "ended" && !track.muted)
       ) {
         return;
       }
@@ -1090,6 +1125,9 @@ export default function ScreenViewWorkspace({
       relayRecoveryRef.current = null;
       window.clearTimeout(startResponseTimeoutRef.current);
       startResponseTimeoutRef.current = undefined;
+      if (pendingMedia.audio) {
+        applyAudioAvailability(pendingMedia.audio);
+      }
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
@@ -1098,12 +1136,12 @@ export default function ScreenViewWorkspace({
       retired?.close();
       startQualityMonitor(peer);
       scheduleCredentialRenewal(message.turnExpiresAt);
-      setAudioTrackReady(stream.getAudioTracks().length > 0);
-      if (pendingCursor) {
-        updateCursor(pendingCursor);
-        pendingCursor = null;
+      setAudioTrackReady(hasLiveTrack(stream, "audio"));
+      if (pendingMedia.cursor) {
+        updateCursor(pendingMedia.cursor);
       }
-      void playVideo();
+      pendingMedia = { cursor: null, audio: null };
+      void playVideo(true);
       if (recordAfterRenewalRef.current) {
         recordAfterRenewalRef.current = false;
         void recording.start(stream, videoRef.current?.muted === false);
@@ -1127,31 +1165,53 @@ export default function ScreenViewWorkspace({
       if (!isCurrentNegotiation()) {
         return;
       }
-      if ((event.track.kind !== "video" && event.track.kind !== "audio") || !videoRef.current) {
+      const track = event.track;
+      if ((track.kind !== "video" && track.kind !== "audio") || track.readyState === "ended" || !videoRef.current) {
         return;
       }
-      traceScreenView("remote_track_received", event.track.kind);
-      if (stream.getTracks().some((track) => track.kind === event.track.kind)) {
-        if (event.track.kind === "video") {
+      traceScreenView("remote_track_received", track.kind);
+      if (stream.getTracks().some((existing) => existing.kind === track.kind && existing.readyState !== "ended")) {
+        if (track.kind === "video" && peerRef.current === peer) {
           void playVideo();
         }
         return;
       }
-      stream.addTrack(event.track);
+      stream.addTrack(track);
+      if (track.kind === "audio") {
+        track.addEventListener("ended", () => {
+          if (!isCurrentNegotiation() || !stream.getTracks().includes(track)) {
+            return;
+          }
+          stream.removeTrack(track);
+          if (peerRef.current !== peer) {
+            return;
+          }
+          setAudioTrackReady(false);
+          muteLocalSound();
+          recording.reportAudioUnavailable();
+          setAudioNotice("The PC audio track ended. Video is still available.");
+        }, { once: true, signal: setup.signal });
+      }
       if (renewalRef.current?.peer === peer) {
-        event.track.addEventListener("unmute", promoteRenewal, { once: true });
+        if (track.kind === "video") {
+          track.addEventListener("unmute", promoteRenewal, { once: true, signal: setup.signal });
+        }
         promoteRenewal();
         return;
       }
       remoteStreamRef.current = stream;
+      if (!hasLiveTrack(stream, "video")) {
+        return;
+      }
+      setAudioTrackReady(hasLiveTrack(stream, "audio"));
       // Reassigning even the same stream reloads the player and aborts pending play().
       if (videoRef.current.srcObject !== stream) {
         videoRef.current.srcObject = stream;
       }
-      if (event.track.kind === "audio") {
-        setAudioTrackReady(true);
-      } else {
+      if (track.kind === "video") {
         void playVideo();
+      } else if (renewing && soundOnRef.current) {
+        void playVideo(true);
       }
     });
     peer.addEventListener("datachannel", (event) => {
@@ -1180,7 +1240,7 @@ export default function ScreenViewWorkspace({
         if (eventsRef.current === channel) {
           handleScreenEvent(messageEvent);
         } else if (renewalRef.current?.peer === peer) {
-          pendingCursor = rememberPendingScreenCursor(messageEvent.data, pendingCursor);
+          pendingMedia = rememberPendingScreenMedia(messageEvent.data, pendingMedia);
         }
       });
     });
@@ -1325,17 +1385,7 @@ export default function ScreenViewWorkspace({
         closeStream();
         setStatus(record.message);
       } else if (record.type === "audio-availability") {
-        setAudioAvailable(record.available);
-        setAudioNotice(record.message);
-        if (!record.available) {
-          soundRequestRef.current += 1;
-          soundOnRef.current = false;
-          recording.reportAudioUnavailable();
-          if (videoRef.current) {
-            videoRef.current.muted = true;
-          }
-          setSoundOn(false);
-        }
+        applyAudioAvailability(record);
       } else {
         throw new Error("Unexpected screen event.");
       }
@@ -1343,6 +1393,20 @@ export default function ScreenViewWorkspace({
       closeStream();
       setStatus("The screen event channel sent invalid data.");
     }
+  }
+
+  function markVideoReady(video: HTMLVideoElement, event: "loadeddata" | "playing") {
+    const stream = remoteStreamRef.current;
+    if (!canReportScreenPlayback(peerRef.current) || !stream ||
+      video.srcObject !== stream || !hasLiveTrack(stream, "video")) {
+      return;
+    }
+    traceScreenView("first_frame_rendered", event);
+    hasVisualFrameRef.current = true;
+    setViewing(true);
+    setPlaybackBlocked(false);
+    setStatus("Live - Encrypted WebRTC");
+    scheduleCursorPosition();
   }
 
   function updateCursor(cursor: ScreenCursorRecord) {
@@ -2084,22 +2148,8 @@ export default function ScreenViewWorkspace({
             muted={!soundOn}
             playsInline
             onResize={scheduleCursorPosition}
-            onLoadedData={() => {
-              traceScreenView("first_frame_rendered", "loadeddata");
-              hasVisualFrameRef.current = true;
-              setViewing(true);
-              setPlaybackBlocked(false);
-              setStatus("Live - Encrypted WebRTC");
-              scheduleCursorPosition();
-            }}
-            onPlaying={() => {
-              traceScreenView("first_frame_rendered", "playing");
-              hasVisualFrameRef.current = true;
-              setViewing(true);
-              setPlaybackBlocked(false);
-              setStatus("Live - Encrypted WebRTC");
-              scheduleCursorPosition();
-            }}
+            onLoadedData={(event) => markVideoReady(event.currentTarget, "loadeddata")}
+            onPlaying={(event) => markVideoReady(event.currentTarget, "playing")}
           >
             <track kind="captions" label="Live PC audio has no captions" />
           </video>
@@ -2272,6 +2322,15 @@ export default function ScreenViewWorkspace({
       </div>
     </section>
   );
+}
+
+function hasLiveTrack(stream: MediaStream, kind: "video" | "audio") {
+  return stream.getTracks().some((track) => track.kind === kind && track.readyState !== "ended");
+}
+
+function canReportScreenPlayback(peer: RTCPeerConnection | null) {
+  return peer !== null && peer.connectionState !== "disconnected" &&
+    peer.connectionState !== "failed" && peer.connectionState !== "closed";
 }
 
 function stopScreenGesture(event: TouchEvent<HTMLElement>) {

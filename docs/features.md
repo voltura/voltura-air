@@ -220,8 +220,8 @@ failure keeps session state without a background retry loop.
   open workspace idle through reconnects and display-list refreshes until the
   user presses **Start**. Interrupted or failed mirrors retain their existing
   automatic recovery behavior unless the user presses **Stop**.
-- Screen View shows startup progress until video arrives. Audio and video tracks
-  share one attached stream, so adding sound does not reload the video player.
+- Screen View shows startup progress until video arrives. The player attaches
+  once a video track is present. Audio joins that stream without reloading it.
   If the browser blocks or cannot start playback, **Show video** retries playback
   on the existing connection.
 - The same authorized session captures the current default Windows multimedia
@@ -230,8 +230,10 @@ failure keeps session state without a background retry loop.
   **Low** 48 kbps with encoder downmix to mono while retaining the negotiated
   `Opus/48000/2` media contract. Opus constrained VBR means instantaneous packet
   traffic varies with the audio. Device playback starts
-  muted on every new peer and a visible local **Sound** action enables or mutes
-  it. Display switching retains that local mute state. Audio unavailability or
+  muted in each new viewing session and a visible local **Sound** action enables
+  or mutes it. Display switching and Relay renewal retain that mute choice while
+  playback is available. If sound cannot resume after renewal, video retries
+  muted. Audio unavailability or
   output-device changes are reported in the live view and never stop video.
   Sound notices disappear after eight seconds, including in full screen;
   local PC playback continues normally.

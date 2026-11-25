@@ -29,6 +29,7 @@ const offer =
 
 class Track extends EventTarget {
   muted = true;
+  readyState: MediaStreamTrackState = "live";
   constructor(readonly kind: string) {
     super();
   }
@@ -36,11 +37,18 @@ class Track extends EventTarget {
     this.muted = false;
     this.dispatchEvent(new Event("unmute"));
   }
+  end() {
+    this.readyState = "ended";
+    this.dispatchEvent(new Event("ended"));
+  }
 }
 class Stream {
   tracks: Track[] = [];
   addTrack(track: Track) {
     this.tracks.push(track);
+  }
+  removeTrack(track: Track) {
+    this.tracks = this.tracks.filter((existing) => existing !== track);
   }
   getTracks() {
     return this.tracks;
@@ -99,6 +107,7 @@ beforeEach(() => {
   vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
   recording.start.mockClear();
   recording.stop.mockClear();
+  recording.reportAudioUnavailable.mockClear();
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -228,7 +237,121 @@ async function advance(milliseconds: number) {
   });
 }
 
+function openScreenEvents(peer: Peer) {
+  const channel = Object.assign(new EventTarget(), {
+    label: "screen-events",
+    binaryType: "blob",
+    close: vi.fn(),
+  });
+  act(() => {
+    peer.dispatchEvent(Object.assign(new Event("datachannel"), { channel }));
+  });
+  return (available: boolean, message: string) => {
+    const text = new TextEncoder();
+    const code = text.encode(available ? "audio-ready" : "audio-unavailable");
+    const notice = text.encode(message);
+    const record = new Uint8Array(5 + code.length + notice.length);
+    record.set([7, available ? 1 : 0, code.length]);
+    new DataView(record.buffer).setUint16(3, notice.length, false);
+    record.set(code, 5);
+    record.set(notice, 5 + code.length);
+    act(() => {
+      channel.dispatchEvent(new MessageEvent("message", { data: record.buffer }));
+    });
+  };
+}
+
 describe("Relay screen renewal", () => {
+  it("ignores delayed media events while reconnecting and after the stream is detached", async () => {
+    const view = await openView();
+    act(() => {
+      view.original.connectionState = "disconnected";
+      view.original.dispatchEvent(new Event("connectionstatechange"));
+    });
+    fireEvent.loadedData(view.video);
+    fireEvent.playing(view.video);
+    expect(screen.getByRole("status").textContent).toContain("Reconnecting for up to 8 seconds");
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    fireEvent.loadedData(view.video);
+    fireEvent.playing(view.video);
+    expect(screen.getByRole("status").textContent).toBe("Screen viewing stopped.");
+    expect(view.video.srcObject).toBeNull();
+  });
+
+  it("applies replacement audio availability and leaves current playback alone before promotion", async () => {
+    const view = await openView();
+    openScreenEvents(view.original)(true, "Original PC audio is ready.");
+    await act(() => Promise.resolve(fireEvent.click(screen.getByRole("button", { name: "Play PC sound" }))));
+    expect(view.video.muted).toBe(false);
+    await advance(14 * 60_000);
+    await view.accept();
+    const replacement = Peer.instances.at(-1)!;
+    const reportAudio = openScreenEvents(replacement);
+    reportAudio(true, "Replacement PC audio was ready.");
+    reportAudio(false, "Replacement PC audio is unavailable.");
+    expect(view.video.muted).toBe(false);
+    expect(screen.queryByText("Replacement PC audio is unavailable.")).toBeNull();
+
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    play.mockClear();
+    act(() => {
+      replacement.dispatchEvent(Object.assign(new Event("track"), { track: replacement.video }));
+    });
+    expect(play).not.toHaveBeenCalled();
+    await act(async () => {
+      replacement.connect();
+      replacement.video.unmute();
+      await Promise.resolve();
+    });
+    expect(view.video.muted).toBe(true);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Play PC sound" }).disabled).toBe(true);
+    expect(screen.queryByText("Replacement PC audio is unavailable.")).not.toBeNull();
+    expect(recording.reportAudioUnavailable).toHaveBeenCalledOnce();
+  });
+
+  it("continues muted video when the browser refuses to resume sound on the replacement", async () => {
+    const view = await openView();
+    openScreenEvents(view.original)(true, "Original PC audio is ready.");
+    await act(() => Promise.resolve(fireEvent.click(screen.getByRole("button", { name: "Play PC sound" }))));
+    await advance(14 * 60_000);
+    await view.accept();
+    const replacement = Peer.instances.at(-1)!;
+    const mutedDuringPlay: boolean[] = [];
+    vi.mocked(HTMLMediaElement.prototype.play).mockImplementation(function (this: HTMLMediaElement) {
+      mutedDuringPlay.push(this.muted);
+      return this.muted ? Promise.resolve() : Promise.reject(new DOMException("Sound blocked", "NotAllowedError"));
+    });
+
+    await act(async () => {
+      replacement.connect();
+      replacement.video.unmute();
+      await Promise.resolve();
+    });
+    expect(mutedDuringPlay).toEqual([false, true]);
+    expect(view.video.muted).toBe(true);
+    expect(screen.getByText("Tap Sound again to allow PC audio playback.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Show video" })).toBeNull();
+  });
+
+  it("disables Sound after the audio track ends and allows a new track without reloading video", async () => {
+    const view = await openView();
+    openScreenEvents(view.original)(true, "PC audio is ready.");
+    const source = view.video.srcObject;
+    await act(() => Promise.resolve(fireEvent.click(screen.getByRole("button", { name: "Play PC sound" }))));
+    act(() => view.original.audio.end());
+    expect(view.video.muted).toBe(true);
+    expect(view.video.srcObject).toBe(source);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Play PC sound" }).disabled).toBe(true);
+    expect(recording.reportAudioUnavailable).toHaveBeenCalledOnce();
+    const replacement = new Track("audio");
+    act(() => {
+      view.original.dispatchEvent(Object.assign(new Event("track"), { track: replacement }));
+    });
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Play PC sound" }).disabled).toBe(false);
+    expect(view.video.srcObject).toBe(source);
+  });
+
   it("adopts the replacement cursor shape only after the Relay peer can render video", async () => {
     const view = await openView();
     const cursorImage = view.container.querySelector<HTMLImageElement>(".screen-view-cursor")!;

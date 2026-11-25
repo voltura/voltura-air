@@ -7,6 +7,7 @@
 
 #include "SimpleMediaSource.h"
 #include "VirtualCameraMediaSource.h"
+#include <condition_variable>
 
 namespace winrt::WindowsSample::implementation
 {
@@ -53,6 +54,8 @@ namespace winrt::WindowsSample::implementation
         _Requires_lock_held_(m_Lock) HRESULT StopInternal(bool bSendEvent);
 
         winrt::slim_mutex  m_Lock;
+        winrt::slim_mutex m_sampleRequestLock;
+        std::condition_variable_any m_sampleStateChanged;
 
         wil::com_ptr_nothrow<IMFMediaSource> m_parent;
         wil::com_ptr_nothrow<IMFMediaEventQueue> m_spEventQueue;
@@ -70,6 +73,7 @@ namespace winrt::WindowsSample::implementation
         DWORD m_dwStreamId = 0;
         MFSampleAllocatorUsage m_allocatorUsage;
         LONGLONG m_nextSampleTime = 0;
+        uint64_t m_streamGeneration = 0;
     };
 }
 

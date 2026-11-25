@@ -28,6 +28,19 @@ namespace
         return static_cast<uint64_t>(ReadUInt32(value)) |
             (static_cast<uint64_t>(ReadUInt32(value + 4)) << 32);
     }
+
+    struct SampleBufferLock
+    {
+        IMF2DBuffer2* buffer;
+        ~SampleBufferLock() { if (buffer != nullptr) buffer->Unlock2D(); }
+
+        HRESULT Unlock()
+        {
+            IMF2DBuffer2* locked = buffer;
+            buffer = nullptr;
+            return locked->Unlock2D();
+        }
+    };
 }
 
 SimpleFrameGenerator::SimpleFrameGenerator()
@@ -60,14 +73,32 @@ HRESULT SimpleFrameGenerator::Initialize(_In_ IMFMediaType* mediaType)
 HRESULT SimpleFrameGenerator::CreateFrame(
     _Inout_updates_bytes_(length) BYTE* buffer,
     _In_ DWORD length,
-    _In_ LONG pitch,
-    _In_ ULONG rgbMask)
+    _In_ LONG pitch)
 {
-    (void)rgbMask;
     RETURN_HR_IF_NULL(E_INVALIDARG, buffer);
-    RETURN_HR_IF(E_INVALIDARG, pitch < static_cast<LONG>(m_width));
-    if (!CopyLatestFrame(buffer, length, pitch)) FillWaitingFrame(buffer, length, pitch);
+    RETURN_HR_IF(E_INVALIDARG, pitch < static_cast<LONG>(FrameWidth));
+    const uint64_t required = static_cast<uint64_t>(pitch) * (FrameHeight * 3 / 2 - 1) + FrameWidth;
+    RETURN_HR_IF(MF_E_BUFFERTOOSMALL, length < required);
+    if (!CopyLatestFrame(buffer, pitch)) FillWaitingFrame(buffer, pitch);
     return S_OK;
+}
+
+HRESULT SimpleFrameGenerator::WriteSample(_In_ IMF2DBuffer2& buffer)
+{
+    BYTE* scanlineZero = nullptr;
+    BYTE* bufferStart = nullptr;
+    LONG pitch = 0;
+    DWORD bufferLength = 0;
+    RETURN_IF_FAILED(buffer.Lock2DSize(MF2DBuffer_LockFlags_Write,
+        &scanlineZero, &pitch, &bufferStart, &bufferLength));
+    SampleBufferLock lock{ &buffer };
+
+    const auto scanline = reinterpret_cast<uintptr_t>(scanlineZero);
+    const auto start = reinterpret_cast<uintptr_t>(bufferStart);
+    RETURN_HR_IF(E_INVALIDARG, bufferStart == nullptr || scanline < start || scanline - start > bufferLength);
+    const DWORD visibleBufferLength = bufferLength - static_cast<DWORD>(scanline - start);
+    RETURN_IF_FAILED(CreateFrame(scanlineZero, visibleBufferLength, pitch));
+    return lock.Unlock();
 }
 
 void SimpleFrameGenerator::RunPipeReader()
@@ -198,12 +229,10 @@ bool SimpleFrameGenerator::CompleteIo(HANDLE pipe, OVERLAPPED& operation, BOOL c
     return GetOverlappedResult(pipe, &operation, &transferred, FALSE) != FALSE;
 }
 
-bool SimpleFrameGenerator::CopyLatestFrame(BYTE* buffer, DWORD length, LONG pitch)
+bool SimpleFrameGenerator::CopyLatestFrame(BYTE* buffer, LONG pitch)
 {
     std::lock_guard guard(m_frameLock);
     if (m_latestFrame.size() != FrameBytes) return false;
-    const DWORD required = static_cast<DWORD>(pitch) * FrameHeight * 3 / 2;
-    if (length < required) return false;
     if (pitch == static_cast<LONG>(FrameWidth))
     {
         memcpy(buffer, m_latestFrame.data(), FrameBytes);
@@ -218,10 +247,8 @@ bool SimpleFrameGenerator::CopyLatestFrame(BYTE* buffer, DWORD length, LONG pitc
     return true;
 }
 
-void SimpleFrameGenerator::FillWaitingFrame(BYTE* buffer, DWORD length, LONG pitch) const
+void SimpleFrameGenerator::FillWaitingFrame(BYTE* buffer, LONG pitch) const
 {
-    const DWORD required = static_cast<DWORD>(pitch) * FrameHeight * 3 / 2;
-    if (length < required) return;
     for (DWORD row = 0; row < FrameHeight; ++row)
     {
         BYTE* y = buffer + row * pitch;

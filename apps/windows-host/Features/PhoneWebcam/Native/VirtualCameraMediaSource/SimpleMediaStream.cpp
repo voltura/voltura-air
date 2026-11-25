@@ -172,48 +172,42 @@ namespace winrt::WindowsSample::implementation
             _In_ IUnknown* pToken
         )
     {
-        winrt::slim_lock_guard lock(m_Lock);
-        wil::com_ptr_nothrow<IMFSample> sample;
-        wil::com_ptr_nothrow<IMFMediaBuffer> outputBuffer;
-        LONG pitch = 0;
-        BYTE* bufferStart = nullptr; // not used
-        DWORD bufferLength = 0;
-        BYTE* pbuf = nullptr;
-        wil::com_ptr_nothrow<IMF2DBuffer2> buffer2D;
-
-        RETURN_IF_FAILED(_CheckShutdownRequiresLock());
-
-        if (m_streamState != MF_STREAM_STATE_RUNNING)
+        uint64_t generation;
         {
-            RETURN_HR_MSG(MF_E_INVALIDREQUEST, "Stream is not in running state, state:%d, selected: %d", m_streamState, m_bSelected);
+            winrt::slim_lock_guard lock(m_Lock);
+            RETURN_IF_FAILED(_CheckShutdownRequiresLock());
+            RETURN_HR_IF(MF_E_MEDIA_SOURCE_WRONGSTATE, m_streamState != MF_STREAM_STATE_RUNNING);
+            generation = m_streamGeneration;
         }
+
+        winrt::slim_lock_guard requestLock(m_sampleRequestLock);
+        std::unique_lock lock(m_Lock);
+        RETURN_IF_FAILED(_CheckShutdownRequiresLock());
+        RETURN_HR_IF(MF_E_MEDIA_SOURCE_WRONGSTATE, generation != m_streamGeneration);
 
         LONGLONG now = MFGetSystemTime();
-        if (m_nextSampleTime == 0 || m_nextSampleTime < now - FRAME_DURATION_100NS)
+        while (m_nextSampleTime > now)
         {
-            m_nextSampleTime = now;
+            using MediaClockDuration = std::chrono::duration<LONGLONG, std::ratio<1, 10'000'000>>;
+            m_sampleStateChanged.wait_for(lock, MediaClockDuration(m_nextSampleTime - now), [this, generation]()
+            {
+                return m_streamGeneration != generation;
+            });
+            RETURN_IF_FAILED(_CheckShutdownRequiresLock());
+            RETURN_HR_IF(MF_E_MEDIA_SOURCE_WRONGSTATE, generation != m_streamGeneration);
+            now = MFGetSystemTime();
         }
-        if (m_nextSampleTime > now)
-        {
-            const DWORD delayMilliseconds = static_cast<DWORD>((m_nextSampleTime - now + 9999) / 10000);
-            Sleep(delayMilliseconds);
-        }
-        const LONGLONG sampleTime = m_nextSampleTime;
-        m_nextSampleTime += FRAME_DURATION_100NS;
+        const LONGLONG sampleTime = m_nextSampleTime == 0 || m_nextSampleTime < now - FRAME_DURATION_100NS
+            ? now : m_nextSampleTime;
+
+        wil::com_ptr_nothrow<IMFSample> sample;
+        wil::com_ptr_nothrow<IMFMediaBuffer> outputBuffer;
+        wil::com_ptr_nothrow<IMF2DBuffer2> buffer2D;
 
         RETURN_IF_FAILED(m_spSampleAllocator->AllocateSample(&sample));
         RETURN_IF_FAILED(sample->GetBufferByIndex(0, &outputBuffer));
         RETURN_IF_FAILED(outputBuffer->QueryInterface(IID_PPV_ARGS(&buffer2D)));
-        RETURN_IF_FAILED(buffer2D->Lock2DSize(MF2DBuffer_LockFlags_Write,
-            &pbuf,
-            &pitch,
-            &bufferStart,
-            &bufferLength));
-
-
-        RETURN_IF_FAILED(m_spFrameGenerator->CreateFrame(pbuf, bufferLength, pitch, m_rgbMask));
-        //RETURN_IF_FAILED(WriteSampleData(pbuf, bufferLength, pitch, NUM_IMAGE_COLS, NUM_IMAGE_ROWS));
-        RETURN_IF_FAILED(buffer2D->Unlock2D());
+        RETURN_IF_FAILED(m_spFrameGenerator->WriteSample(*buffer2D.get()));
 
         RETURN_IF_FAILED(sample->SetSampleTime(sampleTime));
         RETURN_IF_FAILED(sample->SetSampleDuration(FRAME_DURATION_100NS));
@@ -225,7 +219,7 @@ namespace winrt::WindowsSample::implementation
             GUID_NULL,
             S_OK,
             sample.get()));
-
+        m_nextSampleTime = sampleTime + FRAME_DURATION_100NS;
         return S_OK;
     }
 
@@ -249,6 +243,8 @@ namespace winrt::WindowsSample::implementation
                 return MF_E_INVALID_STATE_TRANSITION;
             }
             m_streamState = MF_STREAM_STATE_PAUSED;
+            ++m_streamGeneration;
+            m_sampleStateChanged.notify_all();
             break;
 
         case MF_STREAM_STATE_RUNNING:
@@ -289,6 +285,7 @@ namespace winrt::WindowsSample::implementation
         // Set stream seleted state to true, and update current mediatype.
         winrt::slim_lock_guard lock(m_Lock);
 
+        RETURN_IF_FAILED(_CheckShutdownRequiresLock());
         RETURN_HR_IF_NULL(E_INVALIDARG, pMediaType);
         if (m_spMediaType == nullptr)
         {
@@ -332,6 +329,11 @@ namespace winrt::WindowsSample::implementation
         m_spStreamDesc.reset();
 
         m_streamState = MF_STREAM_STATE_STOPPED;
+        ++m_streamGeneration;
+        m_sampleStateChanged.notify_all();
+        m_spFrameGenerator.reset();
+        m_spSampleAllocator.reset();
+        m_spMediaType.reset();
 
         return S_OK;
     }
@@ -449,6 +451,8 @@ namespace winrt::WindowsSample::implementation
         // Set stream state
         m_streamState = MF_STREAM_STATE_RUNNING;
         m_nextSampleTime = 0;
+        ++m_streamGeneration;
+        m_sampleStateChanged.notify_all();
 
         return S_OK;
     }
@@ -460,7 +464,9 @@ namespace winrt::WindowsSample::implementation
         m_streamState = MF_STREAM_STATE_STOPPED;
         m_nextSampleTime = 0;
 
-        // NOTE: if implementation has sampleRequestQueue or sampleQueue, it must flush the queue on stopped.
+        ++m_streamGeneration;
+        m_sampleStateChanged.notify_all();
+        m_spFrameGenerator.reset();
         if (bSendEvent)
         {
             // Post MEStreamStopped event to signal stream has stopped

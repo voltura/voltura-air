@@ -234,8 +234,11 @@ The native Frame Server media source reuses one private receive buffer and one
 published buffer, swapping only after a complete validated read. An interrupted
 record cannot replace the last good frame, and closing the pipe returns the
 camera to its waiting frame. The native reader cancels and drains pending I/O on
-shutdown. It contains no network or credential
-logic. The Windows page consumes the
+stream stop or shutdown. The sample clock waits outside the stream state lock,
+and a retired stream generation cannot deliver its pending sample. Each
+sample write validates the NV12 stride and accessible bytes from scanline zero
+and unlocks the buffer even when validation fails. The native reader contains no
+network or credential logic. The Windows page consumes the
 registered virtual camera like any other application and never becomes a second
 media broker. Switching phone cameras replaces the sender track on the active peer;
 it does not replace the peer or command connection. A phone-webcam stop releases

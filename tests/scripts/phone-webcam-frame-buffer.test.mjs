@@ -81,6 +81,7 @@ test(
       });
       assert.match(result, /100 frames: two reusable native buffers/u);
       assert.match(result, /Native pipe cancellation and disconnect cleanup passed/u);
+      assert.match(result, /Media Foundation sample buffers unlocked on success and rejection/u);
       process.stdout.write(result);
     } finally {
       assert.equal(path.dirname(output), outputRoot);

@@ -12,7 +12,7 @@ public:
     SimpleFrameGenerator& operator=(const SimpleFrameGenerator&) = delete;
 
     HRESULT Initialize(_In_ IMFMediaType* mediaType);
-    HRESULT CreateFrame(_Inout_updates_bytes_(length) BYTE* buffer, _In_ DWORD length, _In_ LONG pitch, _In_ ULONG rgbMask);
+    HRESULT WriteSample(_In_ IMF2DBuffer2& buffer);
 
 private:
     void RunPipeReader();
@@ -21,8 +21,9 @@ private:
     bool VerifyServer(HANDLE pipe) const;
     bool ReadExact(HANDLE pipe, BYTE* destination, DWORD length) const;
     bool CompleteIo(HANDLE pipe, OVERLAPPED& operation, BOOL completed, DWORD& transferred) const;
-    void FillWaitingFrame(BYTE* buffer, DWORD length, LONG pitch) const;
-    bool CopyLatestFrame(BYTE* buffer, DWORD length, LONG pitch);
+    HRESULT CreateFrame(_Inout_updates_bytes_(length) BYTE* buffer, _In_ DWORD length, _In_ LONG pitch);
+    void FillWaitingFrame(BYTE* buffer, LONG pitch) const;
+    bool CopyLatestFrame(BYTE* buffer, LONG pitch);
 
     UINT32 m_width = 0;
     UINT32 m_height = 0;

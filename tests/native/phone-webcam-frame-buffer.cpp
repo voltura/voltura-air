@@ -6,6 +6,7 @@
 #include <new>
 #include <stdexcept>
 #include <string>
+#include <wrl/client.h>
 
 static std::atomic<int> frameAllocations = 0;
 void* operator new(std::size_t size)
@@ -136,12 +137,48 @@ static void CheckDisconnectClearsPublishedFrame()
     Check(WriteAll(pipe.write, header.data(), static_cast<DWORD>(header.size())) &&
         WriteAll(pipe.write, frame.data(), FrameBytes), "Frame pipe writer failed");
     const ULONGLONG deadline = GetTickCount64() + 2000;
-    while (!generator.CopyLatestFrame(frame.data(), FrameBytes, FrameWidth) && GetTickCount64() < deadline) Sleep(1);
-    Check(generator.CopyLatestFrame(frame.data(), FrameBytes, FrameWidth), "Connected frame was never published");
+    while (!generator.CopyLatestFrame(frame.data(), FrameWidth) && GetTickCount64() < deadline) Sleep(1);
+    Check(generator.CopyLatestFrame(frame.data(), FrameWidth), "Connected frame was never published");
 
     pipe.CloseWriter();
     generator.m_reader.join();
-    Check(!generator.CopyLatestFrame(frame.data(), FrameBytes, FrameWidth), "Disconnected frame remained visible");
+    Check(!generator.CopyLatestFrame(frame.data(), FrameWidth), "Disconnected frame remained visible");
+}
+
+static void CheckMediaBufferUnlock()
+{
+    struct MediaFoundationScope
+    {
+        MediaFoundationScope() { Check(SUCCEEDED(MFStartup(MF_VERSION, MFSTARTUP_LITE)), "MFStartup failed"); }
+        ~MediaFoundationScope() { MFShutdown(); }
+    } mediaFoundation;
+
+    Microsoft::WRL::ComPtr<IMFMediaBuffer> sampleBuffer;
+    Check(SUCCEEDED(MFCreate2DMediaBuffer(320, 240, MFVideoFormat_NV12.Data1, FALSE, &sampleBuffer)),
+        "Could not allocate a small NV12 test sample");
+    Microsoft::WRL::ComPtr<IMF2DBuffer2> buffer;
+    Check(SUCCEEDED(sampleBuffer.As(&buffer)), "Test sample lacks IMF2DBuffer2");
+    SimpleFrameGenerator generator;
+    Check(generator.WriteSample(*buffer.Get()) == E_INVALIDARG, "Wrong NV12 pitch was accepted");
+
+    BYTE* scanline = nullptr;
+    BYTE* start = nullptr;
+    LONG pitch = 0;
+    DWORD length = 0;
+    Check(SUCCEEDED(buffer->Lock2DSize(MF2DBuffer_LockFlags_Read, &scanline, &pitch, &start, &length)),
+        "The rejected sample remained write-locked");
+    Check(SUCCEEDED(buffer->Unlock2D()), "Follow-up buffer unlock failed");
+
+    sampleBuffer.Reset();
+    Check(SUCCEEDED(MFCreate2DMediaBuffer(FrameWidth, FrameHeight, MFVideoFormat_NV12.Data1, FALSE, &sampleBuffer)),
+        "Could not allocate a Full HD NV12 test sample");
+    Check(SUCCEEDED(sampleBuffer.As(&buffer)), "Full HD sample lacks IMF2DBuffer2");
+    Check(SUCCEEDED(generator.WriteSample(*buffer.Get())), "Full HD NV12 sample was rejected");
+    Check(SUCCEEDED(buffer->Lock2DSize(MF2DBuffer_LockFlags_Read, &scanline, &pitch, &start, &length)),
+        "Successful sample remained write-locked");
+    const bool waitingFrameWritten = scanline[0] == 32;
+    Check(SUCCEEDED(buffer->Unlock2D()), "Full HD buffer unlock failed");
+    Check(waitingFrameWritten, "Waiting frame was not written to the NV12 sample");
 }
 
 int main()
@@ -160,9 +197,10 @@ int main()
             const BYTE value = static_cast<BYTE>(sequence);
             std::fill(payload.begin(), payload.end(), value);
             Check(SendRecord(generator, pipe, Header(sequence), payload, FrameBytes), "Valid frame rejected");
-            Check(generator.CopyLatestFrame(packed.data(), FrameBytes, FrameWidth), "Packed frame unavailable");
+            Check(generator.CreateFrame(packed.data(), FrameBytes, FrameWidth) == S_OK, "Packed frame unavailable");
             Check(packed == payload, "Packed pixels changed");
-            Check(generator.CopyLatestFrame(padded.data(), static_cast<DWORD>(padded.size()), paddedPitch), "Padded frame unavailable");
+            const DWORD bytesWithoutTrailingPadding = static_cast<DWORD>(padded.size()) - (paddedPitch - FrameWidth);
+            Check(generator.CreateFrame(padded.data(), bytesWithoutTrailingPadding, paddedPitch) == S_OK, "Padded frame unavailable");
             for (DWORD row = 0; row < FrameHeight * 3 / 2; ++row)
             {
                 const BYTE* pixels = padded.data() + static_cast<size_t>(row) * paddedPitch;
@@ -171,21 +209,24 @@ int main()
             }
         }
         Check(frameAllocations == 2, "Frame buffers were allocated again during steady streaming");
-        Check(!generator.CopyLatestFrame(packed.data(), FrameBytes - 1, FrameWidth), "Truncated consumer buffer accepted");
+        Check(generator.CreateFrame(packed.data(), FrameBytes - 1, FrameWidth) == MF_E_BUFFERTOOSMALL, "Truncated consumer buffer accepted");
         Check(SendRecord(generator, pipe, Header(101, true), payload, 0), "Clear record rejected");
-        Check(!generator.CopyLatestFrame(packed.data(), FrameBytes, FrameWidth), "Cleared frame remained visible");
+        Check(!generator.CopyLatestFrame(packed.data(), FrameWidth), "Cleared frame remained visible");
+        Check(generator.CreateFrame(packed.data(), FrameBytes - 1, FrameWidth) == MF_E_BUFFERTOOSMALL, "Truncated waiting-frame buffer accepted");
         Check(SendRecord(generator, pipe, Header(101), payload, FrameBytes), "Frame after clear rejected");
         auto invalid = Header(102);
         invalid[24] = 0;
         Check(!SendRecord(generator, pipe, invalid, payload, 0), "Invalid geometry accepted");
         Check(!SendRecord(generator, pipe, Header(102), payload, FrameBytes / 2, true), "Truncated frame accepted");
-        Check(generator.CopyLatestFrame(packed.data(), FrameBytes, FrameWidth), "Interrupted read lost the last good frame");
+        Check(generator.CopyLatestFrame(packed.data(), FrameWidth), "Interrupted read lost the last good frame");
         Check(packed == payload, "Interrupted read changed published pixels");
         Check(frameAllocations == 2, "Recovery allocated additional frame storage");
         CheckPendingReadCancellation();
         CheckDisconnectClearsPublishedFrame();
+        CheckMediaBufferUnlock();
         std::puts("100 frames: two reusable native buffers; packed/strided pixels, clear, malformed geometry and interrupted-read ownership passed.");
         std::puts("Native pipe cancellation and disconnect cleanup passed.");
+        std::puts("Media Foundation sample buffers unlocked on success and rejection.");
         return 0;
     }
     catch (const std::exception& error)

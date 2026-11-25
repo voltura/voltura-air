@@ -3,6 +3,7 @@ using System.IO.Pipes;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 using VolturaAir.Host.Features.PhoneWebcam;
 
 namespace VolturaAir.Host.Tests;
@@ -474,10 +475,17 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
     {
         HostPermissionSet originalPermissions = AppPermissionSettings.Load();
         var releaseOldDispose = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int stopThread = 0;
+        int stopReturned = 0;
+        bool disposedInline = false;
         try
         {
             AppPermissionSettings.Save(originalPermissions with { AllowPhoneWebcam = true });
-            var oldPeer = new FakePhoneWebcamPeer(dispose: async () => await releaseOldDispose.Task);
+            var oldPeer = new FakePhoneWebcamPeer(dispose: async () =>
+            {
+                disposedInline = Environment.CurrentManagedThreadId == stopThread && Volatile.Read(ref stopReturned) == 0;
+                await releaseOldDispose.Task;
+            });
             var newPeer = new FakePhoneWebcamPeer();
             await using var feature = CreateInstalledFeature();
             await using var fixture = await WebHostFixture.StartAsync(
@@ -488,7 +496,10 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
             await PairAsync(control, fixture.Manager, reconnectKey);
             await CompleteSessionAsync(control, reconnectKey, "webcam-old");
 
+            stopThread = Environment.CurrentManagedThreadId;
             oldPeer.Stop();
+            Volatile.Write(ref stopReturned, 1);
+            Assert.Equal("transport-lost", feature.Activity.State);
             await CompleteSessionAsync(control, reconnectKey, "webcam-new");
             string replacementActivity = feature.Activity.State;
             Assert.Equal("connecting", replacementActivity);
@@ -496,6 +507,7 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
 
             JsonElement ended = await ReceiveUntilTypeAsync(control, "phone.webcam.ended");
             Assert.Equal("webcam-old", ended.GetProperty("operationId").GetString());
+            Assert.False(disposedInline);
             Assert.False(newPeer.Disposed);
             Assert.Equal(replacementActivity, feature.Activity.State);
         }
@@ -504,6 +516,66 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
             releaseOldDispose.TrySetResult();
             AppPermissionSettings.Save(originalPermissions);
         }
+    }
+
+    [Fact]
+    public async Task RetiredReceiveCallbacksCannotPublishVideoWhileTheOldPeerCloses()
+    {
+        AppPermissionSettings.Save(AppPermissionSettings.Load() with { AllowPhoneWebcam = true });
+        var releaseOldDispose = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var oldPeer = new FakePhoneWebcamPeer(dispose: async () => await releaseOldDispose.Task);
+        var newPeer = new FakePhoneWebcamPeer();
+        var feature = new InstalledPhoneWebcamFeature();
+        await using var fixture = await WebHostFixture.StartAsync(
+            phoneWebcamFeature: feature,
+            phoneWebcamPeerFactory: new QueuePhoneWebcamPeerFactory(oldPeer, newPeer));
+        using var key = new PairingTestKey();
+        using WebSocket control = await ConnectAsync(fixture.WebHost);
+        try
+        {
+            await PairAsync(control, fixture.Manager, key);
+            await CompleteSessionAsync(control, key, "retiring-video");
+            Action<byte[], uint> receiveLate = oldPeer.CaptureReceiver();
+            byte[] frame = PhoneWebcamFeatureTests.ReadAccessUnit("chromium-bear-320x192-baseline-keyframe.h264.b64");
+            receiveLate(frame, 100);
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            Assert.Equal(100UL, await feature.PublishedVideo.Reader.ReadAsync(deadline.Token));
+
+            oldPeer.Stop();
+            receiveLate(frame, 200);
+            await CompleteSessionAsync(control, key, "replacement-video");
+            newPeer.CaptureReceiver()(frame, 300);
+            Assert.Equal(300UL, await feature.PublishedVideo.Reader.ReadAsync(deadline.Token));
+            releaseOldDispose.TrySetResult();
+            JsonElement ended = await ReceiveUntilTypeAsync(control, "phone.webcam.ended");
+            Assert.Equal("retiring-video", ended.GetProperty("operationId").GetString());
+            Assert.False(feature.PublishedVideo.Reader.TryRead(out _));
+        }
+        finally
+        {
+            releaseOldDispose.TrySetResult();
+        }
+    }
+
+    [Fact]
+    public async Task PeerDisposalFailureStillReportsTheTerminalEventAndAllowsReplacement()
+    {
+        AppPermissionSettings.Save(AppPermissionSettings.Load() with { AllowPhoneWebcam = true });
+        var oldPeer = new FakePhoneWebcamPeer(dispose: () => ValueTask.FromException(new IOException("Injected peer cleanup failure.")));
+        var newPeer = new FakePhoneWebcamPeer();
+        await using var fixture = await WebHostFixture.StartAsync(
+            phoneWebcamFeature: new InstalledPhoneWebcamFeature(),
+            phoneWebcamPeerFactory: new QueuePhoneWebcamPeerFactory(oldPeer, newPeer));
+        using var key = new PairingTestKey();
+        using WebSocket control = await ConnectAsync(fixture.WebHost);
+        await PairAsync(control, fixture.Manager, key);
+        await CompleteSessionAsync(control, key, "broken-peer-cleanup");
+        oldPeer.Stop();
+        JsonElement ended = await ReceiveUntilTypeAsync(control, "phone.webcam.ended");
+        Assert.Equal("broken-peer-cleanup", ended.GetProperty("operationId").GetString());
+        Assert.Equal("transport-lost", ended.GetProperty("reason").GetString());
+        await CompleteSessionAsync(control, key, "after-cleanup-failure");
+        Assert.False(newPeer.Disposed);
     }
 
     [Fact]
@@ -638,13 +710,20 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
 
     private sealed class InstalledPhoneWebcamFeature : IPhoneWebcamFeature
     {
+        internal Channel<ulong> PublishedVideo { get; } = Channel.CreateBounded<ulong>(4);
+        public void Publish(PhoneWebcamFrame frame)
+        {
+            using (frame)
+            {
+                PublishedVideo.Writer.TryWrite(frame.SourceTimestamp90Khz);
+            }
+        }
         public PhoneWebcamFeatureStatus Status { get; } = new(PhoneWebcamFeatureState.Installed, "Installed.");
         public PhoneWebcamActivity Activity { get; } = new("idle");
         public event EventHandler? ActivityChanged { add { } remove { } }
         public event EventHandler? StatusChanged { add { } remove { } }
         public Task<PhoneWebcamFeatureStatus> EnableAsync(CancellationToken cancellationToken = default) => Task.FromResult(Status);
         public Task<PhoneWebcamFeatureStatus> RemoveAsync(CancellationToken cancellationToken = default) => Task.FromResult(Status);
-        public void Publish(PhoneWebcamFrame frame) => frame.Dispose();
     }
 
     private sealed class SuccessfulPhoneWebcamSetup : IPhoneWebcamSetup
@@ -719,7 +798,9 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
     {
         internal const string Offer = "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=rtpmap:96 H264/90000\r\n";
         internal const string Answer = "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=rtpmap:96 H264/90000\r\n";
-        public event Action<byte[], uint>? AccessUnitReceived { add { } remove { } }
+        public event Action<byte[], uint>? AccessUnitReceived;
+        internal Action<byte[], uint> CaptureReceiver() =>
+            AccessUnitReceived ?? throw new InvalidOperationException("The video receiver has not been subscribed.");
         private EventHandler? _stopped;
         public event EventHandler? Stopped
         {

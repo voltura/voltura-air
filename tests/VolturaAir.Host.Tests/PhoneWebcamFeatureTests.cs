@@ -228,8 +228,8 @@ public sealed class PhoneWebcamFeatureTests
     {
         var feature = new RecordingPhoneWebcamFeature();
         var sequence = new PhoneWebcamFrameSequence();
-        await using var first = new PhoneWebcamVideoPipeline(feature, sequence);
-        await using var second = new PhoneWebcamVideoPipeline(feature, sequence);
+        await using var first = new PhoneWebcamVideoPipeline(feature.Publish, sequence);
+        await using var second = new PhoneWebcamVideoPipeline(feature.Publish, sequence);
         using var queue = new PhoneWebcamLatestFrameQueue();
         queue.Publish(new PhoneWebcamFrame(
             first.AllocateFrameSequence(),
@@ -248,7 +248,7 @@ public sealed class PhoneWebcamFeatureTests
     public async Task WebcamPipelineRequestsRecoveryUntilACompleteKeyFrameArrives()
     {
         var feature = new RecordingPhoneWebcamFeature();
-        await using var pipeline = new PhoneWebcamVideoPipeline(feature, new PhoneWebcamFrameSequence());
+        await using var pipeline = new PhoneWebcamVideoPipeline(feature.Publish, new PhoneWebcamFrameSequence());
         var recoveryRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         pipeline.KeyFrameRequested += (_, _) => recoveryRequested.TrySetResult();
         pipeline.Start();
@@ -259,23 +259,23 @@ public sealed class PhoneWebcamFeatureTests
 
         pipeline.Submit(ReadAccessUnit("chromium-bear-320x192-baseline-keyframe.h264.b64"), 20);
         Assert.Equal(1UL, await feature.FramePublished.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+    }
 
-        static byte[] ReadAccessUnit(string name)
+    internal static byte[] ReadAccessUnit(string name)
+    {
+        byte[] fixture = Convert.FromBase64String(
+            File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "PhoneWebcamTestData", name)));
+        // The RTP depacketizer writes four-byte Annex B prefixes for each NAL unit.
+        ReadOnlySpan<byte> shortPrefix = [0, 0, 1];
+        using var accessUnit = new MemoryStream();
+        for (int offset = 0; offset < fixture.Length; offset++)
         {
-            byte[] fixture = Convert.FromBase64String(
-                File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "PhoneWebcamTestData", name)));
-            // The RTP depacketizer writes four-byte Annex B prefixes for each NAL unit.
-            ReadOnlySpan<byte> shortPrefix = [0, 0, 1];
-            using var accessUnit = new MemoryStream();
-            for (int offset = 0; offset < fixture.Length; offset++)
-            {
-                if ((offset == 0 || fixture[offset - 1] != 0) &&
-                    fixture.AsSpan(offset).StartsWith(shortPrefix))
-                    accessUnit.WriteByte(0);
-                accessUnit.WriteByte(fixture[offset]);
-            }
-            return accessUnit.ToArray();
+            if ((offset == 0 || fixture[offset - 1] != 0) &&
+                fixture.AsSpan(offset).StartsWith(shortPrefix))
+                accessUnit.WriteByte(0);
+            accessUnit.WriteByte(fixture[offset]);
         }
+        return accessUnit.ToArray();
     }
 
     [Fact]

@@ -256,7 +256,9 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         ActiveSession createdActive;
         try
         {
-            createdActive = await ActiveSession.CreateAsync(pending, _feature, _frameSequence, _audioTarget).ConfigureAwait(false);
+            long generation = pending.Generation;
+            createdActive = await ActiveSession.CreateAsync(
+                pending, frame => PublishActiveFrame(generation, frame), _frameSequence, _audioTarget).ConfigureAwait(false);
             pending.DetachPeer();
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
@@ -282,7 +284,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
 
         try
         {
-            createdActive.StartPipeline();
+            createdActive.StartAudioPipeline();
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
@@ -313,13 +315,11 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         lock (_gate)
         {
             startupFailure = createdActive.FailureReason;
-            if (!ReferenceEquals(_answering, pending) || pending.StopRequested || _active is not null || startupFailure is not null)
-            {
-            }
-            else
+            if (ReferenceEquals(_answering, pending) && !pending.StopRequested && _active is null && startupFailure is null)
             {
                 _answering = null;
                 _active = createdActive;
+                createdActive.Pipeline.Start();
                 accepted = true;
             }
         }
@@ -343,7 +343,6 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             return startupFailure switch
             {
                 "audio-failed" => new(false, "microphone-unavailable", "The PC could not start the VB-CABLE audio endpoint."),
-                "decoder-failed" => new(false, "decoder-unavailable", "The PC could not start its H.264 Phone webcam decoder."),
                 "transport-lost" => new(false, "invalid-answer", "The Phone webcam transport stopped while starting."),
                 _ => new(false, "offer-expired", "The Phone webcam offer is no longer active.")
             };
@@ -351,7 +350,6 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
 
         pending.CompleteAnswering();
 
-        ReportSessionActivity(active.Generation, clientId, "connecting", pending.CaptureWidth, pending.CaptureHeight);
         _ = MonitorTrackOpenAsync(active);
         return new(true, "accepted", "Phone webcam is connecting to the PC.");
     }
@@ -442,19 +440,34 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             }
         }
 
-        if (pending is not null)
+        long? retiredGeneration = active?.Generation ?? pending?.Generation;
+        try
         {
-            await pending.DisposeAsync().ConfigureAwait(false);
+            if (retiredGeneration is { } generation)
+            {
+                ReportTerminalActivity(generation, clientId, reason);
+            }
         }
-
-        if (active is not null)
+        finally
         {
-            await active.DisposeAsync().ConfigureAwait(false);
+            if (pending is not null)
+            {
+                await pending.DisposeAsync().ConfigureAwait(false);
+            }
+
+            if (active is not null)
+            {
+                await active.DisposeAsync().ConfigureAwait(false);
+            }
         }
 
         if (answering is not null)
         {
             await answering.AnsweringCompleted.ConfigureAwait(false);
+            if (retiredGeneration is null)
+            {
+                ReportTerminalActivity(answering.Generation, clientId, reason);
+            }
         }
 
         PendingSession? endedPending = pending;
@@ -462,10 +475,6 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         PendingSession? endedAnswering = answering;
         if (endedPending is not null || endedAnswering is not null || endedActive is not null)
         {
-            ReportTerminalActivity(
-                endedActive?.Generation ?? endedAnswering?.Generation ?? endedPending!.Generation,
-                clientId,
-                reason);
             Ended?.Invoke(this, new PhoneWebcamActivityChangedEventArgs(
                 clientId,
                 reason,
@@ -488,8 +497,14 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             _active = null;
         }
 
-        await active.DisposeAsync().ConfigureAwait(false);
-        ReportTerminalActivity(active.Generation, active.ClientId, reason);
+        try
+        {
+            ReportTerminalActivity(active.Generation, active.ClientId, reason);
+        }
+        finally
+        {
+            await active.DisposeAsync().ConfigureAwait(false);
+        }
         Ended?.Invoke(this, new PhoneWebcamActivityChangedEventArgs(
             active.ClientId,
             reason,
@@ -597,6 +612,32 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         ScreenViewHostIdentity.Base64Url(SHA256.HashData(Encoding.UTF8.GetBytes(sdp)));
     private static PhoneWebcamStartResult Failure(string code, string message) => new(false, code, message);
 
+    private void PublishActiveFrame(long generation, PhoneWebcamFrame frame)
+    {
+        lock (_gate)
+        {
+            if (_active?.Generation == generation)
+            {
+                _feature.Publish(frame);
+                return;
+            }
+        }
+        frame.Dispose();
+    }
+
+    private static async ValueTask DisposePeerAsync(IPhoneWebcamWebRtcPeer peer)
+    {
+        try
+        {
+            await peer.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            await Console.Error.WriteLineAsync($"Voltura Air Phone webcam peer cleanup failed ({exception.GetType().Name}).")
+                .ConfigureAwait(false);
+        }
+    }
+
     private void ReportSessionActivity(
         long generation,
         string clientId,
@@ -692,7 +733,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             IPhoneWebcamWebRtcPeer? released = Interlocked.Exchange(ref _peer, null);
             if (released is not null)
             {
-                await released.DisposeAsync().ConfigureAwait(false);
+                await DisposePeerAsync(released).ConfigureAwait(false);
             }
         }
     }
@@ -735,7 +776,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
 
         internal static async Task<ActiveSession> CreateAsync(
             PendingSession pending,
-            IPhoneWebcamFeature feature,
+            Action<PhoneWebcamFrame> publish,
             PhoneWebcamFrameSequence frameSequence,
             IPhoneWebcamAudioTarget audioTarget)
         {
@@ -747,7 +788,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
                 {
                     audio = await PhoneWebcamAudioPipeline.CreateAsync(audioTarget).ConfigureAwait(false);
                 }
-                video = new PhoneWebcamVideoPipeline(feature, frameSequence);
+                video = new PhoneWebcamVideoPipeline(publish, frameSequence);
                 return new ActiveSession(pending, video, audio);
             }
             catch
@@ -770,11 +811,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         internal event EventHandler? PipelineFailed;
         internal event EventHandler? AudioPipelineFailed;
 
-        internal void StartPipeline()
-        {
-            Pipeline.Start();
-            _audioPipeline?.Start();
-        }
+        internal void StartAudioPipeline() => _audioPipeline?.Start();
 
         internal void RecordFailure(string reason) =>
             Interlocked.CompareExchange(ref _failureReason, reason, null);
@@ -808,9 +845,11 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             }
             Pipeline.KeyFrameRequested -= OnKeyFrameRequested;
             Pipeline.Failed -= OnPipelineFailed;
-            await _peer.DisposeAsync().ConfigureAwait(false);
-            await Pipeline.DisposeAsync().ConfigureAwait(false);
-            if (_audioPipeline is not null) await _audioPipeline.DisposeAsync().ConfigureAwait(false);
+            Task videoStopped = Pipeline.DisposeAsync().AsTask();
+            Task audioStopped = _audioPipeline?.DisposeAsync().AsTask() ?? Task.CompletedTask;
+            // Native peer deletion can wait for the callback that reported the failure.
+            Task peerStopped = Task.Run(() => DisposePeerAsync(_peer).AsTask());
+            await Task.WhenAll(videoStopped, audioStopped, peerStopped).ConfigureAwait(false);
         }
     }
 }

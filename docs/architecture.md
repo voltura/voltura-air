@@ -235,10 +235,11 @@ it does not replace the peer or command connection. A phone-webcam stop releases
 only feature-owned camera/media resources. Native cleanup runs outside the
 authenticated command receive loop, and neither stop nor camera switching closes or
 marks the paired device connection unavailable.
-The pipe carries capacity-one frame or clear records. A camera handoff therefore
-holds the last valid frame instead of flashing the synthetic waiting image, while a
-terminal session transition sends an explicit clear record after media ownership is
-released.
+The pipe carries capacity-one frame or clear records. Only the current producer can
+publish frames. A camera handoff holds the last valid frame while the phone switches
+cameras. Ending the producer clears the frame slot at the ownership transition and
+stops the audio and video pipelines independently of native peer cleanup. The
+terminal protocol event still identifies the retiring operation.
 
 Files follows the same lazy feature boundary: the initial shell carries only capability/navigation wiring and loads `features/file-manager` on entry. The host resolves every opaque session, location, entry, revision, continuation, and job reference. Effective device Files policy is applied while the host constructs each directory revision, including removal of protected Hidden+System items before any client-visible count or opaque entry reference exists. Journal-owned temporary and backup paths are always removed before counts, signatures, or opaque references are built, independently of the protected-item policy. `FileManagerService` validates source and destination revisions together with queue admission so a changed directory cannot redirect or partially resolve an operation. Its bounded workers own the single mutation queue, upload commit/recovery, panel-location persistence, and atomic local job journal; shutdown cancels and awaits them. Every temporary, backup, or partially committed artifact remains durably owned until cleanup, commit, or rollback is confirmed. Windows clipboard, Shell, location-store, and journal behavior remain replaceable adapters so destructive transitions can be fault-injected independently.
 

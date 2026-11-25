@@ -6,7 +6,7 @@ namespace VolturaAir.Host.Features.PhoneWebcam;
 
 internal sealed record PhoneWebcamVideoQuality(int Width, int Height);
 
-[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "IPhoneWebcamFeature.Publish takes ownership of every PhoneWebcamFrame and either queues or disposes it.")]
+[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The publication callback takes ownership of every PhoneWebcamFrame and either queues or disposes it.")]
 internal sealed class PhoneWebcamVideoPipeline : IAsyncDisposable
 {
     private readonly Channel<EncodedAccessUnit> _accessUnits = Channel.CreateBounded<EncodedAccessUnit>(
@@ -16,7 +16,7 @@ internal sealed class PhoneWebcamVideoPipeline : IAsyncDisposable
             SingleReader = true,
             SingleWriter = false
         });
-    private readonly IPhoneWebcamFeature _feature;
+    private readonly Action<PhoneWebcamFrame> _publish;
     private readonly PhoneWebcamFrameSequence _frameSequence;
     private readonly CancellationTokenSource _shutdown = new();
     private Task _worker = Task.CompletedTask;
@@ -29,9 +29,9 @@ internal sealed class PhoneWebcamVideoPipeline : IAsyncDisposable
     private int _disposeState;
     private int _started;
 
-    internal PhoneWebcamVideoPipeline(IPhoneWebcamFeature feature, PhoneWebcamFrameSequence frameSequence)
+    internal PhoneWebcamVideoPipeline(Action<PhoneWebcamFrame> publish, PhoneWebcamFrameSequence frameSequence)
     {
-        _feature = feature;
+        _publish = publish;
         _frameSequence = frameSequence;
     }
 
@@ -55,7 +55,9 @@ internal sealed class PhoneWebcamVideoPipeline : IAsyncDisposable
     internal void Submit(byte[] accessUnit, uint rtpTimestamp)
     {
         ArgumentNullException.ThrowIfNull(accessUnit);
-        if (!_accessUnits.Writer.TryWrite(new EncodedAccessUnit(accessUnit, rtpTimestamp)))
+        if (Volatile.Read(ref _disposeState) != 0) return;
+        if (!_accessUnits.Writer.TryWrite(new EncodedAccessUnit(accessUnit, rtpTimestamp)) &&
+            Volatile.Read(ref _disposeState) == 0)
         {
             Interlocked.Exchange(ref _recoveryRequested, 1);
             KeyFrameRequested?.Invoke(this, EventArgs.Empty);
@@ -97,6 +99,7 @@ internal sealed class PhoneWebcamVideoPipeline : IAsyncDisposable
 
                 while (_accessUnits.Reader.TryRead(out EncodedAccessUnit? accessUnit))
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     UpdateParameterSets(accessUnit.Bytes);
                     byte[] decoderInput = accessUnit.Bytes;
                     if (_waitingForKeyFrame)
@@ -123,17 +126,22 @@ internal sealed class PhoneWebcamVideoPipeline : IAsyncDisposable
                         _waitingForKeyFrame = false;
                         if (frame is not null)
                         {
+                            if (cancellationToken.IsCancellationRequested)
+                            {
+                                MediaFoundationH264Decoder.ReturnFrame(frame);
+                                return;
+                            }
                             var visible = decoder.VisibleSize;
+                            _publish(new PhoneWebcamFrame(
+                                AllocateFrameSequence(),
+                                accessUnit.RtpTimestamp,
+                                new PooledFrameOwner(frame, MediaFoundationH264Decoder.FrameBytes)));
                             if (visible.Width != _lastWidth || visible.Height != _lastHeight)
                             {
                                 _lastWidth = visible.Width;
                                 _lastHeight = visible.Height;
                                 QualityChanged?.Invoke(new PhoneWebcamVideoQuality(visible.Width, visible.Height));
                             }
-                            _feature.Publish(new PhoneWebcamFrame(
-                                AllocateFrameSequence(),
-                                accessUnit.RtpTimestamp,
-                                new PooledFrameOwner(frame, MediaFoundationH264Decoder.FrameBytes)));
                         }
                     }
                     catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or SharpGen.Runtime.SharpGenException)

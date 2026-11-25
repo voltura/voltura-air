@@ -1586,6 +1586,132 @@ describe("PhoneWebcamWorkspace", () => {
     expect(newerTrack.stop).not.toHaveBeenCalled();
   });
 
+  it.each([false, true])(
+    "restores the committed sender before the newest switch settles (new camera opens: %s)",
+    async (opensNewest) => {
+      const first = createTrack("front", 1920, 1080);
+      const superseded = createTrack("back", 1920, 1080);
+      const newest = createTrack("front-new", 1920, 1080);
+      const attaching = createDeferred<void>();
+      const restoring = createDeferred<void>();
+      const sender = new FakeSender();
+      sender.replaceTrack.mockResolvedValueOnce(undefined)
+        .mockReturnValueOnce(attaching.promise)
+        .mockReturnValueOnce(restoring.promise);
+      const getUserMedia = vi.fn()
+        .mockResolvedValueOnce(createStream(createTrack("permission", 640, 480)))
+        .mockResolvedValueOnce(createStream(first))
+        .mockResolvedValueOnce(createStream(superseded));
+      if (opensNewest) {
+        getUserMedia.mockResolvedValueOnce(createStream(newest));
+      } else {
+        getUserMedia.mockRejectedValueOnce(new DOMException("Camera denied", "NotAllowedError"));
+      }
+      const { send } = await establishStreamingSession(getUserMedia, sender);
+      fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "back" } });
+      await waitFor(() => expect(sender.replaceTrack).toHaveBeenLastCalledWith(superseded));
+      await act(() => {
+        fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "front" } });
+        return Promise.resolve();
+      });
+      expect(sender.replaceTrack).toHaveBeenCalledTimes(2);
+      expect(superseded.stop).not.toHaveBeenCalled();
+      await act(() => {
+        attaching.resolve();
+        return attaching.promise;
+      });
+      await waitFor(() => expect(sender.replaceTrack).toHaveBeenLastCalledWith(first));
+      expect(sender.replaceTrack).toHaveBeenCalledTimes(3);
+      await act(() => {
+        restoring.resolve();
+        return restoring.promise;
+      });
+      await waitFor(() => expect(superseded.stop).toHaveBeenCalledOnce());
+      if (opensNewest) {
+        await waitFor(() => expect(sender.replaceTrack).toHaveBeenLastCalledWith(newest));
+        expect(first.stop).toHaveBeenCalledOnce();
+      } else {
+        expect(sender.replaceTrack).toHaveBeenCalledTimes(3);
+        expect(first.stop).not.toHaveBeenCalled();
+      }
+      expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: "phone.webcam.stop" }));
+    },
+  );
+
+  it("ends microphone capture if a newer camera request fails after exclusive detach begins", async () => {
+    const mic = createAudioTrack();
+    const active = createTrack("front", 1920, 1080);
+    const detach = createDeferred<void>();
+    const sender = new FakeSender();
+    sender.replaceTrack.mockResolvedValueOnce(undefined).mockReturnValueOnce(detach.promise);
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(createTrack("permission", 640, 480)))
+      .mockResolvedValueOnce(createAudioStream(createAudioTrack()))
+      .mockResolvedValueOnce(createAvStream(active, mic))
+      .mockRejectedValueOnce(new DOMException("Camera busy", "NotReadableError"))
+      .mockRejectedValueOnce(new DOMException("Camera denied", "NotAllowedError"));
+    const { send } = await establishStreamingSession(getUserMedia, sender, undefined, true);
+    fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "back" } });
+    await waitFor(() => expect(sender.replaceTrack).toHaveBeenLastCalledWith(null));
+    fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "front" } });
+    await screen.findByText("The selected camera could not be opened after releasing the previous camera.");
+    expect(mic.stop).toHaveBeenCalledOnce();
+    expect(active.stop).toHaveBeenCalledOnce();
+    await act(() => {
+      detach.resolve();
+      return detach.promise;
+    });
+    expect(getUserMedia).toHaveBeenCalledTimes(5);
+    expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.stop")).toHaveLength(1);
+  });
+
+  it("lets a newer switch finish when a previously replaced camera ends", async () => {
+    const first = createTrack("front", 1920, 1080);
+    const second = createTrack("back", 1920, 1080);
+    const third = createTrack("front-new", 1920, 1080);
+    const opening = createDeferred<MediaStream>();
+    const sender = new FakeSender();
+    const { send } = await establishStreamingSession(
+      vi.fn()
+        .mockResolvedValueOnce(createStream(createTrack("permission", 640, 480)))
+        .mockResolvedValueOnce(createStream(first))
+        .mockResolvedValueOnce(createStream(second))
+        .mockReturnValueOnce(opening.promise),
+      sender,
+    );
+    fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "back" } });
+    await waitFor(() => expect(first.stop).toHaveBeenCalledOnce());
+    fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "front" } });
+    act(() => {
+      second.end();
+    });
+    expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: "phone.webcam.stop" }));
+    await act(() => {
+      opening.resolve(createStream(third));
+      return opening.promise;
+    });
+    await waitFor(() => expect(sender.replaceTrack).toHaveBeenLastCalledWith(third));
+    await screen.findByText("Streaming through Enhanced Direct");
+    expect(third.stop).not.toHaveBeenCalled();
+  });
+
+  it("does not display the previous camera's quality for a new camera without settings", async () => {
+    const first = createTrack("front", 1920, 1080);
+    const next = createTrack("back", 1280, 720);
+    Object.defineProperty(next, "getSettings", { value: () => ({ deviceId: "back" }) });
+    await establishStreamingSession(
+      vi.fn()
+        .mockResolvedValueOnce(createStream(createTrack("permission", 640, 480)))
+        .mockResolvedValueOnce(createStream(first))
+        .mockResolvedValueOnce(createStream(next)),
+      new FakeSender(),
+    );
+    expect(screen.getByRole("status").textContent).toContain("1920×1080");
+    fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "back" } });
+    await waitFor(() => expect(first.stop).toHaveBeenCalledOnce());
+    expect(screen.getByRole("status").textContent).not.toContain("1920×1080");
+  });
+
   it("keeps the active camera selected when its replacement is rejected", async () => {
     const permissionTrack = createTrack("permission", 640, 480);
     const firstTrack = createTrack("front", 1920, 1080);

@@ -39,8 +39,8 @@ interface PendingStart {
   useMicrophone: boolean;
 }
 interface PendingReplacement {
-  generation: number;
   stream: MediaStream;
+  updatingSender: boolean;
   stop: () => void;
 }
 interface SendQuality {
@@ -120,7 +120,8 @@ export default function PhoneWebcamWorkspace({
   const replacementGenerationRef = useRef(0);
   const acquiringReplacementGenerationRef = useRef<number | null>(null);
   const replacementCaptureRef = useRef<AbortController | null>(null);
-  const activeStreamEndedRef = useRef(false);
+  const activeVideoLossRef = useRef<"ended" | "released" | null>(null);
+  const senderUpdateTailRef = useRef<Promise<void>>(Promise.resolve());
   const acquiringGenerationRef = useRef<number | null>(null);
   const initialCaptureRef = useRef<AbortController | null>(null);
   const operationIdRef = useRef<string | null>(null);
@@ -174,7 +175,9 @@ export default function PhoneWebcamWorkspace({
       initialCaptureRef.current = null;
       replacementCaptureRef.current?.abort();
       replacementCaptureRef.current = null;
-      activeStreamEndedRef.current = false;
+      const videoWasReleased = activeVideoLossRef.current === "released";
+      activeVideoLossRef.current = null;
+      senderUpdateTailRef.current = Promise.resolve();
       const operationId = operationIdRef.current;
       operationIdRef.current = null;
       pendingRef.current = null;
@@ -187,7 +190,8 @@ export default function PhoneWebcamWorkspace({
       retiredPeer?.close();
       const stream = streamRef.current;
       streamRef.current = null;
-      for (const track of stream?.getTracks() ?? []) {
+      const ownedTracks = videoWasReleased ? stream?.getAudioTracks() : stream?.getTracks();
+      for (const track of ownedTracks ?? []) {
         track.stop();
       }
       const replacement = replacementRef.current;
@@ -210,6 +214,18 @@ export default function PhoneWebcamWorkspace({
   useEffect(() => {
     releaseRef.current = releaseLocal;
   }, [releaseLocal]);
+
+  const handleActiveVideoEnded = useCallback((stream: MediaStream, generation: number) => {
+    if (generationRef.current !== generation || streamRef.current !== stream) {
+      return;
+    }
+    if (acquiringReplacementGenerationRef.current !== null) {
+      activeVideoLossRef.current ??= "ended";
+      return;
+    }
+    resumeRef.current = false;
+    releaseRef.current(true, "The selected camera stopped.");
+  }, []);
 
   const loadCameras = useCallback(async () => {
     if (permissionLoadingRef.current) {
@@ -441,17 +457,7 @@ export default function PhoneWebcamWorkspace({
       setMicrophoneMuted(false);
       opened.stream.getVideoTracks()[0]?.addEventListener(
         "ended",
-        () => {
-          if (generationRef.current !== generation || streamRef.current !== opened.stream) {
-            return;
-          }
-          if (acquiringReplacementGenerationRef.current !== null) {
-            activeStreamEndedRef.current = true;
-            return;
-          }
-          resumeRef.current = false;
-          releaseRef.current(true, "The selected camera stopped.");
-        },
+        () => handleActiveVideoEnded(opened.stream, generation),
         { once: true },
       );
       const audioTrack = opened.stream.getAudioTracks()[0];
@@ -540,6 +546,7 @@ export default function PhoneWebcamWorkspace({
     activePc.id,
     capability.canUse,
     clientId,
+    handleActiveVideoEnded,
     microphonePermissionGranted,
     openSelectedCamera,
     phase,
@@ -964,18 +971,23 @@ export default function PhoneWebcamWorkspace({
       const capture = new AbortController();
       replacementCaptureRef.current = capture;
       const captureDeadline = scheduleCameraDeadline(capture);
-      let releasedActiveVideo = false;
       const previousReplacement = replacementRef.current;
       replacementRef.current = null;
-      previousReplacement?.stop();
+      if (previousReplacement && !previousReplacement.updatingSender) {
+        previousReplacement.stop();
+      }
+      const hasCurrentSender = () =>
+        generationRef.current === generation && senderRef.current === sender;
       const ownsReplacement = () =>
-        replacementGenerationRef.current === replacementGeneration &&
-        generationRef.current === generation &&
-        senderRef.current === sender;
+        replacementGenerationRef.current === replacementGeneration && hasCurrentSender();
+      const serializeSenderUpdate = (update: () => Promise<void>) => {
+        const completion = senderUpdateTailRef.current.then(update);
+        senderUpdateTailRef.current = completion.catch(() => undefined);
+        return completion;
+      };
       const updateSender = async (track: MediaStreamTrack | null) => {
         const deadline = window.setTimeout(() => {
-          // An outstanding mutation can still affect the same sender after a newer selection.
-          if (generationRef.current === generation && senderRef.current === sender) {
+          if (hasCurrentSender()) {
             releaseRef.current(true, "The camera switch timed out. Tap Start to try again.");
           }
         }, senderUpdateTimeoutMs);
@@ -987,6 +999,7 @@ export default function PhoneWebcamWorkspace({
       };
       let replacement: MediaStream | null = null;
       let ownedReplacement: PendingReplacement | null = null;
+      let committed = false;
       try {
         const constraints: MediaStreamConstraints = {
           audio: false,
@@ -1015,17 +1028,24 @@ export default function PhoneWebcamWorkspace({
               error instanceof DOMException &&
               (error.name === "NotReadableError" || error.name === "AbortError");
             if (requiresExclusiveCapture) {
-              const activeStream = streamRef.current;
-              releasedActiveVideo = true;
-              if (!activeStream?.getAudioTracks()[0]) {
-                streamRef.current = null;
-              }
-              if (videoRef.current) {
-                videoRef.current.srcObject = null;
-              }
-              activeStream?.getVideoTracks().forEach((track) => track.stop());
-              activeStreamEndedRef.current = false;
-              await updateSender(null);
+              await serializeSenderUpdate(async () => {
+                if (!ownsReplacement() || capture.signal.aborted) {
+                  return;
+                }
+                const activeStream = streamRef.current;
+                const previousVideoWasReleased = activeVideoLossRef.current === "released";
+                activeVideoLossRef.current = "released";
+                if (!activeStream?.getAudioTracks()[0]) {
+                  streamRef.current = null;
+                }
+                if (videoRef.current) {
+                  videoRef.current.srcObject = null;
+                }
+                if (!previousVideoWasReleased) {
+                  activeStream?.getVideoTracks().forEach((track) => track.stop());
+                }
+                await updateSender(null);
+              });
               if (!ownsReplacement()) {
                 return;
               }
@@ -1044,38 +1064,27 @@ export default function PhoneWebcamWorkspace({
           throw new Error("Camera replacement did not open a video stream.");
         }
         window.clearTimeout(captureDeadline);
-        if (
-          replacementGenerationRef.current !== replacementGeneration ||
-          generationRef.current !== generation ||
-          senderRef.current !== sender
-        ) {
-          if (acquiringReplacementGenerationRef.current === replacementGeneration) {
-            acquiringReplacementGenerationRef.current = null;
-          }
-          replacement.getTracks().forEach((track) => track.stop());
+        if (!ownsReplacement()) {
           return;
         }
+        const stream = replacement;
         let stopped = false;
-        ownedReplacement = {
-          generation: replacementGeneration,
-          stream: replacement,
+        const candidate: PendingReplacement = {
+          stream,
+          updatingSender: false,
           stop: () => {
             if (stopped) {
               return;
             }
             stopped = true;
-            replacement?.getTracks().forEach((track) => track.stop());
+            stream.getTracks().forEach((track) => track.stop());
           },
         };
-        replacementRef.current = ownedReplacement;
-        const nextTrack = replacement.getVideoTracks()[0];
+        ownedReplacement = candidate;
+        replacementRef.current = candidate;
+        const nextTrack = stream.getVideoTracks()[0];
         if (!nextTrack || isEndedTrack(nextTrack)) {
-          if (acquiringReplacementGenerationRef.current === replacementGeneration) {
-            acquiringReplacementGenerationRef.current = null;
-          }
-          replacementRef.current = null;
-          ownedReplacement.stop();
-          if (releasedActiveVideo || activeStreamEndedRef.current) {
+          if (activeVideoLossRef.current !== null) {
             releaseLocal(true, "The active camera stopped while switching cameras.");
           } else {
             setSelectedCameraId(previousCameraId);
@@ -1087,125 +1096,112 @@ export default function PhoneWebcamWorkspace({
         const settings = nextTrack.getSettings();
         nextTrack.addEventListener(
           "ended",
-          () => {
-            if (generationRef.current === generation && streamRef.current === replacement) {
-              resumeRef.current = false;
-              releaseRef.current(true, "The selected camera stopped.");
-            }
-          },
+          () => handleActiveVideoEnded(stream, generation),
           { once: true },
         );
-        await updateSender(nextTrack);
-        if (isEndedTrack(nextTrack)) {
-          if (ownsReplacement()) {
+        await serializeSenderUpdate(async () => {
+          if (!ownsReplacement()) {
+            return;
+          }
+          if (isEndedTrack(nextTrack)) {
+            throw new Error("The replacement camera stopped.");
+          }
+          candidate.updatingSender = true;
+          await updateSender(nextTrack);
+          if (!hasCurrentSender()) {
+            return;
+          }
+          const ended = isEndedTrack(nextTrack);
+          if (!ownsReplacement() || ended) {
             try {
-              await updateSender(streamRef.current?.getVideoTracks()[0] ?? null);
+              const currentTrack = activeVideoLossRef.current === null
+                ? streamRef.current?.getVideoTracks()[0] ?? null
+                : null;
+              await updateSender(currentTrack);
             } catch {
-              if (ownsReplacement()) {
+              if (hasCurrentSender()) {
                 releaseLocal(true, "The camera connection could not be restored.");
               }
             }
+            if (ended) {
+              throw new Error("The replacement camera stopped.");
+            }
+            return;
           }
-          throw new Error("The replacement camera stopped.");
-        }
-        if (
-          replacementGenerationRef.current !== replacementGeneration ||
-          generationRef.current !== generation ||
-          senderRef.current !== sender ||
-          replacementRef.current?.stream !== replacement
-        ) {
-          if (replacementRef.current?.stream === replacement) {
-            replacementRef.current = null;
+          const previous = streamRef.current;
+          const activeAudioTrack = previous?.getAudioTracks()[0];
+          if (activeAudioTrack) {
+            stream.addTrack(activeAudioTrack);
           }
-          ownedReplacement.stop();
+          const previousVideoWasReleased = activeVideoLossRef.current === "released";
+          streamRef.current = stream;
+          committed = true;
+          statsGenerationRef.current += 1;
+          lastStatsRef.current = null;
+          stalledStatsSamplesRef.current = 0;
+          activeVideoLossRef.current = null;
+          setSelectedCameraId(deviceId);
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            void videoRef.current.play().catch(() => undefined);
+          }
+          if (!previousVideoWasReleased) {
+            previous?.getVideoTracks().forEach((track) => track.stop());
+          }
+          setQuality({
+            ...(settings.width === undefined ? {} : { width: settings.width }),
+            ...(settings.height === undefined ? {} : { height: settings.height }),
+            ...(settings.frameRate === undefined ? {} : { fps: settings.frameRate }),
+          });
+          setStatus(
+            activePc.transportMode === "relay"
+              ? "Streaming through Relay"
+              : "Streaming through Enhanced Direct",
+          );
+        });
+      } catch (error) {
+        if (!ownsReplacement()) {
           return;
         }
-        const previous = streamRef.current;
-        const activeAudioTrack = previous?.getAudioTracks()[0];
-        if (activeAudioTrack) {
-          replacement.addTrack(activeAudioTrack);
-        }
-        streamRef.current = replacement;
-        statsGenerationRef.current += 1;
-        lastStatsRef.current = null;
-        stalledStatsSamplesRef.current = 0;
-        replacementRef.current = null;
-        if (acquiringReplacementGenerationRef.current === replacementGeneration) {
-          acquiringReplacementGenerationRef.current = null;
-        }
-        activeStreamEndedRef.current = false;
-        setSelectedCameraId(deviceId);
-        if (videoRef.current) {
-          videoRef.current.srcObject = replacement;
-          void videoRef.current.play().catch(() => undefined);
-        }
-        previous?.getVideoTracks().forEach((track) => track.stop());
-        setQuality((current) => ({
-          ...current,
-          bitrateMbps: undefined,
-          ...(settings.width === undefined ? {} : { width: settings.width }),
-          ...(settings.height === undefined ? {} : { height: settings.height }),
-          ...(settings.frameRate === undefined ? {} : { fps: settings.frameRate }),
-        }));
-        setStatus(
-          activePc.transportMode === "relay"
-            ? "Streaming through Relay"
-            : "Streaming through Enhanced Direct",
-        );
-      } catch (error) {
-        if (acquiringReplacementGenerationRef.current === replacementGeneration) {
-          acquiringReplacementGenerationRef.current = null;
-        }
-        if (replacementRef.current?.stream === replacement) {
-          replacementRef.current = null;
-        }
-        if (ownedReplacement) {
-          ownedReplacement.stop();
-        } else {
-          replacement?.getTracks().forEach((track) => track.stop());
-        }
-        if (
-          activeStreamEndedRef.current &&
-          replacementGenerationRef.current === replacementGeneration &&
-          generationRef.current === generation &&
-          senderRef.current === sender
-        ) {
+        if (activeVideoLossRef.current === "ended") {
           setSelectedCameraId(deviceId);
           releaseLocal(true, "The active camera stopped while switching cameras.");
           return;
         }
-        if (
-          (releasedActiveVideo || !streamRef.current) &&
-          replacementGenerationRef.current === replacementGeneration &&
-          generationRef.current === generation &&
-          senderRef.current === sender
-        ) {
+        if (activeVideoLossRef.current === "released" || !streamRef.current) {
           releaseLocal(
             true,
             "The selected camera could not be opened after releasing the previous camera.",
           );
           return;
         }
-        if (
-          replacementGenerationRef.current === replacementGeneration &&
-          generationRef.current === generation &&
-          senderRef.current === sender
-        ) {
-          setSelectedCameraId(previousCameraId);
-          setStatus(
-            error instanceof DOMException && error.name === "TimeoutError"
-              ? "The selected camera did not open in time."
-              : "The selected camera could not replace the active camera.",
-          );
-        }
+        setSelectedCameraId(previousCameraId);
+        setStatus(
+          error instanceof DOMException && error.name === "TimeoutError"
+            ? "The selected camera did not open in time."
+            : "The selected camera could not replace the active camera.",
+        );
       } finally {
+        if (acquiringReplacementGenerationRef.current === replacementGeneration) {
+          acquiringReplacementGenerationRef.current = null;
+        }
+        if (replacementRef.current === ownedReplacement) {
+          replacementRef.current = null;
+        }
+        if (!committed) {
+          if (ownedReplacement) {
+            ownedReplacement.stop();
+          } else {
+            replacement?.getTracks().forEach((track) => track.stop());
+          }
+        }
         window.clearTimeout(captureDeadline);
         if (replacementCaptureRef.current === capture) {
           replacementCaptureRef.current = null;
         }
       }
     },
-    [activePc.transportMode, phase, releaseLocal, selectedCameraId],
+    [activePc.transportMode, handleActiveVideoEnded, phase, releaseLocal, selectedCameraId],
   );
 
   useEffect(() => {

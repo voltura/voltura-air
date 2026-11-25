@@ -930,9 +930,13 @@ phone tracks, Opus decoder, audio queue, and WASAPI output. Mute changes the bro
 recovery are browser-local `replaceTrack` operations on the same healthy peer and
 add no protocol message. A manual camera switch takes precedence over an automatic
 refresh. Initial and replacement camera opens have a 10-second deadline. The
-browser stops tracks returned after cancellation or expiry. A sender mutation
-that exceeds five seconds ends the webcam session so a late mutation cannot
-affect the next peer. After four seconds without a stats response, the browser
+browser stops tracks returned after cancellation or expiry. Sender updates and
+rollback run in order. If a superseded switch already reached the sender, the
+browser restores the committed camera before the next sender update. An
+exclusive camera release leaves video unavailable until a camera opens. A
+sender mutation that exceeds five seconds ends the webcam session so a late
+mutation cannot affect the next peer. A committed camera switch clears
+measurements from the previous camera. After four seconds without a stats response, the browser
 clears the displayed bitrate and frame rate, resets stall detection, and
 discards the late sample. It waits for that request to settle before polling
 the same peer again. Page hiding is an immediate stop; one fresh

@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -7,6 +8,72 @@ namespace VolturaAir.Host.Tests;
 [Collection(AppPermissionSettingsCollection.Name)]
 public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
 {
+    [Fact]
+    public void CursorBackpressureRetainsTheShapeAndCoalescesNewPositions()
+    {
+        using var peer = new AdaptivePeer();
+        peer.CursorSendResults.Enqueue(false);
+        var delivery = new ScreenViewCursorDelivery();
+        var cursor = new ScreenViewCursorUpdate(true, 1, 2, 0, 0, 4, 4, [1, 2, 3]);
+
+        delivery.Publish(peer, "first", cursor);
+        delivery.Publish(peer, "first", cursor with { X = 16, PngBytes = null });
+        delivery.Publish(peer, "first", cursor with { X = 21, PngBytes = null });
+
+        Assert.Equal(3, peer.CursorRecords.Count);
+        Assert.Equal(16, BinaryPrimitives.ReadInt32BigEndian(peer.CursorRecords[1].AsSpan(10)));
+        Assert.Equal([1, 2, 3], peer.CursorRecords[1][39..]);
+        Assert.Equal(39, peer.CursorRecords[2].Length);
+    }
+
+    [Fact]
+    public void CursorDeliveryRetriesTheSameRecordWithoutANewCaptureUpdate()
+    {
+        using var peer = new AdaptivePeer();
+        peer.CursorSendResults.Enqueue(false);
+        var delivery = new ScreenViewCursorDelivery();
+
+        delivery.Publish(peer, "first", new ScreenViewCursorUpdate(true, 1, 2, 0, 0, 4, 4, [1, 2, 3]));
+        delivery.Publish(peer, "first", null);
+        delivery.Publish(peer, "first", null);
+
+        Assert.Equal(2, peer.CursorRecords.Count);
+        Assert.Same(peer.CursorRecords[0], peer.CursorRecords[1]);
+    }
+
+    [Fact]
+    public void CursorDeliverySeedsTheReplacementPeerForTheSameDisplayOnly()
+    {
+        using var previous = new AdaptivePeer();
+        using var replacement = new AdaptivePeer();
+        using var afterSwitch = new AdaptivePeer();
+        var delivery = new ScreenViewCursorDelivery();
+        var cursor = new ScreenViewCursorUpdate(true, 1, 2, 0, 0, 4, 4, [1, 2, 3]);
+
+        delivery.Publish(previous, "first", cursor);
+        delivery.Publish(replacement, "first", cursor with { X = 16, PngBytes = null });
+        delivery.Publish(afterSwitch, "second", null);
+        delivery.Publish(afterSwitch, "second", cursor with { PngBytes = null });
+
+        byte[] replacementRecord = Assert.Single(replacement.CursorRecords);
+        Assert.Equal([1, 2, 3], replacementRecord[39..]);
+        Assert.Equal(16, BinaryPrimitives.ReadInt32BigEndian(replacementRecord.AsSpan(10)));
+        Assert.Equal(39, Assert.Single(afterSwitch.CursorRecords).Length);
+    }
+
+    [Fact]
+    public void CursorDeliveryKeepsOversizedShapesOutOfTheRetryQueue()
+    {
+        using var peer = new AdaptivePeer();
+        var delivery = new ScreenViewCursorDelivery();
+        var oversized = new byte[ScreenViewRecordEncoder.MaximumCursorShapeBytes + 1];
+
+        delivery.Publish(peer, "first", new ScreenViewCursorUpdate(true, 1, 2, 0, 0, 4, 4, oversized));
+        delivery.Publish(peer, "first", null);
+
+        Assert.Equal(39, Assert.Single(peer.CursorRecords).Length);
+    }
+
     [Fact]
     public async Task OfferPreparationDoesNotConsumeTheClientsAnswerWindow()
     {
@@ -530,6 +597,8 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         public TaskCompletionSource AcceptedFrame { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource AudioUnavailable { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Disposed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Queue<bool> CursorSendResults { get; } = new();
+        public List<byte[]> CursorRecords { get; } = [];
         public async Task<string> CreateOfferAsync(CancellationToken cancellationToken)
         {
             await Task.Delay(OfferDelay, cancellationToken);
@@ -546,6 +615,11 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         public bool TrySendEvent(byte[] eventBytes)
         {
             if (eventBytes is [7, 0, ..]) AudioUnavailable.TrySetResult();
+            if (eventBytes is [4, ..])
+            {
+                CursorRecords.Add(eventBytes);
+                return CursorSendResults.Count == 0 || CursorSendResults.Dequeue();
+            }
             return true;
         }
         public void RaiseAudioStopped() => AudioStopped?.Invoke(this, EventArgs.Empty);

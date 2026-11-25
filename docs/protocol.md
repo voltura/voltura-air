@@ -799,6 +799,10 @@ rejected. Consequently the PC's external relay-screen traffic is TCP 443; UDP is
 confined to loopback. DTLS-SRTP remains the media security boundary above TURN.
 The selected display is sent as H.264 RTP on a send-only video track, with
 DTLS-SRTP providing media confidentiality, integrity, and replay protection.
+The video sender advances its RTP clock from the most recent accepted send.
+Screen audio keeps the latest captured PCM blocks under queue pressure. A capture
+discontinuity or a gap in queued blocks discards unfinished audio before the next
+Opus frame. A block with an unreliable timestamp uses the running sample clock.
 Cursor, terminal status, and audio availability use the ordered reliable `screen-events`
 WebRTC data channel, protected by DTLS. Capture starts only after the peer,
 video track, and event channel are connected. The data channel record types are:
@@ -810,6 +814,12 @@ video track, and event channel are connected. The data channel record types are:
 - `7`: a one-byte audio availability flag (`0` or `1`), a one-byte code length
   (1 through 64), a two-byte big-endian message length (1 through 512), then
   the UTF-8 code and message. This record updates audio without ending video.
+
+The cursor sender retains the latest position and any unsent shape when the
+event channel is busy. It sends large, untransmittable shapes as position-only
+records. A replacement peer on the same display receives the retained shape.
+The controller keeps the replacement cursor with its candidate peer until the
+new video is ready to render.
 
 Desktop Duplication supplies the selected GPU frame and cursor metadata. A
 hardware Media Foundation transform converts the frame to baseline H.264. The
@@ -1177,9 +1187,10 @@ bounded movement backpressure; button and wheel messages are discrete.
 
 Button actions are `click`, `down`, `up`; `click` sends press/release.
 Zoom `in` means spread/pinch-out; `out` means pinch-in. Keyboard text is 1 through
-4,096 UTF-16 code units and can contain whitespace. Single-letter virtual keys use
-`keyboard.special`. Pointer and wheel `dx`/`dy` are finite values from -5000
-through 5000. `Undo` and `Redo` map to Ctrl+Z/Ctrl+Y.
+4,096 UTF-16 code units and can contain whitespace. `keyboard.special` supports
+ASCII letters and digits, mapped named keys, and mapped punctuation. Unsupported
+shortcuts return an input error. Pointer and wheel `dx`/`dy` are finite values
+from -5000 through 5000. `Undo` and `Redo` map to Ctrl+Z/Ctrl+Y.
 
 `capabilities.inputContextV1: true` advertises an additive functional field on
 pointer, Screen pointer, keyboard, and audio/volume commands. Its closed values
@@ -1229,6 +1240,7 @@ Dispatch failure keeps the socket open:
 Mobile drops the failed action, continues later input, and treats missing recent
 acks as unhealthy even if heartbeat succeeds. Movement behind an outstanding
 sampled ack or growing WebSocket buffer is bounded and dropped, never replayed.
+The sampled ack stays in the bounded history until it resolves or the connection ends.
 Discrete button/keyboard input is not dropped by that movement limit. Connection
 close never replays physical input.
 

@@ -24,6 +24,21 @@ internal interface IScreenViewWebRtcPeerFactory
 
 internal sealed record ScreenViewPeerConfiguration(IReadOnlyList<string> IceServerUris, bool RelayOnly);
 
+internal readonly record struct ScreenViewVideoRtpTime(uint Timestamp, long? SentAt = null)
+{
+    internal const uint ClockRate = 90_000;
+
+    public ScreenViewVideoRtpTime ForFrame(long now)
+    {
+        if (SentAt is not { } previous) return new(Timestamp, now);
+
+        double elapsedSeconds = TimeProvider.System.GetElapsedTime(previous, now).TotalSeconds;
+        uint increment = (uint)Math.Clamp(
+            (long)Math.Round(elapsedSeconds * ClockRate), ClockRate / 60, ClockRate);
+        return new(unchecked(Timestamp + increment), now);
+    }
+}
+
 internal sealed class ScreenViewWebRtcPeerFactory : IScreenViewWebRtcPeerFactory
 {
     public IScreenViewWebRtcPeer Create() => new ScreenViewWebRtcPeer();
@@ -55,7 +70,7 @@ internal sealed class IsolatedScreenViewWebRtcPeerFactory : IScreenViewWebRtcPee
             _connected.TrySetResult();
         }
         public bool TrySendH264(byte[] accessUnit, int framesPerSecond) => !_disposed && accessUnit.Length > 0 && framesPerSecond > 0;
-        public bool TrySendOpus(byte[] packet, uint rtpTimestamp) => !_disposed && packet.Length > 0 && rtpTimestamp > 0;
+        public bool TrySendOpus(byte[] packet, uint rtpTimestamp) => !_disposed && packet.Length > 0;
         public bool TrySendEvent(byte[] eventBytes) => !_disposed && eventBytes.Length > 0;
         public void Dispose()
         {
@@ -71,10 +86,10 @@ internal sealed class IsolatedScreenViewWebRtcPeerFactory : IScreenViewWebRtcPee
 
 internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
 {
+    internal const int MaximumEventBytes = 64 * 1024;
     private const int H264PayloadType = 102;
     private const int OpusPayloadType = 111;
     internal const string H264FormatParameters = "profile-level-id=42e034;packetization-mode=1;level-asymmetry-allowed=1";
-    private const uint H264ClockRate = 90_000;
     private const uint OpusClockRate = 48_000;
     private const uint MaximumStoredRtpPackets = 256;
     private static readonly TimeSpan OfferTimeout = TimeSpan.FromSeconds(10);
@@ -94,8 +109,7 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
     private int _track;
     private int _audioTrack;
     private int _eventsChannel;
-    private uint _rtpTimestamp;
-    private long _lastVideoSendTimestamp;
+    private ScreenViewVideoRtpTime _videoRtpTime;
     private bool _trackOpen;
     private bool _audioTrackOpen;
     private bool _eventsOpen;
@@ -177,15 +191,15 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
             EnsureSuccess(LibDataChannelNative.rtcSetErrorCallback(_track, _errorCallback), "listen for video track errors");
 
             using var cname = new Utf8String("voltura-air");
-            _rtpTimestamp = RandomUInt32();
+            _videoRtpTime = new(RandomUInt32());
             var packetizerInitialization = new LibDataChannelNative.PacketizerInit
             {
                 Ssrc = ssrc,
                 Cname = cname.Pointer,
                 PayloadType = H264PayloadType,
-                ClockRate = H264ClockRate,
+                ClockRate = ScreenViewVideoRtpTime.ClockRate,
                 SequenceNumber = (ushort)RandomNumberGenerator.GetInt32(ushort.MaxValue + 1),
-                Timestamp = _rtpTimestamp,
+                Timestamp = _videoRtpTime.Timestamp,
                 MaxFragmentSize = 1200,
                 NalSeparator = LibDataChannelNative.NalUnitSeparator.StartSequence
             };
@@ -279,20 +293,11 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
         lock (_gate)
         {
             if (_disposed || !_trackOpen || LibDataChannelNative.rtcGetBufferedAmount(_track) > 1_000_000) return false;
-            long now = TimeProvider.System.GetTimestamp();
-            if (_lastVideoSendTimestamp != 0)
-            {
-                double elapsedSeconds = TimeProvider.System.GetElapsedTime(_lastVideoSendTimestamp, now).TotalSeconds;
-                uint increment = (uint)Math.Clamp(
-                    (long)Math.Round(elapsedSeconds * H264ClockRate),
-                    H264ClockRate / 60,
-                    H264ClockRate);
-                _rtpTimestamp = unchecked(_rtpTimestamp + increment);
-            }
-            EnsureSuccess(LibDataChannelNative.rtcSetTrackRtpTimestamp(_track, _rtpTimestamp), "set the screen video timestamp");
+            ScreenViewVideoRtpTime next = _videoRtpTime.ForFrame(TimeProvider.System.GetTimestamp());
+            EnsureSuccess(LibDataChannelNative.rtcSetTrackRtpTimestamp(_track, next.Timestamp), "set the screen video timestamp");
             int result = LibDataChannelNative.rtcSendMessage(_track, accessUnit, accessUnit.Length);
             if (result < 0) return false;
-            _lastVideoSendTimestamp = now;
+            _videoRtpTime = next;
             return true;
         }
     }
@@ -300,7 +305,7 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
     public bool TrySendEvent(byte[] eventBytes)
     {
         ArgumentNullException.ThrowIfNull(eventBytes);
-        if (eventBytes.Length == 0 || eventBytes.Length > 64 * 1024) return false;
+        if (eventBytes.Length == 0 || eventBytes.Length > MaximumEventBytes) return false;
         lock (_gate)
         {
             return !_disposed &&
@@ -314,7 +319,7 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
     public bool TrySendOpus(byte[] packet, uint rtpTimestamp)
     {
         ArgumentNullException.ThrowIfNull(packet);
-        if (packet.Length == 0 || packet.Length > 1275 || rtpTimestamp == 0) return false;
+        if (packet.Length == 0 || packet.Length > 1275) return false;
         lock (_gate)
         {
             if (_disposed || !_audioTrackOpen || LibDataChannelNative.rtcGetBufferedAmount(_audioTrack) > 64 * 1024) return false;

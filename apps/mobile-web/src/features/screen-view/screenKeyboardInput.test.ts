@@ -65,6 +65,21 @@ describe("screen keyboard input", () => {
       key: "c",
       modifiers: ["Control"],
     });
+    expect(screenKeyboardMessage(keyEvent("ContextMenu"))).toEqual({
+      type: "keyboard.special",
+      key: "ContextMenu",
+    });
+  });
+
+  it("sends only supported character shortcuts and keeps punctuation typing available", () => {
+    expect(screenKeyboardMessage(keyEvent("/", { ctrlKey: true }))).toEqual({
+      type: "keyboard.special",
+      key: "/",
+      modifiers: ["Control"],
+    });
+    expect(screenKeyboardMessage(keyEvent("?", { ctrlKey: true }))).toBeNull();
+    expect(screenKeyboardMessage(keyEvent("å", { ctrlKey: true }))).toBeNull();
+    expect(screenKeyboardMessage(keyEvent("?"))).toEqual({ type: "keyboard.text", text: "?" });
   });
 
   it("ignores composition and standalone modifier events", () => {

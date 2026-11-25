@@ -65,7 +65,7 @@ internal sealed class InputCommandHandler(
         }
         catch (Exception ex) when (ex is not WebSocketException and not OperationCanceledException and not ObjectDisposedException)
         {
-            InputDispatchDiagnostics.Write(command, ex);
+            InputDispatchDiagnostics.Write(messageType, ex);
             await SendErrorAsync(
                 socket,
                 sequence,
@@ -94,26 +94,17 @@ internal sealed class InputCommandHandler(
 
 internal static class InputDispatchDiagnostics
 {
-    public static void Write(ValidatedInputCommand command, Exception exception) =>
-        Write(command.Type, command.Key, string.Join("+", command.Modifiers), exception);
+    public static void Write(string type, Exception exception) =>
+        Console.Error.WriteLine(Format(type, exception));
 
-    public static void Write(string type, string? key, string modifiers, Exception exception)
+    internal static string Format(string type, Exception exception)
     {
         if (exception is InputDispatchException inputException)
         {
-            Console.Error.WriteLine(
-                "Voltura Air input dispatch failed: type={0}, key={1}, modifiers={2}, requested={3}, accepted={4}, win32={5}, cleanupAttempted={6}, cleanupSucceeded={7}",
-                type,
-                key,
-                modifiers,
-                inputException.RequestedCount,
-                inputException.AcceptedCount,
-                inputException.Win32Error,
-                inputException.CleanupAttempted,
-                inputException.CleanupSucceeded);
-            return;
+            return FormattableString.Invariant(
+                $"Voltura Air input dispatch failed: type={type}, requested={inputException.RequestedCount}, accepted={inputException.AcceptedCount}, win32={inputException.Win32Error}, cleanupAttempted={inputException.CleanupAttempted}, cleanupSucceeded={inputException.CleanupSucceeded}");
         }
 
-        Console.Error.WriteLine("Voltura Air input dispatch failed: type={0}, error={1}", type, exception.Message);
+        return $"Voltura Air input dispatch failed: type={type}, exception={exception.GetType().Name}";
     }
 }

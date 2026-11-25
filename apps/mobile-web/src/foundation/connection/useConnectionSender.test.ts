@@ -111,6 +111,21 @@ describe("connection sender movement flow control", () => {
     });
   });
 
+  it("keeps the movement barrier's deadline through a burst of discrete input", () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_000);
+    const { hook, options } = createSender();
+    const { send } = hook.result.current;
+    send({ type: "screen.pointer.move", displayId: "display-1", x: 0.3, y: 0.7 });
+    for (let index = 0; index < 70; index += 1) {
+      send({ type: "keyboard.special", key: "Enter" });
+    }
+
+    expect(options.pendingInputAcksRef.current.size).toBe(64);
+    expect(options.pendingInputAcksRef.current.get(1)).toBe(1_000);
+    expect(options.pendingInputAcksRef.current.has(71)).toBe(true);
+    expect(options.pendingMovementAckRef.current?.sequence).toBe(1);
+  });
+
   it("drops movement while the WebSocket send buffer is congested but preserves discrete input", () => {
     vi.spyOn(Date, "now").mockReturnValue(1_000);
     const { hook, rescheduleHealthCheck, socket } = createSender(1024);

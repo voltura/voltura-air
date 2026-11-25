@@ -96,7 +96,7 @@ internal sealed class PhoneWebcamAudioPipeline : IAsyncDisposable
                 int samplesPerChannel = decoder.Decode(packet, pcm, MaximumFrameSamplesPerChannel, false);
                 if (samplesPerChannel <= 0) continue;
                 int byteCount = checked(samplesPerChannel * Channels * sizeof(short));
-                if (_buffer.BufferedDuration >= MaximumBufferedAudio)
+                if (byteCount > _buffer.BufferLength - _buffer.BufferedBytes)
                 {
                     _buffer.ClearBuffer();
                 }
@@ -114,7 +114,7 @@ internal sealed class PhoneWebcamAudioPipeline : IAsyncDisposable
 
     private void OnPlaybackStopped(object? sender, PhoneWebcamAudioStoppedEventArgs args)
     {
-        if (Volatile.Read(ref _disposed) == 0 && args.Exception is not null)
+        if (Volatile.Read(ref _disposed) == 0)
         {
             ReportFailure();
         }

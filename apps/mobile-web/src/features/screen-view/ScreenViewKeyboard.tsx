@@ -24,27 +24,14 @@ export function ScreenViewKeyboard({
       return;
     }
     const textarea = keyboardTextareaRef.current;
-    const virtualKeyboard = "virtualKeyboard" in navigator ? navigator.virtualKeyboard : null;
-    const overlayKeyboard =
-      virtualKeyboard &&
-      typeof virtualKeyboard === "object" &&
-      "overlaysContent" in virtualKeyboard &&
-      typeof virtualKeyboard.overlaysContent === "boolean"
-        ? virtualKeyboard
-        : null;
-    const previousOverlay = overlayKeyboard?.overlaysContent;
-    if (overlayKeyboard) {
-      overlayKeyboard.overlaysContent = true;
-    }
+    const restoreOverlay = enableKeyboardOverlay();
     return () => {
       textarea?.blur();
       if (textarea) {
         textarea.value = "";
       }
       resetKeyboardInput();
-      if (overlayKeyboard) {
-        overlayKeyboard.overlaysContent = previousOverlay;
-      }
+      restoreOverlay?.();
     };
   }, [enabled, keyboardTextareaRef, resetKeyboardInput, supportsInputMode]);
 
@@ -123,4 +110,29 @@ export function ScreenViewKeyboard({
       />
     </>
   );
+}
+
+function enableKeyboardOverlay(): (() => void) | undefined {
+  try {
+    const keyboard = "virtualKeyboard" in navigator ? navigator.virtualKeyboard : null;
+    if (
+      !keyboard ||
+      typeof keyboard !== "object" ||
+      !("overlaysContent" in keyboard) ||
+      keyboard.overlaysContent !== false
+    ) {
+      return;
+    }
+    keyboard.overlaysContent = true;
+    return () => {
+      try {
+        keyboard.overlaysContent = false;
+      } catch {
+        // The browser can revoke access while the workspace is active.
+      }
+    };
+  } catch {
+    // Use the browser's default layout when its optional overlay API is unavailable.
+    return;
+  }
 }

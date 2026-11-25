@@ -228,6 +228,46 @@ async function advance(milliseconds: number) {
 }
 
 describe("Relay screen renewal", () => {
+  it("adopts the replacement cursor shape only after the Relay peer can render video", async () => {
+    const view = await openView();
+    const cursorImage = view.container.querySelector<HTMLImageElement>(".screen-view-cursor")!;
+    const pictureUrl = "blob:https://example.test/renewed-cursor";
+    const createObjectURL = vi.fn(() => pictureUrl);
+    vi.stubGlobal("URL", class extends URL {
+      static createObjectURL = createObjectURL;
+      static revokeObjectURL = vi.fn();
+    });
+    await advance(14 * 60_000);
+    await view.accept();
+    const replacement = Peer.instances.at(-1)!;
+    const channel = Object.assign(new EventTarget(), { label: "screen-events", binaryType: "blob", close: vi.fn() });
+    const cursorMessage = (x: number, png: number[] = []) => {
+      const record = new Uint8Array(39 + png.length);
+      const header = new DataView(record.buffer);
+      record[0] = 4;
+      record[9] = 1;
+      record[34] = png.length ? 2 : 0;
+      header.setInt32(10, x);
+      header.setInt32(26, 4);
+      header.setInt32(30, 4);
+      header.setInt32(35, png.length);
+      record.set(png, 39);
+      return new MessageEvent("message", { data: record.buffer });
+    };
+    act(() => {
+      replacement.dispatchEvent(Object.assign(new Event("datachannel"), { channel }));
+      channel.dispatchEvent(cursorMessage(20, [137, 80, 78, 71]));
+      channel.dispatchEvent(cursorMessage(24));
+      replacement.connect();
+    });
+    expect(createObjectURL).not.toHaveBeenCalled();
+
+    act(() => replacement.video.unmute());
+
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(cursorImage.getAttribute("src")).toBe(pictureUrl);
+  });
+
   it("expires an unanswered display list when the authenticated connection changes", async () => {
     const view = await openView(false);
     act(() => view.setConnection("paired", 2));

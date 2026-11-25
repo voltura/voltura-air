@@ -20,6 +20,7 @@ const supportedSpecialKeys = new Set([
   "End",
   "PageUp",
   "PageDown",
+  "ContextMenu",
   "BrowserBack",
   "BrowserForward",
   "MediaNextTrack",
@@ -46,6 +47,7 @@ const supportedSpecialKeys = new Set([
   "NumpadDecimal",
   "NumpadDivide",
 ]);
+const shortcutPunctuation = ";+=,-./`[\\]'";
 
 export function screenKeyboardMessage(
   event: Pick<
@@ -99,7 +101,10 @@ function screenSpecialKey(key: string, code: string) {
   if (code.startsWith("Numpad") && supportedSpecialKeys.has(code)) {
     return code;
   }
-  return supportedSpecialKeys.has(key) || key.length === 1 ? key : null;
+  return supportedSpecialKeys.has(key) ||
+    /^[A-Za-z0-9]$/.test(key) || (key.length === 1 && shortcutPunctuation.includes(key))
+    ? key
+    : null;
 }
 
 function keyboardModifiers(

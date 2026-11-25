@@ -2,6 +2,31 @@ namespace VolturaAir.Host.Tests;
 
 public sealed class ScreenViewWebRtcTests
 {
+    [Fact]
+    public void VideoRtpTimeAdvancesFromTheLastAcceptedSend()
+    {
+        // A failed send leaves the accepted snapshot in place.
+        long frequency = TimeProvider.System.TimestampFrequency;
+        var accepted = new ScreenViewVideoRtpTime(9_000).ForFrame(0);
+        ScreenViewVideoRtpTime dropped = accepted.ForFrame(frequency / 10);
+        ScreenViewVideoRtpTime next = accepted.ForFrame(frequency / 5);
+
+        Assert.Equal(18_000u, dropped.Timestamp);
+        Assert.Equal(27_000u, next.Timestamp);
+        Assert.Equal(9_000u, accepted.Timestamp);
+        Assert.Equal(0, accepted.SentAt);
+    }
+
+    [Fact]
+    public void VideoRtpTimeWrapsWithinTheExistingClockBounds()
+    {
+        long frequency = TimeProvider.System.TimestampFrequency;
+        var accepted = new ScreenViewVideoRtpTime(uint.MaxValue - 100, 0);
+
+        Assert.Equal(1_399u, accepted.ForFrame(0).Timestamp);
+        Assert.Equal(89_899u, accepted.ForFrame(frequency * 2).Timestamp);
+    }
+
     [Theory]
     [InlineData((int)LibDataChannelNative.PeerState.New, false)]
     [InlineData((int)LibDataChannelNative.PeerState.Connecting, false)]

@@ -30,6 +30,30 @@ export type ScreenPlaintextRecord =
   | ScreenStatusRecord
   | ScreenAudioAvailabilityRecord;
 
+export function rememberPendingScreenCursor(
+  data: unknown,
+  previous: ScreenCursorRecord | null,
+): ScreenCursorRecord | null {
+  if (!(data instanceof ArrayBuffer)) {
+    return previous;
+  }
+  const bytes = new Uint8Array(data);
+  if (bytes[0] !== 4) {
+    return previous;
+  }
+  try {
+    const record = parseScreenPlaintextRecord(bytes);
+    if (record.type === "cursor") {
+      return !record.pngBytes && previous?.pngBytes
+        ? { ...record, pngBytes: previous.pngBytes }
+        : record;
+    }
+  } catch {
+    // A pending peer has no playback ownership until it is promoted.
+  }
+  return previous;
+}
+
 export function parseScreenPlaintextRecord(bytes: Uint8Array): ScreenPlaintextRecord {
   if (bytes.length === 0 || bytes.length > maxPlaintextBytes) {
     throw new Error("Invalid screen event size.");

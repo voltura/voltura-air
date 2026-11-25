@@ -5,6 +5,8 @@ namespace VolturaAir.Host;
 
 internal static class ScreenViewRecordEncoder
 {
+    private const int CursorHeaderBytes = 39;
+    internal const int MaximumCursorShapeBytes = ScreenViewWebRtcPeer.MaximumEventBytes - CursorHeaderBytes;
     public static byte[] EncodeVisual(ScreenViewFrame frame)
     {
         if (frame.IsResynchronization && frame.Patches.Count == 1)
@@ -46,7 +48,7 @@ internal static class ScreenViewRecordEncoder
     public static byte[] EncodeCursor(long sequence, ScreenViewCursorUpdate cursor)
     {
         byte[] image = cursor.PngBytes ?? [];
-        var payload = new byte[39 + image.Length];
+        var payload = new byte[CursorHeaderBytes + image.Length];
         payload[0] = 4;
         BinaryPrimitives.WriteInt64BigEndian(payload.AsSpan(1, 8), sequence);
         payload[9] = cursor.Visible ? (byte)1 : (byte)0;
@@ -58,7 +60,7 @@ internal static class ScreenViewRecordEncoder
         BinaryPrimitives.WriteInt32BigEndian(payload.AsSpan(30, 4), cursor.Height);
         payload[34] = image.Length > 0 ? (byte)2 : (byte)0;
         BinaryPrimitives.WriteInt32BigEndian(payload.AsSpan(35, 4), image.Length);
-        image.CopyTo(payload, 39);
+        image.CopyTo(payload, CursorHeaderBytes);
         return payload;
     }
 

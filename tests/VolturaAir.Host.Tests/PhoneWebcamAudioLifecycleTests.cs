@@ -90,8 +90,10 @@ public sealed class PhoneWebcamAudioLifecycleTests
         Assert.Equal(1, player.DisposeCalls);
     }
 
-    [Fact]
-    public async Task PipelineReportsPlaybackFailureAndIgnoresNormalDisposalStop()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PipelineReportsUnexpectedPlaybackStopAndIgnoresDisposal(bool hasError)
     {
         var player = new FakePlayer { RaiseStoppedWhenStopped = true };
         PhoneWebcamAudioPipeline pipeline = PhoneWebcamAudioPipeline.CreateForTest(player);
@@ -100,7 +102,7 @@ public sealed class PhoneWebcamAudioLifecycleTests
         pipeline.Start();
         pipeline.Start();
 
-        player.RaiseStopped(new InvalidOperationException("Injected playback failure."));
+        player.RaiseStopped(hasError ? new InvalidOperationException("Injected playback failure.") : null);
         await pipeline.DisposeAsync();
         await pipeline.DisposeAsync();
 
@@ -109,14 +111,20 @@ public sealed class PhoneWebcamAudioLifecycleTests
         Assert.Equal(1, player.DisposeCalls);
     }
 
-    [Fact]
-    public async Task PipelineCopiesOnlyDecodedSamplesBeforeReusingItsPcmBuffer()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PipelineCopiesOnlyDecodedSamplesBeforeReusingItsPcmBuffer(bool startNearCapacity)
     {
         var factory = new FakeDeviceFactory(new FakeRecorder());
         await using PhoneWebcamAudioPipeline pipeline = await PhoneWebcamAudioPipeline.CreateAsync(new FakeTarget(), factory);
         var buffer = Assert.IsType<BufferedWaveProvider>(factory.CableSource);
         using IOpusEncoder encoder = OpusCodecFactory.CreateEncoder(48000, 2, OpusApplication.OPUS_APPLICATION_AUDIO);
         using IOpusDecoder decoder = OpusCodecFactory.CreateDecoder(48000, 2);
+        if (startNearCapacity)
+        {
+            buffer.AddSamples(new byte[buffer.BufferLength - buffer.WaveFormat.BlockAlign]);
+        }
         pipeline.Start();
         var expected = new List<byte>();
         foreach (int samples in new[] { 960, 480, 2880 })
@@ -135,7 +143,7 @@ public sealed class PhoneWebcamAudioLifecycleTests
             encoded.AsSpan(0, length).CopyTo(rtp.AsSpan(12));
             pipeline.Submit(rtp);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            while (buffer.BufferedBytes < expected.Count)
+            while (buffer.BufferedBytes != expected.Count)
                 await Task.Delay(10, timeout.Token);
         }
         byte[] actual = new byte[expected.Count];

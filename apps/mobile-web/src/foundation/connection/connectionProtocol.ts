@@ -1817,9 +1817,13 @@ export function isUserActivityMessage(payload: ClientMessage): boolean {
   );
 }
 
-export function trimPendingInputAcks(pending: Map<number, number>): void {
+export function trimPendingInputAcks(pending: Map<number, number>, movementSequence?: number): void {
   while (pending.size > maxPendingInputAcks) {
-    const oldestSequence = pending.keys().next().value;
+    const sequences = pending.keys();
+    let oldestSequence = sequences.next().value;
+    if (oldestSequence === movementSequence) {
+      oldestSequence = sequences.next().value;
+    }
     if (oldestSequence === undefined) {
       return;
     }

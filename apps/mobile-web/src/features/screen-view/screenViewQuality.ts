@@ -23,32 +23,49 @@ export interface ScreenViewQualityResult {
 }
 
 export function startScreenViewQualityMonitor(
-  peer: Pick<RTCPeerConnection, "getStats">,
+  peer: Pick<
+    RTCPeerConnection,
+    "connectionState" | "getStats" | "addEventListener" | "removeEventListener"
+  >,
   onReport: (report: RTCStatsReport) => void,
   intervalMilliseconds = 2_000,
 ): () => void {
   let canceled = false;
+  let sampling = false;
+  let generation = 0;
   let timeout: number | undefined;
   const schedule = () => {
+    if (canceled || sampling || timeout !== undefined || peer.connectionState !== "connected") {
+      return;
+    }
     timeout = window.setTimeout(async () => {
       timeout = undefined;
+      sampling = true;
+      const epoch = generation;
       try {
         const report = await peer.getStats();
-        if (!canceled) {
+        if (!canceled && generation === epoch && peer.connectionState === "connected") {
           onReport(report);
         }
       } catch {
         // Browser statistics are optional display information.
       } finally {
-        if (!canceled) {
-          schedule();
-        }
+        sampling = false;
+        schedule();
       }
     }, intervalMilliseconds);
   };
+  const onConnectionStateChange = () => {
+    generation += 1;
+    window.clearTimeout(timeout);
+    timeout = undefined;
+    schedule();
+  };
+  peer.addEventListener("connectionstatechange", onConnectionStateChange);
   schedule();
   return () => {
     canceled = true;
+    peer.removeEventListener("connectionstatechange", onConnectionStateChange);
     window.clearTimeout(timeout);
   };
 }

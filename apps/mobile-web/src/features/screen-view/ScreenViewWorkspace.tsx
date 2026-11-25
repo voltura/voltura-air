@@ -48,7 +48,11 @@ import {
   isRelayCandidate,
   waitForIceGathering,
 } from "../../foundation/webrtc/iceGathering";
-import { parseScreenPlaintextRecord, type ScreenCursorRecord } from "./screenViewRecords";
+import {
+  parseScreenPlaintextRecord,
+  rememberPendingScreenCursor,
+  type ScreenCursorRecord,
+} from "./screenViewRecords";
 import { screenKeyboardMessage } from "./screenKeyboardInput";
 import {
   identityScreenViewTransform,
@@ -1038,6 +1042,7 @@ export default function ScreenViewWorkspace({
     let lastIceErrorCode: number | null = null;
     const stream = new MediaStream();
     let events: RTCDataChannel | null = null;
+    let pendingCursor: ScreenCursorRecord | null = null;
     if (renewing) {
       renewalRef.current = { operationId: message.operationId, peer };
       startResponseTimeoutRef.current = window.setTimeout(() => {
@@ -1081,6 +1086,10 @@ export default function ScreenViewWorkspace({
       startQualityMonitor(peer);
       scheduleCredentialRenewal(message.turnExpiresAt);
       setAudioTrackReady(stream.getAudioTracks().length > 0);
+      if (pendingCursor) {
+        updateCursor(pendingCursor);
+        pendingCursor = null;
+      }
       void playVideo();
       if (recordAfterRenewalRef.current) {
         recordAfterRenewalRef.current = false;
@@ -1152,10 +1161,14 @@ export default function ScreenViewWorkspace({
       }
       channel.binaryType = "arraybuffer";
       channel.addEventListener("message", (messageEvent) => {
-        if (!isCurrentNegotiation() || eventsRef.current !== channel) {
+        if (!isCurrentNegotiation()) {
           return;
         }
-        handleScreenEvent(messageEvent);
+        if (eventsRef.current === channel) {
+          handleScreenEvent(messageEvent);
+        } else if (renewalRef.current?.peer === peer) {
+          pendingCursor = rememberPendingScreenCursor(messageEvent.data, pendingCursor);
+        }
       });
     });
     peer.addEventListener("connectionstatechange", () => {
@@ -1163,6 +1176,10 @@ export default function ScreenViewWorkspace({
         return;
       }
       traceScreenView("connection_state", peer.connectionState);
+      if (peerRef.current === peer && peer.connectionState === "disconnected") {
+        qualitySampleRef.current = null;
+        setQualityText("");
+      }
       if (renewalRef.current?.peer === peer) {
         promoteRenewal();
         if (peer.connectionState === "failed" || peer.connectionState === "closed") {

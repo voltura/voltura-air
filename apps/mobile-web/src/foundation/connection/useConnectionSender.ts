@@ -90,7 +90,7 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
         nextInputSequenceRef.current = sequence >= Number.MAX_SAFE_INTEGER ? 1 : sequence + 1;
         payloadToSend = { ...payloadToSend, seq: sequence } as ClientMessage;
         pendingInputAcksRef.current.set(sequence, Date.now());
-        trimPendingInputAcks(pendingInputAcksRef.current);
+        trimPendingInputAcks(pendingInputAcksRef.current, pendingMovementAck?.sequence);
         if (isMovement) {
           lastMovementAckAtRef.current = now;
           pendingMovementAckRef.current = { sequence, followingMovementCount: 0 };

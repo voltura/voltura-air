@@ -45,7 +45,7 @@ internal sealed class TextTransferCommandHandler(
         }
         catch (Exception ex) when (ex is not WebSocketException and not OperationCanceledException and not ObjectDisposedException)
         {
-            InputDispatchDiagnostics.Write("text.send", null, string.Empty, ex);
+            InputDispatchDiagnostics.Write("text.send", ex);
             commandLog.Outcome(clientId, "text.send", "text_transfer", "failed");
             await SendResultAsync(
                 socket,

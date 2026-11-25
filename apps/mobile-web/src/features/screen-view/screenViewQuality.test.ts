@@ -209,6 +209,10 @@ describe("screenViewQualityFromStats", () => {
   });
 });
 
+function qualityPeer(getStats: () => Promise<RTCStatsReport>, connectionState: RTCPeerConnectionState = "connected") {
+  return Object.assign(new EventTarget(), { getStats, connectionState });
+}
+
 describe("startScreenViewQualityMonitor", () => {
   it("keeps at most one browser statistics request in flight", async () => {
     vi.useFakeTimers();
@@ -223,10 +227,7 @@ describe("startScreenViewQualityMonitor", () => {
       )
       .mockResolvedValue(new Map() as unknown as RTCStatsReport);
     const onReport = vi.fn();
-    const stop = startScreenViewQualityMonitor(
-      { getStats } as Pick<RTCPeerConnection, "getStats">,
-      onReport,
-    );
+    const stop = startScreenViewQualityMonitor(qualityPeer(getStats), onReport);
 
     await vi.advanceTimersByTimeAsync(5_000);
     expect(getStats).toHaveBeenCalledTimes(1);
@@ -249,10 +250,7 @@ describe("startScreenViewQualityMonitor", () => {
         }),
     );
     const onReport = vi.fn();
-    const stop = startScreenViewQualityMonitor(
-      { getStats } as Pick<RTCPeerConnection, "getStats">,
-      onReport,
-    );
+    const stop = startScreenViewQualityMonitor(qualityPeer(getStats), onReport);
 
     await vi.advanceTimersByTimeAsync(2_000);
     stop();
@@ -262,5 +260,50 @@ describe("startScreenViewQualityMonitor", () => {
 
     expect(onReport).not.toHaveBeenCalled();
     expect(getStats).toHaveBeenCalledTimes(1);
+  });
+
+  it("samples only while the screen peer is connected", async () => {
+    vi.useFakeTimers();
+    const report = new Map() as unknown as RTCStatsReport;
+    const peer = qualityPeer(vi.fn().mockResolvedValue(report), "connecting");
+    const onReport = vi.fn();
+    const stop = startScreenViewQualityMonitor(peer, onReport);
+    await vi.advanceTimersByTimeAsync(6_000);
+    expect(peer.getStats).not.toHaveBeenCalled();
+
+    peer.connectionState = "connected";
+    peer.dispatchEvent(new Event("connectionstatechange"));
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(onReport).toHaveBeenCalledExactlyOnceWith(report);
+    peer.connectionState = "disconnected";
+    peer.dispatchEvent(new Event("connectionstatechange"));
+    await vi.advanceTimersByTimeAsync(6_000);
+    expect(peer.getStats).toHaveBeenCalledOnce();
+    stop();
+  });
+
+  it("discards a sample started before reconnection and keeps requests serial", async () => {
+    vi.useFakeTimers();
+    let resolveOld!: (report: RTCStatsReport) => void;
+    const old = new Promise<RTCStatsReport>((resolve) => { resolveOld = resolve; });
+    const report = new Map() as unknown as RTCStatsReport;
+    const getStats = vi.fn().mockReturnValueOnce(old).mockResolvedValue(report);
+    const peer = qualityPeer(getStats);
+    const onReport = vi.fn();
+    const stop = startScreenViewQualityMonitor(peer, onReport);
+    await vi.advanceTimersByTimeAsync(2_000);
+    peer.connectionState = "disconnected";
+    peer.dispatchEvent(new Event("connectionstatechange"));
+    peer.connectionState = "connected";
+    peer.dispatchEvent(new Event("connectionstatechange"));
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(getStats).toHaveBeenCalledOnce();
+
+    resolveOld(new Map() as unknown as RTCStatsReport);
+    await old;
+    expect(onReport).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(onReport).toHaveBeenCalledExactlyOnceWith(report);
+    stop();
   });
 });

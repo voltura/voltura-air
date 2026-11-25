@@ -582,7 +582,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             }
             catch (Exception ex) when (ex is not OperationCanceledException and not ObjectDisposedException)
             {
-                InputDispatchDiagnostics.Write(command.Type, null, string.Empty, ex);
+                InputDispatchDiagnostics.Write(command.Type, ex);
                 ReleaseHeldButtonsLocked(active);
                 return new(false, ex is InputDispatchException ? "VAIR-INPUT-NATIVE-SEND-FAILED" : "VAIR-INPUT-DISPATCH-FAILED", "Windows did not accept this direct mouse action. Try again.");
             }
@@ -700,7 +700,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         try { _inputDispatcher.ReleaseMouseButtons(); }
         catch (Exception ex) when (ex is not OperationCanceledException and not ObjectDisposedException)
         {
-            InputDispatchDiagnostics.Write("screen.pointer.cleanup", null, string.Empty, ex);
+            InputDispatchDiagnostics.Write("screen.pointer.cleanup", ex);
         }
     }
 
@@ -743,7 +743,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
 
     private async Task SendFramesAsync(ActiveView active, CancellationToken cancellationToken)
     {
-        long eventSequence = 0;
+        var cursorDelivery = new ScreenViewCursorDelivery();
         long? recoveryStarted = null;
         ScreenViewCaptureException? recoveryFailure = null;
         while (!cancellationToken.IsCancellationRequested)
@@ -794,8 +794,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                     }
                 }
                 else if (active.Renewal is not null) active.RequestKeyFrame();
-                if (frame?.Cursor is not null)
-                    active.Peer.TrySendEvent(ScreenViewRecordEncoder.EncodeCursor(++eventSequence, frame.Cursor));
+                cursorDelivery.Publish(active.Peer, displayId, frame?.Cursor);
                 if (frame is { Bytes.Length: > 0 })
                 {
                     recoveryStarted = null;

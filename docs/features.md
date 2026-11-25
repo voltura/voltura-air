@@ -309,7 +309,7 @@ failure keeps session state without a background retry loop.
   Relay uses the same adaptive engine within the selected 8/4/2 Mbps ceiling.
   The mobile view shows its actual received resolution, frame rate, and bitrate
   from WebRTC statistics and sends bounded aggregate decoder-health counters
-  while viewing.
+  while the media peer is connected. A disconnect retires the previous sample.
 - Screen media is independent of the JSON command socket, so a slow viewer
   cannot delay trackpad or keyboard commands. The WebRTC sender bounds queued
   media, supports packet retransmission and receiver keyframe requests, and
@@ -437,7 +437,9 @@ failure keeps session state without a background retry loop.
   last valid frame; explicit stop, session loss, removal, and shutdown clear it
   immediately to the waiting frame.
 - Optional audio adds one bounded Opus track, decoded in managed code and written
-  to the exact detected VB-CABLE endpoint. VB-CABLE is third-party donationware,
+  to the exact detected VB-CABLE endpoint. When its playback buffer fills, the
+  newest complete audio frame takes precedence. An unexpected playback stop
+  ends the audio-enabled webcam session. VB-CABLE is third-party donationware,
   is not included or distributed with Voltura Air, and must be obtained directly
   from VB-Audio under the licence applicable to the user's use.
 
@@ -466,6 +468,7 @@ failure keeps session state without a background retry loop.
   session-only automatic refresh. Routine Screen View quality adjustments are
   recorded only with the opt-in debug trace described in [setup](setup.md);
   failures and connection recovery remain available with ordinary logging.
+  Routine pointer movement and scrolling are excluded, including in PC Screen.
 
 ### Usage statistics
 

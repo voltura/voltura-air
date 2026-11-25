@@ -204,7 +204,8 @@ public sealed class SendInputInjector : IInputInjector, IActivityPulseSender
 
     public void SpecialKey(string key, IReadOnlyList<string> modifiers)
     {
-        if (!VirtualKeys.TryGetValue(key, out var virtualKey) && key.Length == 1)
+        if (!VirtualKeys.TryGetValue(key, out var virtualKey) &&
+            key.Length == 1 && char.IsAsciiLetterOrDigit(key[0]))
         {
             virtualKey = char.ToUpperInvariant(key[0]);
         }

@@ -163,7 +163,7 @@ internal sealed class CustomScreenCommandHandler(
             }
             catch (Exception exception) when (exception is not OutOfMemoryException)
             {
-                InputDispatchDiagnostics.Write("custom.screen.invoke", null, string.Empty, exception);
+                InputDispatchDiagnostics.Write("custom.screen.invoke", exception);
                 return new(false, "pointer-failed", "Windows could not change the Voltura Air laser pointer.");
             }
         }
@@ -253,7 +253,7 @@ internal sealed class CustomScreenCommandHandler(
         }
         catch (Exception ex) when (ex is InputDispatchException or InvalidOperationException)
         {
-            InputDispatchDiagnostics.Write("custom.screen.invoke", null, string.Empty, ex);
+            InputDispatchDiagnostics.Write("custom.screen.invoke", ex);
             return new(false, "dispatch-failed", "Windows did not complete this action.");
         }
     }

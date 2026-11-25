@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Threading.Channels;
 using Concentus;
 using Concentus.Enums;
@@ -64,12 +63,50 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
     internal const int Channels = 2;
     internal const int FrameSamples = 960;
     internal const int TransportAllowance = 128_000;
-    private const int FrameBytes = FrameSamples * Channels * sizeof(short);
+    private const int SampleBytes = Channels * sizeof(short);
+    private const int FrameBytes = FrameSamples * SampleBytes;
     private const int MaximumQueuedFrames = 5;
     private const int MaximumOpusPacketBytes = 1275;
     private readonly Channel<bool> _defaultDeviceChanges = Channel.CreateBounded<bool>(
         new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropOldest, SingleReader = true });
     private int _disposed;
+
+    internal static uint TimestampFromPosition(long qpcPosition)
+    {
+        var (seconds, remainder) = Math.DivRem(qpcPosition, TimeSpan.TicksPerSecond);
+        return unchecked((uint)(seconds * SampleRate + remainder * SampleRate / TimeSpan.TicksPerSecond));
+    }
+
+    internal static AudioBlock? CopyAudioBlock(ReadOnlySpan<byte> data, AudioClientBufferFlags flags, long qpcPosition, long sequence)
+    {
+        int alignedLength = data.Length - data.Length % SampleBytes;
+        int length = Math.Min(alignedLength, FrameBytes * MaximumQueuedFrames);
+        if (length == 0) return null;
+
+        int discarded = alignedLength - length;
+        byte[] bytes = new byte[length];
+        if ((flags & AudioClientBufferFlags.Silent) == 0)
+            data.Slice(discarded, length).CopyTo(bytes);
+        uint? timestamp = qpcPosition >= 0 && (flags & AudioClientBufferFlags.TimestampError) == 0
+            ? unchecked(TimestampFromPosition(qpcPosition) + (uint)(discarded / SampleBytes))
+            : null;
+        bool discontinuity = discarded > 0 || (flags & AudioClientBufferFlags.DataDiscontinuity) != 0;
+        return new(bytes, timestamp, sequence, discontinuity);
+    }
+
+    internal sealed record AudioBlock(byte[] Bytes, uint? Timestamp, long Sequence, bool Discontinuity)
+    {
+        public bool Follows(long? previousSequence) =>
+            !Discontinuity && (previousSequence is null || Sequence == unchecked(previousSequence.Value + 1));
+    }
+
+    internal static Channel<AudioBlock> CreatePendingAudioQueue() =>
+        Channel.CreateBounded<AudioBlock>(new BoundedChannelOptions(MaximumQueuedFrames)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest,
+            SingleReader = true,
+            SingleWriter = true
+        });
 
     internal static IOpusEncoder CreateEncoder(ScreenViewSoundQuality soundQuality)
     {
@@ -212,7 +249,7 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
         private readonly CancellationTokenSource _stop;
         private readonly Channel<AudioBlock> _blocks;
         private readonly TaskCompletionSource _recordingStopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private int _dropped;
+        private long _blockSequence;
         private int _disposed;
 
         private CaptureRun(
@@ -225,12 +262,7 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
             _endpoint = endpoint;
             _recorder = recorder;
             _stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            _blocks = Channel.CreateBounded<AudioBlock>(new BoundedChannelOptions(MaximumQueuedFrames)
-            {
-                FullMode = BoundedChannelFullMode.Wait,
-                SingleReader = false,
-                SingleWriter = true
-            });
+            _blocks = CreatePendingAudioQueue();
             _recorder.DataAvailable += OnDataAvailable;
             _recorder.RecordingStopped += OnRecordingStopped;
             Completion = EncodeAsync(send, getSoundQuality, _stop.Token);
@@ -272,15 +304,11 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
         private void OnDataAvailable(ReadOnlySpan<byte> data, AudioClientBufferFlags flags, long devicePosition, long qpcPosition)
         {
             _ = devicePosition;
-            if (data.IsEmpty) return;
-            int length = Math.Min(data.Length, FrameBytes * MaximumQueuedFrames);
-            byte[] copy = data[^length..].ToArray();
-            if ((flags & AudioClientBufferFlags.Silent) != 0) Array.Clear(copy);
-            var block = new AudioBlock(copy, qpcPosition);
-            while (!_blocks.Writer.TryWrite(block))
+            AudioBlock? block = CopyAudioBlock(data, flags, qpcPosition, _blockSequence);
+            if (block is not null)
             {
-                if (!_blocks.Reader.TryRead(out _)) break;
-                Interlocked.Exchange(ref _dropped, 1);
+                _blockSequence = unchecked(_blockSequence + 1);
+                _blocks.Writer.TryWrite(block);
             }
         }
 
@@ -302,26 +330,19 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
             short[] pcm = new short[FrameSamples * Channels];
             byte[] encodedPacket = new byte[MaximumOpusPacketBytes];
             int pendingLength = 0;
-            uint timestamp = NonZeroRandomTimestamp();
+            uint timestamp = TimestampFromPosition(TimeProvider.System.GetElapsedTime(0).Ticks);
+            long? previousSequence = null;
             await foreach (AudioBlock block in _blocks.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
             {
-                if (Interlocked.Exchange(ref _dropped, 0) != 0)
+                if (!block.Follows(previousSequence) || pendingLength + block.Bytes.Length > pending.Length)
                 {
                     pendingLength = 0;
-                    timestamp = TimestampFromPosition(block.QpcPosition);
                     encoder.ResetState();
                 }
-                if (pendingLength == 0) timestamp = TimestampFromPosition(block.QpcPosition);
-                int available = pending.Length - pendingLength;
-                if (block.Bytes.Length > available)
-                {
-                    pendingLength = 0;
-                    timestamp = TimestampFromPosition(block.QpcPosition);
-                    encoder.ResetState();
-                }
-                Buffer.BlockCopy(block.Bytes, Math.Max(0, block.Bytes.Length - (pending.Length - pendingLength)), pending,
-                    pendingLength, Math.Min(block.Bytes.Length, pending.Length - pendingLength));
-                pendingLength += Math.Min(block.Bytes.Length, pending.Length - pendingLength);
+                previousSequence = block.Sequence;
+                if (pendingLength == 0 && block.Timestamp is uint capturedTimestamp) timestamp = capturedTimestamp;
+                block.Bytes.CopyTo(pending.AsSpan(pendingLength));
+                pendingLength += block.Bytes.Length;
 
                 while (pendingLength >= FrameBytes)
                 {
@@ -346,19 +367,6 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
             await _recordingStopped.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        private static uint TimestampFromPosition(long qpcPosition)
-        {
-            uint timestamp = unchecked((uint)(qpcPosition * SampleRate / 10_000_000L));
-            return timestamp == 0 ? 1u : timestamp;
-        }
-
-        private static uint NonZeroRandomTimestamp()
-        {
-            uint value;
-            do { value = unchecked((uint)RandomNumberGenerator.GetInt32(int.MinValue, int.MaxValue)); } while (value == 0);
-            return value;
-        }
-
         public async ValueTask DisposeAsync()
         {
             if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
@@ -378,6 +386,5 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
             }
         }
 
-        private sealed record AudioBlock(byte[] Bytes, long QpcPosition);
     }
 }

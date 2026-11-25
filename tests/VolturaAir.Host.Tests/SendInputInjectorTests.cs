@@ -6,6 +6,29 @@ namespace VolturaAir.Host.Tests;
 public sealed class SendInputInjectorTests
 {
     [Fact]
+    public void InputFailureDiagnosticsRetainCountsWithoutDetailsFromTheCommand()
+    {
+        const string detail = "private command data";
+        var nativeFailure = new InputDispatchException(detail, "keyboard.special", 4, 2, 5);
+        string nativeLog = InputDispatchDiagnostics.Format("keyboard.special", nativeFailure);
+        string unexpectedLog = InputDispatchDiagnostics.Format("keyboard.text", new ArgumentException(detail));
+
+        Assert.Contains("requested=4, accepted=2, win32=5", nativeLog, StringComparison.Ordinal);
+        Assert.DoesNotContain(detail, nativeLog, StringComparison.Ordinal);
+        Assert.Contains("exception=ArgumentException", unexpectedLog, StringComparison.Ordinal);
+        Assert.DoesNotContain(detail, unexpectedLog, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("screen.pointer.move", false)]
+    [InlineData("screen.pointer.wheel", false)]
+    [InlineData("screen.pointer.button", true)]
+    public void CommandLoggingSkipsHighRateScreenPointerEvents(string messageType, bool expected)
+    {
+        Assert.Equal(expected, HostCommandLog.ShouldRecord(messageType));
+    }
+
+    [Fact]
     public void SpecialKeySendsAltTabChordAsOneAtomicBatch()
     {
         var native = new RecordingSendInputNative();
@@ -159,13 +182,16 @@ public sealed class SendInputInjectorTests
             batch.Select(DescribeKeyboardInput));
     }
 
-    [Fact]
-    public void SpecialKeyRejectsUnknownKeyInsteadOfReportingAFalseSuccess()
+    [Theory]
+    [InlineData("NotAKey")]
+    [InlineData("?")]
+    [InlineData("å")]
+    public void SpecialKeyRejectsUnknownKeyInsteadOfReportingAFalseSuccess(string key)
     {
         var native = new RecordingSendInputNative();
         using var injector = new SendInputInjector(native);
 
-        _ = Assert.Throws<ArgumentException>(() => injector.SpecialKey("NotAKey", []));
+        _ = Assert.Throws<ArgumentException>(() => injector.SpecialKey(key, []));
         Assert.Empty(native.Batches);
     }
 

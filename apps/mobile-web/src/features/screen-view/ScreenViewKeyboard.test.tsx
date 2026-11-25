@@ -41,6 +41,37 @@ describe("Screen View device keyboard capabilities", () => {
     }
   });
 
+  it.each(["enable", "restore"])("keeps controls usable when the browser refuses to %s the overlay", (phase) => {
+    const virtualKeyboard = { overlaysContent: false };
+    let refuseWrite = phase === "enable";
+    const getOverlay = () => virtualKeyboard.overlaysContent;
+    const setOverlay = (value: boolean) => {
+      if (refuseWrite) {
+        throw new DOMException("Overlay unavailable", "NotAllowedError");
+      }
+      virtualKeyboard.overlaysContent = value;
+    };
+    vi.stubGlobal("navigator", {
+      virtualKeyboard: {
+        get overlaysContent() {
+          return getOverlay();
+        },
+        set overlaysContent(value) {
+          setOverlay(value);
+        },
+      },
+    });
+    try {
+      const { unmount } = render(<ScreenViewKeyboard enabled send={vi.fn()} />);
+      fireEvent.click(screen.getByRole("button", { name: "Show device keyboard" }));
+      expect(document.activeElement).toBe(screen.getByRole("textbox"));
+      refuseWrite = true;
+      expect(unmount).not.toThrow();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("hides the actions when the required input-mode capability is unavailable", () => {
     const prototype = HTMLTextAreaElement.prototype;
     const descriptor = Object.getOwnPropertyDescriptor(prototype, "inputMode")!;

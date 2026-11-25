@@ -43,7 +43,8 @@ internal sealed class HostCommandLog(IAppLogWriter appLog)
     }
 
     public static bool ShouldRecord(string type) =>
-        type is not ("health.ping" or "status.get" or "pointer.move" or "pointer.wheel" or "pointer.zoom");
+        type is not ("health.ping" or "status.get" or "pointer.move" or "pointer.wheel" or "pointer.zoom" or
+            "screen.pointer.move" or "screen.pointer.wheel");
 
     public static string? GetAction(string type, ValidatedInputCommand? inputCommand)
     {

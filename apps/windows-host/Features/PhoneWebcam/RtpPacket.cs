@@ -2,19 +2,20 @@ using System.Buffers.Binary;
 
 namespace VolturaAir.Host.Features.PhoneWebcam;
 
+internal readonly record struct RtpPacketHeader(ushort Sequence, uint Timestamp, bool Marker, int PayloadOffset, int PayloadLength);
+
 internal static class RtpPacket
 {
-    internal static bool TryRead(
-        ReadOnlySpan<byte> packet,
-        out ushort sequence,
-        out uint timestamp,
-        out bool marker,
-        out ReadOnlySpan<byte> payload)
+    private const int MaximumLatePackets = 100;
+
+    internal static int SequenceOffset(ushort sequence, ushort? expected) =>
+        expected.HasValue ? unchecked((short)(sequence - expected.Value)) : 0;
+
+    internal static bool IsLate(int sequenceOffset) => sequenceOffset is >= -MaximumLatePackets and < 0;
+
+    internal static bool TryRead(ReadOnlySpan<byte> packet, out RtpPacketHeader header)
     {
-        sequence = 0;
-        timestamp = 0;
-        marker = false;
-        payload = default;
+        header = default;
         if (packet.Length < 12 || (packet[0] >> 6) != 2) return false;
         int offset = 12 + (packet[0] & 0x0f) * 4;
         if (offset > packet.Length) return false;
@@ -34,10 +35,12 @@ internal static class RtpPacket
             end -= padding;
         }
         if (offset == end && !hasPadding) return false;
-        sequence = BinaryPrimitives.ReadUInt16BigEndian(packet.Slice(2, 2));
-        timestamp = BinaryPrimitives.ReadUInt32BigEndian(packet.Slice(4, 4));
-        marker = (packet[1] & 0x80) != 0;
-        payload = packet[offset..end];
+        header = new RtpPacketHeader(
+            BinaryPrimitives.ReadUInt16BigEndian(packet.Slice(2, 2)),
+            BinaryPrimitives.ReadUInt32BigEndian(packet.Slice(4, 4)),
+            (packet[1] & 0x80) != 0,
+            offset,
+            end - offset);
         return true;
     }
 }

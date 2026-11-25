@@ -8,7 +8,6 @@ internal readonly record struct H264DepacketizeResult(
 internal sealed class H264RtpDepacketizer : IDisposable
 {
     internal const int MaximumAccessUnitBytes = 8 * 1024 * 1024;
-    private const int MaximumLatePackets = 100;
     private readonly MemoryStream _accessUnit = new();
     private ushort? _expectedSequence;
     private uint? _timestamp;
@@ -19,15 +18,18 @@ internal sealed class H264RtpDepacketizer : IDisposable
 
     internal H264DepacketizeResult Push(ReadOnlySpan<byte> packet)
     {
-        if (!RtpPacket.TryRead(packet, out ushort sequence, out uint timestamp, out bool marker, out ReadOnlySpan<byte> payload))
+        if (!RtpPacket.TryRead(packet, out RtpPacketHeader header))
         {
             _expectedSequence = null;
             return Reject();
         }
 
-        int offset = _expectedSequence is { } expected ? unchecked((short)(sequence - expected)) : 0;
-        if (offset is >= -MaximumLatePackets and < 0) return default;
-        _expectedSequence = unchecked((ushort)(sequence + 1));
+        int offset = RtpPacket.SequenceOffset(header.Sequence, _expectedSequence);
+        if (RtpPacket.IsLate(offset)) return default;
+        _expectedSequence = unchecked((ushort)(header.Sequence + 1));
+        uint timestamp = header.Timestamp;
+        bool marker = header.Marker;
+        ReadOnlySpan<byte> payload = packet.Slice(header.PayloadOffset, header.PayloadLength);
         if (payload.IsEmpty) return offset == 0 ? default : Reject();
         if (offset != 0) return Reject(timestamp, marker);
 

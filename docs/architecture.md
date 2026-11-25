@@ -227,6 +227,14 @@ keeps the latest pending encoded access unit. An RTP discontinuity or a dropped
 queue entry returns the decoder to keyframe recovery while preserving its H.264
 configuration. The pipeline publishes one latest fixed-size NV12 frame to the
 feature-owned pipe.
+The optional microphone passes the peer-owned RTP packet to Opus decoding
+without another payload copy. Recent duplicate and late packets are ignored.
+Short RTP losses use up to 60 ms of packet loss concealment while audio is still
+buffered for playback. Padding and gaps with continuous sequence numbers do not
+add concealment samples. Longer clock
+interruptions and locally dropped packets discard old PCM and resume at the
+latest audio packet. Ending microphone playback discards queued PCM and shares
+one awaited device retirement across concurrent stop callers.
 The decoder owns and reuses its caller-provided native output sample and buffer;
 decoded published frames remain separately owned. Flush retains the scratch
 buffer, resolution changes grow it only when required, and disposal releases it.

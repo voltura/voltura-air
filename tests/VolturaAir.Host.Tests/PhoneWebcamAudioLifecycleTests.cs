@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using NAudio.Wave;
 using Concentus;
 using Concentus.Enums;
@@ -111,6 +112,61 @@ public sealed class PhoneWebcamAudioLifecycleTests
         Assert.Equal(1, player.DisposeCalls);
     }
 
+    [Fact]
+    public async Task ConcurrentPipelineStopsWaitForTheSameOutputRetirement()
+    {
+        var releasePlayer = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var player = new FakePlayer { DisposeGate = releasePlayer.Task };
+        var factory = new FakeDeviceFactory(new FakeRecorder())
+        {
+            CablePlayer = Task.FromResult<IPhoneWebcamAudioPlayer>(player)
+        };
+        await using PhoneWebcamAudioPipeline pipeline = await PhoneWebcamAudioPipeline.CreateAsync(new FakeTarget(), factory);
+        var buffer = Assert.IsType<BufferedWaveProvider>(factory.CableSource);
+        buffer.AddSamples(new byte[buffer.WaveFormat.BlockAlign]);
+        pipeline.Start();
+
+        Task first = pipeline.DisposeAsync().AsTask();
+        Task concurrent = pipeline.DisposeAsync().AsTask();
+        try
+        {
+            await player.DisposeEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Same(first, concurrent);
+            Assert.False(concurrent.IsCompleted);
+            Assert.Equal(0, buffer.BufferedBytes);
+        }
+        finally
+        {
+            releasePlayer.TrySetResult();
+        }
+        await Task.WhenAll(first, concurrent);
+        Assert.Equal(1, player.StopCalls);
+        Assert.Equal(1, player.DisposeCalls);
+    }
+
+    [Fact]
+    public async Task PlaybackFailureDoesNotStopTheDeviceInsideItsOwnCallback()
+    {
+        int callbackThread = Environment.CurrentManagedThreadId;
+        int callbackReturned = 0;
+        bool stoppedInline = false;
+        var player = new FakePlayer
+        {
+            OnStop = () => stoppedInline =
+                Environment.CurrentManagedThreadId == callbackThread && Volatile.Read(ref callbackReturned) == 0
+        };
+        await using PhoneWebcamAudioPipeline pipeline = PhoneWebcamAudioPipeline.CreateForTest(player);
+        Task? retirement = null;
+        pipeline.Failed += (_, _) => retirement = pipeline.DisposeAsync().AsTask();
+
+        player.RaiseStopped();
+        Volatile.Write(ref callbackReturned, 1);
+        Assert.NotNull(retirement);
+        await retirement.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(stoppedInline);
+        Assert.Equal(1, player.StopCalls);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -127,6 +183,8 @@ public sealed class PhoneWebcamAudioLifecycleTests
         }
         pipeline.Start();
         var expected = new List<byte>();
+        ushort sequence = 0;
+        uint timestamp = 0;
         foreach (int samples in new[] { 960, 480, 2880 })
         {
             short[] pcm = Enumerable.Range(0, samples * 2).Select(index => (short)(Math.Sin(index * 0.1) * 12000)).ToArray();
@@ -137,11 +195,8 @@ public sealed class PhoneWebcamAudioLifecycleTests
             byte[] expectedFrame = new byte[decodedSamples * 2 * sizeof(short)];
             Buffer.BlockCopy(decoded, 0, expectedFrame, 0, expectedFrame.Length);
             expected.AddRange(expectedFrame);
-            byte[] rtp = new byte[12 + length];
-            rtp[0] = 0x80;
-            rtp[1] = 111;
-            encoded.AsSpan(0, length).CopyTo(rtp.AsSpan(12));
-            pipeline.Submit(rtp);
+            pipeline.Submit(CreateRtpPacket(sequence++, timestamp, encoded.AsSpan(0, length)));
+            timestamp += (uint)samples;
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             while (buffer.BufferedBytes != expected.Count)
                 await Task.Delay(10, timeout.Token);
@@ -162,6 +217,107 @@ public sealed class PhoneWebcamAudioLifecycleTests
         byte[] padding = [0xa0, 111, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2];
         for (int index = 0; index < 60; index++) pipeline.Submit(padding);
         Assert.Equal(0, failures);
+    }
+
+    [Theory]
+    [InlineData(false, false, 3)]
+    [InlineData(true, false, 2)]
+    [InlineData(false, true, 1)]
+    public async Task PipelineConcealsOnlyUnplayedShortLossAcrossRtpRollover(
+        bool paddingInsteadOfLoss, bool playbackAlreadyDrained, int expectedFrames)
+    {
+        const int samples = 960;
+        const int frameBytes = samples * 2 * sizeof(short);
+        const uint initialTimestamp = uint.MaxValue - samples + 1;
+        var factory = new FakeDeviceFactory(new FakeRecorder());
+        await using PhoneWebcamAudioPipeline pipeline = await PhoneWebcamAudioPipeline.CreateAsync(new FakeTarget(), factory);
+        var buffer = Assert.IsType<BufferedWaveProvider>(factory.CableSource);
+        using IOpusEncoder encoder = OpusCodecFactory.CreateEncoder(48000, 2, OpusApplication.OPUS_APPLICATION_AUDIO);
+        byte[] firstFrame = Encode(encoder, samples);
+        byte[] nextFrame = Encode(encoder, samples);
+        pipeline.Start();
+        pipeline.Submit(CreateRtpPacket(ushort.MaxValue, initialTimestamp, firstFrame));
+        await AssertBufferedAudioAsync(buffer, frameBytes);
+        if (playbackAlreadyDrained) Assert.Equal(frameBytes, buffer.Read(new byte[frameBytes]));
+
+        if (paddingInsteadOfLoss)
+            pipeline.Submit(CreateRtpPacket(0, 0, [0, 2], padding: true));
+        pipeline.Submit(CreateRtpPacket(1, samples, nextFrame));
+
+        await AssertBufferedAudioAsync(buffer, frameBytes * expectedFrames);
+    }
+
+    [Fact]
+    public async Task RecentDuplicateOrLatePacketsDoNotReplaySpeech()
+    {
+        const int samples = 960;
+        const int frameBytes = samples * 2 * sizeof(short);
+        var factory = new FakeDeviceFactory(new FakeRecorder());
+        await using PhoneWebcamAudioPipeline pipeline = await PhoneWebcamAudioPipeline.CreateAsync(new FakeTarget(), factory);
+        var buffer = Assert.IsType<BufferedWaveProvider>(factory.CableSource);
+        using IOpusEncoder encoder = OpusCodecFactory.CreateEncoder(48000, 2, OpusApplication.OPUS_APPLICATION_AUDIO);
+        byte[] first = CreateRtpPacket(ushort.MaxValue, 0, Encode(encoder, samples));
+        byte[] next = CreateRtpPacket(0, samples, Encode(encoder, samples * 2));
+        pipeline.Submit(first);
+        pipeline.Submit(next);
+        pipeline.Submit(next);
+        pipeline.Submit(first);
+        pipeline.Start();
+        await AssertBufferedAudioAsync(buffer, frameBytes * 2);
+    }
+
+    [Fact]
+    public async Task ALongDiscontinuityDiscardsOldAudioAndRestartsFromTheNewestFrame()
+    {
+        const int samples = 960;
+        const int frameBytes = samples * 2 * sizeof(short);
+        var factory = new FakeDeviceFactory(new FakeRecorder());
+        await using PhoneWebcamAudioPipeline pipeline = await PhoneWebcamAudioPipeline.CreateAsync(new FakeTarget(), factory);
+        var buffer = Assert.IsType<BufferedWaveProvider>(factory.CableSource);
+        using IOpusEncoder encoder = OpusCodecFactory.CreateEncoder(48000, 2, OpusApplication.OPUS_APPLICATION_AUDIO);
+        pipeline.Start();
+        pipeline.Submit(CreateRtpPacket(1, 20_000, Encode(encoder, samples)));
+        await AssertBufferedAudioAsync(buffer, frameBytes);
+
+        byte[] newest = Encode(encoder, samples * 2);
+        pipeline.Submit(CreateRtpPacket(6, 29_600, newest));
+        await AssertBufferedAudioAsync(buffer, frameBytes * 2);
+
+        using IOpusDecoder fresh = OpusCodecFactory.CreateDecoder(48000, 2);
+        var expected = new short[5760 * 2];
+        int decodedSamples = fresh.Decode(newest, expected, 5760, false);
+        Assert.Equal(samples * 2, decodedSamples);
+        var expectedBytes = new byte[frameBytes * 2];
+        Buffer.BlockCopy(expected, 0, expectedBytes, 0, expectedBytes.Length);
+        var actual = new byte[expectedBytes.Length];
+        Assert.Equal(actual.Length, buffer.Read(actual));
+        Assert.Equal(expectedBytes, actual);
+    }
+
+    private static async Task AssertBufferedAudioAsync(BufferedWaveProvider buffer, int length)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (buffer.BufferedBytes < length) await Task.Delay(10, timeout.Token);
+        Assert.Equal(length, buffer.BufferedBytes);
+    }
+
+    private static byte[] Encode(IOpusEncoder encoder, int samples)
+    {
+        short[] tone = Enumerable.Range(0, samples * 2).Select(index => (short)(Math.Sin(index * 0.1) * 12000)).ToArray();
+        byte[] encoded = new byte[1275];
+        int length = encoder.Encode(tone, samples, encoded, encoded.Length);
+        return encoded[..length];
+    }
+
+    private static byte[] CreateRtpPacket(ushort sequence, uint timestamp, ReadOnlySpan<byte> payload, bool padding = false)
+    {
+        byte[] rtp = new byte[12 + payload.Length];
+        rtp[0] = padding ? (byte)0xa0 : (byte)0x80;
+        rtp[1] = 111;
+        BinaryPrimitives.WriteUInt16BigEndian(rtp.AsSpan(2), sequence);
+        BinaryPrimitives.WriteUInt32BigEndian(rtp.AsSpan(4), timestamp);
+        payload.CopyTo(rtp.AsSpan(12));
+        return rtp;
     }
 
     [Fact]
@@ -207,6 +363,9 @@ public sealed class PhoneWebcamAudioLifecycleTests
     private sealed class FakePlayer : IPhoneWebcamAudioPlayer
     {
         internal Exception? DisposeFailure { get; init; }
+        internal Task? DisposeGate { get; init; }
+        internal Action? OnStop { get; init; }
+        internal TaskCompletionSource DisposeEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal bool RaiseStoppedWhenStopped { get; init; }
         internal int PlayCalls { get; private set; }
         internal int StopCalls { get; private set; }
@@ -216,6 +375,7 @@ public sealed class PhoneWebcamAudioLifecycleTests
         public void Stop()
         {
             StopCalls++;
+            OnStop?.Invoke();
             if (RaiseStoppedWhenStopped) RaiseStopped();
         }
         internal void RaiseStopped(Exception? exception = null) =>
@@ -223,7 +383,9 @@ public sealed class PhoneWebcamAudioLifecycleTests
         public ValueTask DisposeAsync()
         {
             DisposeCalls++;
-            return DisposeFailure is null ? ValueTask.CompletedTask : ValueTask.FromException(DisposeFailure);
+            DisposeEntered.TrySetResult();
+            if (DisposeFailure is not null) return ValueTask.FromException(DisposeFailure);
+            return DisposeGate is null ? ValueTask.CompletedTask : new ValueTask(DisposeGate);
         }
     }
 

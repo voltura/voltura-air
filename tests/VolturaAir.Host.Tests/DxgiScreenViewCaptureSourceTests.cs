@@ -1,6 +1,7 @@
 namespace VolturaAir.Host.Tests;
 
 using System.Drawing;
+using SharpGen.Runtime;
 
 public sealed class DxgiScreenViewCaptureSourceTests
 {
@@ -16,6 +17,22 @@ public sealed class DxgiScreenViewCaptureSourceTests
     public void OnlyRecoverableNativeTransitionsAllowCaptureRecreation(uint result, bool expected)
     {
         Assert.Equal(expected, DxgiScreenViewCaptureSource.IsRecoverableCaptureResult(unchecked((int)result)));
+    }
+
+    [Fact]
+    public void GpuConversionDeviceResetAllowsRecoveryButUnsupportedFormatsStop()
+    {
+        var deviceReset = new SharpGenException(new Result(unchecked((int)0x887A0007u)));
+        ScreenViewCaptureException recoverable = DxgiScreenViewCaptureSource.CreateVideoConversionFailure(deviceReset);
+        Assert.Equal("capture-device-lost", recoverable.Code);
+        Assert.Same(deviceReset, recoverable.InnerException);
+        Assert.True(recoverable.CanRetryCapture);
+
+        var unsupported = new NotSupportedException();
+        ScreenViewCaptureException permanent = DxgiScreenViewCaptureSource.CreateVideoConversionFailure(unsupported);
+        Assert.Equal("encoder-unavailable", permanent.Code);
+        Assert.Same(unsupported, permanent.InnerException);
+        Assert.False(permanent.CanRetryCapture);
     }
 
     [Fact]

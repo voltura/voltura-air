@@ -318,6 +318,21 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
             };
     }
 
+    internal static ScreenViewCaptureException CreateVideoConversionFailure(Exception cause)
+    {
+        if (cause is SharpGenException native && IsRecoverableCaptureResult(native.ResultCode.Code))
+        {
+            return new ScreenViewCaptureException(
+                "capture-device-lost", "Windows stopped providing the selected display.", cause)
+            {
+                CanRetryCapture = true
+            };
+        }
+
+        return new ScreenViewCaptureException(
+            "encoder-unavailable", "This graphics adapter cannot prepare the PC display for WebRTC video.", cause);
+    }
+
     private static (int X, int Y) GetEffectiveDpi(nint monitor)
     {
         if (monitor == 0 || GetDpiForMonitor(monitor, MonitorDpiType.Effective, out uint x, out uint y) < 0 ||
@@ -349,7 +364,6 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
         private bool _videoUnavailable;
         private bool _gpuFrameConversionUnavailable;
         private readonly ScreenViewEncoderSession _encoding = new(device);
-        private ScreenViewCaptureProfile? _webRtcProfile;
         private readonly ScreenViewFramePacer _webRtcFramePacer = new(TimeProvider.System.TimestampFrequency);
 
         public string SourceId => _output.Id;
@@ -364,35 +378,20 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
             double scale = Math.Min(1d, Math.Min((double)profile.MaxWidth / rotatedWidth, (double)profile.MaxHeight / rotatedHeight));
             int width = Math.Max(2, (int)Math.Round(rotatedWidth * scale)) & ~1;
             int height = Math.Max(2, (int)Math.Round(rotatedHeight * scale)) & ~1;
-            bool profileChanged = _webRtcProfile != profile;
-            bool frameRateChanged = _webRtcProfile?.FramesPerSecond != profile.FramesPerSecond;
             ScreenViewDevelopmentTrace.Stage("encoder-configure");
             _encoding.Configure(width, height, profile.FramesPerSecond, bitrate, forceKeyFrame);
-            if (profileChanged)
-            {
-                // Conversion shaders and surfaces have no frame-rate state.
-                if (_webRtcProfile?.MaxWidth != profile.MaxWidth || _webRtcProfile.MaxHeight != profile.MaxHeight)
-                {
-                    _gpuFrameConverter?.Dispose();
-                    _gpuFrameConverter = null;
-                }
-                _gpuFrameConversionUnavailable = false;
-                _webRtcProfile = profile;
-                if (frameRateChanged) _webRtcFramePacer.Reset();
-            }
 
 #pragma warning disable CA2000 // desktopResource is disposed in the finally block for every successful acquisition.
             uint frameWait = (uint)Math.Clamp((int)Math.Ceiling(1000d / profile.FramesPerSecond), 1, 250);
+            bool hasDesktopFrame = _gpuFrameConverter?.HasDesktopFrame == true;
             ScreenViewDevelopmentTrace.Stage("capture-wait");
-            Result acquire = _duplication.AcquireNextFrame(!_encoding.HasEncoder ? 250u : frameWait, out OutduplFrameInfo frameInfo, out IDXGIResource desktopResource);
+            Result acquire = _duplication.AcquireNextFrame(
+                hasDesktopFrame ? frameWait : 250u, out OutduplFrameInfo frameInfo, out IDXGIResource desktopResource);
 #pragma warning restore CA2000
             if (acquire == DxgiResultCode.WaitTimeout)
             {
                 desktopResource?.Dispose();
-                if (_encoding.KeyFramePending && _gpuFrameConverter?.LatestSurface is { } latest &&
-                    _webRtcFramePacer.ShouldEncode(TimeProvider.System.GetTimestamp(), profile.FramesPerSecond))
-                    return EncodeSurface(latest);
-                return null;
+                return PrepareVideoFrame(null, null, width, height, profile.FramesPerSecond);
             }
             if (acquire == DxgiResultCode.AccessLost || acquire == DxgiResultCode.SessionDisconnected)
             {
@@ -406,29 +405,53 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
             EnsureSuccess(acquire, "capture-failed");
             try
             {
-                using ID3D11Texture2D desktopTexture = desktopResource!.QueryInterface<ID3D11Texture2D>();
-                ScreenViewDevelopmentTrace.Present(frameInfo.LastPresentTime != 0);
+                bool desktopChanged = frameInfo.LastPresentTime != 0;
+                ScreenViewDevelopmentTrace.Present(desktopChanged);
                 if (frameInfo.ProtectedContentMaskedOut)
                     throw new ScreenViewCaptureException("protected-content", "Windows protected this display content, so screen viewing was stopped.");
                 ScreenViewCursorUpdate? cursor = ScaleCursor(
                     TransformCursor(ReadCursor(frameInfo), _output.Width, _output.Height, _output.Rotation),
                     scale);
-                bool visualChanged = frameInfo.LastPresentTime != 0 || !_encoding.HasEncoder || _encoding.KeyFramePending;
-                if (!visualChanged)
-                    return cursor is null ? null : new ScreenViewEncodedFrame([], width, height, profile.FramesPerSecond, false, cursor);
-                if (!_webRtcFramePacer.ShouldEncode(TimeProvider.System.GetTimestamp(), profile.FramesPerSecond))
-                    return cursor is null ? null : new ScreenViewEncodedFrame([], width, height, profile.FramesPerSecond, false, cursor);
-                ScreenViewDevelopmentTrace.Stage("gpu-convert");
-                if (!TryRenderGpuFrame(desktopTexture, width, height, out ID3D11Texture2D? surface))
-                    throw new ScreenViewCaptureException("encoder-unavailable", "This graphics adapter cannot prepare the PC display for WebRTC video.");
-                ScreenViewEncodedFrame encoded = EncodeSurface(surface!);
-                return encoded with { Cursor = cursor };
+                IDXGIResource? newDesktop = desktopChanged || !hasDesktopFrame ? desktopResource : null;
+                return PrepareVideoFrame(newDesktop, cursor, width, height, profile.FramesPerSecond);
             }
             finally
             {
                 desktopResource?.Dispose();
                 _duplication.ReleaseFrame();
             }
+        }
+
+        private ScreenViewEncodedFrame? PrepareVideoFrame(
+            IDXGIResource? newDesktop, ScreenViewCursorUpdate? cursor, int width, int height, int framesPerSecond)
+        {
+            ID3D11Texture2D? surface = null;
+            try
+            {
+                if (newDesktop is not null)
+                {
+                    // Keep the newest present even if the next encoder slot is still in the future.
+                    using ID3D11Texture2D texture = newDesktop.QueryInterface<ID3D11Texture2D>();
+                    _gpuFrameConverter ??= new D3D11DesktopFrameConverter(_device, _context, _output.Rotation);
+                    _gpuFrameConverter.CopyDesktopFrame(texture);
+                }
+
+                if (_gpuFrameConverter is { } converter &&
+                    (converter.HasPendingFrame || _encoding.KeyFramePending) &&
+                    _webRtcFramePacer.ShouldEncode(TimeProvider.System.GetTimestamp(), framesPerSecond))
+                {
+                    ScreenViewDevelopmentTrace.Stage("gpu-convert");
+                    surface = converter.RenderLatestNv12(width, height, _color.WhiteScale, _color.IsHdr);
+                }
+            }
+            catch (Exception ex) when (ex is SharpGenException or ExternalException or InvalidOperationException or NotSupportedException)
+            {
+                throw CreateVideoConversionFailure(ex);
+            }
+
+            if (surface is not null)
+                return EncodeSurface(surface) with { Cursor = cursor };
+            return cursor is null ? null : new ScreenViewEncodedFrame([], width, height, framesPerSecond, false, cursor);
         }
 
         private ScreenViewEncodedFrame EncodeSurface(ID3D11Texture2D surface)

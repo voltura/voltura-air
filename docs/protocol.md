@@ -834,8 +834,10 @@ Automatic derives its minimum readable dimensions from physical display pixels
 and effective Windows DPI; Full resolution keeps native dimensions; Data saver
 may use smaller dimensions. Relay uses Automatic or Data saver within its 8/4/2
 Mbps ceiling. The RTP sender supports sender reports, NACK retransmission, and
-receiver keyframe requests. A monotonic capture pacer
-drops desktop presents that arrive before the selected profile's next frame slot.
+receiver keyframe requests. A monotonic capture pacer encodes only at the
+selected cadence. Newer desktop presents replace the pending GPU copy so the
+last visual change is still encoded if the display becomes idle. A quality
+change can use that copy to supply a keyframe at the new dimensions.
 Receiver-health reports and sustained sender backpressure move one profile at a
 time; healthy decoding permits reversible upward probes. Buffered media and event
 data have fixed upper bounds. An encoder-rejected profile becomes eligible again

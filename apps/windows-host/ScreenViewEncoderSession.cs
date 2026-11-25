@@ -19,7 +19,6 @@ internal sealed class ScreenViewEncoderSession : IDisposable
 
     internal ScreenViewEncoderSession(Func<int, int, int, int, IScreenViewFrameEncoder> create) => _create = create;
 
-    public bool HasEncoder => _encoder is not null;
     public bool KeyFramePending { get; private set; } = true;
 
     public void Configure(int width, int height, int fps, int bitrate, bool requestKeyFrame)

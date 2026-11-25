@@ -13,6 +13,54 @@ namespace VolturaAir.Host.Tests;
 [Collection(AppPermissionSettingsCollection.Name)]
 public sealed class ScreenViewGpuTests : IsolatedHostSettingsTest
 {
+    [Fact]
+    public void CachedDesktopFrameSurvivesSourceReleaseAndUsesLatestPresentWhenResized()
+    {
+        Assert.SkipWhen(string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VOLTURA_SCREEN_PROBE_DIRECTORY")),
+            "Set VOLTURA_SCREEN_PROBE_DIRECTORY for the isolated hardware probe.");
+        using IDXGIFactory1 factory = CreateDXGIFactory1<IDXGIFactory1>();
+        factory.EnumAdapters1(0, out IDXGIAdapter1 adapter).CheckError();
+        using (adapter)
+        {
+            D3D11CreateDevice(adapter, DriverType.Unknown, DeviceCreationFlags.BgraSupport,
+                [FeatureLevel.Level_11_1, FeatureLevel.Level_11_0], out ID3D11Device device, out ID3D11DeviceContext context).CheckError();
+            using (device)
+            using (context)
+            using (var converter = new D3D11DesktopFrameConverter(device, context, ModeRotation.Identity))
+            {
+                Assert.Null(converter.RenderLatestNv12(128, 64));
+                CopySolidFrame(0xff000000);
+                Assert.True(converter.HasPendingFrame);
+                ID3D11Texture2D initial = converter.RenderLatestNv12(128, 64)!;
+                Assert.InRange((int)ReadNv12(device, context, initial)[0], 15, 17);
+                Assert.False(converter.HasPendingFrame);
+                Assert.Same(initial, converter.RenderLatestNv12(128, 64));
+
+                CopySolidFrame(0xff404040);
+                CopySolidFrame(0xffffffff);
+                Assert.Throws<ArgumentOutOfRangeException>(() => converter.RenderLatestNv12(1, 64));
+                Assert.True(converter.HasPendingFrame);
+                ID3D11Texture2D resized = converter.RenderLatestNv12(64, 32)!;
+                Assert.Equal((64u, 32u), (resized.Description.Width, resized.Description.Height));
+                Assert.InRange((int)ReadNv12(device, context, resized)[0], 234, 236);
+                Assert.False(converter.HasPendingFrame);
+
+                ID3D11Texture2D restored = converter.RenderLatestNv12(128, 64)!;
+                Assert.Equal((128u, 64u), (restored.Description.Width, restored.Description.Height));
+                Assert.InRange((int)ReadNv12(device, context, restored)[0], 234, 236);
+
+                void CopySolidFrame(uint color)
+                {
+                    uint[] pixels = new uint[128 * 64];
+                    Array.Fill(pixels, color);
+                    using ID3D11Texture2D source = device.CreateTexture2D<uint>(pixels, Format.B8G8R8A8_UNorm,
+                        128, 64, 1, 1, BindFlags.ShaderResource);
+                    converter.CopyDesktopFrame(source);
+                }
+            }
+        }
+    }
+
     // Opt-in: exercises the real local GPU, never a TCP server or a desktop capture.
     [Fact]
     public void SyntheticColorAndEncoderProbe()

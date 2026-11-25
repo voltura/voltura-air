@@ -94,6 +94,8 @@ internal sealed class D3D11DesktopFrameConverter : IDisposable
     private Texture2DDescription _inputDescription;
     private int _outputWidth;
     private int _outputHeight;
+    public bool HasDesktopFrame => _shaderInputView is not null;
+    public bool HasPendingFrame { get; private set; }
 
     public D3D11DesktopFrameConverter(ID3D11Device device, ID3D11DeviceContext context, ModeRotation rotation)
     {
@@ -134,16 +136,29 @@ internal sealed class D3D11DesktopFrameConverter : IDisposable
         catch { Dispose(); throw; }
     }
 
-    public ID3D11Texture2D? LatestSurface => _nv12Target;
-
     public ID3D11Texture2D RenderNv12(ID3D11Texture2D source, int outputWidth, int outputHeight, float whiteScale = 1f, bool toneMapHdr = true)
+    {
+        CopyDesktopFrame(source);
+        return RenderLatestNv12(outputWidth, outputHeight, whiteScale, toneMapHdr)!;
+    }
+
+    public void CopyDesktopFrame(ID3D11Texture2D source)
+    {
+        EnsureInputResources(source.Description);
+        _context.CopyResource(_shaderInput!, source);
+        HasPendingFrame = true;
+    }
+
+    public ID3D11Texture2D? RenderLatestNv12(int outputWidth, int outputHeight, float whiteScale = 1f, bool toneMapHdr = true)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(outputWidth, 2);
         ArgumentOutOfRangeException.ThrowIfLessThan(outputHeight, 2);
-        Texture2DDescription sourceDescription = source.Description;
-        EnsureInputResources(sourceDescription);
+        if (!HasDesktopFrame) return null;
+        bool colorChanged = _whiteScale != whiteScale || _toneMapHdr != toneMapHdr;
+        if (!HasPendingFrame && !colorChanged && _outputWidth == outputWidth && _outputHeight == outputHeight)
+            return _nv12Target;
         EnsureOutputResources(outputWidth, outputHeight);
-        if (_whiteScale != whiteScale || _toneMapHdr != toneMapHdr)
+        if (colorChanged)
         {
             Vector4 parameters = new(whiteScale, toneMapHdr ? 1 : 0, 0, 0);
             _context.UpdateSubresource(in parameters, _colorParameters);
@@ -151,12 +166,11 @@ internal sealed class D3D11DesktopFrameConverter : IDisposable
             _toneMapHdr = toneMapHdr;
         }
 
-        _context.CopyResource(_shaderInput!, source);
         _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _context.RSSetViewport(0, 0, outputWidth, outputHeight);
         _context.OMSetRenderTargets(_renderTargetView!);
         _context.VSSetShader(_vertexShader);
-        _context.PSSetShader(IsScRgb(sourceDescription.Format) ? _hdrPixelShader : _sdrPixelShader);
+        _context.PSSetShader(IsScRgb(_inputDescription.Format) ? _hdrPixelShader : _sdrPixelShader);
         _context.PSSetShaderResource(0, _shaderInputView!);
         _context.PSSetSampler(0, _sampler);
         _context.PSSetConstantBuffer(0, _colorParameters);
@@ -169,6 +183,7 @@ internal sealed class D3D11DesktopFrameConverter : IDisposable
             InputSurface = _videoInputView
         };
         _videoContext.VideoProcessorBlt(_videoProcessor!, _videoOutputView!, 0, [stream]).CheckError();
+        HasPendingFrame = false;
         return _nv12Target!;
     }
 

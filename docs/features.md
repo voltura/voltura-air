@@ -258,6 +258,11 @@ failure keeps session state without a background retry loop.
   temporary file or history, and keeps the live mirror running on success or
   failure. The device keeps only the existing per-tab OPFS partial until Save,
   Share, Discard, cancellation, navigation, disconnect, reload, or failure.
+  Starting a display switch or ending the live mirror cancels an unfinished
+  screenshot. A screenshot already ready to save stays available in the open
+  workspace while its connection and permissions remain valid. The camera waits
+  for the selected display to be confirmed. If the PC does not acknowledge a
+  screenshot request within 30 seconds, the app cancels it and allows a retry.
 - On browsers with MediaRecorder and writable OPFS support, a separate Record
   action captures the received PC video directly on the viewing device for up to
   five minutes. It records the clean incoming picture, without the PC cursor

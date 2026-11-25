@@ -21,6 +21,11 @@ const recording = vi.hoisted(() => ({
   reportAudioUnavailable: vi.fn(),
 }));
 vi.mock("./useScreenViewRecording", () => ({ useScreenViewRecording: () => recording }));
+vi.mock(import("../../foundation/file-transfer/fileTransferDeviceStorage"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  ensureDeviceFileStorageInitialized: () => Promise.resolve(),
+  supportsDeviceFileStorage: () => true,
+}));
 
 const offer =
   "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=sendonly\r\n" +
@@ -141,6 +146,12 @@ async function openView(renewalSupported = true, connectOriginal = true, multiDi
         maxHeight: 1080,
         maxFramesPerSecond: 30,
         systemAudio: { codec: "opus", sampleRate: 48000, channels: 2 },
+        screenshot: {
+          transferPermissionGranted: true,
+          format: "image/png",
+          maxPixels: 33_177_600,
+          maxBytes: 67_108_864,
+        },
         ...(renewalSupported ? { relayRenewal: true } : {}),
       }}
       clientId="viewer"
@@ -473,6 +484,53 @@ describe("Relay screen renewal", () => {
     await advance(10_000);
     expect(view.video.srcObject).toBe(stream);
     expect(view.stops()).toHaveLength(0);
+  });
+
+  it("cancels the old screenshot on a display switch and waits for the new display", async () => {
+    const view = await openView(false, true, true);
+    const camera = screen.getByRole<HTMLButtonElement>("button", { name: "Capture PC screenshot" });
+    const messages = () => view.send.mock.calls.map(([message]) => message);
+    fireEvent.click(camera);
+    const initial = messages().find((message) => message.type === "file.transfer.start");
+    expect(initial).toMatchObject({ source: "screen-capture", displayId: "display-1" });
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Display" }), {
+      target: { value: "display-2" },
+    });
+    const change = messages().find((message) => message.type === "screen.view.source.set")!;
+    expect(messages()).toContainEqual(expect.objectContaining({
+      type: "file.transfer.cancel", requestId: initial?.operationId,
+    }));
+    expect(camera.disabled).toBe(true);
+    fireEvent.click(camera);
+    expect(messages().filter((message) => message.type === "file.transfer.start")).toHaveLength(1);
+
+    act(() => publishScreenViewResult({
+      type: "screen.view.source.result",
+      operationId: change.operationId,
+      displayId: "display-2",
+      succeeded: true,
+      code: "ready",
+      message: "Ready",
+    }));
+    expect(camera.disabled).toBe(false);
+    fireEvent.click(camera);
+    expect(messages().at(-1)).toMatchObject({
+      type: "file.transfer.start", source: "screen-capture", displayId: "display-2",
+    });
+  });
+
+  it("cancels an unfinished screenshot when the user stops the mirror", async () => {
+    const view = await openView(false);
+    fireEvent.click(screen.getByRole("button", { name: "Capture PC screenshot" }));
+    const start = view.send.mock.calls.map(([message]) => message)
+      .find((message) => message.type === "file.transfer.start");
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+
+    expect(view.send.mock.calls.map(([message]) => message)).toContainEqual(expect.objectContaining({
+      type: "file.transfer.cancel", requestId: start?.operationId,
+    }));
+    expect(screen.queryByRole("button", { name: "Cancel screenshot transfer" })).toBeNull();
   });
 
   it("reports an unconfirmed canceled capture immediately if the stop cannot be sent", async () => {
@@ -865,6 +923,14 @@ describe("Relay screen renewal", () => {
     const view = await openView();
     await advance(9 * 60_000);
     fireEvent.click(screen.getByRole("button", { name: "Start screen recording" }));
+    const camera = screen.getByRole<HTMLButtonElement>("button", { name: "Capture PC screenshot" });
+    const record = screen.getByRole<HTMLButtonElement>("button", { name: "Start screen recording" });
+    expect(camera.disabled).toBe(true);
+    expect(record.disabled).toBe(true);
+    fireEvent.click(camera);
+    fireEvent.click(record);
+    expect(view.send.mock.calls.some(([message]) => message.type === "file.transfer.start")).toBe(false);
+    expect(view.starts()).toHaveLength(2);
     expect(recording.start).not.toHaveBeenCalled();
     expect(view.starts().at(-1)!.renewalOf).toBe(view.starts()[0]!.operationId);
     await view.accept();
@@ -874,6 +940,7 @@ describe("Relay screen renewal", () => {
       peer.video.unmute();
     });
     expect(recording.start).toHaveBeenCalledWith(view.video.srcObject, false);
+    expect(camera.disabled).toBe(false);
     await advance(5 * 60_000);
     expect(view.stops()).toHaveLength(0);
     expect(view.starts()).toHaveLength(2);

@@ -215,6 +215,7 @@ export default function ScreenViewWorkspace({
   } | null>(null);
   const [credentialExpires, setCredentialExpires] = useState(0);
   const recordAfterRenewalRef = useRef(false);
+  const [recordAfterRenewal, setRecordAfterRenewal] = useState(false);
   const disconnectedRecoveryRef = useRef<number | undefined>(undefined);
   const relayRecoveryRef = useRef<RelayRecovery | null>(null);
   const lastConnectionEpochRef = useRef(connectionEpoch);
@@ -240,13 +241,15 @@ export default function ScreenViewWorkspace({
   const directMoveFrameRef = useRef<number | undefined>(undefined);
   const directGuidanceTimeoutRef = useRef<number | undefined>(undefined);
   const directWheelRemainderRef = useRef({ dx: 0, dy: 0 });
+  const canCaptureScreenshot =
+    state === "paired" &&
+    capability.canView &&
+    capability.permissionGranted &&
+    capability.screenshot?.transferPermissionGranted === true;
   const screenshotTransfer = useFileTransfer(
     activePc,
     clientId,
-    state === "paired" &&
-      capability.canView &&
-      capability.permissionGranted &&
-      capability.screenshot?.transferPermissionGranted === true,
+    canCaptureScreenshot,
     send,
     undefined,
     onTransferNotice,
@@ -824,6 +827,8 @@ export default function ScreenViewWorkspace({
       pendingSourceRef.current = null;
       setSourcePending(false);
       setStatus("The display change could not be sent. Check the connection and try again.");
+    } else {
+      screenshotTransfer.cancelActiveScreenCapture();
     }
   }
 
@@ -1143,7 +1148,7 @@ export default function ScreenViewWorkspace({
       pendingMedia = { cursor: null, audio: null };
       void playVideo(true);
       if (recordAfterRenewalRef.current) {
-        recordAfterRenewalRef.current = false;
+        updateRecordingRenewalWait(false);
         void recording.start(stream, videoRef.current?.muted === false);
       }
     };
@@ -1456,6 +1461,7 @@ export default function ScreenViewWorkspace({
   }
 
   function closeStream(preserveRelaySession = false) {
+    screenshotTransfer.cancelActiveScreenCapture();
     soundRequestRef.current += 1;
     playbackRequestRef.current += 1;
     if (!preserveRelaySession) {
@@ -1569,10 +1575,15 @@ export default function ScreenViewWorkspace({
     });
   }
 
+  function updateRecordingRenewalWait(waiting: boolean) {
+    recordAfterRenewalRef.current = waiting;
+    setRecordAfterRenewal(waiting);
+  }
+
   function abandonRenewal() {
     const renewal = renewalRef.current;
     renewalRef.current = null;
-    recordAfterRenewalRef.current = false;
+    updateRecordingRenewalWait(false);
     if (!renewal) {
       return;
     }
@@ -1960,12 +1971,18 @@ export default function ScreenViewWorkspace({
                 disabled={
                   screenshotBusy ||
                   recording.busy ||
+                  recordAfterRenewal ||
+                  sourcePending ||
+                  !selected ||
                   !supportsScreenshotStorage ||
-                  !capability.screenshot.transferPermissionGranted
+                  !canCaptureScreenshot
                 }
                 onClick={() => {
                   const screenOperationId = activeOperationRef.current;
-                  if (screenOperationId && selected) {
+                  if (
+                    screenOperationId && selected && !pendingSourceRef.current &&
+                    !recordAfterRenewalRef.current
+                  ) {
                     screenshotTransfer.startScreenCapture({
                       screenOperationId,
                       displayId: selected,
@@ -1976,13 +1993,17 @@ export default function ScreenViewWorkspace({
                 title={
                   !capability.screenshot.transferPermissionGranted
                     ? "Allow Transfer files for this device on the PC"
-                    : !supportsScreenshotStorage
-                      ? "This browser cannot stage a screenshot for Save or Share"
-                      : screenshotBusy
-                        ? "Save or discard the current screenshot first"
-                        : recording.busy
-                          ? "Finish or discard the current recording first"
-                          : "Capture this PC display"
+                    : !canCaptureScreenshot
+                      ? "Wait for Screen View to reconnect"
+                      : !supportsScreenshotStorage
+                        ? "This browser cannot stage a screenshot for Save or Share"
+                        : screenshotBusy
+                          ? "Save or discard the current screenshot first"
+                          : recording.busy || recordAfterRenewal
+                            ? "Finish or discard the current recording first"
+                            : sourcePending || !selected
+                              ? "Wait for the PC display to be confirmed"
+                              : "Capture this PC display"
                 }
               >
                 <Camera aria-hidden="true" />
@@ -1997,7 +2018,8 @@ export default function ScreenViewWorkspace({
               onTouchEnd={stopScreenGesture}
               onTouchCancel={stopScreenGesture}
               disabled={
-                recording.presentation.phase !== "recording" && (screenshotBusy || recording.busy)
+                recording.presentation.phase !== "recording" &&
+                (screenshotBusy || recording.busy || recordAfterRenewal)
               }
               aria-disabled={!recording.supported}
               aria-label={
@@ -2010,13 +2032,15 @@ export default function ScreenViewWorkspace({
                 recording.presentation.phase === "recording"
                   ? "Stop recording"
                   : recording.unsupportedReason ||
-                    (screenshotBusy
-                      ? "Finish or discard the screenshot first"
-                      : recording.busy
-                        ? "Save or discard the current recording first"
-                        : soundOn
-                          ? "Record PC video with sound"
-                          : "Record PC video")
+                    (recordAfterRenewal
+                      ? "Preparing screen recording"
+                      : screenshotBusy
+                        ? "Finish or discard the screenshot first"
+                        : recording.busy
+                          ? "Save or discard the current recording first"
+                          : soundOn
+                            ? "Record PC video with sound"
+                            : "Record PC video")
               }
               onClick={() => {
                 if (!recording.supported) {
@@ -2032,11 +2056,11 @@ export default function ScreenViewWorkspace({
                   activePc.transportMode === "relay" &&
                   credentialExpires - Date.now() < screenViewRecordingMaximumDurationMs + 120_000
                 ) {
-                  recordAfterRenewalRef.current = true;
+                  updateRecordingRenewalWait(true);
                   setStatus("Preparing screen recording...");
                   start(selected, activeOperationRef.current ?? undefined);
                   if (!renewalRef.current) {
-                    recordAfterRenewalRef.current = false;
+                    updateRecordingRenewalWait(false);
                   }
                 } else {
                   void recording.start(remoteStreamRef.current, soundOn);

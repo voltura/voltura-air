@@ -50,6 +50,7 @@ export type {
 
 const maximumSafeFileSize = Number.MAX_SAFE_INTEGER;
 const maximumPendingDownloadRecords = 128;
+const screenCaptureStartResponseTimeoutMs = 30_000;
 const hasTransferredData = (runtime: TransferRuntime) =>
   (runtime.direction === "download" ? runtime.received : runtime.acknowledged) ===
   runtime.declaredSize;
@@ -91,6 +92,8 @@ export function useFileTransfer(
 
   const closeRuntime = useCallback(
     async (runtime: TransferRuntime, removeStored: boolean) => {
+      window.clearTimeout(runtime.startResponseTimer);
+      delete runtime.startResponseTimer;
       closeFileTransferPeer(runtime);
       if (runtime.writable) {
         try {
@@ -551,6 +554,8 @@ export function useFileTransfer(
           runtime?.operationId === message.operationId &&
           !runtime.transferId
         ) {
+          window.clearTimeout(runtime.startResponseTimer);
+          delete runtime.startResponseTimer;
           if (!message.succeeded || !message.transferId) {
             if (message.code === "invalid-name" && runtime.direction === "upload") {
               setPresentation({
@@ -665,7 +670,10 @@ export function useFileTransfer(
           progress: 0,
           readyToSave: false,
         });
-        sendRef.current({
+        runtime.startResponseTimer = window.setTimeout(() => {
+          fail(runtime, "The PC did not respond to the screenshot request. Try again.");
+        }, screenCaptureStartResponseTimeoutMs);
+        const sent = sendRef.current({
           type: "file.transfer.start",
           operationId,
           direction: "download",
@@ -674,6 +682,9 @@ export function useFileTransfer(
           displayId: runtime.target.displayId,
           clientSignature: signature,
         });
+        if (sent === false) {
+          fail(runtime, "The screenshot request could not be sent. Try again.", false);
+        }
         return;
       }
       const entryId = runtime.direction === "download" ? runtime.target.entryId : "";
@@ -704,7 +715,7 @@ export function useFileTransfer(
         progress: 0,
         readyToSave: false,
       });
-      sendRef.current({
+      const sent = sendRef.current({
         type: "file.transfer.start",
         operationId,
         direction: runtime.direction,
@@ -716,6 +727,9 @@ export function useFileTransfer(
           : { fileName, declaredSize: declaredSize! }),
         clientSignature: signature,
       });
+      if (sent === false) {
+        fail(runtime, "The file transfer request could not be sent. Try again.", false);
+      }
     },
     [activePc.hostIdentityPublicKey, activePc.id, clientId, fail],
   );
@@ -845,6 +859,13 @@ export function useFileTransfer(
     }
   }, [fail]);
 
+  const cancelActiveScreenCapture = useCallback(() => {
+    const runtime = runtimeRef.current;
+    if (runtime?.target.kind === "screen-capture" && !runtime.transportComplete) {
+      fail(runtime, "Screenshot transfer canceled.", true, "neutral");
+    }
+  }, [fail]);
+
   const saveReadyFile = useCallback(async () => {
     const runtime = runtimeRef.current;
     if (
@@ -903,6 +924,7 @@ export function useFileTransfer(
 
   return {
     cancel,
+    cancelActiveScreenCapture,
     discardReadyFile,
     presentation,
     retryUploadName,

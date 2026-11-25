@@ -6,6 +6,7 @@ import ScreenViewWorkspace from "./ScreenViewWorkspace";
 
 const transfer = vi.hoisted(() => ({
   cancel: vi.fn(),
+  cancelActiveScreenCapture: vi.fn(),
   discardReadyFile: vi.fn(() => Promise.resolve()),
   presentation: {
     active: false,

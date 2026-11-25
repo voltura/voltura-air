@@ -546,36 +546,29 @@ describe("useFileTransfer download lifecycle", () => {
     storage.writable.abort.mockClear();
   });
 
-  it("starts a screenshot download bound to the active screen operation and display", () => {
+  function startScreenshot(canSend?: (message: ClientMessage) => boolean) {
     vi.stubGlobal("RTCPeerConnection", TestPeerConnection);
     const sent: ClientMessage[] = [];
-    const send = (message: ClientMessage) => { sent.push(message); };
-    let transfer: ReturnType<typeof useFileTransfer> | null = null;
-    function Harness() {
-      transfer = useFileTransfer(
-        {
-          customName: false,
-          id: "pc",
-          name: "PC",
-          url: "https://pc.invalid",
-          hostIdentityPublicKey: "host-key",
-          transportMode: "secure-direct",
-        },
-        "client",
-        true,
-        send,
-      );
-      return null;
+    const send = (message: ClientMessage) => {
+      sent.push(message);
+      return canSend?.(message);
+    };
+    const hook = renderHook(() => useFileTransfer(pc, "client", true, send));
+
+    const retry = () => act(() => hook.result.current.startScreenCapture({
+      screenOperationId: "screen-request",
+      displayId: "display-1-1",
+    }));
+    retry();
+    const request = sent.find((message) => message.type === "file.transfer.start");
+    if (!request?.operationId) {
+      throw new Error("Missing screenshot request");
     }
-    render(<Harness />);
+    return { ...hook, sent, requestId: request.operationId, retry };
+  }
 
-    act(() =>
-      transfer!.startScreenCapture({
-        screenOperationId: "screen-request",
-        displayId: "display-1-1",
-      }),
-    );
-
+  it("starts a screenshot download bound to the active screen operation and display", () => {
+    const { sent, result } = startScreenshot();
     expect(sent.at(-1)).toMatchObject({
       type: "file.transfer.start",
       direction: "download",
@@ -584,7 +577,95 @@ describe("useFileTransfer download lifecycle", () => {
       displayId: "display-1-1",
       clientSignature: "client-signature",
     });
-    expect(transfer!.presentation.message).toBe("Capturing…");
+    expect(result.current.presentation.message).toBe("Capturing…");
+  });
+
+  it("releases a screenshot immediately when its request cannot send", () => {
+    const send = vi.fn(() => false);
+    const hook = startScreenshot(send);
+    expect(hook.result.current.presentation).toMatchObject({
+      active: false, message: "The screenshot request could not be sent. Try again.",
+    });
+    expect(hook.sent.map((message) => message.type)).toEqual(["file.transfer.start"]);
+    send.mockReturnValue(true);
+    hook.retry();
+    expect(hook.result.current.presentation.active).toBe(true);
+  });
+
+  it("releases the regular file transfer when its request cannot send", () => {
+    vi.stubGlobal("RTCPeerConnection", TestPeerConnection);
+    const hook = renderHook(() => useFileTransfer(pc, "client", true, () => false));
+    act(() => hook.result.current.startDownload(target));
+    expect(hook.result.current.presentation).toMatchObject({
+      active: false, message: "The file transfer request could not be sent. Try again.",
+    });
+  });
+
+  it("cancels an unacknowledged screenshot request and allows a retry", () => {
+    vi.useFakeTimers();
+    try {
+      const hook = startScreenshot();
+      act(() => { vi.advanceTimersByTime(30_000); });
+      expect(hook.sent.at(-1)).toMatchObject({
+        type: "file.transfer.cancel", requestId: hook.requestId,
+      });
+      expect(hook.result.current.presentation).toMatchObject({
+        active: false, message: "The PC did not respond to the screenshot request. Try again.",
+      });
+      hook.retry();
+      expect(hook.sent.at(-1)).toMatchObject({ type: "file.transfer.start" });
+      act(() => publishFileManagerResult({
+        type: "file.transfer.start.result", operationId: hook.requestId,
+        succeeded: true, message: "Late", transferId: "old-transfer",
+      }));
+      expect(hook.result.current.presentation.message).toBe("Capturing…");
+      hook.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears the screenshot start deadline on acknowledgment", () => {
+    vi.useFakeTimers();
+    try {
+      const hook = startScreenshot();
+      act(() => publishFileManagerResult({
+        type: "file.transfer.start.result", operationId: hook.requestId,
+        succeeded: true, message: "Started", transferId: "transfer-a",
+      }));
+      act(() => { vi.advanceTimersByTime(30_000); });
+      expect(hook.sent.map((message) => message.type)).toEqual(["file.transfer.start"]);
+      expect(hook.result.current.presentation.message).toBe("Preparing…");
+      hook.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a fully staged screenshot after the mirror stops", async () => {
+    const hook = startScreenshot();
+    act(() => publishFileManagerResult({
+      type: "file.transfer.start.result", operationId: hook.requestId,
+      succeeded: true, message: "Started", transferId: "transfer-a",
+    }));
+    await act(() => {
+      publishFileManagerResult(offer);
+      return Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(hook.sent.some((message) => message.type === "file.transfer.answer")).toBe(true),
+    );
+    await act(() => {
+      publishFileManagerResult(completion);
+      return Promise.resolve();
+    });
+    expect(hook.result.current.presentation.readyToSave).toBe(true);
+
+    act(() => hook.result.current.cancelActiveScreenCapture());
+
+    expect(hook.sent.some((message) => message.type === "file.transfer.cancel")).toBe(false);
+    expect(storage.remove).not.toHaveBeenCalled();
+    expect(hook.result.current.presentation.readyToSave).toBe(true);
   });
 
   it("cancels a pending start by request ID before the host issues a transfer ID", () => {

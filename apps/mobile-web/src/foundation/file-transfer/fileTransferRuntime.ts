@@ -64,6 +64,7 @@ export function closeFileTransferPeer(runtime: TransferRuntime) {
 
 export interface TransferRuntime {
   operationId: string;
+  startResponseTimer?: number;
   transferId: string;
   direction: FileTransferDirection;
   fileName: string;

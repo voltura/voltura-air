@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <new>
 #include <stdexcept>
+#include <string>
 
 static std::atomic<int> frameAllocations = 0;
 void* operator new(std::size_t size)
@@ -27,10 +28,36 @@ static void Check(bool condition, const char* message)
 
 struct TestPipe
 {
-    HANDLE read = nullptr;
-    HANDLE write = nullptr;
-    TestPipe() { Check(CreatePipe(&read, &write, nullptr, 0) != FALSE, "CreatePipe failed"); }
-    ~TestPipe() { if (read) CloseHandle(read); if (write) CloseHandle(write); }
+    HANDLE read = INVALID_HANDLE_VALUE;
+    HANDLE write = INVALID_HANDLE_VALUE;
+    TestPipe()
+    {
+        static unsigned int nextPipeId = 0;
+        const std::wstring name = L"\\\\.\\pipe\\VolturaAirWebcamFrameTest-" +
+            std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(++nextPipeId);
+        read = CreateNamedPipeW(name.c_str(), PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
+            PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT, 1, 4096, 4096, 0, nullptr);
+        Check(read != INVALID_HANDLE_VALUE, "CreateNamedPipeW failed");
+        write = CreateFileW(name.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
+        if (write == INVALID_HANDLE_VALUE)
+        {
+            CloseHandle(read);
+            throw std::runtime_error("Test pipe connection failed");
+        }
+        OVERLAPPED connection{};
+        if (!ConnectNamedPipe(read, &connection) && GetLastError() != ERROR_PIPE_CONNECTED)
+        {
+            CloseWriter();
+            CloseHandle(read);
+            throw std::runtime_error("Test pipe was not connected");
+        }
+    }
+    void CloseWriter()
+    {
+        if (write != INVALID_HANDLE_VALUE) CloseHandle(write);
+        write = INVALID_HANDLE_VALUE;
+    }
+    ~TestPipe() { CloseWriter(); CloseHandle(read); }
 };
 
 static bool WriteAll(HANDLE pipe, const BYTE* bytes, DWORD length)
@@ -68,12 +95,53 @@ static bool SendRecord(SimpleFrameGenerator& generator, TestPipe& pipe,
     {
         written = WriteAll(pipe.write, header.data(), static_cast<DWORD>(header.size())) &&
             WriteAll(pipe.write, payload.data(), bytes);
-        if (closeWriter) { CloseHandle(pipe.write); pipe.write = nullptr; }
+        if (closeWriter) pipe.CloseWriter();
     });
     const bool accepted = generator.ReadFrame(pipe.read);
     writer.join();
     Check(written, "Pipe writer failed");
     return accepted;
+}
+
+static void CheckPendingReadCancellation()
+{
+    TestPipe pipe;
+    SimpleFrameGenerator generator;
+    OVERLAPPED read{};
+    read.hEvent = generator.m_ioEvent;
+    BYTE data[40]{};
+    DWORD transferred = 0;
+    Check(!ReadFile(pipe.read, data, sizeof(data), nullptr, &read) && GetLastError() == ERROR_IO_PENDING,
+        "Idle overlapped read was not pending");
+    SetEvent(generator.m_stopEvent);
+    SetLastError(ERROR_IO_PENDING);
+    Check(!generator.CompleteIo(pipe.read, read, FALSE, transferred), "Stop did not cancel the pending read");
+    Check(!GetOverlappedResult(pipe.read, &read, &transferred, FALSE) && GetLastError() == ERROR_OPERATION_ABORTED,
+        "Pending read was not retired before returning");
+}
+
+static void CheckDisconnectClearsPublishedFrame()
+{
+    TestPipe pipe;
+    SimpleFrameGenerator generator;
+    generator.m_reader = std::thread([&]() { generator.ReadConnection(pipe.read); });
+    BYTE handshake[8]{};
+    DWORD received = 0;
+    Check(ReadFile(pipe.write, handshake, sizeof(handshake), &received, nullptr) &&
+        received == sizeof(handshake) && memcmp(handshake, "VAWH\x01\0\0\0", sizeof(handshake)) == 0,
+        "Frame reader did not send the version 1 handshake");
+
+    auto header = Header(1);
+    std::vector<BYTE> frame(FrameBytes, 200);
+    Check(WriteAll(pipe.write, header.data(), static_cast<DWORD>(header.size())) &&
+        WriteAll(pipe.write, frame.data(), FrameBytes), "Frame pipe writer failed");
+    const ULONGLONG deadline = GetTickCount64() + 2000;
+    while (!generator.CopyLatestFrame(frame.data(), FrameBytes, FrameWidth) && GetTickCount64() < deadline) Sleep(1);
+    Check(generator.CopyLatestFrame(frame.data(), FrameBytes, FrameWidth), "Connected frame was never published");
+
+    pipe.CloseWriter();
+    generator.m_reader.join();
+    Check(!generator.CopyLatestFrame(frame.data(), FrameBytes, FrameWidth), "Disconnected frame remained visible");
 }
 
 int main()
@@ -114,7 +182,10 @@ int main()
         Check(generator.CopyLatestFrame(packed.data(), FrameBytes, FrameWidth), "Interrupted read lost the last good frame");
         Check(packed == payload, "Interrupted read changed published pixels");
         Check(frameAllocations == 2, "Recovery allocated additional frame storage");
+        CheckPendingReadCancellation();
+        CheckDisconnectClearsPublishedFrame();
         std::puts("100 frames: two reusable native buffers; packed/strided pixels, clear, malformed geometry and interrupted-read ownership passed.");
+        std::puts("Native pipe cancellation and disconnect cleanup passed.");
         return 0;
     }
     catch (const std::exception& error)

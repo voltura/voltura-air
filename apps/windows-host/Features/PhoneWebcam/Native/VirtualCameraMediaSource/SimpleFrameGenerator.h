@@ -16,9 +16,11 @@ public:
 
 private:
     void RunPipeReader();
+    void ReadConnection(HANDLE pipe);
     bool ReadFrame(HANDLE pipe);
     bool VerifyServer(HANDLE pipe) const;
     bool ReadExact(HANDLE pipe, BYTE* destination, DWORD length) const;
+    bool CompleteIo(HANDLE pipe, OVERLAPPED& operation, BOOL completed, DWORD& transferred) const;
     void FillWaitingFrame(BYTE* buffer, DWORD length, LONG pitch) const;
     bool CopyLatestFrame(BYTE* buffer, DWORD length, LONG pitch);
 
@@ -26,6 +28,7 @@ private:
     UINT32 m_height = 0;
     GUID m_subType = GUID_NULL;
     HANDLE m_stopEvent = nullptr;
+    HANDLE m_ioEvent = nullptr;
     std::thread m_reader;
     std::atomic<bool> m_stop = false;
     std::mutex m_frameLock;

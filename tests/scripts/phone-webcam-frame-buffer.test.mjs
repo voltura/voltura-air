@@ -80,6 +80,7 @@ test(
         timeout: 20_000,
       });
       assert.match(result, /100 frames: two reusable native buffers/u);
+      assert.match(result, /Native pipe cancellation and disconnect cleanup passed/u);
       process.stdout.write(result);
     } finally {
       assert.equal(path.dirname(output), outputRoot);

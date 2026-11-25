@@ -13,6 +13,7 @@ namespace
     constexpr DWORD FrameWidth = 1920;
     constexpr DWORD FrameHeight = 1080;
     constexpr DWORD FrameBytes = FrameWidth * FrameHeight * 3 / 2;
+    constexpr DWORD ReconnectDelayMilliseconds = 250;
 
     DWORD ReadUInt32(const BYTE* value)
     {
@@ -32,23 +33,22 @@ namespace
 SimpleFrameGenerator::SimpleFrameGenerator()
 {
     m_stopEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    m_ioEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
 }
 
 SimpleFrameGenerator::~SimpleFrameGenerator()
 {
     m_stop = true;
     if (m_stopEvent != nullptr) SetEvent(m_stopEvent);
-    if (m_reader.joinable())
-    {
-        CancelSynchronousIo(m_reader.native_handle());
-        m_reader.join();
-    }
+    if (m_reader.joinable()) m_reader.join();
+    if (m_ioEvent != nullptr) CloseHandle(m_ioEvent);
     if (m_stopEvent != nullptr) CloseHandle(m_stopEvent);
 }
 
 HRESULT SimpleFrameGenerator::Initialize(_In_ IMFMediaType* mediaType)
 {
     RETURN_HR_IF_NULL(E_INVALIDARG, mediaType);
+    RETURN_HR_IF(E_OUTOFMEMORY, m_stopEvent == nullptr || m_ioEvent == nullptr);
     RETURN_IF_FAILED(mediaType->GetGUID(MF_MT_SUBTYPE, &m_subType));
     RETURN_HR_IF(MF_E_UNSUPPORTED_FORMAT, m_subType != MFVideoFormat_NV12);
     RETURN_IF_FAILED(MFGetAttributeSize(mediaType, MF_MT_FRAME_SIZE, &m_width, &m_height));
@@ -74,28 +74,32 @@ void SimpleFrameGenerator::RunPipeReader()
 {
     while (!m_stop)
     {
-        HANDLE pipe = CreateFileW(PipePath, GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
-        if (pipe == INVALID_HANDLE_VALUE)
+        HANDLE pipe = CreateFileW(PipePath, GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
+        if (pipe != INVALID_HANDLE_VALUE)
         {
-            WaitForSingleObject(m_stopEvent, 250);
-            continue;
+            if (!m_stop && VerifyServer(pipe)) ReadConnection(pipe);
+            CloseHandle(pipe);
         }
-        if (VerifyServer(pipe))
-        {
-            {
-                std::lock_guard guard(m_frameLock);
-                m_latestFrame.clear();
-                m_latestSequence = 0;
-            }
-            const BYTE handshake[8] = { 'V', 'A', 'W', 'H', 1, 0, 0, 0 };
-            DWORD written = 0;
-            if (WriteFile(pipe, handshake, sizeof(handshake), &written, nullptr) && written == sizeof(handshake))
-            {
-                while (!m_stop && ReadFrame(pipe)) { }
-            }
-        }
-        CloseHandle(pipe);
+        WaitForSingleObject(m_stopEvent, ReconnectDelayMilliseconds);
     }
+}
+
+void SimpleFrameGenerator::ReadConnection(HANDLE pipe)
+{
+    const BYTE handshake[8] = { 'V', 'A', 'W', 'H', 1, 0, 0, 0 };
+    OVERLAPPED operation{};
+    operation.hEvent = m_ioEvent;
+    DWORD written = 0;
+    const BOOL completed = WriteFile(pipe, handshake, sizeof(handshake), nullptr, &operation);
+    if (CompleteIo(pipe, operation, completed, written) &&
+        written == sizeof(handshake))
+    {
+        while (!m_stop && ReadFrame(pipe)) { }
+    }
+
+    std::lock_guard guard(m_frameLock);
+    m_latestFrame.clear();
+    m_latestSequence = 0;
 }
 
 bool SimpleFrameGenerator::ReadFrame(HANDLE pipe)
@@ -167,11 +171,31 @@ bool SimpleFrameGenerator::ReadExact(HANDLE pipe, BYTE* destination, DWORD lengt
     DWORD offset = 0;
     while (offset < length && !m_stop)
     {
+        OVERLAPPED operation{};
+        operation.hEvent = m_ioEvent;
         DWORD read = 0;
-        if (!ReadFile(pipe, destination + offset, length - offset, &read, nullptr) || read == 0) return false;
+        const BOOL completed = ReadFile(pipe, destination + offset, length - offset, nullptr, &operation);
+        if (!CompleteIo(pipe, operation, completed, read) || read == 0) return false;
         offset += read;
     }
-    return offset == length;
+    return !m_stop && offset == length;
+}
+
+bool SimpleFrameGenerator::CompleteIo(HANDLE pipe, OVERLAPPED& operation, BOOL completed, DWORD& transferred) const
+{
+    if (!completed)
+    {
+        if (GetLastError() != ERROR_IO_PENDING) return false;
+        const HANDLE events[] = { m_stopEvent, operation.hEvent };
+        if (WaitForMultipleObjects(2, events, FALSE, INFINITE) != WAIT_OBJECT_0 + 1)
+        {
+            CancelIoEx(pipe, &operation);
+            // Cancellation must finish before the request and its buffer leave scope.
+            GetOverlappedResult(pipe, &operation, &transferred, TRUE);
+            return false;
+        }
+    }
+    return GetOverlappedResult(pipe, &operation, &transferred, FALSE) != FALSE;
 }
 
 bool SimpleFrameGenerator::CopyLatestFrame(BYTE* buffer, DWORD length, LONG pitch)

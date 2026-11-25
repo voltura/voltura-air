@@ -207,16 +207,28 @@ internal sealed class PhoneWebcamFramePipeServer : IAsyncDisposable
     private readonly CancellationTokenSource _shutdown = new();
     private readonly Task _worker;
     private readonly Func<NamedPipeServerStream> _createPipe;
+    private readonly Action<NamedPipeServerStream> _authenticateClient;
+    private readonly TimeSpan _writeTimeout;
     private readonly IDisposable _tokenAccessLease;
     private readonly Lock _disposeGate = new();
     private Task? _disposal;
 
     internal PhoneWebcamFramePipeServer(Func<NamedPipeServerStream>? createPipe = null)
+        : this(createPipe, null, TimeSpan.FromSeconds(2))
+    {
+    }
+
+    internal PhoneWebcamFramePipeServer(
+        Func<NamedPipeServerStream>? createPipe,
+        Action<NamedPipeServerStream>? authenticateClient,
+        TimeSpan writeTimeout)
     {
         _tokenAccessLease = PhoneWebcamProcessTokenAccess.Grant(_frameServerSid);
         try
         {
             _createPipe = createPipe ?? CreatePipe;
+            _authenticateClient = authenticateClient ?? AuthenticateClient;
+            _writeTimeout = writeTimeout;
             NamedPipeServerStream initialPipe = _createPipe();
             _worker = RunAsync(initialPipe, _shutdown.Token);
         }
@@ -300,47 +312,18 @@ internal sealed class PhoneWebcamFramePipeServer : IAsyncDisposable
                         }
                     }
 
-                    AuthenticateClient(pipe);
+                    _authenticateClient(pipe);
                     if (!handshake.AsSpan(0, 4).SequenceEqual(Handshake) ||
                         BinaryPrimitives.ReadInt32LittleEndian(handshake.AsSpan(4)) != PhoneWebcamFrameContract.ProtocolVersion)
                     {
                         throw new InvalidDataException("The virtual camera sent an invalid pipe handshake.");
                     }
 
-                    byte[] header = new byte[40];
-                    while (!cancellationToken.IsCancellationRequested)
-                    {
-                        PhoneWebcamFrame? frame = await _frames.TakeAsync(cancellationToken).ConfigureAwait(false);
-                        Array.Clear(header);
-                        if (frame is null)
-                        {
-                            ClearMagic.CopyTo(header, 0);
-                            BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(4), PhoneWebcamFrameContract.ProtocolVersion);
-                            await pipe.WriteAsync(header, cancellationToken).ConfigureAwait(false);
-                            continue;
-                        }
-
-                        using (frame)
-                        {
-                            RecordMagic.CopyTo(header, 0);
-                            BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(4), PhoneWebcamFrameContract.ProtocolVersion);
-                            BinaryPrimitives.WriteUInt64LittleEndian(header.AsSpan(8), frame.Sequence);
-                            BinaryPrimitives.WriteUInt64LittleEndian(header.AsSpan(16), frame.SourceTimestamp90Khz);
-                            BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(24), PhoneWebcamFrameContract.Width);
-                            BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(28), PhoneWebcamFrameContract.Height);
-                            BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(32), PhoneWebcamFrameContract.Nv12Format);
-                            BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(36), PhoneWebcamFrameContract.FrameBytes);
-                            await pipe.WriteAsync(header, cancellationToken).ConfigureAwait(false);
-                            await pipe.WriteAsync(
-                                frame.Payload[..PhoneWebcamFrameContract.FrameBytes],
-                                cancellationToken).ConfigureAwait(false);
-                        }
-                    }
+                    await ServeClientAsync(pipe, cancellationToken).ConfigureAwait(false);
                 }
                 catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException)
                 {
-                    // A camera consumer may close at any time. The next connection starts
-                    // from an empty latest-frame slot and never accumulates a backlog.
+                    // A closed or rejected consumer only retires this pipe instance.
                 }
             }
         }
@@ -357,6 +340,64 @@ internal sealed class PhoneWebcamFramePipeServer : IAsyncDisposable
             {
                 await nextPipe.DisposeAsync().ConfigureAwait(false);
             }
+        }
+    }
+
+    private async Task ServeClientAsync(NamedPipeServerStream pipe, CancellationToken cancellationToken)
+    {
+        using var connection = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        Task clientClosed = WatchClientAsync(pipe, connection);
+        byte[] header = new byte[40];
+        try
+        {
+            while (!connection.IsCancellationRequested)
+            {
+                using PhoneWebcamFrame? frame = await _frames.TakeAsync(connection.Token).ConfigureAwait(false);
+                Array.Clear(header);
+                (frame is null ? ClearMagic : RecordMagic).CopyTo(header, 0);
+                BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(4), PhoneWebcamFrameContract.ProtocolVersion);
+                if (frame is not null)
+                {
+                    BinaryPrimitives.WriteUInt64LittleEndian(header.AsSpan(8), frame.Sequence);
+                    BinaryPrimitives.WriteUInt64LittleEndian(header.AsSpan(16), frame.SourceTimestamp90Khz);
+                    BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(24), PhoneWebcamFrameContract.Width);
+                    BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(28), PhoneWebcamFrameContract.Height);
+                    BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(32), PhoneWebcamFrameContract.Nv12Format);
+                    BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(36), PhoneWebcamFrameContract.FrameBytes);
+                }
+
+                connection.CancelAfter(_writeTimeout);
+                await pipe.WriteAsync(header, connection.Token).ConfigureAwait(false);
+                if (frame is not null) await pipe.WriteAsync(frame.Payload, connection.Token).ConfigureAwait(false);
+                connection.CancelAfter(Timeout.InfiniteTimeSpan);
+            }
+        }
+        catch (OperationCanceledException) when (connection.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            await connection.CancelAsync().ConfigureAwait(false);
+            await clientClosed.ConfigureAwait(false);
+        }
+    }
+
+    private static async Task WatchClientAsync(NamedPipeServerStream pipe, CancellationTokenSource connection)
+    {
+        try
+        {
+            // The handshake is the client's only version 1 record. EOF or more data ends this connection.
+            await pipe.ReadAsync(new byte[1], connection.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (connection.IsCancellationRequested)
+        {
+        }
+        catch (IOException)
+        {
+        }
+        finally
+        {
+            await connection.CancelAsync().ConfigureAwait(false);
         }
     }
 

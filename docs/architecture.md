@@ -231,8 +231,10 @@ The decoder owns and reuses its caller-provided native output sample and buffer;
 decoded published frames remain separately owned. Flush retains the scratch
 buffer, resolution changes grow it only when required, and disposal releases it.
 The native Frame Server media source reuses one private receive buffer and one
-published buffer, swapping only after a complete validated read; an interrupted
-read leaves the published frame unchanged. It contains no network or credential
+published buffer, swapping only after a complete validated read. An interrupted
+record cannot replace the last good frame, and closing the pipe returns the
+camera to its waiting frame. The native reader cancels and drains pending I/O on
+shutdown. It contains no network or credential
 logic. The Windows page consumes the
 registered virtual camera like any other application and never becomes a second
 media broker. Switching phone cameras replaces the sender track on the active peer;
@@ -240,7 +242,9 @@ it does not replace the peer or command connection. A phone-webcam stop releases
 only feature-owned camera/media resources. Native cleanup runs outside the
 authenticated command receive loop, and neither stop nor camera switching closes or
 marks the paired device connection unavailable.
-The pipe carries capacity-one frame or clear records. Only the current producer can
+The pipe carries capacity-one frame or clear records. The host detects an idle
+reader's disconnect and gives each record write up to two seconds before retiring
+the connection. Only the current producer can
 publish frames. A camera handoff holds the last valid frame while the phone switches
 cameras. Ending the producer clears the frame slot at the ownership transition and
 stops the audio and video pipelines independently of native peer cleanup. The

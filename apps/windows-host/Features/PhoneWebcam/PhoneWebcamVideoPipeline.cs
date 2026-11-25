@@ -103,6 +103,7 @@ internal sealed class PhoneWebcamVideoPipeline : IAsyncDisposable
                     {
                         if (!ContainsNalType(decoderInput, 5))
                         {
+                            KeyFrameRequested?.Invoke(this, EventArgs.Empty);
                             continue;
                         }
 
@@ -194,7 +195,7 @@ internal sealed class PhoneWebcamVideoPipeline : IAsyncDisposable
         }
     }
 
-    private byte[]? AddRequiredParameterSets(ReadOnlySpan<byte> accessUnit)
+    private byte[]? AddRequiredParameterSets(byte[] accessUnit)
     {
         if (_sequenceParameterSet is null || _pictureParameterSet is null)
         {
@@ -205,7 +206,7 @@ internal sealed class PhoneWebcamVideoPipeline : IAsyncDisposable
         bool hasPps = ContainsNalType(accessUnit, 8);
         if (hasSps && hasPps)
         {
-            return accessUnit.ToArray();
+            return accessUnit;
         }
 
         int prefixLength = (hasSps ? 0 : _sequenceParameterSet.Length) +
@@ -224,7 +225,7 @@ internal sealed class PhoneWebcamVideoPipeline : IAsyncDisposable
             offset += _pictureParameterSet.Length;
         }
 
-        accessUnit.CopyTo(configured.AsSpan(offset));
+        accessUnit.AsSpan().CopyTo(configured.AsSpan(offset));
         return configured;
     }
 

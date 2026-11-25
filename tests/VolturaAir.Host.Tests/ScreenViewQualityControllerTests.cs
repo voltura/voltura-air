@@ -184,6 +184,64 @@ public sealed class ScreenViewQualityControllerTests
     }
 
     [Fact]
+    public void SenderBackpressureDuringAnUpgradeRollsBackWithCooldown()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var controller = new ScreenViewQualityController(Source(1920, 1080, 144), DirectScreenQualityMode.Automatic);
+        ScreenViewQualityProfile initial = controller.Current;
+        controller.ReportReceiverQuality(Unhealthy, now);
+        controller.ReportReceiverQuality(Unhealthy, now.AddSeconds(1));
+        ScreenViewQualityProfile reduced = controller.Current;
+        controller.ReportReceiverQuality(Healthy, now.AddSeconds(2));
+        Assert.True(controller.ReportReceiverQuality(Healthy, now.AddSeconds(17)));
+
+        Assert.False(controller.ReportBackpressure(now.AddSeconds(18)));
+        Assert.False(controller.ReportBackpressure(now.AddSeconds(19)));
+        Assert.True(controller.ReportBackpressure(now.AddSeconds(20)));
+        Assert.Equal(reduced, controller.Current);
+        Assert.False(controller.ReportReceiverQuality(Healthy, now.AddSeconds(21)));
+        Assert.False(controller.ReportReceiverQuality(Healthy, now.AddSeconds(36)));
+        Assert.Equal(reduced, controller.Current);
+        Assert.False(controller.ReportReceiverQuality(Healthy, now.AddSeconds(37)));
+        Assert.True(controller.ReportReceiverQuality(Healthy, now.AddSeconds(52)));
+        Assert.Equal(initial, controller.Current);
+    }
+
+    [Fact]
+    public void LaterDecoderLossDoesNotPenalizeAnExpiredUpgradeTrial()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var controller = new ScreenViewQualityController(Source(1920, 1080, 144), DirectScreenQualityMode.Automatic);
+        ScreenViewQualityProfile initial = controller.Current;
+        controller.ReportReceiverQuality(Unhealthy, now);
+        controller.ReportReceiverQuality(Unhealthy, now.AddSeconds(1));
+        controller.ReportReceiverQuality(Healthy, now.AddSeconds(2));
+        Assert.True(controller.ReportReceiverQuality(Healthy, now.AddSeconds(17)));
+
+        Assert.False(controller.ReportReceiverQuality(Unhealthy, now.AddSeconds(23)));
+        Assert.True(controller.ReportReceiverQuality(Unhealthy, now.AddSeconds(24)));
+        Assert.False(controller.ReportReceiverQuality(Healthy, now.AddSeconds(25)));
+        Assert.True(controller.ReportReceiverQuality(Healthy, now.AddSeconds(40)));
+        Assert.Equal(initial, controller.Current);
+    }
+
+    [Fact]
+    public void SenderDowngradeRetiresDecoderFaultsFromThePreviousProfile()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var controller = new ScreenViewQualityController(Source(1920, 1080, 144), DirectScreenQualityMode.Automatic);
+        Assert.False(controller.ReportReceiverQuality(Unhealthy, now));
+        Assert.False(controller.ReportBackpressure(now));
+        Assert.False(controller.ReportBackpressure(now.AddSeconds(1)));
+        Assert.True(controller.ReportBackpressure(now.AddSeconds(2)));
+        ScreenViewQualityProfile reduced = controller.Current;
+
+        Assert.False(controller.ReportReceiverQuality(Unhealthy, now.AddSeconds(3)));
+        Assert.Equal(reduced, controller.Current);
+        Assert.True(controller.ReportReceiverQuality(Unhealthy, now.AddSeconds(4)));
+    }
+
+    [Fact]
     public void UnsupportedProfileFallsBackWithinReadableCandidates()
     {
         var controller = new ScreenViewQualityController(Source(3840, 2160, 144), DirectScreenQualityMode.Automatic);

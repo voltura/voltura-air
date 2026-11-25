@@ -298,9 +298,10 @@ failure keeps session state without a background retry loop.
   effective Windows scaling; it reduces frame rate and generated intermediate
   resolutions without crossing that floor. Three bounded sender-pressure events
   or sustained receiver decoder loss can lower one profile. Fifteen seconds of
-  healthy receiver decoding probes one profile upward, and a failed probe rolls
-  back and cools down before retry. An encoder-rejected profile uses the same
-  bounded fallback and later becomes eligible again.
+  healthy receiver decoding probes one profile upward. Sustained receiver loss
+  or sender pressure during the probe rolls it back and cools down before retry.
+  An encoder-rejected profile uses the bounded fallback and later becomes
+  eligible again.
 - Direct Screen View has **Automatic**, **Full resolution**, and **Data saver** host
   settings. Full resolution retains the selected display's native dimensions
   while adapting frame rate. Data saver is limited to 4 Mbps and starts within
@@ -317,9 +318,9 @@ failure keeps session state without a background retry loop.
   recovery on an unchanged desktop. Bitrate-only changes likewise use live encoder
   controls when available; rejected controls and dimension/frame-rate changes
   retain encoder replacement. Pending recovery survives capture timeouts and
-  frame pacing. A
-  transient WebRTC `disconnected` state may recover without replacing the
-  Screen View peer; terminal `failed` or `closed` states stop the stream.
+  frame pacing. Initial peer setup has a local deadline after the PC accepts
+  the request. A transient WebRTC `disconnected` state may recover on the
+  existing Screen View peer. Terminal `failed` or `closed` states stop the stream.
 - Every video budget retains the same fixed 128 kbps transport allowance for
   96 kbps sound plus protocol overhead. Selecting a lower sound preset does not
   increase or otherwise change the video encoder budget. Sound quality is
@@ -414,8 +415,12 @@ failure keeps session state without a background retry loop.
   capture remains live, the selected camera track is refreshed on that same peer
   so the Windows consumer does not remain frozen. **Stop
   webcam** and page hiding release every phone camera track immediately. If iOS
-  closes the backgrounded peer, returning to the visible paired PWA makes one fresh
-  authenticated session; it never appends work to the dead peer.
+  closes the backgrounded peer, returning to the visible paired PWA makes one
+  fresh authenticated session and uses a new peer for the same PC. If the browser
+  peer fails to connect within the setup deadline, the PWA releases the camera
+  and microphone and returns the workspace to idle. A brief media interruption
+  can recover on the existing peer. An interruption that lasts eight seconds
+  stops capture and returns the workspace to idle.
 - Enhanced Direct sends DTLS-SRTP media on the selected private LAN and is free and
   unlimited. Relay uses relay-only candidates, the existing 15-minute TURN
   credentials and quota-derived 8/4/2 Mbps policy, and refreshes with a fresh
@@ -423,7 +428,8 @@ failure keeps session state without a background retry loop.
   shares the existing aggregate 750 GB Data Saver threshold and 850 GB cutoff, and
   adds no webcam-specific account, billing, entitlement, or quota.
 - The host receives one H.264 track, bounds encoded and decoded work to latest-frame
-  capacity, decodes through Media Foundation, and normalizes portrait, landscape,
+  capacity, coalesces closely spaced keyframe requests, decodes through Media
+  Foundation, and normalizes portrait, landscape,
   and lower-resolution input into fixed NV12 1920 x 1080 output. The native camera
   advertises only NV12 1920 x 1080 at 30 fps. A transient camera handoff retains the
   last valid frame; explicit stop, session loss, removal, and shutdown clear it

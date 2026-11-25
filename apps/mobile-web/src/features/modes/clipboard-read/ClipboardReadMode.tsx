@@ -41,7 +41,7 @@ export function ClipboardReadMode({
   permission,
   pending,
   result,
-  text,
+  text: clipboardText,
   onCancelGetTextForDevice,
   onCopyFeedback,
   onGetText,
@@ -50,8 +50,9 @@ export function ClipboardReadMode({
   onTextChange,
 }: ClipboardReadModeProps) {
   const getButtonRef = useRef<HTMLButtonElement>(null);
-  const hiddenDeviceClipboardTextRef = useRef<HTMLTextAreaElement>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  // Selection offsets are based on the textarea's normalized line endings.
+  const text = clipboardText.replace(/\r\n?/g, "\n");
   const [dismissedErrorResult, setDismissedErrorResult] =
     useState<ClipboardGetResultMessage | null>(null);
   const [areSnippetsVisible, setAreSnippetsVisible] = useState(false);
@@ -76,14 +77,10 @@ export function ClipboardReadMode({
 
   useEffect(() => {
     mountedRef.current = true;
-    const hiddenDeviceClipboardText = hiddenDeviceClipboardTextRef.current;
     return () => {
       mountedRef.current = false;
       deviceCopyGenerationRef.current += 1;
       selectionGenerationRef.current += 1;
-      if (hiddenDeviceClipboardText) {
-        hiddenDeviceClipboardText.value = "";
-      }
       cancelDeviceCopyRef.current();
     };
   }, []);
@@ -170,6 +167,7 @@ export function ClipboardReadMode({
   };
 
   const copyPcClipboardToDevice = () => {
+    const generation = ++deviceCopyGenerationRef.current;
     const pcClipboardResult = onGetTextForDevice();
     if (!pcClipboardResult) {
       onCopyFeedback({
@@ -179,10 +177,6 @@ export function ClipboardReadMode({
       return;
     }
 
-    const generation = ++deviceCopyGenerationRef.current;
-    if (hiddenDeviceClipboardTextRef.current) {
-      hiddenDeviceClipboardTextRef.current.value = "";
-    }
     const clipboardItemText = pcClipboardResult.then((pcResult) => {
       if (deviceCopyGenerationRef.current !== generation) {
         throw new Error("A newer device clipboard request replaced this request.");
@@ -192,23 +186,13 @@ export function ClipboardReadMode({
         throw new Error("PC clipboard text was unavailable.");
       }
 
-      const hiddenText = hiddenDeviceClipboardTextRef.current;
-      if (!hiddenText) {
-        throw new Error("The device clipboard text boundary is unavailable.");
-      }
-
-      hiddenText.value = pcResult.text;
-      return new Blob([hiddenText.value], { type: "text/plain" });
+      return new Blob([pcResult.text], { type: "text/plain" });
     });
     void clipboardItemText.catch(() => undefined);
     const deviceWrite = writeDeferredTextToDeviceClipboard(clipboardItemText);
     void Promise.all([deviceWrite, pcClipboardResult]).then(([copyResult, pcResult]) => {
       if (!mountedRef.current || deviceCopyGenerationRef.current !== generation) {
         return;
-      }
-
-      if (hiddenDeviceClipboardTextRef.current) {
-        hiddenDeviceClipboardTextRef.current.value = "";
       }
 
       if (!pcResult.succeeded || typeof pcResult.text !== "string") {
@@ -337,20 +321,11 @@ export function ClipboardReadMode({
         </div>
       </div>
 
-      <textarea
-        ref={hiddenDeviceClipboardTextRef}
-        className="visually-hidden"
-        aria-hidden="true"
-        tabIndex={-1}
-        readOnly
-        defaultValue=""
-      />
-
       {areSnippetsVisible && (
         <SavedTextSnippets
           key={clientId}
           clientId={clientId}
-          draft={text}
+          draft={clipboardText}
           initiallyOpen
           onLoadSnippet={onLoadSnippet}
         />

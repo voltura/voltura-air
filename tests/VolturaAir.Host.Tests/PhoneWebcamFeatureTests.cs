@@ -245,6 +245,40 @@ public sealed class PhoneWebcamFeatureTests
     }
 
     [Fact]
+    public async Task WebcamPipelineRequestsRecoveryUntilACompleteKeyFrameArrives()
+    {
+        var feature = new RecordingPhoneWebcamFeature();
+        await using var pipeline = new PhoneWebcamVideoPipeline(feature, new PhoneWebcamFrameSequence());
+        var recoveryRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        pipeline.KeyFrameRequested += (_, _) => recoveryRequested.TrySetResult();
+        pipeline.Start();
+
+        pipeline.Submit(ReadAccessUnit("chromium-bear-320x192-baseline-frame-1.h264.b64"), 10);
+        await recoveryRequested.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(feature.FramePublished.Task.IsCompleted);
+
+        pipeline.Submit(ReadAccessUnit("chromium-bear-320x192-baseline-keyframe.h264.b64"), 20);
+        Assert.Equal(1UL, await feature.FramePublished.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+
+        static byte[] ReadAccessUnit(string name)
+        {
+            byte[] fixture = Convert.FromBase64String(
+                File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "PhoneWebcamTestData", name)));
+            // The RTP depacketizer writes four-byte Annex B prefixes for each NAL unit.
+            ReadOnlySpan<byte> shortPrefix = [0, 0, 1];
+            using var accessUnit = new MemoryStream();
+            for (int offset = 0; offset < fixture.Length; offset++)
+            {
+                if ((offset == 0 || fixture[offset - 1] != 0) &&
+                    fixture.AsSpan(offset).StartsWith(shortPrefix))
+                    accessUnit.WriteByte(0);
+                accessUnit.WriteByte(fixture[offset]);
+            }
+            return accessUnit.ToArray();
+        }
+    }
+
+    [Fact]
     public void TrackErrorAfterOpenStillReportsTerminalStop()
     {
         var opened = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -380,13 +414,18 @@ public sealed class PhoneWebcamFeatureTests
 
     private sealed class RecordingPhoneWebcamFeature : IPhoneWebcamFeature
     {
+        public TaskCompletionSource<ulong> FramePublished { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public PhoneWebcamFeatureStatus Status { get; } = new(PhoneWebcamFeatureState.Installed, "Installed.");
         public PhoneWebcamActivity Activity { get; } = new("idle");
         public event EventHandler? ActivityChanged { add { } remove { } }
         public event EventHandler? StatusChanged { add { } remove { } }
         public Task<PhoneWebcamFeatureStatus> EnableAsync(CancellationToken cancellationToken = default) => Task.FromResult(Status);
         public Task<PhoneWebcamFeatureStatus> RemoveAsync(CancellationToken cancellationToken = default) => Task.FromResult(Status);
-        public void Publish(PhoneWebcamFrame frame) => frame.Dispose();
+        public void Publish(PhoneWebcamFrame frame)
+        {
+            using (frame)
+                FramePublished.TrySetResult(frame.Sequence);
+        }
     }
 
     private sealed class TrackingMemoryOwner(int length) : IMemoryOwner<byte>

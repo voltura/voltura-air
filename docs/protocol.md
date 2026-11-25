@@ -635,7 +635,9 @@ pairing persistence fails, the host keeps the prior value, returns that status,
 and leaves the authenticated connection and active Screen View intact.
 
 The quality message is sent only while its exact operation is active. Counts are
-non-negative interval deltas bounded to 1,000,000; dimensions are 0..16384 and
+non-negative interval deltas bounded to 1,000,000. The controller measures a
+delta across consecutive samples of the same inbound video stream. A counter
+missing from either sample contributes zero. Dimensions are 0..16384 and the
 frame rate is 0..240. It contains no screen content, cursor coordinates, typed
 text, or persistent data.
 
@@ -792,14 +794,17 @@ rejected. Consequently the PC's external relay-screen traffic is TCP 443; UDP is
 confined to loopback. DTLS-SRTP remains the media security boundary above TURN.
 The selected display is sent as H.264 RTP on a send-only video track, with
 DTLS-SRTP providing media confidentiality, integrity, and replay protection.
-Cursor and terminal status records use the ordered reliable `screen-events`
+Cursor, terminal status, and audio availability use the ordered reliable `screen-events`
 WebRTC data channel, protected by DTLS. Capture starts only after the peer,
 video track, and event channel are connected. The data channel record types are:
 
 - `4`: signed 64-bit sequence, visibility, signed cursor position, hotspot,
-  bounded dimensions, and an optional bounded PNG cursor shape; and
+  bounded dimensions, and an optional bounded PNG cursor shape.
 - `5`: a bounded UTF-8 stopped/paused code and message for display, lock/session,
   permission, or capture-device loss.
+- `7`: a one-byte audio availability flag (`0` or `1`), a one-byte code length
+  (1 through 64), a two-byte big-endian message length (1 through 512), then
+  the UTF-8 code and message. This record updates audio without ending video.
 
 Desktop Duplication supplies the selected GPU frame and cursor metadata. A
 hardware Media Foundation transform converts the frame to baseline H.264. The

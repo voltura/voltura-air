@@ -46,7 +46,7 @@ interface SendQuality {
   width?: number;
   height?: number;
   fps?: number;
-  bitrateMbps?: number;
+  bitrateMbps?: number | undefined;
 }
 type CameraChangeReason = "selection" | "orientation" | "stalled";
 
@@ -56,6 +56,8 @@ const preferredFps = 30;
 const stalledStatsSampleLimit = 3;
 const stalledRecoveryCooldownMs = 10_000;
 const startResponseTimeoutMs = 10_000;
+const peerSetupTimeoutMs = 20_000;
+const disconnectedRecoveryMs = 8_000;
 
 function isEndedTrack(track: MediaStreamTrack) {
   return track.readyState === "ended";
@@ -102,12 +104,14 @@ export default function PhoneWebcamWorkspace({
   const acquiringGenerationRef = useRef<number | null>(null);
   const operationIdRef = useRef<string | null>(null);
   const resumeRef = useRef(false);
+  const lastConnectionRef = useRef({ pcId: activePc.id, epoch: connectionEpoch });
   const startRef = useRef<() => void>(() => undefined);
   const renewalTimerRef = useRef<number | undefined>(undefined);
   const statsTimerRef = useRef<number | undefined>(undefined);
   const restartTimerRef = useRef<number | undefined>(undefined);
   const orientationTimerRef = useRef<number | undefined>(undefined);
   const startResponseTimerRef = useRef<number | undefined>(undefined);
+  const disconnectedTimerRef = useRef<number | undefined>(undefined);
   const lastStatsRef = useRef<{ bytes: number; framesEncoded?: number; at: number } | null>(null);
   const stalledStatsSamplesRef = useRef(0);
   const stalledRecoveryAfterRef = useRef(0);
@@ -134,8 +138,11 @@ export default function PhoneWebcamWorkspace({
       window.clearTimeout(restartTimerRef.current);
       window.clearTimeout(orientationTimerRef.current);
       window.clearTimeout(startResponseTimerRef.current);
+      window.clearTimeout(disconnectedTimerRef.current);
       renewalTimerRef.current = undefined;
       statsTimerRef.current = undefined;
+      restartTimerRef.current = undefined;
+      disconnectedTimerRef.current = undefined;
       lastStatsRef.current = null;
       stalledStatsSamplesRef.current = 0;
       stalledRecoveryAfterRef.current = 0;
@@ -358,6 +365,7 @@ export default function PhoneWebcamWorkspace({
       !supportedTransport ||
       phase !== "idle" ||
       state !== "paired" ||
+      document.visibilityState !== "visible" ||
       !capability.canUse ||
       !selectedCameraId ||
       !activePc.hostIdentityPublicKey
@@ -500,6 +508,24 @@ export default function PhoneWebcamWorkspace({
     };
   }, [start]);
 
+  const scheduleResume = useCallback(() => {
+    if (
+      !resumeRef.current ||
+      state !== "paired" ||
+      document.visibilityState !== "visible" ||
+      restartTimerRef.current !== undefined
+    ) {
+      return;
+    }
+    restartTimerRef.current = window.setTimeout(() => {
+      restartTimerRef.current = undefined;
+      if (resumeRef.current && document.visibilityState === "visible") {
+        resumeRef.current = false;
+        startRef.current();
+      }
+    }, 250);
+  }, [state]);
+
   const beginStats = useCallback((peer: RTCPeerConnection) => {
     window.clearInterval(statsTimerRef.current);
     statsGenerationRef.current += 1;
@@ -508,21 +534,23 @@ export default function PhoneWebcamWorkspace({
     let pollPending = false;
     statsTimerRef.current = window.setInterval(() => {
       void (async () => {
-        if (pollPending || peerRef.current !== peer) {
+        if (pollPending || peerRef.current !== peer || peer.connectionState !== "connected") {
           return;
         }
         const sender = senderRef.current;
         const track = sender?.track ?? null;
         const statsGeneration = statsGenerationRef.current;
         pollPending = true;
-        let report: RTCStatsReport | null;
+        let report: RTCStatsReport;
         try {
-          report = await peer.getStats(track).catch(() => null);
+          report = await peer.getStats(track);
+        } catch {
+          // Optional statistics must not interrupt the stream or future polls.
+          return;
         } finally {
           pollPending = false;
         }
         if (
-          !report ||
           peerRef.current !== peer ||
           senderRef.current !== sender ||
           sender?.track !== track ||
@@ -534,21 +562,26 @@ export default function PhoneWebcamWorkspace({
         if (outbound) {
           const now = performance.now();
           const previous = lastStatsRef.current;
+          const frames = outbound.framesEncoded;
+          const previousFrames = previous?.framesEncoded;
+          const countersReset =
+            previous !== null &&
+            (outbound.bytesSent < previous.bytes ||
+              (frames !== undefined && previousFrames !== undefined && frames < previousFrames));
           const bitrateMbps =
-            previous && now > previous.at
+            previous && !countersReset && now > previous.at
               ? ((outbound.bytesSent - previous.bytes) * 8) / ((now - previous.at) * 1000)
               : undefined;
           const progressed =
             !previous ||
-            (outbound.framesEncoded !== undefined && previous.framesEncoded !== undefined
-              ? outbound.framesEncoded > previous.framesEncoded
+            countersReset ||
+            (frames !== undefined && previousFrames !== undefined
+              ? frames > previousFrames
               : outbound.bytesSent > previous.bytes);
           stalledStatsSamplesRef.current = progressed ? 0 : stalledStatsSamplesRef.current + 1;
           lastStatsRef.current = {
             bytes: outbound.bytesSent,
-            ...(outbound.framesEncoded === undefined
-              ? {}
-              : { framesEncoded: outbound.framesEncoded }),
+            ...(frames === undefined ? {} : { framesEncoded: frames }),
             at: now,
           };
           setQuality((current) => ({
@@ -556,7 +589,7 @@ export default function PhoneWebcamWorkspace({
             ...(outbound.frameWidth === undefined ? {} : { width: outbound.frameWidth }),
             ...(outbound.frameHeight === undefined ? {} : { height: outbound.frameHeight }),
             ...(outbound.framesPerSecond === undefined ? {} : { fps: outbound.framesPerSecond }),
-            ...(bitrateMbps === undefined ? {} : { bitrateMbps: Math.max(0, bitrateMbps) }),
+            bitrateMbps,
           }));
           if (
             stalledStatsSamplesRef.current >= stalledStatsSampleLimit &&
@@ -593,12 +626,13 @@ export default function PhoneWebcamWorkspace({
             return;
           }
           releaseLocal(true, "Refreshing Relay credentials…");
-          restartTimerRef.current = window.setTimeout(() => startRef.current(), 250);
+          resumeRef.current = true;
+          scheduleResume();
         },
         Math.max(1000, delay),
       );
     },
-    [activePc.transportMode, releaseLocal],
+    [activePc.transportMode, releaseLocal, scheduleResume],
   );
 
   const acceptOffer = useCallback(
@@ -657,15 +691,40 @@ export default function PhoneWebcamWorkspace({
         return;
       }
       peerRef.current = peer;
+      startResponseTimerRef.current = window.setTimeout(() => {
+        if (isCurrent() && peerRef.current === peer) {
+          releaseRef.current(
+            true,
+            "The encrypted webcam connection timed out. Tap Start to try again.",
+          );
+        }
+      }, peerSetupTimeoutMs);
       let negotiationStage = "applying the PC media offer";
       peer.addEventListener("connectionstatechange", () => {
         if (peerRef.current !== peer) {
           return;
         }
         if (peer.connectionState === "connected") {
+          window.clearTimeout(startResponseTimerRef.current);
+          startResponseTimerRef.current = undefined;
+          window.clearTimeout(disconnectedTimerRef.current);
+          disconnectedTimerRef.current = undefined;
           setPhase("streaming");
           setStatus(relayMode ? "Streaming through Relay" : "Streaming through Enhanced Direct");
-          beginStats(peer);
+          if (statsTimerRef.current === undefined) {
+            beginStats(peer);
+          }
+        } else if (peer.connectionState === "disconnected") {
+          statsGenerationRef.current += 1;
+          lastStatsRef.current = null;
+          stalledStatsSamplesRef.current = 0;
+          setStatus("Webcam video interrupted. Reconnecting…");
+          window.clearTimeout(disconnectedTimerRef.current);
+          disconnectedTimerRef.current = window.setTimeout(() => {
+            if (peerRef.current === peer && peer.connectionState === "disconnected") {
+              releaseRef.current(true, "Webcam video connection was lost. Tap Start to try again.");
+            }
+          }, disconnectedRecoveryMs);
         } else if (peer.connectionState === "failed" || peer.connectionState === "closed") {
           releaseLocal(false, "Webcam video connection was lost.");
         }
@@ -689,6 +748,10 @@ export default function PhoneWebcamWorkspace({
           throw new Error("Missing camera track.");
         }
         await transceiver.sender.replaceTrack(track);
+        if (!isCurrent()) {
+          peer.close();
+          return;
+        }
         if (pending.useMicrophone) {
           negotiationStage = "attaching the microphone";
           const audioTransceiver = peer
@@ -702,10 +765,6 @@ export default function PhoneWebcamWorkspace({
           if (audioSender !== audioTransceiver.sender) {
             throw new Error("The microphone did not reuse the offered audio section.");
           }
-        }
-        if (!isCurrent()) {
-          peer.close();
-          return;
         }
         negotiationStage = "creating the encrypted media answer";
         const answer = await peer.createAnswer();
@@ -993,6 +1052,7 @@ export default function PhoneWebcamWorkspace({
         previous?.getVideoTracks().forEach((track) => track.stop());
         setQuality((current) => ({
           ...current,
+          bitrateMbps: undefined,
           ...(settings.width === undefined ? {} : { width: settings.width }),
           ...(settings.height === undefined ? {} : { height: settings.height }),
           ...(settings.frameRate === undefined ? {} : { fps: settings.frameRate }),
@@ -1072,8 +1132,9 @@ export default function PhoneWebcamWorkspace({
   }, []);
 
   useEffect(() => {
-    let resumeTimer: number | undefined;
     const pauseForBackground = () => {
+      window.clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = undefined;
       if (permissionLoadingRef.current) {
         releaseRef.current(true, "Camera access is paused while Voltura Air is in the background.");
       }
@@ -1090,40 +1151,48 @@ export default function PhoneWebcamWorkspace({
     const onVisibility = () => {
       if (document.visibilityState === "hidden") {
         pauseForBackground();
-      } else if (resumeRef.current && state === "paired") {
-        resumeRef.current = false;
-        resumeTimer = window.setTimeout(() => startRef.current(), 250);
+      } else {
+        scheduleResume();
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", pauseForBackground);
+    window.addEventListener("pageshow", onVisibility);
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", pauseForBackground);
-      window.clearTimeout(resumeTimer);
+      window.removeEventListener("pageshow", onVisibility);
     };
-  }, [releaseLocal, state]);
+  }, [scheduleResume]);
 
   useEffect(() => {
-    let resumeTimer: number | undefined;
+    const previous = lastConnectionRef.current;
+    lastConnectionRef.current = { pcId: activePc.id, epoch: connectionEpoch };
+    if (previous.pcId !== activePc.id) {
+      resumeRef.current = false;
+      releaseLocal(false, initialStatus(capability));
+      return;
+    }
+    if (state === "paired" && previous.epoch === connectionEpoch) {
+      scheduleResume();
+      return;
+    }
+    window.clearTimeout(restartTimerRef.current);
+    restartTimerRef.current = undefined;
     if (
-      state !== "paired" &&
-      (permissionLoadingRef.current ||
-        acquiringGenerationRef.current !== null ||
-        streamRef.current ||
-        pendingRef.current ||
-        peerRef.current)
+      permissionLoadingRef.current ||
+      acquiringGenerationRef.current !== null ||
+      streamRef.current ||
+      pendingRef.current ||
+      peerRef.current
     ) {
       resumeRef.current = true;
       releaseLocal(false, "Waiting for the PC connection…");
-    } else if (state === "paired" && document.visibilityState === "visible" && resumeRef.current) {
-      resumeRef.current = false;
-      resumeTimer = window.setTimeout(() => startRef.current(), 250);
     }
-    return () => {
-      window.clearTimeout(resumeTimer);
-    };
-  }, [connectionEpoch, releaseLocal, state]);
+    if (state === "paired") {
+      scheduleResume();
+    }
+  }, [activePc.id, capability, connectionEpoch, releaseLocal, scheduleResume, state]);
 
   useEffect(() => {
     microphoneAvailableRef.current = capability.microphoneAvailable;
@@ -1487,7 +1556,7 @@ function readOutboundVideoStats(value: unknown): OutboundVideoStats | null {
   const record = value as Record<string, unknown>;
   if (
     record.type !== "outbound-rtp" ||
-    record.kind !== "video" ||
+    (record.kind ?? record.mediaType) !== "video" ||
     record.active === false ||
     typeof record.bytesSent !== "number"
   ) {

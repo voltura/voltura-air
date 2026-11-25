@@ -11,7 +11,7 @@ export interface ScreenCursorRecord {
   hotSpotY: number;
   width: number;
   height: number;
-  pngBytes?: Uint8Array;
+  pngBytes?: Uint8Array<ArrayBuffer>;
 }
 
 export interface ScreenStatusRecord {

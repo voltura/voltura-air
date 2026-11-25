@@ -920,7 +920,9 @@ describe("ScreenViewWorkspace", () => {
     expect(screen.getByRole("button", { name: "Click" }).hasAttribute("disabled")).toBe(false);
   });
 
-  it.each(["blocked", "video-first", "audio-first", "playback-error", "cursor-burst"] as const)(
+  it.each([
+    "blocked", "video-first", "audio-first", "playback-error", "overlapping-playback", "cursor-burst",
+  ] as const)(
     "handles screen playback startup: %s",
     async (scenario) => {
       class FakePeerConnection {
@@ -1135,10 +1137,16 @@ describe("ScreenViewWorkspace", () => {
         Object.defineProperty(video, "videoWidth", { configurable: true, value: 1920 });
         Object.defineProperty(video, "videoHeight", { configurable: true, value: 1080 });
         const cursor = document.querySelector<HTMLImageElement>(".screen-view-cursor")!;
-        cursor.src = "data:image/png;base64,AA==";
+        const cursorUrl = "blob:https://example.test/screen-cursor";
+        const createObjectURL = vi.fn((_blob: Blob) => cursorUrl);
+        const revokeObjectURL = vi.fn();
+        vi.stubGlobal("URL", class extends URL {
+          static createObjectURL = createObjectURL;
+          static revokeObjectURL = revokeObjectURL;
+        });
         fireEvent.loadedData(video);
-        const sendCursor = (x: number) => {
-          const record = new Uint8Array(39);
+        const sendCursor = (x: number, pngBytes: number[] = []) => {
+          const record = new Uint8Array(39 + pngBytes.length);
           const view = new DataView(record.buffer);
           record[0] = 4;
           record[9] = 1;
@@ -1146,6 +1154,11 @@ describe("ScreenViewWorkspace", () => {
           view.setInt32(14, 100, false);
           view.setInt32(26, 16, false);
           view.setInt32(30, 16, false);
+          if (pngBytes.length > 0) {
+            record[34] = 2;
+            view.setInt32(35, pngBytes.length, false);
+            record.set(pngBytes, 39);
+          }
           staleMessageListener?.(new MessageEvent("message", { data: record.buffer }));
         };
         const flushFrames = () => {
@@ -1153,6 +1166,14 @@ describe("ScreenViewWorkspace", () => {
           callbacks.clear();
           act(() => pending.forEach((callback) => callback(0)));
         };
+        cursor.src = "blob:https://example.test/retired-cursor";
+        act(() => sendCursor(0));
+        flushFrames();
+        expect(cursor.hidden).toBe(true);
+        act(() => sendCursor(0, [137, 80, 78, 71]));
+        expect(createObjectURL).toHaveBeenCalledExactlyOnceWith(
+          expect.objectContaining({ size: 4, type: "image/png" }),
+        );
         flushFrames();
         width.mockClear();
         requestFrame.mockClear();
@@ -1173,6 +1194,8 @@ describe("ScreenViewWorkspace", () => {
         fireEvent.click(screen.getByRole("button", { name: "Stop" }));
         expect(pendingCursorFrames.every((id) => !callbacks.has(id))).toBe(true);
         expect(cursor.hidden).toBe(true);
+        expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith(cursorUrl);
+        expect(cursor.hasAttribute("src")).toBe(false);
         return;
       }
       if (scenario === "video-first" || scenario === "audio-first") {
@@ -1240,6 +1263,29 @@ describe("ScreenViewWorkspace", () => {
         await waitFor(() => expect(play).toHaveBeenCalledTimes(2));
         fireEvent.playing(video);
         expect(screen.getByRole("status").textContent).toBe("Live - Encrypted WebRTC");
+        return;
+      }
+      if (scenario === "overlapping-playback") {
+        let rejectOlder!: (error: Error) => void;
+        play.mockReset()
+          .mockImplementationOnce(() => new Promise<void>((_resolve, reject) => {
+            rejectOlder = reject;
+          }))
+          .mockResolvedValueOnce();
+        await act(() => {
+          FakePeerConnection.instance?.emit("track", { track: { kind: "video" }, streams: [] });
+          FakePeerConnection.instance?.emit("track", { track: { kind: "video" }, streams: [] });
+          return Promise.resolve();
+        });
+        fireEvent.playing(video);
+        await act(() => {
+          rejectOlder(new DOMException("Playback request interrupted.", "AbortError"));
+          return Promise.resolve();
+        });
+
+        expect(play).toHaveBeenCalledTimes(2);
+        expect(screen.getByRole("status").textContent).toBe("Live - Encrypted WebRTC");
+        expect(screen.queryByRole("button", { name: "Show video" })).toBeNull();
         return;
       }
       act(() => {

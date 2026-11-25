@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using VolturaAir.Host;
@@ -40,6 +41,7 @@ internal sealed class PhoneWebcamWebRtcPeer : IPhoneWebcamWebRtcPeer
     private const int H264PayloadType = 102;
     private const int OpusPayloadType = 111;
     private const string H264Profile = "profile-level-id=42e028;packetization-mode=1;level-asymmetry-allowed=1";
+    private static readonly TimeSpan KeyFrameRequestSpacing = TimeSpan.FromMilliseconds(250);
     private readonly TaskCompletionSource<string> _offer = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _trackOpen = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource? _audioTrackOpen;
@@ -58,6 +60,7 @@ internal sealed class PhoneWebcamWebRtcPeer : IPhoneWebcamWebRtcPeer
     private int _peer;
     private int _track;
     private int _audioTrack;
+    private long _lastKeyFrameRequest = long.MinValue;
     private bool _receiveFailureReported;
     private bool _disposed;
 
@@ -177,7 +180,16 @@ internal sealed class PhoneWebcamWebRtcPeer : IPhoneWebcamWebRtcPeer
     public void RequestKeyFrame()
     {
         int track = Volatile.Read(ref _track);
-        if (track > 0) _ = LibDataChannelNative.rtcRequestKeyframe(track);
+        if (track > 0 && TryAdmitKeyFrameRequest(ref _lastKeyFrameRequest, Stopwatch.GetTimestamp()))
+            _ = LibDataChannelNative.rtcRequestKeyframe(track);
+    }
+
+    internal static bool TryAdmitKeyFrameRequest(ref long lastRequest, long now)
+    {
+        long previous = Volatile.Read(ref lastRequest);
+        if (previous != long.MinValue && Stopwatch.GetElapsedTime(previous, now) < KeyFrameRequestSpacing)
+            return false;
+        return Interlocked.CompareExchange(ref lastRequest, now, previous) == previous;
     }
 
     public async Task<string> CreateOfferAsync(CancellationToken cancellationToken)

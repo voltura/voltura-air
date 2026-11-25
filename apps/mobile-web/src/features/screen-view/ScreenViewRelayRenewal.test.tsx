@@ -105,7 +105,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function openView(renewalSupported = true) {
+async function openView(renewalSupported = true, connectOriginal = true) {
   const host = createPairingKeyMaterial()!;
   const client = createPairingKeyMaterial()!;
   const send = vi.fn<(message: ClientMessage) => void>();
@@ -200,13 +200,15 @@ async function openView(renewalSupported = true) {
   }
   await accept();
   const original = Peer.instances[0]!;
-  act(() => {
-    original.connect();
-    original.video.unmute();
-    original.audio.unmute();
-  });
   const video = screen.getByLabelText("Mirrored PC display video") as HTMLVideoElement;
-  fireEvent.loadedData(video);
+  if (connectOriginal) {
+    act(() => {
+      original.connect();
+      original.video.unmute();
+      original.audio.unmute();
+    });
+    fireEvent.loadedData(video);
+  }
   const setConnection = (state: "connecting" | "paired", connectionEpoch: number) =>
     view.rerender(workspace(state, connectionEpoch));
   return { ...view, send, starts, stops, accept, original, video, setConnection };
@@ -218,6 +220,42 @@ async function advance(milliseconds: number) {
 }
 
 describe("Relay screen renewal", () => {
+  it("cancels an accepted initial screen offer if its browser peer never connects", async () => {
+    const view = await openView(true, false);
+
+    await advance(29_999);
+    expect(view.stops()).toHaveLength(0);
+    await advance(1);
+
+    expect(view.stops()).toHaveLength(1);
+    expect(view.original.close).toHaveBeenCalledOnce();
+    expect(view.video.srcObject).toBeNull();
+    expect(screen.getByRole("status").textContent).toContain("screen connection timed out");
+    act(() => view.original.connect());
+    expect(view.video.srcObject).toBeNull();
+  });
+
+  it("explains how to recover when the PC does not confirm a canceled capture", async () => {
+    const view = await openView(true, false);
+    await advance(30_000);
+    const stop = view.stops()[0]?.[0];
+    if (stop?.type !== "screen.view.stop") {
+      throw new Error("The controller did not cancel the pending capture.");
+    }
+
+    await advance(10_000);
+
+    expect(screen.getByRole("status").textContent).toContain("Reconnect before trying again");
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Start" }).disabled).toBe(true);
+    act(() => publishScreenViewResult({
+      type: "screen.view.stop.result",
+      operationId: stop.operationId,
+      succeeded: true,
+      message: "Stopped",
+    }));
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Start" }).disabled).toBe(false);
+  });
+
   it.each([true, false])(
     "keeps a manually stopped mirror idle after reconnect and display refresh (renewal: %s)",
     async (renewalSupported) => {

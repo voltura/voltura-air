@@ -96,7 +96,8 @@ internal sealed class ScreenViewQualityController
             if (_backpressureCount < 3) return false;
             _backpressureCount = 0;
             if (now - _lastBackpressureChange < BackpressureChangeSpacing) return false;
-            if (!MoveWorse()) return false;
+            ExpireUpgradeTrial(now);
+            if (!RollBackUpgradeTrial(now) && !MoveWorse()) return false;
             _lastBackpressureChange = now;
             return true;
         }
@@ -106,6 +107,7 @@ internal sealed class ScreenViewQualityController
     {
         lock (_gate)
         {
+            ExpireUpgradeTrial(now);
             bool decoded = quality.FramesDecoded > 0;
             bool unhealthy = quality.FreezeCount > 0 ||
                 quality.FramesDropped > Math.Max(3, quality.FramesDecoded / 10);
@@ -113,17 +115,7 @@ internal sealed class ScreenViewQualityController
             _consecutiveUnhealthy = unhealthy ? _consecutiveUnhealthy + 1 : 0;
             if (_consecutiveUnhealthy >= 2)
             {
-                _consecutiveUnhealthy = 0;
-                _healthySince = null;
-                if (_upgradeTrialPreviousIndex is int previous)
-                {
-                    int failedIndex = _index;
-                    _index = previous;
-                    _unsupportedUntil[failedIndex] = now + FailedUpgradeCooldown;
-                    _upgradeTrialPreviousIndex = null;
-                    return true;
-                }
-                return MoveWorse();
+                return RollBackUpgradeTrial(now) || MoveWorse();
             }
 
             if (!decoded || unhealthy)
@@ -132,11 +124,7 @@ internal sealed class ScreenViewQualityController
                 return false;
             }
 
-            if (_upgradeTrialPreviousIndex is not null)
-            {
-                if (now >= _upgradeTrialUntil) _upgradeTrialPreviousIndex = null;
-                return false;
-            }
+            if (_upgradeTrialPreviousIndex is not null) return false;
 
             _healthySince ??= now;
             if (now - _healthySince < HealthyUpgradeDelay) return false;
@@ -259,10 +247,28 @@ internal sealed class ScreenViewQualityController
 
     private bool MoveWorse()
     {
+        _consecutiveUnhealthy = 0;
         _healthySince = null;
         _upgradeTrialPreviousIndex = null;
         if (_index >= _profiles.Count - 1) return false;
         _index++;
+        return true;
+    }
+
+    private void ExpireUpgradeTrial(DateTimeOffset now)
+    {
+        if (_upgradeTrialPreviousIndex is not null && now > _upgradeTrialUntil)
+            _upgradeTrialPreviousIndex = null;
+    }
+
+    private bool RollBackUpgradeTrial(DateTimeOffset now)
+    {
+        if (_upgradeTrialPreviousIndex is not int previous) return false;
+        _unsupportedUntil[_index] = now + FailedUpgradeCooldown;
+        _index = previous;
+        _upgradeTrialPreviousIndex = null;
+        _consecutiveUnhealthy = 0;
+        _healthySince = null;
         return true;
     }
 

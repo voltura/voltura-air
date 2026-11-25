@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using VolturaAir.Host.Features.PhoneWebcam;
 
@@ -6,6 +7,23 @@ namespace VolturaAir.Host.Tests;
 
 public sealed class PhoneWebcamVideoReceiveTests
 {
+    [Fact]
+    public void KeyFrameRecoveryRequestsAreBoundedAcrossDecoderAndRtpCallbacks()
+    {
+        long lastRequest = long.MinValue;
+        long now = Stopwatch.GetTimestamp();
+        int admitted = 0;
+        Parallel.For(0, 64, _ =>
+        {
+            if (PhoneWebcamWebRtcPeer.TryAdmitKeyFrameRequest(ref lastRequest, now))
+                Interlocked.Increment(ref admitted);
+        });
+
+        Assert.Equal(1, admitted);
+        Assert.False(PhoneWebcamWebRtcPeer.TryAdmitKeyFrameRequest(ref lastRequest, now + Stopwatch.Frequency / 8));
+        Assert.True(PhoneWebcamWebRtcPeer.TryAdmitKeyFrameRequest(ref lastRequest, now + Stopwatch.Frequency));
+    }
+
     [Theory]
     [InlineData(-1)]
     [InlineData(0)]

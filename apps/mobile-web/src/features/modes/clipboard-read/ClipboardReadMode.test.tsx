@@ -33,15 +33,17 @@ const successfulDeviceRead = (): Promise<ClipboardGetResultMessage> =>
   });
 
 function ClipboardReadHarness({
+  initialText = "Fetched text",
   onCancelGetTextForDevice = vi.fn(),
   onCopyFeedback = vi.fn(),
   onGetTextForDevice = successfulDeviceRead,
 }: {
+  initialText?: string;
   onCancelGetTextForDevice?: () => void;
   onCopyFeedback?: (feedback: AppToastMessage) => void;
   onGetTextForDevice?: () => Promise<ClipboardGetResultMessage> | null;
 }) {
-  const [text, setText] = useState("Fetched text");
+  const [text, setText] = useState(initialText);
   return (
     <ClipboardReadMode
       clientId="client-a"
@@ -212,6 +214,19 @@ describe("ClipboardReadMode", () => {
     expect(textArea.value).toBe(" text");
   });
 
+  it("uses the visible selection offsets after Windows line breaks", async () => {
+    render(<ClipboardReadHarness initialText={"First\r\nSecond\rThird"} />);
+    const textArea = screen.getByLabelText<HTMLTextAreaElement>("Text from PC");
+
+    textArea.setSelectionRange(6, 12);
+    fireEvent.select(textArea);
+    fireEvent.click(screen.getByRole("button", { name: "Copy selected text" }));
+    await waitFor(() => expect(copyTextToClipboard).toHaveBeenCalledWith("Second"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Cut" }));
+    expect(textArea.value).toBe("First\n\nThird");
+  });
+
   it("does not show Copy when clipboard writing is unavailable", () => {
     vi.mocked(canCopyTextToClipboard).mockReturnValue(false);
     vi.mocked(canWriteDeferredTextToDeviceClipboard).mockReturnValue(false);
@@ -279,10 +294,12 @@ describe("ClipboardReadMode", () => {
       operationId: "device-copy",
       succeeded: true,
       message: "Read",
-      text: "Newest PC text",
+      text: "First line\r\nSecond line\rThird line\nFourth line",
     });
     await expect(clipboardItemText).resolves.toBeInstanceOf(Blob);
-    expect(await (await clipboardItemText!).text()).toBe("Newest PC text");
+    expect(await (await clipboardItemText!).text()).toBe(
+      "First line\r\nSecond line\rThird line\nFourth line",
+    );
     await waitFor(() =>
       expect(onCopyFeedback).toHaveBeenCalledWith({
         message: "PC clipboard text is now in this device's clipboard.",
@@ -290,9 +307,6 @@ describe("ClipboardReadMode", () => {
       }),
     );
     expect(screen.getByLabelText("Text from PC")).toHaveProperty("value", "Fetched text");
-    expect(document.querySelector<HTMLTextAreaElement>("textarea[aria-hidden='true']")!.value).toBe(
-      "",
-    );
     expect(copyButton).toHaveProperty("disabled", false);
   });
 
@@ -345,6 +359,34 @@ describe("ClipboardReadMode", () => {
       tone: "success",
     });
     expect(copyButton).toHaveProperty("disabled", false);
+  });
+
+  it("retires a delayed direct copy when a newer request cannot start", async () => {
+    let resolveRead!: (result: ClipboardGetResultMessage) => void;
+    const pcRead = new Promise<ClipboardGetResultMessage>((resolve) => {
+      resolveRead = resolve;
+    });
+    const onGetTextForDevice = vi.fn().mockReturnValueOnce(pcRead).mockReturnValueOnce(null);
+    const onCopyFeedback = vi.fn();
+    render(
+      <ClipboardReadHarness
+        onGetTextForDevice={onGetTextForDevice}
+        onCopyFeedback={onCopyFeedback}
+      />,
+    );
+    const copyButton = screen.getByRole("button", {
+      name: "Get PC clipboard text into this device's clipboard",
+    });
+    fireEvent.click(copyButton);
+    fireEvent.click(copyButton);
+
+    const clipboardItemText = vi.mocked(writeDeferredTextToDeviceClipboard).mock.calls[0]?.[0];
+    resolveRead(await successfulDeviceRead());
+    await expect(clipboardItemText).rejects.toThrow("A newer device clipboard request");
+    expect(onCopyFeedback).toHaveBeenCalledExactlyOnceWith({
+      message: "Could not request PC clipboard text. Reconnect and try again.",
+      tone: "error",
+    });
   });
 
   it("distinguishes a PC read failure from a device clipboard denial", async () => {

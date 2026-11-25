@@ -1,10 +1,11 @@
 export interface ScreenViewQualitySample {
-  bytesReceived: number;
+  streamId: string;
   sampledAt: number;
-  framesDecoded: number;
-  framesDropped: number;
-  freezeCount: number;
-  packetsLost: number;
+  bytesReceived?: number | undefined;
+  framesDecoded?: number | undefined;
+  framesDropped?: number | undefined;
+  freezeCount?: number | undefined;
+  packetsLost?: number | undefined;
 }
 
 export interface ScreenViewQualityResult {
@@ -81,18 +82,21 @@ export function screenViewQualityFromStats(
   if (!inbound) {
     return null;
   }
-  const width = inbound.frameWidth ?? video?.videoWidth ?? 0;
-  const height = inbound.frameHeight ?? video?.videoHeight ?? 0;
-  const fps = inbound.framesPerSecond;
-  const bytesReceived = inbound.bytesReceived ?? previous?.bytesReceived ?? 0;
-  const framesDecoded = inbound.framesDecoded ?? previous?.framesDecoded ?? 0;
-  const framesDropped = inbound.framesDropped ?? previous?.framesDropped ?? 0;
-  const freezeCount = inbound.freezeCount ?? previous?.freezeCount ?? 0;
-  const packetsLost = inbound.packetsLost ?? previous?.packetsLost ?? 0;
-  const elapsed = previous ? (sampledAt - previous.sampledAt) / 1000 : 0;
+  const width = nonNegativeStat(inbound.frameWidth) ?? video?.videoWidth ?? 0;
+  const height = nonNegativeStat(inbound.frameHeight) ?? video?.videoHeight ?? 0;
+  const fps = nonNegativeStat(inbound.framesPerSecond);
+  const bytesReceived = nonNegativeStat(inbound.bytesReceived);
+  const framesDecoded = nonNegativeStat(inbound.framesDecoded);
+  const framesDropped = nonNegativeStat(inbound.framesDropped);
+  const freezeCount = nonNegativeStat(inbound.freezeCount);
+  const packetsLost = Number.isFinite(inbound.packetsLost) ? inbound.packetsLost : undefined;
+  const baseline =
+    previous?.streamId === inbound.id && sampledAt > previous.sampledAt ? previous : null;
   const bitrateMbps =
-    previous && elapsed > 0 && bytesReceived >= previous.bytesReceived
-      ? ((bytesReceived - previous.bytesReceived) * 8) / elapsed / 1_000_000
+    baseline?.bytesReceived !== undefined &&
+    bytesReceived !== undefined &&
+    bytesReceived >= baseline.bytesReceived
+      ? ((bytesReceived - baseline.bytesReceived) * 8) / (sampledAt - baseline.sampledAt) / 1000
       : undefined;
   const parts = [width > 0 && height > 0 ? `${width}×${height}` : ""];
   if (fps !== undefined) {
@@ -105,26 +109,35 @@ export function screenViewQualityFromStats(
   if (!text) {
     return null;
   }
-  const sample = {
-    bytesReceived,
+  const sample: ScreenViewQualitySample = {
+    streamId: inbound.id,
     sampledAt,
+    bytesReceived,
     framesDecoded,
     framesDropped,
     freezeCount,
     packetsLost,
   };
-  const delta = (current: number, prior: number) =>
-    Math.max(0, Math.min(1_000_000, Math.trunc(current - prior)));
-  const feedback = previous
+  const feedback = baseline
     ? {
-        width,
-        height,
-        framesPerSecond: Math.max(0, Math.min(240, fps ?? 0)),
-        framesDecoded: delta(framesDecoded, previous.framesDecoded),
-        framesDropped: delta(framesDropped, previous.framesDropped),
-        freezeCount: delta(freezeCount, previous.freezeCount),
-        packetsLost: delta(packetsLost, previous.packetsLost),
+        width: Math.min(16_384, Math.trunc(width)),
+        height: Math.min(16_384, Math.trunc(height)),
+        framesPerSecond: Math.min(240, fps ?? 0),
+        framesDecoded: intervalDelta(framesDecoded, baseline.framesDecoded),
+        framesDropped: intervalDelta(framesDropped, baseline.framesDropped),
+        freezeCount: intervalDelta(freezeCount, baseline.freezeCount),
+        packetsLost: intervalDelta(packetsLost, baseline.packetsLost),
       }
     : undefined;
   return feedback ? { text, sample, feedback } : { text, sample };
+}
+
+function nonNegativeStat(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function intervalDelta(current: number | undefined, previous: number | undefined): number {
+  return current === undefined || previous === undefined
+    ? 0
+    : Math.max(0, Math.min(1_000_000, Math.trunc(current - previous)));
 }

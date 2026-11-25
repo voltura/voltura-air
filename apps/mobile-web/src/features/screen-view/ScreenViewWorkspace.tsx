@@ -111,6 +111,10 @@ interface RelayRecovery {
 const disconnectedRecoveryMs = 8_000;
 const directStartResponseTimeoutMs = 15_000;
 const relayStartResponseTimeoutMs = 25_000;
+const peerSetupTimeoutMs = 30_000;
+const stopResponseTimeoutMs = 10_000;
+const unconfirmedStopMessage =
+  "The PC could not confirm that screen capture stopped. Reconnect before trying again.";
 
 export default function ScreenViewWorkspace({
   activePc,
@@ -150,6 +154,7 @@ export default function ScreenViewWorkspace({
   const [soundOn, setSoundOn] = useState(false);
   const soundOnRef = useRef(false);
   const soundRequestRef = useRef(0);
+  const playbackRequestRef = useRef(0);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [audioAvailable, setAudioAvailable] = useState(browserPreviewState !== undefined);
   const [audioTrackReady, setAudioTrackReady] = useState(browserPreviewState !== undefined);
@@ -268,7 +273,7 @@ export default function ScreenViewWorkspace({
       !video ||
       !stage ||
       !cursor.visible ||
-      !image.src ||
+      !cursorUrlRef.current ||
       video.videoWidth === 0 ||
       video.videoHeight === 0
     ) {
@@ -803,6 +808,7 @@ export default function ScreenViewWorkspace({
   }
 
   async function playVideo() {
+    const request = ++playbackRequestRef.current;
     const video = videoRef.current;
     const source = video?.srcObject;
     if (!video || !source) {
@@ -810,18 +816,23 @@ export default function ScreenViewWorkspace({
       setStatus("Screen viewing is disconnected. Tap Start to try again.");
       return;
     }
+    const isCurrent = () =>
+      request === playbackRequestRef.current &&
+      videoRef.current === video &&
+      video.srcObject === source &&
+      peerRef.current !== null;
     try {
       await video.play();
-      traceScreenView("playback_started");
-      if (videoRef.current !== video || video.srcObject !== source || !peerRef.current) {
+      if (!isCurrent()) {
         return;
       }
+      traceScreenView("playback_started");
       setPlaybackBlocked(false);
     } catch (error) {
-      traceScreenView("playback_failed", error instanceof Error ? error.name : "unknown");
-      if (videoRef.current !== video || video.srcObject !== source || !peerRef.current) {
+      if (!isCurrent()) {
         return;
       }
+      traceScreenView("playback_failed", error instanceof Error ? error.name : "unknown");
       if (error instanceof DOMException && error.name === "NotAllowedError") {
         setPlaybackBlocked(true);
         setStatus("Video is ready. Tap Show video to allow playback.");
@@ -1017,10 +1028,15 @@ export default function ScreenViewWorkspace({
             "The screen connection could not be restored. Ending the previous session...",
           );
         }
-      }, 30_000);
+      }, peerSetupTimeoutMs);
     } else {
       peerRef.current = peer;
       startQualityMonitor(peer);
+      startResponseTimeoutRef.current = window.setTimeout(() => {
+        if (isCurrentNegotiation()) {
+          failStart("The encrypted screen connection timed out. Canceling the PC capture...");
+        }
+      }, peerSetupTimeoutMs);
     }
     const promoteRenewal = () => {
       if (
@@ -1142,6 +1158,8 @@ export default function ScreenViewWorkspace({
         return;
       }
       if (peer.connectionState === "connected") {
+        window.clearTimeout(startResponseTimeoutRef.current);
+        startResponseTimeoutRef.current = undefined;
         window.clearTimeout(disconnectedRecoveryRef.current);
         disconnectedRecoveryRef.current = undefined;
         if (hasVisualFrameRef.current) {
@@ -1281,12 +1299,12 @@ export default function ScreenViewWorkspace({
   function updateCursor(cursor: ScreenCursorRecord) {
     cursorStateRef.current = cursor;
     if (cursor.pngBytes) {
+      const { pngBytes, ...position } = cursor;
+      cursorStateRef.current = position;
       if (cursorUrlRef.current) {
         URL.revokeObjectURL(cursorUrlRef.current);
       }
-      cursorUrlRef.current = URL.createObjectURL(
-        new Blob([Uint8Array.from(cursor.pngBytes).buffer], { type: "image/png" }),
-      );
+      cursorUrlRef.current = URL.createObjectURL(new Blob([pngBytes], { type: "image/png" }));
       if (cursorRef.current) {
         cursorRef.current.src = cursorUrlRef.current;
       }
@@ -1326,6 +1344,7 @@ export default function ScreenViewWorkspace({
 
   function closeStream(preserveRelaySession = false) {
     soundRequestRef.current += 1;
+    playbackRequestRef.current += 1;
     if (!preserveRelaySession) {
       soundOnRef.current = false;
     }
@@ -1400,6 +1419,7 @@ export default function ScreenViewWorkspace({
     }
     if (cursorRef.current) {
       cursorRef.current.hidden = true;
+      cursorRef.current.removeAttribute("src");
     }
   }
 
@@ -1576,9 +1596,7 @@ export default function ScreenViewWorkspace({
               setStatus("The pending screen capture was stopped. Tap Start to try again.");
             }
           } else if (wasBlocking) {
-            setStatus(
-              "The PC could not confirm that screen capture stopped. Reconnect before trying again.",
-            );
+            setStatus(unconfirmedStopMessage);
           }
         }
       } else if (message.type === "screen.view.ended") {
@@ -1606,6 +1624,19 @@ export default function ScreenViewWorkspace({
     const timeout = window.setTimeout(() => setAudioNotice(""), 8_000);
     return () => window.clearTimeout(timeout);
   }, [audioNotice]);
+
+  useEffect(() => {
+    if (!blockingStop) {
+      return;
+    }
+    const operationId = blockingStopRef.current;
+    const timeout = window.setTimeout(() => {
+      if (blockingStopRef.current === operationId) {
+        setStatus(unconfirmedStopMessage);
+      }
+    }, stopResponseTimeoutMs);
+    return () => window.clearTimeout(timeout);
+  }, [blockingStop]);
 
   useEffect(() => {
     const unsubscribe = subscribeScreenViewResults(onControlResult);

@@ -31,6 +31,7 @@ describe("screenViewQualityFromStats", () => {
       report,
       null,
       {
+        streamId: "video",
         bytesReceived: 1_000_000,
         sampledAt: 1_000,
         framesDecoded: 0,
@@ -95,6 +96,7 @@ describe("screenViewQualityFromStats", () => {
       report,
       null,
       {
+        streamId: "video",
         bytesReceived: 1_000_000,
         sampledAt: 1_000,
         framesDecoded: 30,
@@ -107,6 +109,103 @@ describe("screenViewQualityFromStats", () => {
 
     expect(result?.text).toBe("1920×1080 · 30.0 fps · 8.00 Mbps");
     expect(result?.feedback?.packetsLost).toBe(1);
+  });
+
+  it.each([
+    { previousStreamId: "old-video", previousAt: 1_000 },
+    { previousStreamId: "video", previousAt: 2_000 },
+  ])("does not use an unrelated interval baseline at $previousAt for $previousStreamId", ({
+    previousStreamId,
+    previousAt,
+  }) => {
+    const report = new Map([
+      ["video", {
+        id: "video",
+        type: "inbound-rtp",
+        kind: "video",
+        framesPerSecond: 30,
+        bytesReceived: 8_000_000,
+        framesDropped: 300,
+      }],
+    ]) as unknown as RTCStatsReport;
+
+    const result = screenViewQualityFromStats(
+      report,
+      null,
+      { streamId: previousStreamId, sampledAt: previousAt, bytesReceived: 1_000_000 },
+      2_000,
+    );
+
+    expect(result?.text).toBe("30.0 fps");
+    expect(result?.feedback).toBeUndefined();
+    expect(result?.sample.streamId).toBe("video");
+  });
+
+  it("restarts optional counter baselines after a missing sample", () => {
+    const video = {
+      id: "video",
+      type: "inbound-rtp",
+      kind: "video",
+      framesPerSecond: 30,
+    };
+    const report = (stats: object) =>
+      new Map([["video", stats]]) as unknown as RTCStatsReport;
+    const missing = screenViewQualityFromStats(
+      report(video),
+      null,
+      { streamId: "video", sampledAt: 1_000, bytesReceived: 1_000_000, framesDropped: 20 },
+      2_000,
+    );
+    const resumed = screenViewQualityFromStats(
+      report({ ...video, bytesReceived: 4_000_000, framesDropped: 120 }),
+      null,
+      missing?.sample ?? null,
+      3_000,
+    );
+    const next = screenViewQualityFromStats(
+      report({ ...video, bytesReceived: 5_000_000, framesDropped: 122 }),
+      null,
+      resumed?.sample ?? null,
+      4_000,
+    );
+
+    expect(missing?.text).toBe("30.0 fps");
+    expect(resumed?.text).toBe("30.0 fps");
+    expect(resumed?.feedback?.framesDropped).toBe(0);
+    expect(next?.text).toBe("30.0 fps · 8.00 Mbps");
+    expect(next?.feedback?.framesDropped).toBe(2);
+  });
+
+  it("keeps receiver feedback within the host's numeric ranges", () => {
+    const report = new Map([
+      ["video", {
+        id: "video",
+        type: "inbound-rtp",
+        kind: "video",
+        frameWidth: 16_385.5,
+        frameHeight: 1000.8,
+        framesPerSecond: Number.POSITIVE_INFINITY,
+        framesDecoded: Number.NaN,
+        framesDropped: 1_000_010,
+        packetsLost: 1,
+      }],
+    ]) as unknown as RTCStatsReport;
+    const result = screenViewQualityFromStats(
+      report,
+      null,
+      { streamId: "video", sampledAt: 1_000, framesDecoded: 5, framesDropped: 5, packetsLost: -1 },
+      2_000,
+    );
+
+    expect(result?.feedback).toEqual({
+      width: 16_384,
+      height: 1_000,
+      framesPerSecond: 0,
+      framesDecoded: 0,
+      framesDropped: 1_000_000,
+      freezeCount: 0,
+      packetsLost: 2,
+    });
   });
 });
 

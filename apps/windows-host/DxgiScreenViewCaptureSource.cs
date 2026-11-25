@@ -356,7 +356,7 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
         private readonly IDXGIOutputDuplication _duplication = duplication;
         private readonly ScreenViewDisplayColor _color = color;
         private bool _needsResynchronization = true;
-        private CursorSnapshot? _lastCursor;
+        private ScreenViewCursorUpdate? _lastCursor;
         private ScreenViewCaptureProfile? _lastProfile;
         private ScreenViewVideoEncoder? _videoEncoder;
         private D3D11DesktopFrameConverter? _gpuFrameConverter;
@@ -365,6 +365,7 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
         private bool _gpuFrameConversionUnavailable;
         private readonly ScreenViewEncoderSession _encoding = new(device);
         private readonly ScreenViewFramePacer _webRtcFramePacer = new(TimeProvider.System.TimestampFrequency);
+        private readonly ScreenViewCursorProjection _videoCursor = new(output.Width, output.Height);
 
         public string SourceId => _output.Id;
 
@@ -372,12 +373,9 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
         {
             if (profile.FramesPerSecond is < 1 or > 60 || bitrate is < 1 or > 100_000_000)
                 throw new ArgumentOutOfRangeException(nameof(profile));
-            bool swapsDimensions = _output.Rotation is ModeRotation.Rotate90 or ModeRotation.Rotate270;
-            int rotatedWidth = swapsDimensions ? _output.Height : _output.Width;
-            int rotatedHeight = swapsDimensions ? _output.Width : _output.Height;
-            double scale = Math.Min(1d, Math.Min((double)profile.MaxWidth / rotatedWidth, (double)profile.MaxHeight / rotatedHeight));
-            int width = Math.Max(2, (int)Math.Round(rotatedWidth * scale)) & ~1;
-            int height = Math.Max(2, (int)Math.Round(rotatedHeight * scale)) & ~1;
+            Size videoSize = FitVideoSize(_output.Width, _output.Height, profile);
+            int width = videoSize.Width;
+            int height = videoSize.Height;
             ScreenViewDevelopmentTrace.Stage("encoder-configure");
             _encoding.Configure(width, height, profile.FramesPerSecond, bitrate, forceKeyFrame);
 
@@ -409,9 +407,7 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
                 ScreenViewDevelopmentTrace.Present(desktopChanged);
                 if (frameInfo.ProtectedContentMaskedOut)
                     throw new ScreenViewCaptureException("protected-content", "Windows protected this display content, so screen viewing was stopped.");
-                ScreenViewCursorUpdate? cursor = ScaleCursor(
-                    TransformCursor(ReadCursor(frameInfo), _output.Width, _output.Height, _output.Rotation),
-                    scale);
+                ScreenViewCursorUpdate? cursor = ReadCursor(frameInfo);
                 IDXGIResource? newDesktop = desktopChanged || !hasDesktopFrame ? desktopResource : null;
                 return PrepareVideoFrame(newDesktop, cursor, width, height, profile.FramesPerSecond);
             }
@@ -450,7 +446,13 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
             }
 
             if (surface is not null)
-                return EncodeSurface(surface) with { Cursor = cursor };
+            {
+                ScreenViewEncodedFrame encoded = EncodeSurface(surface);
+                Size? encodedSize = encoded.Bytes.Length > 0 ? new Size(encoded.Width, encoded.Height) : null;
+                return encoded with { Cursor = _videoCursor.Update(cursor, _lastCursor, encodedSize) };
+            }
+
+            cursor = _videoCursor.Update(cursor, _lastCursor);
             return cursor is null ? null : new ScreenViewEncodedFrame([], width, height, framesPerSecond, false, cursor);
         }
 
@@ -508,19 +510,13 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
                     bool visualChanged = ShouldCaptureVisual(_needsResynchronization, frameInfo.LastPresentTime, dirty.Count);
                     if (!visualChanged && cursor is null) return null;
 
-                    int sourceWidth = _output.Width;
-                    int sourceHeight = _output.Height;
                     if (!visualChanged)
                     {
-                        bool swapsDimensions = _output.Rotation is ModeRotation.Rotate90 or ModeRotation.Rotate270;
-                        int rotatedWidth = swapsDimensions ? sourceHeight : sourceWidth;
-                        int rotatedHeight = swapsDimensions ? sourceWidth : sourceHeight;
-                        double cursorScale = Math.Min(1d, Math.Min((double)profile.MaxWidth / rotatedWidth, (double)profile.MaxHeight / rotatedHeight));
-                        cursor = TransformCursor(cursor, sourceWidth, sourceHeight, _output.Rotation);
+                        double cursorScale = Math.Min(1d, Math.Min((double)profile.MaxWidth / _output.Width, (double)profile.MaxHeight / _output.Height));
                         return new ScreenViewFrame(
                             sequence,
-                            Math.Max(1, (int)Math.Round(rotatedWidth * cursorScale)),
-                            Math.Max(1, (int)Math.Round(rotatedHeight * cursorScale)),
+                            Math.Max(1, (int)Math.Round(_output.Width * cursorScale)),
+                            Math.Max(1, (int)Math.Round(_output.Height * cursorScale)),
                             false,
                             [],
                             ScaleCursor(cursor, cursorScale));
@@ -535,7 +531,7 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
                         int videoCanvasHeight = Math.Max(2, (int)Math.Round(_output.Height * captureScale)) & ~1;
                         bool videoHighMotion = frameInfo.LastPresentTime != 0
                             && ShouldSendFull(dirty, (int)desktopTexture.Description.Width, (int)desktopTexture.Description.Height);
-                        cursor = ScaleCursor(TransformCursor(cursor, sourceWidth, sourceHeight, _output.Rotation), captureScale);
+                        cursor = ScaleCursor(cursor, captureScale);
                         if (TryRenderGpuFrame(desktopTexture, videoCanvasWidth, videoCanvasHeight, out ID3D11Texture2D? gpuFrame)
                             && TryEncodeGpuVideo(
                                 gpuFrame!,
@@ -567,7 +563,6 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
                     int canvasWidth = Math.Max(1, (int)Math.Round(source.Width * scale));
                     int canvasHeight = Math.Max(1, (int)Math.Round(source.Height * scale));
                     bool highMotion = frameInfo.LastPresentTime != 0 && ShouldSendFull(dirty, source.Width, source.Height);
-                    cursor = TransformCursor(cursor, sourceWidth, sourceHeight, _output.Rotation);
                     _videoEncoder?.Dispose();
                     _videoEncoder = null;
                     _videoResetPending = true;
@@ -864,7 +859,7 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
 
         private ScreenViewCursorUpdate? ReadCursor(OutduplFrameInfo frameInfo)
         {
-            CursorSnapshot next = _lastCursor ?? new CursorSnapshot(false, 0, 0, 0, 0, 0, 0, null);
+            ScreenViewCursorUpdate next = _lastCursor ?? new ScreenViewCursorUpdate(false, 0, 0, 0, 0, 0, 0, null);
             bool shapeChanged = false;
             if (frameInfo.LastMouseUpdateTime != 0)
             {
@@ -901,18 +896,9 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
                 }
             }
 
-            if (_lastCursor is not null && next.ContentEquals(_lastCursor)) return null;
+            if (_lastCursor is not null && CursorContentMatches(next, _lastCursor)) return null;
             _lastCursor = next;
-            return CreateCursorUpdate(
-                next.Visible,
-                next.X,
-                next.Y,
-                next.HotSpotX,
-                next.HotSpotY,
-                next.Width,
-                next.Height,
-                next.PngBytes,
-                shapeChanged);
+            return shapeChanged ? next : next with { PngBytes = null };
         }
 
         private static (int Width, int Height, byte[] Png) EncodeCursorShape(OutduplPointerShapeInfo shape, byte[] bytes)
@@ -1061,41 +1047,6 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
             Height = Math.Max(1, (int)Math.Round(cursor.Height * scale))
         };
 
-        private static ScreenViewCursorUpdate? TransformCursor(ScreenViewCursorUpdate? cursor, int sourceWidth, int sourceHeight, ModeRotation rotation)
-        {
-            if (cursor is null || rotation is ModeRotation.Identity or ModeRotation.Unspecified) return cursor;
-            byte[]? shape = cursor.PngBytes is null ? null : RotateCursorPng(cursor.PngBytes, rotation);
-            var screenRotation = rotation switch
-            {
-                ModeRotation.Rotate90 => ScreenViewRotation.Rotate90,
-                ModeRotation.Rotate180 => ScreenViewRotation.Rotate180,
-                ModeRotation.Rotate270 => ScreenViewRotation.Rotate270,
-                _ => ScreenViewRotation.Identity
-            };
-            return TransformCursorGeometry(cursor, sourceWidth, sourceHeight, screenRotation) with { PngBytes = shape };
-        }
-
-        private static byte[] RotateCursorPng(byte[] png, ModeRotation rotation)
-        {
-            using var input = new MemoryStream(png, writable: false);
-            using var bitmap = new Bitmap(input);
-            Rotate(bitmap, rotation);
-            using var output = new MemoryStream();
-            bitmap.Save(output, ImageFormat.Png);
-            return output.ToArray();
-        }
-
-        private static void Rotate(Bitmap bitmap, ModeRotation rotation)
-        {
-            bitmap.RotateFlip(rotation switch
-            {
-                ModeRotation.Rotate90 => RotateFlipType.Rotate90FlipNone,
-                ModeRotation.Rotate180 => RotateFlipType.Rotate180FlipNone,
-                ModeRotation.Rotate270 => RotateFlipType.Rotate270FlipNone,
-                _ => RotateFlipType.RotateNoneFlipNone
-            });
-        }
-
         private static void SaveJpeg(Image image, Stream stream, long quality)
         {
             ImageCodecInfo encoder = ImageCodecInfo.GetImageEncoders().First(item => item.FormatID == ImageFormat.Jpeg.Guid);
@@ -1118,51 +1069,20 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
         }
     }
 
-    internal static ScreenViewCursorUpdate CreateCursorUpdate(
-        bool visible,
-        int x,
-        int y,
-        int hotSpotX,
-        int hotSpotY,
-        int width,
-        int height,
-        byte[]? pngBytes,
-        bool shapeChanged) =>
-        new(visible, x, y, hotSpotX, hotSpotY, width, height, shapeChanged ? pngBytes : null);
+    internal static Size FitVideoSize(int desktopWidth, int desktopHeight, ScreenViewCaptureProfile profile)
+    {
+        double scale = Math.Min(1d, Math.Min((double)profile.MaxWidth / desktopWidth, (double)profile.MaxHeight / desktopHeight));
+        return new(
+            Math.Max(2, (int)Math.Round(desktopWidth * scale)) & ~1,
+            Math.Max(2, (int)Math.Round(desktopHeight * scale)) & ~1);
+    }
 
-    internal static ScreenViewCursorUpdate TransformCursorGeometry(
-        ScreenViewCursorUpdate cursor,
-        int sourceWidth,
-        int sourceHeight,
-        ScreenViewRotation rotation) => rotation switch
-        {
-            ScreenViewRotation.Rotate90 => cursor with
-            {
-                X = sourceHeight - cursor.Y - cursor.Height,
-                Y = cursor.X,
-                HotSpotX = cursor.Height - 1 - cursor.HotSpotY,
-                HotSpotY = cursor.HotSpotX,
-                Width = cursor.Height,
-                Height = cursor.Width
-            },
-            ScreenViewRotation.Rotate180 => cursor with
-            {
-                X = sourceWidth - cursor.X - cursor.Width,
-                Y = sourceHeight - cursor.Y - cursor.Height,
-                HotSpotX = cursor.Width - 1 - cursor.HotSpotX,
-                HotSpotY = cursor.Height - 1 - cursor.HotSpotY
-            },
-            ScreenViewRotation.Rotate270 => cursor with
-            {
-                X = cursor.Y,
-                Y = sourceWidth - cursor.X - cursor.Width,
-                HotSpotX = cursor.HotSpotY,
-                HotSpotY = cursor.Width - 1 - cursor.HotSpotX,
-                Width = cursor.Height,
-                Height = cursor.Width
-            },
-            _ => cursor
-        };
+    private static bool CursorContentMatches(ScreenViewCursorUpdate first, ScreenViewCursorUpdate second) =>
+        first.Visible == second.Visible && first.X == second.X && first.Y == second.Y &&
+        first.HotSpotX == second.HotSpotX && first.HotSpotY == second.HotSpotY &&
+        first.Width == second.Width && first.Height == second.Height &&
+        (ReferenceEquals(first.PngBytes, second.PngBytes) || (first.PngBytes is not null &&
+            second.PngBytes is not null && first.PngBytes.AsSpan().SequenceEqual(second.PngBytes)));
 
     private static partial class ScreenViewNativeMethods
     {
@@ -1212,14 +1132,6 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
 
     [LibraryImport("shcore.dll")]
     private static partial int GetDpiForMonitor(nint monitor, MonitorDpiType dpiType, out uint dpiX, out uint dpiY);
-
-    private sealed record CursorSnapshot(bool Visible, int X, int Y, int HotSpotX, int HotSpotY, int Width, int Height, byte[]? PngBytes)
-    {
-        public bool ContentEquals(CursorSnapshot other) =>
-            Visible == other.Visible && X == other.X && Y == other.Y && HotSpotX == other.HotSpotX && HotSpotY == other.HotSpotY &&
-            Width == other.Width && Height == other.Height && ((PngBytes is null && other.PngBytes is null) ||
-                (PngBytes is not null && other.PngBytes is not null && PngBytes.AsSpan().SequenceEqual(other.PngBytes)));
-    }
 
     internal sealed class BoundedScreenshotStream(long maximumLength, CancellationToken cancellationToken) : MemoryStream
     {

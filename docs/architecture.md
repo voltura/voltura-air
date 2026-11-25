@@ -167,8 +167,8 @@ notices also load on demand behind their existing Menu entry point.
 The JSON control socket owns discovery, signed offer/answer signaling,
 source-switch, stop, and optional direct-pointer commands. Mobile allows one source switch at a time; an unconfirmed switch stops local viewing after ten seconds so an unknown display is not left active. Direct mouse mode is
 browser-local; `ScreenViewCoordinator` authorizes the active viewer/display,
-maps normalized positions through cached host monitor rotation and virtual-
-desktop bounds, and owns held-button cleanup. The existing input dispatcher and
+maps normalized positions inside the selected monitor's Windows desktop bounds
+and then across the virtual desktop, and owns held-button cleanup. The existing input dispatcher and
 `SendInputInjector` perform guarded atomic absolute position/action batches.
 Screen media uses H.264 and Opus RTP tracks on one sending peer. For Relay
 credential renewal, the existing coordinator and mobile workspace prepare one
@@ -274,7 +274,10 @@ D3D11 conversion stage supplies NV12 GPU surfaces to a capability-selected
 hardware Media Foundation H.264 transform. The capture session owns format-aware
 duplication, cached Windows SDR reference-white metadata and its display-setting
 subscriptions, one converter-owned GPU copy of the latest desktop, and encoder
-continuity state.
+continuity state. The conversion shader rotates the acquired surface into the
+monitor's Windows desktop bounds. Cursor positions and shapes arrive in those
+bounds and scale to the latest encoded dimensions, including while the pointer
+is stationary during a quality change.
 Floating-point scRGB is normalized and tone mapped to SDR; BGRA bypasses that
 stage. Explicit BT.709 limited-range conversion is paired with sRGB transfer
 signaling. The encoder normalizes only SPS color-description fields because

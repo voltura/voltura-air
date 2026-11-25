@@ -24,6 +24,7 @@ public enum ScreenViewRotation
     Rotate270
 }
 
+// Desktop bounds have the orientation already applied by Windows.
 public sealed record ScreenViewSource(
     string Id,
     string Label,

@@ -710,17 +710,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         double normalizedX,
         double normalizedY)
     {
-        int rotatedWidth = source.Rotation is ScreenViewRotation.Rotate90 or ScreenViewRotation.Rotate270 ? source.Height : source.Width;
-        int rotatedHeight = source.Rotation is ScreenViewRotation.Rotate90 or ScreenViewRotation.Rotate270 ? source.Width : source.Height;
-        int rotatedX = (int)Math.Round(Math.Clamp(normalizedX, 0, 1) * Math.Max(0, rotatedWidth - 1), MidpointRounding.AwayFromZero);
-        int rotatedY = (int)Math.Round(Math.Clamp(normalizedY, 0, 1) * Math.Max(0, rotatedHeight - 1), MidpointRounding.AwayFromZero);
-        (int sourceX, int sourceY) = source.Rotation switch
-        {
-            ScreenViewRotation.Rotate90 => (rotatedY, source.Height - 1 - rotatedX),
-            ScreenViewRotation.Rotate180 => (source.Width - 1 - rotatedX, source.Height - 1 - rotatedY),
-            ScreenViewRotation.Rotate270 => (source.Width - 1 - rotatedY, rotatedX),
-            _ => (rotatedX, rotatedY)
-        };
+        int sourceX = (int)Math.Round(Math.Clamp(normalizedX, 0, 1) * Math.Max(0, source.Width - 1), MidpointRounding.AwayFromZero);
+        int sourceY = (int)Math.Round(Math.Clamp(normalizedY, 0, 1) * Math.Max(0, source.Height - 1), MidpointRounding.AwayFromZero);
         int desktopX = source.DesktopLeft + sourceX;
         int desktopY = source.DesktopTop + sourceY;
         int absoluteX = NormalizeAbsolute(desktopX, virtualDesktop.Left, virtualDesktop.Width);

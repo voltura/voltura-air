@@ -103,6 +103,19 @@ public sealed class ScreenViewQualityControllerTests
         Assert.All(profiles, profile => Assert.Equal(9d / 16d, (double)profile.Width / profile.Height, 2));
     }
 
+    [Theory]
+    [InlineData(ScreenViewRotation.Rotate90)]
+    [InlineData(ScreenViewRotation.Rotate270)]
+    public void RotatedOutputKeepsItsWindowsDesktopDimensionsInTheQualityLadder(ScreenViewRotation rotation)
+    {
+        ScreenViewSource portrait = Source(1080, 1920, dpi: 144) with { Rotation = rotation };
+        List<ScreenViewQualityProfile> profiles = ScreenViewQualityController.CreateProfiles(
+            portrait, DirectScreenQualityMode.Quality, 20_000_000);
+
+        Assert.All(profiles, profile => Assert.Equal((1080, 1920), (profile.Width, profile.Height)));
+        Assert.Equal((720, 1280), ScreenViewQualityController.ReadabilityFloor(portrait));
+    }
+
     [Fact]
     public void BackpressureRequiresThreeFailuresAndMovesOnlyOneProfile()
     {

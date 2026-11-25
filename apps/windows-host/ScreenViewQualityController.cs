@@ -154,8 +154,8 @@ internal sealed class ScreenViewQualityController
         DirectScreenQualityMode mode,
         int maximumBitrate)
     {
-        (int sourceWidth, int sourceHeight) = OrientedSize(source);
-        (sourceWidth, sourceHeight) = FitWithinFrameLimit(sourceWidth, sourceHeight, ScreenViewH264Limits.Level52.MaximumMacroblocksPerFrame);
+        (int sourceWidth, int sourceHeight) =
+            FitWithinFrameLimit(source.Width, source.Height, ScreenViewH264Limits.Level52.MaximumMacroblocksPerFrame);
         (int floorWidth, int floorHeight) = ReadabilityFloor(source, sourceWidth, sourceHeight);
 
         if (mode == DirectScreenQualityMode.DataSaver)
@@ -211,24 +211,23 @@ internal sealed class ScreenViewQualityController
 
     internal static (int Width, int Height) ReadabilityFloor(ScreenViewSource source)
     {
-        (int width, int height) = OrientedSize(source);
-        (width, height) = FitWithinFrameLimit(width, height, ScreenViewH264Limits.Level52.MaximumMacroblocksPerFrame);
+        (int width, int height) =
+            FitWithinFrameLimit(source.Width, source.Height, ScreenViewH264Limits.Level52.MaximumMacroblocksPerFrame);
         return ReadabilityFloor(source, width, height);
     }
 
     private static (int Width, int Height) ReadabilityFloor(ScreenViewSource source, int maximumWidth, int maximumHeight)
     {
         double scale = Math.Min(1d, Math.Max(96d / Math.Max(96, source.EffectiveDpiX), 96d / Math.Max(96, source.EffectiveDpiY)));
-        (int orientedWidth, int orientedHeight) = OrientedSize(source);
         return (
-            Math.Min(maximumWidth, Even(orientedWidth * scale)),
-            Math.Min(maximumHeight, Even(orientedHeight * scale)));
+            Math.Min(maximumWidth, Even(source.Width * scale)),
+            Math.Min(maximumHeight, Even(source.Height * scale)));
     }
 
     private int FindInitialDirectProfile(ScreenViewSource source)
     {
-        (int width, int height) = OrientedSize(source);
-        (width, height) = FitWithinFrameLimit(width, height, ScreenViewH264Limits.Level52.MaximumMacroblocksPerFrame);
+        (int width, int height) =
+            FitWithinFrameLimit(source.Width, source.Height, ScreenViewH264Limits.Level52.MaximumMacroblocksPerFrame);
         int exact = _profiles.FindIndex(profile => profile.Width == width && profile.Height == height && profile.FramesPerSecond == 30);
         return exact >= 0 ? exact : FindHighestAffordableProfile(_maximumBitrate);
     }
@@ -283,11 +282,6 @@ internal sealed class ScreenViewQualityController
 
     private static int TargetBitrate(int width, int height, int framesPerSecond) =>
         (int)Math.Clamp((long)Math.Round(width * (double)height * framesPerSecond * (8_000_000d / (1920d * 1080d * 30d))), 500_000L, DirectMaximumBitrate);
-
-    private static (int Width, int Height) OrientedSize(ScreenViewSource source) =>
-        source.Rotation is ScreenViewRotation.Rotate90 or ScreenViewRotation.Rotate270
-            ? (source.Height, source.Width)
-            : (source.Width, source.Height);
 
     private static (int Width, int Height) FitWithinFrameLimit(int width, int height, int maximumMacroblocksPerFrame)
     {

@@ -666,8 +666,8 @@ displayed image, inclusive. Buttons are `left` or `right`; direct button actions
 are `down` or `up`. Wheel deltas retain the input bound of -5000 through 5000.
 The host accepts these messages only from the active viewer for its exact
 selected display and only while both **View PC screen** and **Pointer and keyboard**
-are allowed. It maps against host-owned rotated monitor bounds and the complete
-virtual desktop. A stale display, missing active view, or permission denial
+are allowed. It maps against the monitor's oriented Windows desktop bounds
+and the complete virtual desktop. A stale display, missing active view, or permission denial
 returns a recoverable `input.error` without closing the socket.
 
 Source, start, answer, source-switch, and stop results echo `operationId`; start
@@ -821,7 +821,9 @@ The cursor sender retains the latest position and any unsent shape when the
 event channel is busy. It sends large, untransmittable shapes as position-only
 records. A replacement peer on the same display receives the retained shape.
 The controller keeps the replacement cursor with its candidate peer until the
-new video is ready to render.
+new video is ready to render. Cursor position and dimensions are in encoded
+video pixels. A resolution change can send a position-only update for a
+stationary cursor while reusing the existing shape.
 
 Desktop Duplication supplies the selected GPU frame and cursor metadata. A
 hardware Media Foundation transform converts the frame to baseline H.264. The

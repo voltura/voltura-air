@@ -112,37 +112,45 @@ public sealed class DxgiScreenViewCaptureSourceTests
         Assert.Empty(rectangles);
     }
 
+    [Theory]
+    [InlineData(768, 1024, 768, 1024, 768, 1024)]
+    [InlineData(1080, 1920, 720, 720, 404, 720)]
+    [InlineData(2561, 1441, 2561, 1441, 2560, 1440)]
+    public void VideoFitsTheOrientedDesktopBoundsAndEncoderAlignment(
+        int desktopWidth, int desktopHeight, int capWidth, int capHeight, int width, int height)
+    {
+        Assert.Equal(new Size(width, height), DxgiScreenViewCaptureSource.FitVideoSize(
+            desktopWidth, desktopHeight, new ScreenViewCaptureProfile(capWidth, capHeight)));
+    }
+
     [Fact]
-    public void PositionOnlyCursorUpdateOmitsThePreviouslySentShape()
+    public void PortraitCursorKeepsItsOutputLocalGeometryAndOriginalPng()
     {
         byte[] shape = [1, 2, 3];
-
-        ScreenViewCursorUpdate positionOnly = DxgiScreenViewCaptureSource.CreateCursorUpdate(
-            true, 100, 200, 2, 3, 16, 16, shape, shapeChanged: false);
-        ScreenViewCursorUpdate changedShape = DxgiScreenViewCaptureSource.CreateCursorUpdate(
-            true, 100, 200, 2, 3, 16, 16, shape, shapeChanged: true);
-
-        Assert.Null(positionOnly.PngBytes);
-        Assert.Same(shape, changedShape.PngBytes);
+        var cursor = new ScreenViewCursorUpdate(true, -4, 200, 3, 7, 16, 24, shape);
+        var projection = new ScreenViewCursorProjection(768, 1024);
+        Assert.Null(projection.Update(cursor, cursor));
+        ScreenViewCursorUpdate initial = projection.Update(null, cursor, new Size(768, 1024))!;
+        Assert.Equal(cursor, initial);
+        Assert.Same(shape, initial.PngBytes);
+        ScreenViewCursorUpdate moved = projection.Update(cursor with { Y = 240, PngBytes = null }, cursor with { Y = 240 })!;
+        Assert.Equal((-4, 240, 16, 24), (moved.X, moved.Y, moved.Width, moved.Height));
+        Assert.Null(moved.PngBytes);
     }
 
-    [Theory]
-    [InlineData(ScreenViewRotation.Rotate90, 800, 100, 24, 16)]
-    [InlineData(ScreenViewRotation.Rotate180, 652, 800, 16, 24)]
-    [InlineData(ScreenViewRotation.Rotate270, 200, 652, 24, 16)]
-    public void RotatedCursorGeometryPreservesTheShapeTopLeft(
-        ScreenViewRotation rotation,
-        int expectedX,
-        int expectedY,
-        int expectedWidth,
-        int expectedHeight)
+    [Fact]
+    public void AStationaryCursorIsRescaledOnlyWhenEncodedDimensionsChange()
     {
-        var cursor = new ScreenViewCursorUpdate(true, 100, 200, 3, 7, 16, 24, null);
+        var cursor = new ScreenViewCursorUpdate(true, 304, 514, 6, 8, 16, 24, [1, 2, 3]);
+        var projection = new ScreenViewCursorProjection(768, 1024);
+        Assert.NotNull(projection.Update(cursor, cursor, new Size(768, 1024)));
+        Assert.Null(projection.Update(null, cursor));
+        ScreenViewCursorUpdate movedBeforeResize = projection.Update(cursor with { X = 300, PngBytes = null }, cursor)!;
+        Assert.Equal(300, movedBeforeResize.X);
 
-        ScreenViewCursorUpdate transformed = DxgiScreenViewCaptureSource.TransformCursorGeometry(cursor, 768, 1024, rotation);
-
-        Assert.Equal((expectedX, expectedY, expectedWidth, expectedHeight),
-            (transformed.X, transformed.Y, transformed.Width, transformed.Height));
+        ScreenViewCursorUpdate resized = projection.Update(null, cursor, new Size(384, 510))!;
+        Assert.Equal((152, 256, 3, 4, 8, 12), (resized.X, resized.Y, resized.HotSpotX, resized.HotSpotY, resized.Width, resized.Height));
+        Assert.Null(resized.PngBytes);
+        Assert.Null(projection.Update(null, cursor, new Size(384, 510)));
     }
-
 }

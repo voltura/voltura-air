@@ -5,24 +5,26 @@ namespace VolturaAir.Host.Tests;
 public sealed class ScreenPointerMappingTests
 {
     [Theory]
-    [InlineData(ScreenViewRotation.Identity, 0, 0, 0, 0)]
-    [InlineData(ScreenViewRotation.Rotate90, 0, 0, 0, 1023)]
-    [InlineData(ScreenViewRotation.Rotate180, 0, 0, 767, 1023)]
-    [InlineData(ScreenViewRotation.Rotate270, 0, 0, 767, 0)]
-    [InlineData(ScreenViewRotation.Rotate90, 1, 1, 767, 0)]
-    public void InvertsTheCaptureRotationBeforeMappingToDesktop(
+    [InlineData(ScreenViewRotation.Identity, 1024, 768, 0, 0, 0, 0)]
+    [InlineData(ScreenViewRotation.Rotate90, 768, 1024, 0, 0, 0, 0)]
+    [InlineData(ScreenViewRotation.Rotate180, 1024, 768, 0.25, 0.75, 256, 575)]
+    [InlineData(ScreenViewRotation.Rotate270, 768, 1024, 0.25, 0.75, 192, 767)]
+    [InlineData(ScreenViewRotation.Rotate90, 768, 1024, 1, 1, 767, 1023)]
+    public void MapsDirectClicksToThePointsShownInTheOrientedDesktop(
         ScreenViewRotation rotation,
+        int width,
+        int height,
         double x,
         double y,
         int expectedX,
         int expectedY)
     {
-        var source = new ScreenViewSource("display", "Display", 768, 1024, true, -768, 40, rotation);
-        var virtualDesktop = new VirtualDesktopBounds(-768, 40, 768, 1024);
+        var source = new ScreenViewSource("display", "Display", width, height, true, -width, 40, rotation);
+        var virtualDesktop = new VirtualDesktopBounds(-width, 40, width, height);
 
         ScreenPointerPosition mapped = ScreenViewCoordinator.MapPointer(source, virtualDesktop, x, y);
 
-        Assert.Equal(-768 + expectedX, mapped.DesktopX);
+        Assert.Equal(-width + expectedX, mapped.DesktopX);
         Assert.Equal(40 + expectedY, mapped.DesktopY);
     }
 

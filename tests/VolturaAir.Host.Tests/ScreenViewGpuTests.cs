@@ -13,6 +13,51 @@ namespace VolturaAir.Host.Tests;
 [Collection(AppPermissionSettingsCollection.Name)]
 public sealed class ScreenViewGpuTests : IsolatedHostSettingsTest
 {
+    [Theory]
+    [InlineData(ModeRotation.Rotate90, 64, 128, 71, 16, 181, 235)]
+    [InlineData(ModeRotation.Rotate180, 128, 64, 181, 71, 235, 16)]
+    [InlineData(ModeRotation.Rotate270, 64, 128, 235, 181, 16, 71)]
+    public void RawSurfaceRotatesIntoTheWindowsDesktopOrientation(
+        ModeRotation rotation, int outputWidth, int outputHeight,
+        int expectedTopLeft, int expectedTopRight, int expectedBottomLeft, int expectedBottomRight)
+    {
+        Assert.SkipWhen(string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VOLTURA_SCREEN_PROBE_DIRECTORY")),
+            "Set VOLTURA_SCREEN_PROBE_DIRECTORY for the isolated hardware probe.");
+        const int rawWidth = 128, rawHeight = 64;
+        uint[] grayscale = [0xff000000, 0xffffffff, 0xff404040, 0xffc0c0c0];
+        uint[] pixels = new uint[rawWidth * rawHeight];
+        for (int y = 0; y < rawHeight; y++)
+            for (int x = 0; x < rawWidth; x++)
+                pixels[y * rawWidth + x] = grayscale[2 * (y / (rawHeight / 2)) + x / (rawWidth / 2)];
+
+        using IDXGIFactory1 factory = CreateDXGIFactory1<IDXGIFactory1>();
+        factory.EnumAdapters1(0, out IDXGIAdapter1 adapter).CheckError();
+        using (adapter)
+        {
+            D3D11CreateDevice(adapter, DriverType.Unknown, DeviceCreationFlags.BgraSupport,
+                [FeatureLevel.Level_11_1, FeatureLevel.Level_11_0], out ID3D11Device device, out ID3D11DeviceContext context).CheckError();
+            using (device)
+            using (context)
+            using (var converter = new D3D11DesktopFrameConverter(device, context, rotation))
+            using (ID3D11Texture2D source = device.CreateTexture2D<uint>(pixels, Format.B8G8R8A8_UNorm,
+                rawWidth, rawHeight, 1, 1, BindFlags.ShaderResource))
+            {
+                var profile = new ScreenViewCaptureProfile(outputWidth, outputHeight);
+                System.Drawing.Size videoSize = DxgiScreenViewCaptureSource.FitVideoSize(outputWidth, outputHeight, profile);
+                ID3D11Texture2D converted = converter.RenderNv12(source, videoSize.Width, videoSize.Height);
+                Assert.Equal(((uint)outputWidth, (uint)outputHeight), (converted.Description.Width, converted.Description.Height));
+                byte[] nv12 = ReadNv12(device, context, converted);
+                AssertLuma(outputWidth / 4, outputHeight / 4, expectedTopLeft);
+                AssertLuma(outputWidth * 3 / 4, outputHeight / 4, expectedTopRight);
+                AssertLuma(outputWidth / 4, outputHeight * 3 / 4, expectedBottomLeft);
+                AssertLuma(outputWidth * 3 / 4, outputHeight * 3 / 4, expectedBottomRight);
+
+                void AssertLuma(int x, int y, int expected) =>
+                    Assert.InRange((int)nv12[y * outputWidth + x], expected - 1, expected + 1);
+            }
+        }
+    }
+
     [Fact]
     public void CachedDesktopFrameSurvivesSourceReleaseAndUsesLatestPresentWhenResized()
     {

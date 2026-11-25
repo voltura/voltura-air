@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createLocalId } from "../identity/localId";
 import type { ClipboardGetResultMessage, ClientMessage } from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
+import { useCommandConnectionLifetime } from "./useCommandConnectionLifetime";
 
 const responseTimeoutMs = 5000;
 const resultVisibilityMs = 5000;
@@ -17,7 +18,6 @@ export function useClipboardRead(
   );
   const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
   const pendingClipboardRead = pendingOperationId !== null;
-  const lastConnectionEpochRef = useRef(connectionEpoch);
   const pendingOperationRef = useRef<string | null>(null);
   const pendingDeviceClipboardOperationRef = useRef<{
     operationId: string;
@@ -75,13 +75,7 @@ export function useClipboardRead(
     };
   }, [pendingOperationId]);
 
-  useLayoutEffect(() => {
-    const previousEpoch = lastConnectionEpochRef.current;
-    lastConnectionEpochRef.current = connectionEpoch;
-    if (state === "paired" && connectionEpoch === previousEpoch) {
-      return;
-    }
-
+  useCommandConnectionLifetime(state, connectionEpoch, () => {
     settlePendingDeviceClipboardRead(
       "VAIR-CLIPBOARD-DISCONNECTED",
       "The PC disconnected before returning clipboard text.",
@@ -90,7 +84,7 @@ export function useClipboardRead(
     setClipboardText("");
     setClipboardReadResult(null);
     setPendingOperationId(null);
-  }, [connectionEpoch, settlePendingDeviceClipboardRead, state]);
+  });
 
   useEffect(
     () => () => {

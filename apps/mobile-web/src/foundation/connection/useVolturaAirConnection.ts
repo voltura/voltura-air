@@ -144,19 +144,19 @@ export function useVolturaAirConnection() {
     completeAwakeChange: completeAwakeChangeState,
     pendingAwakeChange,
     requestAwakeChange,
-  } = useAwakeControl(state, send);
+  } = useAwakeControl(state, connectionEpoch, send);
   const {
     completePowerAction: completePowerActionState,
     pendingPowerAction,
     powerActionResult,
     requestPowerAction,
-  } = usePowerControl(state, send);
+  } = usePowerControl(state, connectionEpoch, send);
   const {
     appLaunchResult,
     completeAppLaunch: completeAppLaunchState,
     pendingAppLaunchId,
     requestAppLaunch,
-  } = useAppLaunch(state, send);
+  } = useAppLaunch(state, connectionEpoch, send);
   const {
     completePowerPointRefresh: completePowerPointRefreshState,
     completePowerPointLaunch: completePowerPointLaunchState,
@@ -174,25 +174,25 @@ export function useVolturaAirConnection() {
     requestPowerPointLaunch,
     requestPresentationCommand,
     requestPresentationSession,
-  } = usePresentationControl(state, send);
+  } = usePresentationControl(state, connectionEpoch, send);
   const {
     completePresentationReportSave: completePresentationReportSaveState,
     pendingPresentationReportSave,
     presentationReportSaveResult,
     requestPresentationReportSave,
-  } = usePresentationReportSave(state, send);
+  } = usePresentationReportSave(state, connectionEpoch, send);
   const {
     completeUrlOpen: completeUrlOpenState,
     pendingUrlOpen,
     requestUrlOpen,
     urlOpenResult,
-  } = useUrlOpen(state, send);
+  } = useUrlOpen(state, connectionEpoch, send);
   const {
     completeTextTransfer: completeTextTransferState,
     pendingTextTransfer,
     requestTextTransfer,
     textTransferResult,
-  } = useTextTransfer(state, send);
+  } = useTextTransfer(state, connectionEpoch, send);
   const {
     cancelClipboardReadForDevice,
     clipboardReadResult,

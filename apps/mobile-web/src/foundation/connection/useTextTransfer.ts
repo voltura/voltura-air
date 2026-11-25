@@ -5,6 +5,7 @@ import {
   type TextSendResultMessage,
 } from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
+import { useCommandConnectionLifetime } from "./useCommandConnectionLifetime";
 import { createLocalId } from "../identity/localId";
 
 // Managed host destinations may use the full 8-second Windows startup budget;
@@ -12,7 +13,11 @@ import { createLocalId } from "../identity/localId";
 const responseTimeoutMs = 15000;
 const resultVisibilityMs = 5000;
 
-export function useTextTransfer(state: ConnectionState, send: (payload: ClientMessage) => void) {
+export function useTextTransfer(
+  state: ConnectionState,
+  connectionEpoch: number,
+  send: (payload: ClientMessage) => void,
+) {
   const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
   const pendingTextTransfer = pendingOperationId !== null;
   const [textTransferResult, setTextTransferResult] = useState<TextSendResultMessage | null>(null);
@@ -44,15 +49,11 @@ export function useTextTransfer(state: ConnectionState, send: (payload: ClientMe
     };
   }, [pendingOperationId]);
 
-  useEffect(() => {
-    if (state === "paired") {
-      return;
-    }
-
+  useCommandConnectionLifetime(state, connectionEpoch, () => {
     pendingOperationRef.current = null;
     setPendingOperationId(null);
     setTextTransferResult(null);
-  }, [state]);
+  });
 
   useEffect(() => {
     if (textTransferResult === null) {

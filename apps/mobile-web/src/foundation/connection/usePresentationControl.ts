@@ -12,6 +12,7 @@ import type {
   PresentationTarget,
 } from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
+import { useCommandConnectionLifetime } from "./useCommandConnectionLifetime";
 
 // A started PowerPoint COM mutation cannot be cancelled safely. The host keeps
 // the request pending until it can report authoritative post-command state.
@@ -45,6 +46,7 @@ export interface PendingPowerPointLaunch {
 
 export function usePresentationControl(
   state: ConnectionState,
+  connectionEpoch: number,
   send: (payload: ClientMessage) => void,
 ) {
   const [pendingPresentationCommand, setPendingPresentationCommand] =
@@ -182,11 +184,7 @@ export function usePresentationControl(
     };
   }, [pendingPowerPointRefresh]);
 
-  useEffect(() => {
-    if (state === "paired") {
-      return;
-    }
-
+  useCommandConnectionLifetime(state, connectionEpoch, () => {
     pendingRef.current = null;
     pendingSessionRef.current = null;
     pendingRefreshRef.current = null;
@@ -199,7 +197,7 @@ export function usePresentationControl(
     setPresentationSessionResult(null);
     setPowerPointRefreshResult(null);
     setPowerPointLaunchResult(null);
-  }, [state]);
+  });
 
   useEffect(() => {
     if (presentationResult?.succeeded !== true) {

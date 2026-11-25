@@ -8,7 +8,7 @@ describe("usePowerControl", () => {
   it("keeps a same-action retry pending when the old result arrives", async () => {
     vi.useFakeTimers();
     const send = vi.fn();
-    const { result } = renderHook(() => usePowerControl("paired", send));
+    const { result } = renderHook(() => usePowerControl("paired", 1, send));
 
     act(() => {
       result.current.requestPowerAction("lock");

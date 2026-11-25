@@ -7,7 +7,7 @@ describe("useAwakeControl", () => {
 
   it("sends one state change and clears it when the host responds", () => {
     const send = vi.fn();
-    const { result } = renderHook(() => useAwakeControl("paired", send));
+    const { result } = renderHook(() => useAwakeControl("paired", 1, send));
 
     act(() => {
       result.current.requestAwakeChange(true);
@@ -36,7 +36,7 @@ describe("useAwakeControl", () => {
   it("reports a timeout without sending a duplicate", async () => {
     vi.useFakeTimers();
     const send = vi.fn();
-    const { result } = renderHook(() => useAwakeControl("paired", send));
+    const { result } = renderHook(() => useAwakeControl("paired", 1, send));
 
     act(() => {
       result.current.requestAwakeChange(false);
@@ -51,7 +51,7 @@ describe("useAwakeControl", () => {
   it("keeps a same-value retry pending when the old result arrives", async () => {
     vi.useFakeTimers();
     const send = vi.fn();
-    const { result } = renderHook(() => useAwakeControl("paired", send));
+    const { result } = renderHook(() => useAwakeControl("paired", 1, send));
 
     act(() => {
       result.current.requestAwakeChange(true);

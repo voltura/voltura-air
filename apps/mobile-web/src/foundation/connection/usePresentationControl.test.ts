@@ -13,7 +13,7 @@ describe("usePresentationControl", () => {
 
   it("allows only one command in flight and completes only its matching result", () => {
     const send = vi.fn();
-    const { result } = renderHook(() => usePresentationControl("paired", send));
+    const { result } = renderHook(() => usePresentationControl("paired", 1, send));
     let operationId: string | null = null;
 
     act(() => {
@@ -59,7 +59,7 @@ describe("usePresentationControl", () => {
   it("keeps command failures visible while successful confirmations expire", async () => {
     vi.useFakeTimers();
     const send = vi.fn();
-    const { result } = renderHook(() => usePresentationControl("paired", send));
+    const { result } = renderHook(() => usePresentationControl("paired", 1, send));
 
     let operationId: string | null = null;
     act(() => {
@@ -104,7 +104,7 @@ describe("usePresentationControl", () => {
     vi.useFakeTimers();
     const send = vi.fn();
     const { result, rerender } = renderHook(
-      ({ state }: { state: ConnectionState }) => usePresentationControl(state, send),
+      ({ state }: { state: ConnectionState }) => usePresentationControl(state, 1, send),
       {
         initialProps: { state: "paired" as ConnectionState },
       },
@@ -124,9 +124,38 @@ describe("usePresentationControl", () => {
     expect(result.current.presentationResult).toBeNull();
   });
 
+  it("retires each existing Presentation request when the authenticated connection changes", () => {
+    const send = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ epoch }) => usePresentationControl("paired", epoch, send),
+      { initialProps: { epoch: 1 } },
+    );
+    const requestAll = () => [
+      result.current.requestPresentationCommand("powerpoint", "next"),
+      result.current.requestPresentationSession("break", { enabled: true }),
+      result.current.requestPowerPointRefresh(),
+      result.current.requestPowerPointLaunch("presentation-1"),
+    ];
+    let originalIds: (string | null)[] = [];
+    act(() => { originalIds = requestAll(); });
+    expect(originalIds).toEqual(Array(4).fill(expect.any(String)));
+
+    rerender({ epoch: 2 });
+
+    expect(result.current.pendingPresentationCommand).toBeNull();
+    expect(result.current.pendingPresentationSession).toBeNull();
+    expect(result.current.pendingPowerPointRefresh).toBeNull();
+    expect(result.current.pendingPowerPointLaunch).toBeNull();
+    act(() => {
+      const newIds = requestAll();
+      expect(newIds).toEqual(Array(4).fill(expect.any(String)));
+      expect(newIds).not.toEqual(originalIds);
+    });
+  });
+
   it("sends idempotent laser cleanup while another presenter command is pending", () => {
     const send = vi.fn();
-    const { result } = renderHook(() => usePresentationControl("paired", send));
+    const { result } = renderHook(() => usePresentationControl("paired", 1, send));
 
     act(() => {
       result.current.requestPresentationCommand("powerpoint", "next");
@@ -145,7 +174,7 @@ describe("usePresentationControl", () => {
 
   it("correlates one pending authoritative session command", () => {
     const send = vi.fn();
-    const { result } = renderHook(() => usePresentationControl("paired", send));
+    const { result } = renderHook(() => usePresentationControl("paired", 1, send));
     let operationId: string | null = null;
 
     act(() => {
@@ -178,7 +207,7 @@ describe("usePresentationControl", () => {
   it("reports authoritative session acknowledgement failures and timeouts", async () => {
     vi.useFakeTimers();
     const send = vi.fn();
-    const { result } = renderHook(() => usePresentationControl("paired", send));
+    const { result } = renderHook(() => usePresentationControl("paired", 1, send));
 
     let operationId: string | null = null;
     act(() => {
@@ -211,7 +240,7 @@ describe("usePresentationControl", () => {
   it("tracks and correlates PowerPoint refresh acknowledgements", async () => {
     vi.useFakeTimers();
     const send = vi.fn();
-    const { result } = renderHook(() => usePresentationControl("paired", send));
+    const { result } = renderHook(() => usePresentationControl("paired", 1, send));
 
     let operationId: string | null = null;
     act(() => {
@@ -263,7 +292,7 @@ describe("usePresentationControl", () => {
 
   it("tracks and correlates a saved PowerPoint launch", () => {
     const send = vi.fn();
-    const { result } = renderHook(() => usePresentationControl("paired", send));
+    const { result } = renderHook(() => usePresentationControl("paired", 1, send));
     let operationId: string | null = null;
 
     act(() => {

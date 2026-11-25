@@ -2,11 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { createLocalId } from "../identity/localId";
 import type { AppLaunchResultMessage, ClientMessage } from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
+import { useCommandConnectionLifetime } from "./useCommandConnectionLifetime";
 
 const responseTimeoutMs = 5000;
 const resultVisibilityMs = 4000;
 
-export function useAppLaunch(state: ConnectionState, send: (payload: ClientMessage) => void) {
+export function useAppLaunch(
+  state: ConnectionState,
+  connectionEpoch: number,
+  send: (payload: ClientMessage) => void,
+) {
   const [pendingOperation, setPendingOperation] = useState<{
     actionId: string;
     operationId: string;
@@ -43,15 +48,11 @@ export function useAppLaunch(state: ConnectionState, send: (payload: ClientMessa
     };
   }, [pendingOperation]);
 
-  useEffect(() => {
-    if (state === "paired") {
-      return;
-    }
-
+  useCommandConnectionLifetime(state, connectionEpoch, () => {
     pendingRef.current = null;
     setPendingOperation(null);
     setAppLaunchResult(null);
-  }, [state]);
+  });
 
   useEffect(() => {
     if (appLaunchResult === null) {

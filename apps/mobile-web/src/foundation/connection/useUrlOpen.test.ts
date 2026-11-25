@@ -7,7 +7,7 @@ describe("useUrlOpen", () => {
 
   it("sends the reviewed draft and completes only from its matching result", () => {
     const send = vi.fn();
-    const { result } = renderHook(() => useUrlOpen("paired", send));
+    const { result } = renderHook(() => useUrlOpen("paired", 1, send));
 
     let operationId: string | null = null;
     act(() => {
@@ -47,7 +47,7 @@ describe("useUrlOpen", () => {
 
   it("returns retryable timeout feedback", async () => {
     vi.useFakeTimers();
-    const { result } = renderHook(() => useUrlOpen("paired", vi.fn()));
+    const { result } = renderHook(() => useUrlOpen("paired", 1, vi.fn()));
 
     await act(() => result.current.requestUrlOpen("example.com"));
     await act(() => vi.advanceTimersByTime(8000));

@@ -604,7 +604,10 @@ export function App() {
   const activeCustomScreenRevision = activeCustomScreenSummary?.revision;
   const customScreensCatalogRevision = customScreensCapability?.catalogRevision;
   const staleCustomScreenOperationId =
-    customScreenInvokeResult?.code === "stale-screen" ? customScreenInvokeResult.operationId : null;
+    customScreenInvokeResult?.code === "stale-screen" &&
+    customScreenInvokeResult.screenId === activeCustomScreenId
+      ? customScreenInvokeResult.operationId
+      : null;
 
   useEffect(() => {
     if (

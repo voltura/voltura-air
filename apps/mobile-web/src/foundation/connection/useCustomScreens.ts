@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createLocalId } from "../identity/localId";
 import type {
   ClientMessage,
@@ -24,6 +24,7 @@ export function useCustomScreens(
     value: CustomScreenDefinition | null;
   } | null>(null);
   const [getResultState, setGetResultState] = useState<{
+    catalogRevision: string | undefined;
     connectionEpoch: number;
     value: CustomScreenGetResultMessage;
   } | null>(null);
@@ -36,6 +37,7 @@ export function useCustomScreens(
     values: ReadonlySet<string>;
   }>(() => ({ connectionEpoch, values: new Set() }));
   const pendingGetRef = useRef<{
+    catalogRevision: string | undefined;
     connectionEpoch: number;
     operationId: string;
     screenId: string;
@@ -47,6 +49,7 @@ export function useCustomScreens(
         buttonId: string;
         connectionEpoch: number;
         screenId: string;
+        screenRevision: string;
         suppressResult: boolean;
         timeout: number;
       }
@@ -67,6 +70,13 @@ export function useCustomScreens(
     };
   }, [connectionEpoch, state]);
 
+  useLayoutEffect(() => {
+    if (pendingGetRef.current && pendingGetRef.current.catalogRevision !== catalogRevision) {
+      window.clearTimeout(getTimeoutRef.current);
+      pendingGetRef.current = null;
+    }
+  }, [catalogRevision]);
+
   const requestCustomScreen = useCallback(
     (screenId: string) => {
       if (state !== "paired") {
@@ -74,7 +84,7 @@ export function useCustomScreens(
       }
 
       const operationId = createLocalId();
-      pendingGetRef.current = { connectionEpoch, operationId, screenId };
+      pendingGetRef.current = { catalogRevision, connectionEpoch, operationId, screenId };
       setGetResultState(null);
       window.clearTimeout(getTimeoutRef.current);
       getTimeoutRef.current = window.setTimeout(() => {
@@ -84,6 +94,7 @@ export function useCustomScreens(
         pendingGetRef.current = null;
         setDefinitionState(null);
         setGetResultState({
+          catalogRevision,
           connectionEpoch,
           value: {
             type: "custom.screen.get.result",
@@ -96,7 +107,7 @@ export function useCustomScreens(
       }, 15_000);
       send({ type: "custom.screen.get", operationId, screenId });
     },
-    [connectionEpoch, send, state],
+    [catalogRevision, connectionEpoch, send, state],
   );
 
   const completeCustomScreenGet = useCallback(
@@ -104,6 +115,7 @@ export function useCustomScreens(
       if (
         pendingGetRef.current?.operationId !== result.operationId ||
         pendingGetRef.current.connectionEpoch !== connectionEpoch ||
+        pendingGetRef.current.catalogRevision !== catalogRevision ||
         (result.succeeded && result.screen?.id !== pendingGetRef.current.screenId)
       ) {
         return false;
@@ -111,7 +123,7 @@ export function useCustomScreens(
 
       pendingGetRef.current = null;
       window.clearTimeout(getTimeoutRef.current);
-      setGetResultState({ connectionEpoch, value: result });
+      setGetResultState({ catalogRevision, connectionEpoch, value: result });
       setDefinitionState({
         catalogRevision,
         connectionEpoch,
@@ -126,7 +138,8 @@ export function useCustomScreens(
     (operationId: string) => {
       if (
         pendingGetRef.current?.operationId !== operationId ||
-        pendingGetRef.current.connectionEpoch !== connectionEpoch
+        pendingGetRef.current.connectionEpoch !== connectionEpoch ||
+        pendingGetRef.current.catalogRevision !== catalogRevision
       ) {
         return false;
       }
@@ -140,7 +153,7 @@ export function useCustomScreens(
       };
       pendingGetRef.current = null;
       window.clearTimeout(getTimeoutRef.current);
-      setGetResultState({ connectionEpoch, value: result });
+      setGetResultState({ catalogRevision, connectionEpoch, value: result });
       setDefinitionState({ catalogRevision, connectionEpoch, value: null });
       return true;
     },
@@ -176,7 +189,13 @@ export function useCustomScreens(
         setInvokeResultState({ connectionEpoch, value: result });
       }
       if (result.code === "stale-screen") {
-        setDefinitionState(null);
+        setDefinitionState((current) =>
+          current?.connectionEpoch === connectionEpoch &&
+          current.value?.id === pending.screenId &&
+          current.value.revision === pending.screenRevision
+            ? null
+            : current,
+        );
       }
       return !pending.suppressResult;
     },
@@ -211,6 +230,7 @@ export function useCustomScreens(
         buttonId,
         connectionEpoch,
         screenId,
+        screenRevision,
         suppressResult,
         timeout,
       });
@@ -240,7 +260,8 @@ export function useCustomScreens(
       ? definitionState.value
       : null;
   const getResult =
-    isCurrentConnection && getResultState?.connectionEpoch === connectionEpoch
+    isCurrentConnection && getResultState?.connectionEpoch === connectionEpoch &&
+    getResultState.catalogRevision === catalogRevision
       ? getResultState.value
       : null;
   const invokeResult =

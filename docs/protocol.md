@@ -75,6 +75,11 @@ declares a smaller bound: `operationId` 64, human-readable `message` 240,
 server frame that exceeds its applicable bound; producers also bound dynamic
 status values before sending them.
 
+Application launch, Keep awake, power, URL opening, text transfer, clipboard,
+and Presentation command waits belong to their authenticated connection. A
+retried presentation report save keeps the operation identity of the original
+request so the PC can deduplicate it.
+
 Wire changes update the test server-frame catalog and follow
 [risk-based validation](setup.md#validation-by-change).
 
@@ -1006,6 +1011,9 @@ screen definition fails client protocol validation, the mobile client completes
 the pending load with a refresh-required compatibility error instead of leaving
 the screen loading. That error dialog is shown only while paired; connection-loss
 recovery and its reconnect actions take precedence.
+The controller retires outstanding definition requests when the catalog revision
+changes. A stale invocation invalidates only the definition that supplied its
+screen and revision.
 
 When a saved screen contains exactly one distinct `knownApp` action, that
 application is the target for the whole screen. The host projects every button,

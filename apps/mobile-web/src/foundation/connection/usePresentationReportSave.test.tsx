@@ -39,7 +39,7 @@ describe("usePresentationReportSave", () => {
 
   it("sends one correlated save and accepts only its matching result", () => {
     const send = vi.fn();
-    const { result } = renderHook(() => usePresentationReportSave("paired", send));
+    const { result } = renderHook(() => usePresentationReportSave("paired", 1, send));
 
     let operationId: string | null = null;
     act(() => {
@@ -83,7 +83,7 @@ describe("usePresentationReportSave", () => {
   it("retains the operation identity when retrying the same frozen report", () => {
     vi.useFakeTimers();
     const send = vi.fn();
-    const { result } = renderHook(() => usePresentationReportSave("paired", send));
+    const { result } = renderHook(() => usePresentationReportSave("paired", 1, send));
 
     let firstOperationId: string | null = null;
     act(() => {
@@ -107,7 +107,7 @@ describe("usePresentationReportSave", () => {
 
   it("freezes the pending identity for retry when the connection is lost", () => {
     const send = vi.fn();
-    const { result, rerender } = renderHook(({ state }) => usePresentationReportSave(state, send), {
+    const { result, rerender } = renderHook(({ state }) => usePresentationReportSave(state, 1, send), {
       initialProps: { state: "paired" as ConnectionState },
     });
 
@@ -132,12 +132,12 @@ describe("usePresentationReportSave", () => {
 
   it("does not send while disconnected or while another save is pending", () => {
     const send = vi.fn();
-    const disconnected = renderHook(() => usePresentationReportSave("disconnected", send));
+    const disconnected = renderHook(() => usePresentationReportSave("disconnected", 1, send));
     act(() => {
       expect(disconnected.result.current.requestPresentationReportSave(payload)).toBeNull();
     });
 
-    const paired = renderHook(() => usePresentationReportSave("paired", send));
+    const paired = renderHook(() => usePresentationReportSave("paired", 1, send));
     act(() => {
       paired.result.current.requestPresentationReportSave(payload);
     });
@@ -150,5 +150,50 @@ describe("usePresentationReportSave", () => {
       ).toBeNull();
     });
     expect(send).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the idempotent report identity after a paired socket replacement", () => {
+    const send = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ epoch }) => usePresentationReportSave("paired", epoch, send),
+      { initialProps: { epoch: 1 } },
+    );
+    let operationId: string | null = null;
+    act(() => { operationId = result.current.requestPresentationReportSave(payload); });
+
+    rerender({ epoch: 2 });
+
+    expect(result.current.pendingPresentationReportSave).toBeNull();
+    expect(result.current.presentationReportSaveResult?.code).toBe(
+      "VAIR-PRESENTATION-SAVE-DISCONNECTED",
+    );
+    expect(result.current.completePresentationReportSave({
+      type: "presentation.report.save.result", operationId: operationId!,
+      reportId: payload.reportId, succeeded: true, message: "Saved.",
+    })).toBe(false);
+    act(() => {
+      expect(result.current.requestPresentationReportSave(payload)).toBe(operationId);
+    });
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives a retry its own deadline when the previous response lands in the same render", async () => {
+    vi.useFakeTimers();
+    const send = vi.fn();
+    const { result } = renderHook(() => usePresentationReportSave("paired", 1, send));
+    let operationId: string | null = null;
+    act(() => { operationId = result.current.requestPresentationReportSave(payload); });
+    await act(() => vi.advanceTimersByTime(5_000));
+    act(() => {
+      expect(result.current.completePresentationReportSave({
+        type: "presentation.report.save.result", operationId: operationId!,
+        reportId: payload.reportId, succeeded: false, message: "Retry later.",
+      })).toBe(true);
+      expect(result.current.requestPresentationReportSave(payload)).toBe(operationId);
+    });
+    await act(() => vi.advanceTimersByTime(7_999));
+    expect(result.current.pendingPresentationReportSave?.operationId).toBe(operationId);
+    await act(() => vi.advanceTimersByTime(1));
+    expect(result.current.presentationReportSaveResult?.code).toBe("VAIR-PRESENTATION-SAVE-TIMEOUT");
   });
 });

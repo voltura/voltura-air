@@ -6,6 +6,7 @@ import type {
   SystemPowerResultMessage,
 } from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
+import { useCommandConnectionLifetime } from "./useCommandConnectionLifetime";
 
 const responseTimeoutMs = 5000;
 
@@ -14,7 +15,11 @@ interface PendingPowerOperation {
   action: SystemPowerAction;
 }
 
-export function usePowerControl(state: ConnectionState, send: (payload: ClientMessage) => void) {
+export function usePowerControl(
+  state: ConnectionState,
+  connectionEpoch: number,
+  send: (payload: ClientMessage) => void,
+) {
   const [pendingOperation, setPendingOperation] = useState<PendingPowerOperation | null>(null);
   const [powerActionResult, setPowerActionResult] = useState<SystemPowerResultMessage | null>(null);
   const pendingRef = useRef<PendingPowerOperation | null>(null);
@@ -48,15 +53,11 @@ export function usePowerControl(state: ConnectionState, send: (payload: ClientMe
     };
   }, [pendingOperation]);
 
-  useEffect(() => {
-    if (state === "paired") {
-      return;
-    }
-
+  useCommandConnectionLifetime(state, connectionEpoch, () => {
     pendingRef.current = null;
     setPendingOperation(null);
     setPowerActionResult(null);
-  }, [state]);
+  });
 
   const requestPowerAction = (action: SystemPowerAction) => {
     if (state !== "paired" || pendingRef.current !== null) {

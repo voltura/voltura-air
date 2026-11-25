@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createLocalId } from "../identity/localId";
 import type { AwakeResultMessage, ClientMessage } from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
+import { useCommandConnectionLifetime } from "./useCommandConnectionLifetime";
 
 const responseTimeoutMs = 5000;
 
@@ -10,7 +11,11 @@ interface PendingAwakeOperation {
   enabled: boolean;
 }
 
-export function useAwakeControl(state: ConnectionState, send: (payload: ClientMessage) => void) {
+export function useAwakeControl(
+  state: ConnectionState,
+  connectionEpoch: number,
+  send: (payload: ClientMessage) => void,
+) {
   const [pendingOperation, setPendingOperation] = useState<PendingAwakeOperation | null>(null);
   const [awakeResult, setAwakeResult] = useState<AwakeResultMessage | null>(null);
   const pendingRef = useRef<PendingAwakeOperation | null>(null);
@@ -41,15 +46,11 @@ export function useAwakeControl(state: ConnectionState, send: (payload: ClientMe
     };
   }, [pendingOperation]);
 
-  useEffect(() => {
-    if (state === "paired") {
-      return;
-    }
-
+  useCommandConnectionLifetime(state, connectionEpoch, () => {
     pendingRef.current = null;
     setPendingOperation(null);
     setAwakeResult(null);
-  }, [state]);
+  });
 
   const requestAwakeChange = (enabled: boolean) => {
     if (state !== "paired" || pendingRef.current !== null) {

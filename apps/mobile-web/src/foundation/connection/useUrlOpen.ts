@@ -6,11 +6,16 @@ import {
   type UrlOpenResultMessage,
 } from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
+import { useCommandConnectionLifetime } from "./useCommandConnectionLifetime";
 
 const responseTimeoutMs = 8000;
 const resultVisibilityMs = 8000;
 
-export function useUrlOpen(state: ConnectionState, send: (payload: ClientMessage) => void) {
+export function useUrlOpen(
+  state: ConnectionState,
+  connectionEpoch: number,
+  send: (payload: ClientMessage) => void,
+) {
   const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
   const pendingUrlOpen = pendingOperationId !== null;
   const [urlOpenResult, setUrlOpenResult] = useState<UrlOpenResultMessage | null>(null);
@@ -42,15 +47,11 @@ export function useUrlOpen(state: ConnectionState, send: (payload: ClientMessage
     };
   }, [pendingOperationId]);
 
-  useEffect(() => {
-    if (state === "paired") {
-      return;
-    }
-
+  useCommandConnectionLifetime(state, connectionEpoch, () => {
     pendingOperationRef.current = null;
     setPendingOperationId(null);
     setUrlOpenResult(null);
-  }, [state]);
+  });
 
   useEffect(() => {
     if (urlOpenResult === null) {

@@ -7,7 +7,7 @@ describe("useAppLaunch", () => {
 
   it("sends one opaque action ID and clears it on the matching host response", () => {
     const send = vi.fn();
-    const { result } = renderHook(() => useAppLaunch("paired", send));
+    const { result } = renderHook(() => useAppLaunch("paired", 1, send));
 
     act(() => {
       result.current.requestAppLaunch("custom.notes");
@@ -34,7 +34,7 @@ describe("useAppLaunch", () => {
   it("ignores an unrelated result and reports a timeout", async () => {
     vi.useFakeTimers();
     const send = vi.fn();
-    const { result } = renderHook(() => useAppLaunch("paired", send));
+    const { result } = renderHook(() => useAppLaunch("paired", 1, send));
 
     act(() => {
       result.current.requestAppLaunch("preset.browser");
@@ -59,7 +59,7 @@ describe("useAppLaunch", () => {
   it("clears completed launch feedback after a few seconds", async () => {
     vi.useFakeTimers();
     const send = vi.fn();
-    const { result } = renderHook(() => useAppLaunch("paired", send));
+    const { result } = renderHook(() => useAppLaunch("paired", 1, send));
 
     act(() => {
       result.current.requestAppLaunch("preset.vlc");
@@ -85,7 +85,7 @@ describe("useAppLaunch", () => {
   it("does not complete a retry when a delayed result has the same action ID", async () => {
     vi.useFakeTimers();
     const send = vi.fn();
-    const { result } = renderHook(() => useAppLaunch("paired", send));
+    const { result } = renderHook(() => useAppLaunch("paired", 1, send));
 
     act(() => {
       result.current.requestAppLaunch("preset.browser");

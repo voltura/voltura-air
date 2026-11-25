@@ -6,6 +6,7 @@ import type {
   PresentationReportSaveResultMessage,
 } from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
+import { useCommandConnectionLifetime } from "./useCommandConnectionLifetime";
 
 const responseTimeoutMs = 8000;
 
@@ -16,6 +17,7 @@ interface PendingPresentationReportSave {
 
 export function usePresentationReportSave(
   state: ConnectionState,
+  connectionEpoch: number,
   send: (payload: ClientMessage) => void,
 ) {
   const [pendingPresentationReportSave, setPendingPresentationReportSave] =
@@ -32,7 +34,7 @@ export function usePresentationReportSave(
     }
 
     const timeout = window.setTimeout(() => {
-      if (pendingRef.current?.operationId !== pending.operationId) {
+      if (pendingRef.current !== pending) {
         return;
       }
 
@@ -51,8 +53,8 @@ export function usePresentationReportSave(
     };
   }, [pendingPresentationReportSave]);
 
-  useEffect(() => {
-    if (state === "paired" || pendingRef.current === null) {
+  useCommandConnectionLifetime(state, connectionEpoch, () => {
+    if (pendingRef.current === null) {
       return;
     }
 
@@ -66,7 +68,7 @@ export function usePresentationReportSave(
       code: "VAIR-PRESENTATION-SAVE-DISCONNECTED",
       message: "The connection was lost before the PC confirmed the save. Reconnect and try again.",
     });
-  }, [state]);
+  });
 
   const requestPresentationReportSave = (payload: PresentationReportSavePayload) => {
     if (state !== "paired" || pendingRef.current !== null) {
@@ -75,8 +77,8 @@ export function usePresentationReportSave(
 
     const existingIdentity =
       retryIdentityRef.current?.reportId === payload.reportId ? retryIdentityRef.current : null;
-    const pending = existingIdentity ?? {
-      operationId: createLocalId(),
+    const pending = {
+      operationId: existingIdentity?.operationId ?? createLocalId(),
       reportId: payload.reportId,
     };
     retryIdentityRef.current = pending;

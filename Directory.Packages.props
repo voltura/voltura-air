@@ -5,7 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageVersion Include="Concentus" Version="2.2.2" />
+    <PackageVersion Include="Concentus" Version="2.2.3" />
     <PackageVersion Include="Markdig" Version="1.6.0" />
     <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.15" />
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.15" />
@@ -14,9 +14,9 @@
     <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport.Abstractions" Version="2.5.3" />
     <PackageVersion Include="Microsoft.Testing.Platform" Version="2.5.3" />
     <PackageVersion Include="Microsoft.Testing.Platform.MSBuild" Version="2.5.3" />
-    <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
+    <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4370.26" />
     <PackageVersion Include="NAudio.Wasapi" Version="3.3.0" />
-    <PackageVersion Include="QRCoder" Version="1.8.1" />
+    <PackageVersion Include="QRCoder" Version="1.9.0" />
     <PackageVersion Include="System.Numerics.Tensors" Version="10.0.15" />
     <PackageVersion Include="Vortice.D3DCompiler" Version="3.8.3" />
     <PackageVersion Include="Vortice.Direct3D11" Version="3.8.3" />

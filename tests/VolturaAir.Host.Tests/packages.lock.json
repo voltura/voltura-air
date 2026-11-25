@@ -177,11 +177,11 @@
       "volturaair.host": {
         "type": "Project",
         "dependencies": {
-          "Concentus": "[2.2.2, )",
+          "Concentus": "[2.2.3, )",
           "Markdig": "[1.6.0, )",
-          "Microsoft.Web.WebView2": "[1.0.4314.35, )",
+          "Microsoft.Web.WebView2": "[1.0.4370.26, )",
           "NAudio.Wasapi": "[3.3.0, )",
-          "QRCoder": "[1.8.1, )",
+          "QRCoder": "[1.9.0, )",
           "Vortice.D3DCompiler": "[3.8.3, )",
           "Vortice.Direct3D11": "[3.8.3, )",
           "Vortice.Mathematics": "[2.1.1, )",
@@ -190,9 +190,9 @@
       },
       "Concentus": {
         "type": "CentralTransitive",
-        "requested": "[2.2.2, )",
-        "resolved": "2.2.2",
-        "contentHash": "2B9YmHPKO+k7YpAAnqmiXwiMJnfjfj1C868RszOll2iZWLnGTAiC1q21L/d7CvTan7T+hyqU8dR0Dcy3cpjVfQ=="
+        "requested": "[2.2.3, )",
+        "resolved": "2.2.3",
+        "contentHash": "iZ0O8Ri3wJzITCUmdUGQl4AySd6kAYbHC5Oq5vHpc8mnsbRY7JX8+LPAdy4rS4zrtMuAfQ9CtjPP6Pxzhuyy9Q=="
       },
       "Markdig": {
         "type": "CentralTransitive",
@@ -242,9 +242,9 @@
       },
       "Microsoft.Web.WebView2": {
         "type": "CentralTransitive",
-        "requested": "[1.0.4314.35, )",
-        "resolved": "1.0.4314.35",
-        "contentHash": "x5MFf2W03xueU1mMNvivXfHSsQ+ODo7vJ36qw/dLtU5Gs+8d7+7N7zzmNNDoT3ffosmcvZNBtUnlzyiDUuBkSQ=="
+        "requested": "[1.0.4370.26, )",
+        "resolved": "1.0.4370.26",
+        "contentHash": "fCmdjhw8Gg+cbvEkyF+ygObcByFk35WVxTUmLkjSwjhDuLg4V9P7EVPn3rj3g9M2I3WHes/efHS2tIpGX/NCEA=="
       },
       "NAudio.Wasapi": {
         "type": "CentralTransitive",
@@ -257,9 +257,9 @@
       },
       "QRCoder": {
         "type": "CentralTransitive",
-        "requested": "[1.8.1, )",
-        "resolved": "1.8.1",
-        "contentHash": "aGfRFpU/IPexAtEOEXCNxC3fMCAqgn6kqALRvXt6LxVAW0VolSDGHiyrY+o2CJgTITOsMpsrsDi7svMJaJ9Vfg=="
+        "requested": "[1.9.0, )",
+        "resolved": "1.9.0",
+        "contentHash": "5hLj/PNkFnIcSk9VOJzhBgspByhSkBtF0tAJpWyLOXqZ0c2WE2H8YTWEEOArLkjwXZh5LHfpoqjDwomrJq0mGA=="
       },
       "System.Numerics.Tensors": {
         "type": "CentralTransitive",

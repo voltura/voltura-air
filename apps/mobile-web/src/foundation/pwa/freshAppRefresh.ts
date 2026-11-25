@@ -127,9 +127,9 @@ export async function refreshWithFreshAppUrl(
   if (environment.getCacheNames && environment.deleteCache) {
     try {
       const cacheNames = await environment.getCacheNames();
-      const ownedCacheNames = cacheNames.filter((cacheName) =>
-        cacheName.startsWith("voltura-air-"),
-      );
+      const appBase = new URL(environment.appScope).pathname;
+      const cachePrefix = `voltura-air:scope:${encodeURIComponent(appBase)}:`;
+      const ownedCacheNames = cacheNames.filter((cacheName) => cacheName.startsWith(cachePrefix));
       const results = await Promise.allSettled(
         ownedCacheNames.map(async (cacheName) => environment.deleteCache?.(cacheName)),
       );

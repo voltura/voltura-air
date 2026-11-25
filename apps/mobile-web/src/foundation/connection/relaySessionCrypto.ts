@@ -4,9 +4,11 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { base64Url, decodeBase64Url, signPrivateKeyPayload } from "./pairingCredentials";
 
 const encoder = new TextEncoder();
-const decoder = new TextDecoder();
+const decoder = new TextDecoder("utf-8", { fatal: true });
 const maximumPendingSends = 32;
 const maximumPointerDelta = 5000;
+const maximumPlaintextBytes = 64 * 1024;
+const encryptedFrameOverheadBytes = 26;
 
 interface PendingSend {
   plaintext: string;
@@ -222,7 +224,11 @@ export class RelayEncryptedChannel {
   }
 
   decryptText(value: unknown): Promise<string | null> {
-    if (!(value instanceof ArrayBuffer)) {
+    if (
+      !(value instanceof ArrayBuffer) ||
+      value.byteLength < encryptedFrameOverheadBytes ||
+      value.byteLength > maximumPlaintextBytes + encryptedFrameOverheadBytes
+    ) {
       return Promise.resolve(null);
     }
     const frame = new Uint8Array(value.slice(0));
@@ -235,7 +241,7 @@ export class RelayEncryptedChannel {
   }
 
   private async decryptFrame(frame: Uint8Array): Promise<string | null> {
-    if (frame.length < 26 || frame[0] !== 1 || frame[1] !== this.receiveDirection) {
+    if (frame[0] !== 1 || frame[1] !== this.receiveDirection) {
       return null;
     }
     const counter = readCounter(frame.subarray(2, 10));
@@ -260,14 +266,18 @@ export class RelayEncryptedChannel {
         key,
         copyBuffer(frame.subarray(10)),
       );
+      const text = decoder.decode(plaintext);
       this.receiveCounter = counter;
-      return decoder.decode(plaintext);
+      return text;
     } catch {
       return null;
     }
   }
 
   private async encrypt(plaintext: Uint8Array): Promise<Uint8Array> {
+    if (plaintext.byteLength > maximumPlaintextBytes) {
+      throw new Error("Relay controller message exceeds the frame limit.");
+    }
     const counter = ++this.sendCounter;
     const header = new Uint8Array(10);
     header[0] = 1;

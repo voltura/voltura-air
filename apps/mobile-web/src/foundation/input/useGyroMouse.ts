@@ -19,6 +19,8 @@ interface UseGyroMouseOptions {
   sensitivity: number;
 }
 
+const motionSilenceTimeoutMs = 1800;
+
 export function useGyroMouse({
   activationRequest,
   connected,
@@ -64,7 +66,7 @@ export function useGyroMouse({
   const finishPermission = useCallback(
     async (permission: Promise<boolean>) => {
       const attempt = ++permissionAttemptRef.current;
-      const granted = await permission;
+      const granted = await permission.catch(() => false);
       if (attempt !== permissionAttemptRef.current) {
         return;
       }
@@ -103,19 +105,26 @@ export function useGyroMouse({
     lastValidMotionAtRef.current = Number.NEGATIVE_INFINITY;
     processorRef.current.resetMapping();
     const processor = processorRef.current;
-    const armNoDataTimer = () => {
-      if (dataTimerRef.current !== null) {
-        window.clearTimeout(dataTimerRef.current);
+    let lastSampleAt = performance.now();
+    let hasReadySample = false;
+    const checkForNoData = () => {
+      const remaining = motionSilenceTimeoutMs - (performance.now() - lastSampleAt);
+      if (remaining > 0) {
+        dataTimerRef.current = window.setTimeout(checkForNoData, remaining);
+        return;
       }
-      dataTimerRef.current = window.setTimeout(() => {
-        setAvailability("no-data");
-      }, 1800);
+      dataTimerRef.current = null;
+      setAvailability("no-data");
     };
     const markValid = () => {
-      setAvailability("ready");
-      armNoDataTimer();
+      lastSampleAt = performance.now();
+      if (!hasReadySample || dataTimerRef.current === null) {
+        hasReadySample = true;
+        setAvailability("ready");
+      }
+      dataTimerRef.current ??= window.setTimeout(checkForNoData, motionSilenceTimeoutMs);
     };
-    armNoDataTimer();
+    dataTimerRef.current = window.setTimeout(checkForNoData, motionSilenceTimeoutMs);
     const onMotion = (event: DeviceMotionEvent) => {
       const delta = processor.motion(event, 0, sensitivity / 100, engagedRef.current);
       if (!delta) {

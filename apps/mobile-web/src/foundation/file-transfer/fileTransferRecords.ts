@@ -6,8 +6,8 @@ const dataKind = 1;
 const acknowledgementKind = 2;
 
 export type FileTransferRecord =
-  | { kind: "data"; offset: number; payload: Uint8Array }
-  | { kind: "acknowledgement"; offset: number; payload: Uint8Array };
+  | { kind: "data"; offset: number; payload: Uint8Array<ArrayBuffer> }
+  | { kind: "acknowledgement"; offset: number; payload: Uint8Array<ArrayBuffer> };
 
 export function createFileTransferDataRecord(offset: number, payload: Uint8Array): ArrayBuffer {
   if (

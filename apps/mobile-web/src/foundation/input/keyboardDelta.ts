@@ -1,4 +1,8 @@
-import type { KeyboardSpecialMessage, KeyboardTextMessage } from "../protocol/messages";
+import {
+  maxKeyboardTextLength,
+  type KeyboardSpecialMessage,
+  type KeyboardTextMessage,
+} from "../protocol/messages";
 
 type KeyboardInputMessage = KeyboardSpecialMessage | KeyboardTextMessage;
 
@@ -103,6 +107,10 @@ function textToMessages(text: string, preferShortcutKeys: boolean): KeyboardInpu
           : { type: "keyboard.special", key: "F" },
       );
     } else {
+      if (buffer.length + character.length > maxKeyboardTextLength) {
+        messages.push({ type: "keyboard.text", text: buffer });
+        buffer = "";
+      }
       buffer += character;
     }
   }

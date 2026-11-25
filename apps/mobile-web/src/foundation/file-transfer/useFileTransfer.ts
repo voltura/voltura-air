@@ -17,6 +17,7 @@ import {
   maximumFileTransferPayloadBytes,
   maximumUnacknowledgedFileTransferBytes,
   parseFileTransferRecord,
+  type FileTransferRecord,
 } from "./fileTransferRecords";
 import {
   ensureDeviceFileStorageInitialized,
@@ -46,6 +47,7 @@ export type {
 } from "./fileTransferRuntime";
 
 const maximumSafeFileSize = Number.MAX_SAFE_INTEGER;
+const maximumPendingDownloadRecords = 128;
 const hasTransferredData = (runtime: TransferRuntime) =>
   (runtime.direction === "download" ? runtime.received : runtime.acknowledged) ===
   runtime.declaredSize;
@@ -192,10 +194,11 @@ export function useFileTransfer(
   );
 
   const acceptDownloadRecord = useCallback(
-    async (runtime: TransferRuntime, data: unknown) => {
-      const record = parseFileTransferRecord(data);
+    async (runtime: TransferRuntime, record: Extract<FileTransferRecord, { kind: "data" }>) => {
+      if (runtimeRef.current !== runtime) {
+        return;
+      }
       if (
-        record?.kind !== "data" ||
         record.offset !== runtime.received ||
         runtime.received + record.payload.byteLength > runtime.declaredSize ||
         !runtime.writable ||
@@ -208,8 +211,11 @@ export function useFileTransfer(
         await runtime.writable.write({
           type: "write",
           position: runtime.received,
-          data: Uint8Array.from(record.payload).buffer,
+          data: record.payload.buffer,
         });
+        if (runtimeRef.current !== runtime || !runtime.channel) {
+          return;
+        }
         runtime.received += record.payload.byteLength;
         runtime.channel.send(createFileTransferAcknowledgement(runtime.received));
         updateProgress(runtime, runtime.received);
@@ -233,12 +239,18 @@ export function useFileTransfer(
       runtime.channel = channel;
       channel.binaryType = "arraybuffer";
       channel.bufferedAmountLowThreshold = maximumFileTransferPayloadBytes;
-      channel.addEventListener("open", () => {
+      let opened = false;
+      const onOpen = () => {
+        if (opened || runtimeRef.current !== runtime || runtime.channel !== channel) {
+          return;
+        }
+        opened = true;
         updateProgress(runtime, 0);
         if (runtime.direction === "upload") {
           void pumpUpload(runtime);
         }
-      });
+      };
+      channel.addEventListener("open", onOpen);
       channel.addEventListener("bufferedamountlow", () => {
         if (runtime.direction === "upload") {
           void pumpUpload(runtime);
@@ -251,14 +263,27 @@ export function useFileTransfer(
       };
       channel.addEventListener("close", channelFailed);
       channel.addEventListener("error", channelFailed);
+      let pendingDownloadRecords = 0;
       channel.addEventListener("message", (event) => {
         if (runtimeRef.current !== runtime) {
           return;
         }
         if (runtime.direction === "download") {
-          runtime.receiveChain = runtime.receiveChain.then(() =>
-            acceptDownloadRecord(runtime, event.data),
-          );
+          const record = parseFileTransferRecord(event.data);
+          if (record?.kind !== "data") {
+            fail(runtime, "The PC sent invalid file data.");
+            return;
+          }
+          if (pendingDownloadRecords >= maximumPendingDownloadRecords) {
+            fail(runtime, "The PC sent file data faster than this device could store it.");
+            return;
+          }
+          pendingDownloadRecords += 1;
+          runtime.receiveChain = runtime.receiveChain
+            .then(() => acceptDownloadRecord(runtime, record))
+            .finally(() => {
+              pendingDownloadRecords -= 1;
+            });
           return;
         }
         const record = parseFileTransferRecord(event.data);
@@ -274,6 +299,9 @@ export function useFileTransfer(
         updateProgress(runtime, record.offset);
         void pumpUpload(runtime);
       });
+      if (channel.readyState === "open") {
+        onOpen();
+      }
     },
     [acceptDownloadRecord, fail, pumpUpload, updateProgress],
   );
@@ -319,8 +347,6 @@ export function useFileTransfer(
       ) {
         return;
       }
-      runtime.fileName = message.fileName;
-      runtime.declaredSize = message.declaredSize;
       const offerHash = hashSessionDescription(message.offerSdp);
       const hostTranscript = createFileTransferOfferTranscript(
         clientId,
@@ -342,6 +368,12 @@ export function useFileTransfer(
         fail(runtime, "The PC identity signature was invalid.");
         return;
       }
+      if (runtime.direction === "upload" && runtime.uploadFile?.size !== message.declaredSize) {
+        fail(runtime, "The PC confirmed a different file size. Select the file and try again.");
+        return;
+      }
+      runtime.fileName = message.fileName;
+      runtime.declaredSize = message.declaredSize;
       const relayMode = activePc.transportMode === "relay";
       if (relayMode && (!message.iceServers || message.iceServers.length === 0)) {
         fail(runtime, "Relay credentials were unavailable.");
@@ -419,7 +451,9 @@ export function useFileTransfer(
           answerSdp,
           clientSignature: signature,
         });
-        updateProgress(runtime, 0, "Connecting…");
+        if (runtime.channel?.readyState !== "open") {
+          updateProgress(runtime, 0, "Connecting…");
+        }
       } catch (error) {
         if (
           error instanceof DOMException &&
@@ -448,13 +482,13 @@ export function useFileTransfer(
       ) {
         return;
       }
+      if (!message.succeeded) {
+        fail(runtime, message.message, false);
+        return;
+      }
       finishingRef.current.add(runtime);
       await runtime.receiveChain;
       if (runtimeRef.current !== runtime) {
-        return;
-      }
-      if (!message.succeeded) {
-        fail(runtime, message.message, false);
         return;
       }
       if (runtime.direction === "download") {
@@ -567,7 +601,9 @@ export function useFileTransfer(
 
   useEffect(() => {
     if (canSaveToDevice) {
-      void ensureDeviceFileStorageInitialized();
+      void ensureDeviceFileStorageInitialized().catch(() => {
+        // The transfer setup reports a storage failure on the requested operation.
+      });
     }
     return () => {
       const runtime = runtimeRef.current;

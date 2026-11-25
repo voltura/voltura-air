@@ -7,7 +7,12 @@ export function supportsHapticFeedback(): boolean {
 }
 
 export function triggerHapticFeedback(settings: TrackpadSettings): boolean {
-  return settings.hapticFeedback && supportsHapticFeedback()
-    ? navigator.vibrate(clickVibrationDurationMs)
-    : false;
+  if (!settings.hapticFeedback || !supportsHapticFeedback()) {
+    return false;
+  }
+  try {
+    return navigator.vibrate(clickVibrationDurationMs);
+  } catch {
+    return false;
+  }
 }

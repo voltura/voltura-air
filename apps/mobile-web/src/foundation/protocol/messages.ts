@@ -1353,6 +1353,8 @@ export interface PointerZoomMessage {
 }
 
 export const maxKeyboardTextLength = 4096;
+export const maxTextTransferLength = 4096;
+export const maxUrlOpenLength = 2048;
 
 export interface KeyboardTextMessage {
   type: "keyboard.text";

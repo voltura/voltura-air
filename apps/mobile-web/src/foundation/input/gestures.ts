@@ -85,11 +85,11 @@ export function normalizeTrackpadSettings(value: unknown): TrackpadSettings {
         : defaultTrackpadSettings.horizontalScroll,
     scrollDirection: candidate.scrollDirection === "inverted" ? "inverted" : "normal",
     pointerSpeed:
-      typeof candidate.pointerSpeed === "number"
+      typeof candidate.pointerSpeed === "number" && Number.isFinite(candidate.pointerSpeed)
         ? Math.max(10, Math.min(100, candidate.pointerSpeed))
         : defaultTrackpadSettings.pointerSpeed,
     gyroSensitivity:
-      typeof candidate.gyroSensitivity === "number"
+      typeof candidate.gyroSensitivity === "number" && Number.isFinite(candidate.gyroSensitivity)
         ? Math.max(25, Math.min(200, Math.round(candidate.gyroSensitivity / 5) * 5))
         : defaultTrackpadSettings.gyroSensitivity,
     pointerSmoothing:

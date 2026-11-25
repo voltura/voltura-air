@@ -18,6 +18,7 @@ export function useKeyboardInput(
   const isComposingRef = useRef(false);
   const lastEmptyDeleteRef = useRef<{ key: string; timeStamp: number } | null>(null);
   const keyboardTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const caretFrameRef = useRef<number | null>(null);
 
   const resetKeyboardInput = useCallback(() => {
     setKeyboardText("");
@@ -27,9 +28,13 @@ export function useKeyboardInput(
   }, []);
 
   const placeLiveKeyboardCaret = useCallback(() => {
-    window.requestAnimationFrame(() => {
-      const textarea = keyboardTextareaRef.current;
-      if (!textarea || !liveKeyboard || document.activeElement !== textarea) {
+    const textarea = keyboardTextareaRef.current;
+    if (!textarea || !liveKeyboard || caretFrameRef.current !== null) {
+      return;
+    }
+    caretFrameRef.current = window.requestAnimationFrame(() => {
+      caretFrameRef.current = null;
+      if (keyboardTextareaRef.current !== textarea || document.activeElement !== textarea) {
         return;
       }
 
@@ -42,6 +47,12 @@ export function useKeyboardInput(
     if (liveKeyboard) {
       placeLiveKeyboardCaret();
     }
+    return () => {
+      if (caretFrameRef.current !== null) {
+        window.cancelAnimationFrame(caretFrameRef.current);
+        caretFrameRef.current = null;
+      }
+    };
   }, [liveKeyboard, placeLiveKeyboardCaret]);
 
   const setLiveTyping = (enabled: boolean) => {

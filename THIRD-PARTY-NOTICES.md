@@ -52,13 +52,13 @@ SDK used for that release.
 | --- | --- | --- | --- |
 | Microsoft .NET, ASP.NET Core, and Windows Desktop runtime | 10.0 release family | Self-contained Windows runtime and local web host | Microsoft .NET redistribution terms and bundled third-party notices; source at [dotnet/runtime](https://github.com/dotnet/runtime) and [dotnet/aspnetcore](https://github.com/dotnet/aspnetcore) |
 | System.Numerics.Tensors | 10.0.15 | Transitive .NET runtime support for Vortice | [MIT; dotnet/runtime](https://github.com/dotnet/runtime/tree/v10.0.15) |
-| Microsoft WebView2 SDK | 1.0.4314.35 | Host WebView integration and loader | BSD 3-Clause; included Microsoft license and NOTICE |
+| Microsoft WebView2 SDK | 1.0.4370.26 | Host WebView integration and loader | BSD 3-Clause; included Microsoft license and NOTICE |
 | Markdig | 1.6.0 | Safe Markdown parsing for AI Assistant answers | [BSD 2-Clause; xoofx/markdig](https://github.com/xoofx/markdig/tree/f3603fec8eddcad2466d4b65717ffd686f7622ff) |
-| QRCoder | 1.8.1 | Pairing QR generation | [MIT; Shane32/QRCoder](https://github.com/Shane32/QRCoder/tree/d050cc7c0bc986f14cfedf24b947e0ec5c1a7736) |
+| QRCoder | 1.9.0 | Pairing QR generation | [MIT; Shane32/QRCoder](https://github.com/Shane32/QRCoder/tree/9bfb5c881abce1ea64145ac14195929468c7fbdd) |
 | Vortice.Windows | 3.8.3 | Direct3D, DXGI, D3DCompiler, and Media Foundation bindings | [MIT; amerkoleci/Vortice.Windows](https://github.com/amerkoleci/Vortice.Windows) |
 | Vortice.Mathematics | 2.1.1 | Pinned Vortice runtime support | [MIT; amerkoleci/Vortice.Mathematics](https://github.com/amerkoleci/Vortice.Mathematics) |
 | SharpGen.Runtime and SharpGen.Runtime.COM | 2.4.2-beta | Transitive native interop support | [MIT; SharpGenTools/SharpGenTools](https://github.com/SharpGenTools/SharpGenTools) |
-| Concentus | 2.2.2 | Managed Opus decoding for optional Phone webcam audio | [BSD-style Opus licence; lostromb/concentus](https://github.com/lostromb/concentus/tree/6c2328dc19044601e33a9c11628b8d60e1f3011c) |
+| Concentus | 2.2.3 | Managed Opus decoding for optional Phone webcam audio | [BSD-style Opus licence; lostromb/concentus](https://github.com/lostromb/concentus/tree/9edc8dcd3ae9f3fa4793c03ff3caeaec1add42c5) |
 | NAudio.Wasapi and NAudio.Core | 3.3.0 | Windows Core Audio endpoint discovery and PCM output | [MIT; naudio/NAudio v3.3.0](https://github.com/naudio/NAudio/tree/v3.3.0) |
 
 ## Mobile web application
@@ -71,7 +71,7 @@ license text and copyright notices.
 | --- | --- | --- | --- |
 | noble-curves and noble-hashes | 2.4.0 | Pairing and relay-session cryptography fallback | [MIT; paulmillr/noble-curves](https://github.com/paulmillr/noble-curves) and [paulmillr/noble-hashes](https://github.com/paulmillr/noble-hashes) |
 | jsQR | 1.4.0 | Pairing QR decoding | [Apache 2.0; cozmo/jsQR](https://github.com/cozmo/jsQR) |
-| Lucide React | 1.73.0 | User-interface icons | [ISC and derived Feather icons under MIT; lucide-icons/lucide](https://github.com/lucide-icons/lucide) |
+| Lucide React | 1.76.0 | User-interface icons | [ISC and derived Feather icons under MIT; lucide-icons/lucide](https://github.com/lucide-icons/lucide) |
 | React, React DOM, and Scheduler | 19.3.1 / 0.28.0 | Mobile user interface runtime | [MIT; facebook/react](https://github.com/facebook/react) |
 | xterm.js and FitAddon | 6.0.0 / 0.11.0 | Mobile Terminal rendering and responsive sizing | [MIT; xtermjs/xterm.js](https://github.com/xtermjs/xterm.js) |
 

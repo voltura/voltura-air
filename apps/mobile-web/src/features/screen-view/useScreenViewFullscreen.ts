@@ -41,13 +41,15 @@ export function useScreenViewFullscreen() {
   }
 
   async function exitImmersive() {
-    const workspace = workspaceRef.current;
+    const workspace = ownedWorkspaceRef.current ?? workspaceRef.current;
     generationRef.current += 1;
     immersiveRef.current = false;
     nativeFullscreenRef.current = false;
     nativeOrientationRef.current = null;
     window.clearTimeout(fullscreenExitTimerRef.current);
+    window.clearTimeout(orientationSettleTimerRef.current);
     fullscreenExitTimerRef.current = undefined;
+    orientationSettleTimerRef.current = undefined;
     setImmersive(false);
     if (workspace && document.fullscreenElement === workspace && document.exitFullscreen) {
       try {

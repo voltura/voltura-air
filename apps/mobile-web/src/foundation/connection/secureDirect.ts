@@ -1,6 +1,7 @@
 const maximumSdpBytes = 32 * 1024;
 const maximumSignalingBytes = 64 * 1024;
 const setupTimeoutMs = 20_000;
+const encoder = new TextEncoder();
 
 export async function connectSecureDirect(
   routeId: string,
@@ -31,6 +32,7 @@ export async function connectSecureDirect(
   let cancelSetup: ((error: Error) => void) | undefined;
   let cleanupChannelSetup: (() => void) | undefined;
   let cleanupGathering: (() => void) | undefined;
+  const signalingListeners = new AbortController();
   const cancelled = new Promise<never>((_, reject) => {
     cancelSetup = reject;
   });
@@ -54,6 +56,7 @@ export async function connectSecureDirect(
     window.clearTimeout(timeout);
     cleanupGathering?.();
     cleanupChannelSetup?.();
+    signalingListeners.abort();
     peer.removeEventListener("connectionstatechange", onPeerConnectionStateChange);
     signaling.close();
     channel?.close();
@@ -74,7 +77,8 @@ export async function connectSecureDirect(
           (event) => {
             if (
               typeof event.data !== "string" ||
-              new TextEncoder().encode(event.data).length > maximumSignalingBytes
+              event.data.length > maximumSignalingBytes ||
+              encoder.encode(event.data).length > maximumSignalingBytes
             ) {
               reject(new Error("Secure Direct offer was invalid."));
               return;
@@ -89,7 +93,7 @@ export async function connectSecureDirect(
               reject(new Error("Secure Direct offer was invalid."));
             }
           },
-          { once: true },
+          { once: true, signal: signalingListeners.signal },
         );
         signaling.addEventListener(
           "close",
@@ -101,7 +105,7 @@ export async function connectSecureDirect(
               cleanup();
             }
           },
-          { once: true },
+          { once: true, signal: signalingListeners.signal },
         );
         signaling.addEventListener(
           "error",
@@ -113,7 +117,7 @@ export async function connectSecureDirect(
               cleanup();
             }
           },
-          { once: true },
+          { once: true, signal: signalingListeners.signal },
         );
       }),
       cancelled,
@@ -125,7 +129,13 @@ export async function connectSecureDirect(
           event.channel.close();
           return;
         }
-        if (channel || event.channel.label !== "voltura-control") {
+        if (
+          channel ||
+          event.channel.label !== "voltura-control" ||
+          !event.channel.ordered ||
+          event.channel.maxRetransmits !== null ||
+          event.channel.maxPacketLifeTime !== null
+        ) {
           event.channel.close();
           cleanup();
           const error = new Error("Secure Direct DataChannel was invalid.");
@@ -185,22 +195,25 @@ export async function connectSecureDirect(
     const sdp = peer.localDescription?.sdp;
     if (
       !sdp ||
-      new TextEncoder().encode(sdp).length > maximumSdpBytes ||
+      sdp.length > maximumSdpBytes ||
+      encoder.encode(sdp).length > maximumSdpBytes ||
       signaling.readyState !== WebSocket.OPEN
     ) {
       throw new Error("Secure Direct answer was unavailable.");
     }
     const answer = JSON.stringify({ type: "secure.answer", sdp });
-    if (new TextEncoder().encode(answer).length > maximumSignalingBytes) {
+    if (encoder.encode(answer).length > maximumSignalingBytes) {
       throw new Error("Secure Direct answer was too large.");
     }
-    answerSent = true;
     signaling.send(answer);
+    answerSent = true;
     const opened = await Promise.race([channelPromise, cancelled]);
     if (cleaned || opened.readyState !== "open") {
       throw new Error("Secure Direct DataChannel closed during setup.");
     }
     window.clearTimeout(timeout);
+    signalingListeners.abort();
+    signaling.close();
     return { channel: opened, cleanup };
   } catch (error) {
     cleanup();
@@ -220,7 +233,8 @@ function isDescription(
     (value as { type?: unknown }).type === type &&
     typeof (value as { sdp?: unknown }).sdp === "string" &&
     (value as { sdp: string }).sdp.length > 0 &&
-    new TextEncoder().encode((value as { sdp: string }).sdp).length <= maximumSdpBytes
+    (value as { sdp: string }).sdp.length <= maximumSdpBytes &&
+    encoder.encode((value as { sdp: string }).sdp).length <= maximumSdpBytes
   );
 }
 

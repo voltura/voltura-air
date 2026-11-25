@@ -55,6 +55,14 @@ describe("getKeyboardDeltaMessages", () => {
     expect(getKeyboardDeltaMessages("", "foo")).toEqual([{ type: "keyboard.text", text: "foo" }]);
   });
 
+  it("chunks large live pastes without splitting a Unicode code point", () => {
+    const prefix = "a".repeat(4095);
+    expect(getKeyboardDeltaMessages("", `${prefix}😀b`)).toEqual([
+      { type: "keyboard.text", text: prefix },
+      { type: "keyboard.text", text: "😀b" },
+    ]);
+  });
+
   it("sends backspace for removed text", () => {
     expect(getKeyboardDeltaMessages("hello", "hel")).toEqual([
       { type: "keyboard.special", key: "Backspace" },

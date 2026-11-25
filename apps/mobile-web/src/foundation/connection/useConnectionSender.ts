@@ -17,6 +17,7 @@ export interface PendingMovementAck {
 }
 
 interface ConnectionSenderOptions {
+  authenticatedSocketRef: RefObject<ControllerSocket | null>;
   lastMovementAckAtRef: RefObject<number>;
   lastUserActivityAtRef: RefObject<number>;
   nextInputSequenceRef: RefObject<number>;
@@ -32,6 +33,7 @@ interface ConnectionSenderOptions {
 
 export function useConnectionSender(options: ConnectionSenderOptions) {
   const {
+    authenticatedSocketRef,
     lastMovementAckAtRef,
     lastUserActivityAtRef,
     nextInputSequenceRef,
@@ -50,6 +52,9 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
       const socket = socketRef.current;
       if (!isControllerSocketOpen(socket)) {
         reconnectRef.current?.();
+        return;
+      }
+      if (authenticatedSocketRef.current !== socket) {
         return;
       }
 
@@ -119,6 +124,7 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
       }
     },
     [
+      authenticatedSocketRef,
       lastMovementAckAtRef,
       lastUserActivityAtRef,
       nextInputSequenceRef,
@@ -134,7 +140,11 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
 
   const requestAudioState = useCallback(() => {
     const socket = socketRef.current;
-    if (!isControllerSocketOpen(socket) || !supportsVolumeControlRef.current) {
+    if (
+      !isControllerSocketOpen(socket) ||
+      authenticatedSocketRef.current !== socket ||
+      !supportsVolumeControlRef.current
+    ) {
       return;
     }
 
@@ -143,7 +153,7 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
     } catch {
       reconnectRef.current?.();
     }
-  }, [reconnectRef, socketRef, supportsVolumeControlRef]);
+  }, [authenticatedSocketRef, reconnectRef, socketRef, supportsVolumeControlRef]);
 
   return { requestAudioState, send };
 }

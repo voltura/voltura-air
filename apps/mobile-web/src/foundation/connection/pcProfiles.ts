@@ -131,11 +131,18 @@ export function applyHostIdentityFromAcceptance(
   publicKey: string,
   fingerprint: string,
 ): PcProfile[] {
-  return profiles.map((pc) =>
-    pc.id === pcId
-      ? { ...pc, hostIdentityFingerprint: fingerprint, hostIdentityPublicKey: publicKey }
-      : pc,
-  );
+  let changed = false;
+  const next = profiles.map((pc) => {
+    if (
+      pc.id !== pcId ||
+      (pc.hostIdentityFingerprint === fingerprint && pc.hostIdentityPublicKey === publicKey)
+    ) {
+      return pc;
+    }
+    changed = true;
+    return { ...pc, hostIdentityFingerprint: fingerprint, hostIdentityPublicKey: publicKey };
+  });
+  return changed ? next : profiles;
 }
 
 export function saveActivePcId(pcId: string | null, storage?: Storage): void {

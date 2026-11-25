@@ -5,11 +5,12 @@ import {
   canReadTextFromDeviceClipboard,
   readTextFromDeviceClipboard,
 } from "../../../foundation/platform/deviceClipboard";
-import type {
-  TextSendResultMessage,
-  TextTransferTarget,
+import {
+  maxTextTransferLength,
+  type TextSendResultMessage,
+  type TextTransferTarget,
 } from "../../../foundation/protocol/messages";
-import { maxSnippetLength, type SavedTextSnippet } from "../../../foundation/settings/textSnippets";
+import type { SavedTextSnippet } from "../../../foundation/settings/textSnippets";
 import { InfoButton } from "../../../ui/overlays/InfoButton";
 import {
   KeyboardInputModeButtons,
@@ -72,7 +73,13 @@ export function TextTransferMode(props: TextTransferModeProps) {
     displayName: "Currently focused application",
     available: props.supported,
   };
-  const canSend = props.supported && target.available && !props.pending && props.draft.length > 0;
+  const draftTooLong = props.draft.length > maxTextTransferLength;
+  const canSend =
+    props.supported &&
+    target.available &&
+    !props.pending &&
+    props.draft.length > 0 &&
+    !draftTooLong;
   const clickButtons = props.leftHandedButtons
     ? [
         { label: "Right", button: "right" as const },
@@ -133,7 +140,7 @@ export function TextTransferMode(props: TextTransferModeProps) {
     }
   }, [isEditing]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     draftRef.current = props.draft;
     draftRevision.current += 1;
   }, [props.draft]);
@@ -244,9 +251,9 @@ export function TextTransferMode(props: TextTransferModeProps) {
 
     const nextText =
       sourceText.slice(0, selectionStart) + result.text + sourceText.slice(selectionEnd);
-    if (nextText.length > maxSnippetLength) {
+    if (nextText.length > maxTextTransferLength) {
       setPhoneClipboardFeedback({
-        message: `Pasting would exceed the ${maxSnippetLength.toLocaleString()} character limit.`,
+        message: `Pasting would exceed the ${maxTextTransferLength.toLocaleString()} character limit.`,
         tone: "error",
       });
       return;
@@ -286,7 +293,11 @@ export function TextTransferMode(props: TextTransferModeProps) {
     editor.focus({ preventScroll: true });
     window.requestAnimationFrame(() => {
       const currentEditor = editorRef.current;
-      if (!currentEditor || !editingRef.current) {
+      if (
+        currentEditor !== editor ||
+        !editingRef.current ||
+        currentEditor.inputMode !== inputMode
+      ) {
         return;
       }
 
@@ -417,7 +428,9 @@ export function TextTransferMode(props: TextTransferModeProps) {
             ref={editorRef}
             autoCapitalize="sentences"
             inputMode={keyboardInputMode}
-            maxLength={maxSnippetLength}
+            maxLength={maxTextTransferLength}
+            aria-invalid={draftTooLong || undefined}
+            aria-describedby={draftTooLong ? "text-transfer-draft-limit" : undefined}
             placeholder={isEditing ? "Type or paste text here…" : undefined}
             readOnly={!isEditing}
             value={props.draft}
@@ -432,6 +445,16 @@ export function TextTransferMode(props: TextTransferModeProps) {
             }}
           />
         </div>
+        {draftTooLong && (
+          <p
+            id="text-transfer-draft-limit"
+            className="text-transfer-clipboard-feedback error"
+            role="alert"
+          >
+            Shorten the draft before sending. The limit is {maxTextTransferLength.toLocaleString()}{" "}
+            UTF-16 units. Some emoji count as more than one.
+          </p>
+        )}
         {snippetCopyFeedback && (
           <span className="visually-hidden" role="status">
             {snippetCopyFeedback.name} copied to the text box.

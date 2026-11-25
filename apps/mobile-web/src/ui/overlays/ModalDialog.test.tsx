@@ -143,6 +143,9 @@ describe("ModalDialog", () => {
     });
     expect(close).not.toHaveBeenCalled();
     expect(dialog.hasAttribute("open")).toBe(true);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Keep open" }));
+    fireEvent.click(dialog, { clientX: 20, clientY: 20 });
+    expect(close).not.toHaveBeenCalled();
     fireEvent.click(dialog, { clientX: 20, clientY: 20 });
     expect(close).toHaveBeenCalledOnce();
   });

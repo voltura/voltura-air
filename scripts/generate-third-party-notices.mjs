@@ -154,13 +154,13 @@ async function verifyMaintainedInventory() {
   const requiredInventoryText = [
     "libdatachannel 0.24.5",
     "OpenSSL 3.6.3",
-    "Microsoft WebView2 SDK | 1.0.4314.35",
+    "Microsoft WebView2 SDK | 1.0.4370.26",
     "Markdig | 1.6.0",
-    "QRCoder | 1.8.1",
+    "QRCoder | 1.9.0",
     "Vortice.Windows | 3.8.3",
     "Vortice.Mathematics | 2.1.1",
     "SharpGen.Runtime and SharpGen.Runtime.COM | 2.4.2-beta",
-    "Concentus | 2.2.2",
+    "Concentus | 2.2.3",
     "NAudio.Wasapi and NAudio.Core | 3.3.0",
     "System.Numerics.Tensors | 10.0.15",
   ];
@@ -171,14 +171,14 @@ async function verifyMaintainedInventory() {
   }
 
   const directHostPackages = [
-    ["Microsoft.Web.WebView2", "1.0.4314.35"],
+    ["Microsoft.Web.WebView2", "1.0.4370.26"],
     ["Markdig", "1.6.0"],
-    ["QRCoder", "1.8.1"],
+    ["QRCoder", "1.9.0"],
     ["Vortice.Direct3D11", "3.8.3"],
     ["Vortice.D3DCompiler", "3.8.3"],
     ["Vortice.MediaFoundation", "3.8.3"],
     ["Vortice.Mathematics", "2.1.1"],
-    ["Concentus", "2.2.2"],
+    ["Concentus", "2.2.3"],
     ["NAudio.Wasapi", "3.3.0"],
   ];
   for (const [name, version] of directHostPackages) {
@@ -201,7 +201,9 @@ async function verifyMaintainedInventory() {
     if (!directory) throw new Error(`Relay runtime dependency ${name} is not installed.`);
     const { version } = JSON.parse(await readFile(path.join(directory, "package.json"), "utf8"));
     if (!inventory.includes(`| \`${name}\` | ${version} |`)) {
-      throw new Error(`Relay dependency ${name} ${version} no longer matches the maintained inventory.`);
+      throw new Error(
+        `Relay dependency ${name} ${version} no longer matches the maintained inventory.`,
+      );
     }
   }
 

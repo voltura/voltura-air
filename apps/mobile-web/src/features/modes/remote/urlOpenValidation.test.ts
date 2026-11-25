@@ -33,4 +33,14 @@ describe("validateUrlDraft", () => {
       message: "The web address is too long.",
     });
   });
+
+  it.each([`example.com/${"a".repeat(2034)}`, `https://example.com/${"å".repeat(400)}`])(
+    "applies the host limit to the normalized address",
+    (value) => {
+      expect(validateUrlDraft(value)).toEqual({
+        valid: false,
+        message: "The web address is too long.",
+      });
+    },
+  );
 });

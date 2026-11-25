@@ -46,6 +46,7 @@ export function useCustomScreens(
       {
         buttonId: string;
         connectionEpoch: number;
+        screenId: string;
         suppressResult: boolean;
         timeout: number;
       }
@@ -102,7 +103,8 @@ export function useCustomScreens(
     (result: CustomScreenGetResultMessage) => {
       if (
         pendingGetRef.current?.operationId !== result.operationId ||
-        pendingGetRef.current.connectionEpoch !== connectionEpoch
+        pendingGetRef.current.connectionEpoch !== connectionEpoch ||
+        (result.succeeded && result.screen?.id !== pendingGetRef.current.screenId)
       ) {
         return false;
       }
@@ -148,7 +150,11 @@ export function useCustomScreens(
   const completeCustomScreenInvoke = useCallback(
     (result: CustomScreenInvokeResultMessage) => {
       const pending = pendingInvokesRef.current.get(result.operationId);
-      if (pending?.connectionEpoch !== connectionEpoch) {
+      if (
+        pending?.connectionEpoch !== connectionEpoch ||
+        pending.screenId !== result.screenId ||
+        pending.buttonId !== result.buttonId
+      ) {
         return false;
       }
 
@@ -204,6 +210,7 @@ export function useCustomScreens(
       pendingInvokesRef.current.set(operationId, {
         buttonId,
         connectionEpoch,
+        screenId,
         suppressResult,
         timeout,
       });

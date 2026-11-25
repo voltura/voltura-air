@@ -12,11 +12,15 @@ interface QrDecodeResponse {
   error?: string;
 }
 
+const frameDecodeTimeoutMs = 5000;
+const imageLoadTimeoutMs = 10_000;
+
 export function createQrDecoderSession(): QrDecoderSession {
   const worker = new Worker(new URL("./qrDecoder.worker.ts", import.meta.url), { type: "module" });
   let nextId = 0;
   let pending: {
     id: number;
+    timeout: number;
     reject: (error: Error) => void;
     resolve: (data: string | null) => void;
   } | null = null;
@@ -29,6 +33,7 @@ export function createQrDecoderSession(): QrDecoderSession {
 
     const current = pending;
     pending = null;
+    window.clearTimeout(current.timeout);
     if (event.data.error) {
       current.reject(new Error(event.data.error));
     } else {
@@ -36,10 +41,14 @@ export function createQrDecoderSession(): QrDecoderSession {
     }
   };
   const failWorker = () => {
+    if (disposed) {
+      return;
+    }
     disposed = true;
     worker.terminate();
     const current = pending;
     pending = null;
+    window.clearTimeout(current?.timeout);
     current?.reject(new Error("QR decoder worker failed."));
   };
   worker.onerror = failWorker;
@@ -57,7 +66,8 @@ export function createQrDecoderSession(): QrDecoderSession {
       const id = ++nextId;
       const pixels = new Uint8ClampedArray(imageData.data);
       return new Promise<string | null>((resolve, reject) => {
-        pending = { id, reject, resolve };
+        const timeout = window.setTimeout(failWorker, frameDecodeTimeoutMs);
+        pending = { id, reject, resolve, timeout };
         try {
           worker.postMessage(
             {
@@ -71,6 +81,7 @@ export function createQrDecoderSession(): QrDecoderSession {
           );
         } catch (error) {
           pending = null;
+          window.clearTimeout(timeout);
           reject(error instanceof Error ? error : new Error("QR decoder request failed."));
         }
       });
@@ -83,17 +94,22 @@ export function createQrDecoderSession(): QrDecoderSession {
       worker.terminate();
       const current = pending;
       pending = null;
+      window.clearTimeout(current?.timeout);
       current?.reject(new Error("QR decoder was cancelled."));
     },
   };
 }
 
-export async function decodeQrImage(file: File): Promise<string> {
+export async function decodeQrImage(file: File, signal?: AbortSignal): Promise<string> {
+  signal?.throwIfAborted();
   const decoder = createQrDecoderSession();
+  const cancelDecode = () => decoder.dispose();
+  signal?.addEventListener("abort", cancelDecode, { once: true });
   let imageUrl: string | null = null;
   try {
     imageUrl = URL.createObjectURL(file);
-    const image = await loadImage(imageUrl);
+    const image = await loadImage(imageUrl, signal);
+    signal?.throwIfAborted();
     const imageData = drawImageToCanvas(image, 1600);
     const code = await decoder.decode(imageData);
     if (code) {
@@ -118,6 +134,7 @@ export async function decodeQrImage(file: File): Promise<string> {
 
     throw new Error(`Failed to decode QR code: ${String(error)}`, { cause: error });
   } finally {
+    signal?.removeEventListener("abort", cancelDecode);
     decoder.dispose();
     if (imageUrl) {
       URL.revokeObjectURL(imageUrl);
@@ -158,16 +175,40 @@ function cropCenter(imageData: ImageData, ratio: number): ImageData {
   return context.getImageData(0, 0, width, height);
 }
 
-function loadImage(source: string): Promise<HTMLImageElement> {
+function loadImage(source: string, signal?: AbortSignal): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
+    const timeout = window.setTimeout(() => {
+      release();
+      image.removeAttribute("src");
+      reject(new Error("QR image loading timed out."));
+    }, imageLoadTimeoutMs);
+    const release = () => {
+      window.clearTimeout(timeout);
+      image.onload = null;
+      image.onerror = null;
+      signal?.removeEventListener("abort", abort);
+    };
+    const abort = () => {
+      release();
+      image.removeAttribute("src");
+      reject(new DOMException("QR image reading was cancelled.", "AbortError"));
+    };
     image.onload = () => {
+      release();
       resolve(image);
     };
     image.onerror = () => {
+      release();
       reject(new Error("Image failed to load"));
     };
+    signal?.addEventListener("abort", abort, { once: true });
     image.crossOrigin = "anonymous";
-    image.src = source;
+    try {
+      image.src = source;
+    } catch (error) {
+      release();
+      reject(error instanceof Error ? error : new Error("QR image could not start loading."));
+    }
   });
 }

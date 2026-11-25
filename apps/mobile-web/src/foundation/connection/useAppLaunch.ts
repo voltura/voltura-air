@@ -79,7 +79,8 @@ export function useAppLaunch(state: ConnectionState, send: (payload: ClientMessa
   };
 
   const completeAppLaunch = (result: AppLaunchResultMessage) => {
-    if (pendingRef.current?.operationId !== result.operationId) {
+    const pending = pendingRef.current;
+    if (pending?.operationId !== result.operationId || pending.actionId !== result.actionId) {
       return false;
     }
 

@@ -5,6 +5,7 @@ namespace VolturaAir.Host;
 public static class UrlOpenLimits
 {
     public const int MaxUrlLength = 2_048;
+    internal const int MaxResultUrlLength = 512;
 }
 
 public sealed record UrlOpenExecutionResult(

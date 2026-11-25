@@ -11,6 +11,7 @@ import {
 import type { ConnectionState } from "../../foundation/connection/connectionTypes";
 import { signClientPayload } from "../../foundation/connection/pairingCredentials";
 import type { PcProfile } from "../../foundation/connection/pcProfiles";
+import { createLocalId } from "../../foundation/identity/localId";
 import type {
   AppsCapability,
   AppsPreviewOfferMessage,
@@ -39,7 +40,7 @@ interface Options {
 
 export type AppsPreviewState = "loading" | "unavailable";
 
-const localId = () => crypto.randomUUID().replaceAll("_", "-");
+const previewRequestTimeoutMs = 10_000;
 
 export function useAppsPreviews({
   activePc,
@@ -64,6 +65,7 @@ export function useAppsPreviews({
   const previewStatesRef = useRef(new Map<string, AppsPreviewState>());
   const [previewStates, setPreviewStates] = useState<Map<string, AppsPreviewState>>(new Map());
   const lastPreviewRequestRef = useRef("");
+  const previewRequestTimeoutRef = useRef<number | undefined>(undefined);
   const requestedWindowIdsRef = useRef(new Set<string>());
   const refreshWindowIdsRef = useRef(new Set<string>());
   const [previewRefreshVersion, setPreviewRefreshVersion] = useState(0);
@@ -94,6 +96,7 @@ export function useAppsPreviews({
   }, []);
 
   const clearPreviewResources = useCallback(() => {
+    window.clearTimeout(previewRequestTimeoutRef.current);
     for (const url of previewUrlsRef.current.values()) {
       URL.revokeObjectURL(url);
     }
@@ -149,6 +152,7 @@ export function useAppsPreviews({
       previewStatesRef.current = new Map();
       setPreviewStates(new Map());
       assemblerRef.current.clear();
+      window.clearTimeout(previewRequestTimeoutRef.current);
       lastPreviewRequestRef.current = "";
       requestedWindowIdsRef.current.clear();
       refreshWindowIdsRef.current = new Set(
@@ -195,15 +199,17 @@ export function useAppsPreviews({
       peerRef.current = null;
       channel?.close();
       peer?.close();
+      window.clearTimeout(previewRequestTimeoutRef.current);
+      updatePreviewState(requestedWindowIdsRef.current, "unavailable");
       assemblerRef.current.clear();
       lastPreviewRequestRef.current = "";
       requestedWindowIdsRef.current.clear();
       refreshWindowIdsRef.current.clear();
       if (notifyHost && previewId && pairedRef.current) {
-        send({ type: "apps.preview.stop", operationId: localId(), previewId });
+        send({ type: "apps.preview.stop", operationId: createLocalId(), previewId });
       }
     },
-    [send],
+    [send, updatePreviewState],
   );
 
   const completePreviewAnswer = useCallback(
@@ -242,6 +248,7 @@ export function useAppsPreviews({
       )
       .map((window) => window.windowId);
     if (ids.length === 0) {
+      window.clearTimeout(previewRequestTimeoutRef.current);
       requestedWindowIdsRef.current.clear();
       assemblerRef.current.clear();
       lastPreviewRequestRef.current = "";
@@ -252,9 +259,17 @@ export function useAppsPreviews({
       return;
     }
     try {
+      window.clearTimeout(previewRequestTimeoutRef.current);
       requestedWindowIdsRef.current = new Set(ids);
       previewChannel.send(createAppsPreviewRequest(revision, ids));
       lastPreviewRequestRef.current = requestKey;
+      updatePreviewState(ids, "loading");
+      previewRequestTimeoutRef.current = window.setTimeout(() => {
+        updatePreviewState(
+          ids.filter((id) => previewStatesRef.current.get(id) === "loading"),
+          "unavailable",
+        );
+      }, previewRequestTimeoutMs);
     } catch {
       closePreview();
     }
@@ -265,6 +280,7 @@ export function useAppsPreviews({
     previewRefreshVersion,
     revision,
     selectedIndex,
+    updatePreviewState,
     windows,
   ]);
 
@@ -387,7 +403,7 @@ export function useAppsPreviews({
         ) {
           throw new Error("Invalid Apps preview answer.");
         }
-        const operationId = localId();
+        const operationId = createLocalId();
         const signature = signClientPayload(
           clientId,
           activePc.id,
@@ -450,14 +466,21 @@ export function useAppsPreviews({
   }, [hasPreviewAccess, clearPreviewResources, closePreview]);
 
   useEffect(() => {
+    const stopPreviews = () => {
+      closePreview();
+      clearPreviewUrls();
+    };
     const visibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        closePreview();
-        clearPreviewUrls();
+        stopPreviews();
       }
     };
     document.addEventListener("visibilitychange", visibilityChange);
-    return () => document.removeEventListener("visibilitychange", visibilityChange);
+    window.addEventListener("pagehide", stopPreviews);
+    return () => {
+      document.removeEventListener("visibilitychange", visibilityChange);
+      window.removeEventListener("pagehide", stopPreviews);
+    };
   }, [clearPreviewUrls, closePreview]);
 
   useEffect(

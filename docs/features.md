@@ -654,7 +654,7 @@ failure keeps session state without a background retry loop.
 
 The mobile web app runs in modern browsers and can be installed where
 supported. Its browser profile stores device identity/name, saved PCs, local UI
-preferences, text snippets, and theme. App refresh clears Voltura Air caches,
+preferences, text snippets, and theme. App refresh clears caches owned by the current app scope,
 unregisters the service worker at the app's own scope, and reloads the shell.
 The app can also refresh its installed shell once after reconnect.
 

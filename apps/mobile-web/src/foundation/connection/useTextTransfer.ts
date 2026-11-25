@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import type { ClientMessage, TextSendResultMessage } from "../protocol/messages";
+import {
+  maxTextTransferLength,
+  type ClientMessage,
+  type TextSendResultMessage,
+} from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
 import { createLocalId } from "../identity/localId";
 
@@ -64,7 +68,12 @@ export function useTextTransfer(state: ConnectionState, send: (payload: ClientMe
   }, [textTransferResult]);
 
   const requestTextTransfer = (text: string, sendEnter = false): string | null => {
-    if (state !== "paired" || pendingOperationRef.current !== null || text.length === 0) {
+    if (
+      state !== "paired" ||
+      pendingOperationRef.current !== null ||
+      text.length === 0 ||
+      text.length > maxTextTransferLength
+    ) {
       return null;
     }
 

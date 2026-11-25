@@ -1,4 +1,5 @@
-const maxUrlLength = 2_048;
+import { maxUrlOpenLength } from "../../../foundation/protocol/messages";
+
 const schemePattern = /^[A-Za-z][A-Za-z0-9+.-]*:/u;
 
 export type UrlDraftValidation =
@@ -32,7 +33,7 @@ export function validateUrlDraft(value: string): UrlDraftValidation {
     return { valid: false, message: "Enter a web address." };
   }
 
-  if (trimmed.length > maxUrlLength) {
+  if (trimmed.length > maxUrlOpenLength) {
     return { valid: false, message: "The web address is too long." };
   }
 
@@ -55,6 +56,10 @@ export function validateUrlDraft(value: string): UrlDraftValidation {
 
   if (!parsed.hostname) {
     return { valid: false, message: "Enter a valid web address." };
+  }
+
+  if (parsed.href.length > maxUrlOpenLength) {
+    return { valid: false, message: "The web address is too long." };
   }
 
   return { valid: true, normalizedUrl: parsed.href };

@@ -121,11 +121,12 @@ export function limitTerminalPaste(
   text: string;
   truncated: boolean;
 } {
-  const bytes = encoder.encode(text);
-  if (bytes.length <= maximumBytes) {
+  if (text.length <= Math.floor(maximumBytes / 3)) {
     return { text, truncated: false };
   }
   const limited = new Uint8Array(maximumBytes);
   const { read } = encoder.encodeInto(text, limited);
-  return { text: text.slice(0, read), truncated: true };
+  return read === text.length
+    ? { text, truncated: false }
+    : { text: text.slice(0, read), truncated: true };
 }

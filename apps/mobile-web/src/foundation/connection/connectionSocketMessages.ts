@@ -1,7 +1,11 @@
 import type { ClientMessage } from "../protocol/messages";
 import type { ControllerSocket } from "./controllerSocket";
+import type { PendingRelaySession } from "./relaySessionCrypto";
 
-export function trySendClientMessage(socket: ControllerSocket, payload: ClientMessage) {
+export function trySendClientMessage(
+  socket: ControllerSocket,
+  payload: ClientMessage | PendingRelaySession["proof"],
+) {
   try {
     socket.send(JSON.stringify(payload));
     return true;

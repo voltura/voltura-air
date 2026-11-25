@@ -10,6 +10,7 @@ import {
 } from "./freshAppRefresh";
 
 const appScope = "https://phone.local/air/app/";
+const appCache = "voltura-air:scope:%2Fair%2Fapp%2F:old";
 
 function createEnvironment(
   overrides: Partial<FreshAppRefreshEnvironment> = {},
@@ -49,7 +50,7 @@ describe("refreshWithFreshAppUrl", () => {
     [
       "cache deletion",
       {
-        getCacheNames: vi.fn(() => Promise.resolve(["voltura-air-cache-a"])),
+        getCacheNames: vi.fn(() => Promise.resolve([appCache])),
         deleteCache: () => {
           throw new Error("delete");
         },
@@ -88,16 +89,23 @@ describe("refreshWithFreshAppUrl", () => {
     expect(environment.replace).toHaveBeenCalledOnce();
   });
 
-  it("leaves caches owned by other origin applications untouched", async () => {
+  it("clears the current app cache while preserving other channel and legacy caches", async () => {
     const deleteCache = vi.fn(() => true);
     const environment = createEnvironment({
-      getCacheNames: vi.fn(() => Promise.resolve(["other-app", "voltura-air-old"])),
+      getCacheNames: vi.fn(() =>
+        Promise.resolve([
+          "other-app",
+          "voltura-air-old",
+          "voltura-air:scope:%2Fair%2Fdev-app%2F:dev",
+          appCache,
+        ]),
+      ),
       deleteCache,
     });
 
     await refreshWithFreshAppUrl(environment);
 
-    expect(deleteCache).toHaveBeenCalledExactlyOnceWith("voltura-air-old");
+    expect(deleteCache).toHaveBeenCalledExactlyOnceWith(appCache);
   });
 
   it("falls back to reload when fresh URL creation fails", async () => {

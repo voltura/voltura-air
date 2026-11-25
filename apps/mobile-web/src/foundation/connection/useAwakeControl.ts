@@ -64,7 +64,8 @@ export function useAwakeControl(state: ConnectionState, send: (payload: ClientMe
   };
 
   const completeAwakeChange = (result: AwakeResultMessage) => {
-    if (pendingRef.current?.operationId !== result.operationId) {
+    const pending = pendingRef.current;
+    if (pending?.operationId !== result.operationId || pending.enabled !== result.enabled) {
       return false;
     }
 

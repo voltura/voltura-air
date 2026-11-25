@@ -6,6 +6,22 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.5.5
+
+- Pairing and reconnect keep the controls unavailable until the connection is
+  authenticated. Secure Direct releases its signaling connection when the
+  controller channel is ready, and QR scanning recovers when the camera or
+  image decoder stalls.
+- Long live-keyboard pastes stay within the host limit without splitting emoji.
+  Send text to PC keeps oversized drafts available for editing, and Windows
+  confirms successful opens for long web addresses.
+- App refresh and offline caches stay within the current app channel. Opening
+  a refreshed hosted page keeps the selected PC and connection method.
+- Files reports transfer failures sooner, Apps previews recover from missing
+  responses and unreadable images, and dialog focus returns without scrolling
+  the page.
+- Updated web and Windows dependencies.
+
 ## v1.5.4
 
 - Security and dependency maintenance for the Windows packages, web client, and

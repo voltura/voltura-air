@@ -111,6 +111,7 @@ const healthCheckTimeoutMs = 6500;
 const queuedHealthRetryMs = 5000;
 const retryDelayMs = 1200;
 const displayOffHealthCheckDelayMs = 1000;
+const maxPendingRelayMessages = 64;
 
 export function getConnectionTimeoutMs(transportMode: PcProfile["transportMode"]): number {
   return transportMode === "relay" ? relayConnectionTimeoutMs : directConnectionTimeoutMs;
@@ -133,6 +134,7 @@ export function getLazyProtocolMessageType(messageData: unknown): string | null 
 }
 
 interface ConnectionSocketLifecycleOptions {
+  authenticatedSocketRef: RefObject<ControllerSocket | null>;
   clearRuntimeStateFromSocket: (preserveTerminal?: boolean) => void;
   clientId: string;
   completeAppLaunch: (result: AppLaunchResultMessage) => boolean;
@@ -200,6 +202,7 @@ interface ConnectionSocketLifecycleOptions {
 
 export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleOptions): void {
   const {
+    authenticatedSocketRef,
     clearRuntimeStateFromSocket: clearRuntimeState,
     clientId,
     completeAppLaunch: completeAppLaunchState,
@@ -343,6 +346,8 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     }
 
     function releaseSocketListeners() {
+      authenticatedSocketRef.current = null;
+      relayEncryptedSendRef.current = null;
       removeSocketListeners?.();
       removeSocketListeners = undefined;
       secureSetupAbort?.abort();
@@ -400,13 +405,19 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         socket.close();
       }
 
+      if (
+        code === "VAIR-PAIR-RECONNECT-KEY-MISSING" ||
+        code === "VAIR-PAIR-HOST-IDENTITY-MISSING"
+      ) {
+        shouldRetry = false;
+      }
       if (shouldRetry) {
         scheduleRetry();
       }
     }
 
     function reconnectIfStale() {
-      if (backgroundSuspended) {
+      if (backgroundSuspended || !shouldRetry) {
         return;
       }
 
@@ -420,7 +431,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         return;
       }
 
-      if (!isControllerSocketOpen(socket)) {
+      if (!isControllerSocketOpen(socket) || authenticatedSocketRef.current !== socket) {
         return;
       }
 
@@ -457,6 +468,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         disposed ||
         backgroundSuspended ||
         socket !== socketRef.current ||
+        socket !== authenticatedSocketRef.current ||
         !isControllerSocketOpen(socket)
       ) {
         return;
@@ -510,11 +522,26 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       }
 
       if (pendingInputAcksRef.current.size > 0 || socket.bufferedAmount > 0) {
-        healthCheckDueAt = Date.now() + queuedHealthRetryMs;
+        const now = Date.now();
+        const staleIn = lastHealthyAtRef.current + staleConnectionMs - now;
+        if (staleIn <= 0) {
+          markUnavailable(
+            socket,
+            getPcUnavailableMessage(currentPc(), screenshotMode),
+            "VAIR-PAIR-STALE-CONNECTION",
+          );
+          return;
+        }
+        const delay = Math.min(
+          queuedHealthRetryMs,
+          staleIn,
+          getNextInputAckCheckDelay(pendingInputAcksRef.current.values(), now),
+        );
+        healthCheckDueAt = now + delay;
         healthCheckTimer = window.setTimeout(() => {
           healthCheckDueAt = undefined;
           sendHealthCheck(socket);
-        }, queuedHealthRetryMs);
+        }, delay);
         return;
       }
 
@@ -530,7 +557,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     }
 
     function connect() {
-      if (disposed) {
+      if (disposed || !shouldRetry) {
         return;
       }
 
@@ -541,6 +568,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       }
 
       backgroundSuspended = false;
+      lastHealthyAtRef.current = 0;
       pendingInputAcksRef.current.clear();
       pendingMovementAckRef.current = null;
       const previousSocket = socketRef.current;
@@ -551,6 +579,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       ) {
         previousSocket.close();
       }
+      socketRef.current = null;
       window.clearTimeout(retryTimer);
       retryTimer = undefined;
       window.clearTimeout(connectionTimer);
@@ -607,7 +636,11 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         );
         return;
       }
-      attachSocket(new WebSocket(getWebSocketUrl(pc)));
+      try {
+        attachSocket(new WebSocket(getWebSocketUrl(pc)));
+      } catch {
+        markUnavailable();
+      }
 
       function attachSocket(ws: ControllerSocket, cleanup?: () => void) {
         secureDirectCleanup = cleanup;
@@ -619,9 +652,11 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
           markUnavailable(ws);
         }, getConnectionTimeoutMs(pc.transportMode));
         let socketOpened = false;
+        let listening = true;
+        const isCurrentSocket = () => listening && !disposed && ws === socketRef.current;
 
         function onSocketOpen() {
-          if (socketOpened || disposed || ws !== socketRef.current) {
+          if (socketOpened || !isCurrentSocket()) {
             return;
           }
           socketOpened = true;
@@ -679,18 +714,24 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
             clientNonce: pendingPairingBootstrap?.clientNonce,
             reconnectPublicKey: pendingPairingKey?.reconnectPublicKey,
           };
-          ws.send(JSON.stringify(hello));
+          sendHandshakeMessage(hello);
+        }
+
+        function sendHandshakeMessage(message: ClientMessage) {
+          if (!trySendClientMessage(ws, message)) {
+            markUnavailable(ws, undefined, "VAIR-PAIR-CLIENT-SEND-FAILED");
+          }
         }
 
         function onSocketMessage(event: MessageEvent): Promise<void> | void {
-          if (disposed || ws !== socketRef.current) {
+          if (!isCurrentSocket()) {
             return;
           }
 
           const messageData: unknown = event.data;
           if (relayChannel) {
             return relayChannel.decryptText(messageData).then((decrypted) => {
-              if (disposed || ws !== socketRef.current) {
+              if (!isCurrentSocket()) {
                 return;
               }
               if (decrypted === null) {
@@ -719,6 +760,8 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
               const hostIdentityPublicKey =
                 verifiedHostIdentity?.publicKey ?? currentPc().hostIdentityPublicKey;
               if (
+                pendingRelaySession !== null ||
+                (pendingPairingKey !== null && verifiedHostIdentity === null) ||
                 challenge.routeId !== pc.relayRouteId ||
                 challenge.clientId !== clientId ||
                 !hostIdentityPublicKey
@@ -744,7 +787,9 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
                 );
                 return;
               }
-              ws.send(JSON.stringify(pendingRelaySession.proof));
+              if (!trySendClientMessage(ws, pendingRelaySession.proof)) {
+                markUnavailable(ws, undefined, "VAIR-PAIR-CLIENT-SEND-FAILED");
+              }
               return;
             }
             if (
@@ -755,10 +800,15 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
               pendingRelaySession = null;
               const rawSend = ws.send.bind(ws);
               const encryptedSend: RelayEncryptedSend = (data) => {
-                if (!relayChannel) {
+                if (!relayChannel || !isCurrentSocket()) {
                   return Promise.reject(new Error("Relay encryption is not active."));
                 }
-                return relayChannel.send((encrypted) => rawSend(encrypted), data);
+                return relayChannel.send((encrypted) => {
+                  if (!isCurrentSocket() || !isControllerSocketOpen(ws)) {
+                    throw new Error("The relay connection closed before sending.");
+                  }
+                  rawSend(encrypted);
+                }, data);
               };
               relayEncryptedSendRef.current = encryptedSend;
               ws.send = (data: string | ArrayBufferLike | Blob | ArrayBufferView) => {
@@ -766,11 +816,13 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
                   throw new TypeError("Encrypted relay messages must be JSON text.");
                 }
                 void encryptedSend(data).catch(() => {
-                  markUnavailable(
-                    ws,
-                    "The encrypted relay send queue could not keep up. Reconnecting...",
-                    "VAIR-PAIR-RELAY-BACKPRESSURE",
-                  );
+                  if (isCurrentSocket()) {
+                    markUnavailable(
+                      ws,
+                      "The encrypted relay send queue could not keep up. Reconnecting...",
+                      "VAIR-PAIR-RELAY-BACKPRESSURE",
+                    );
+                  }
                 });
               };
               return;
@@ -790,6 +842,9 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
             handleValidatedSocketMessage(response);
             return;
           }
+          if (authenticatedSocketRef.current !== ws) {
+            return;
+          }
           const lazyMessageType = getLazyProtocolMessageType(messageData);
           if (lazyMessageType?.startsWith("file.transfer.")) {
             pendingFileTransferMessages = pendingFileTransferMessages
@@ -797,7 +852,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
                 const { parseFileTransferServerMessage } =
                   await import("./fileTransferServerProtocol");
                 const transferResponse = parseFileTransferServerMessage(messageData);
-                if (transferResponse && !disposed && ws === socketRef.current) {
+                if (transferResponse && isCurrentSocket()) {
                   handleValidatedSocketMessage(transferResponse);
                 }
               })
@@ -815,7 +870,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
               .then(async () => {
                 const { parseTerminalServerMessage } = await import("./terminalServerProtocol");
                 const terminalResponse = parseTerminalServerMessage(messageData);
-                if (terminalResponse && !disposed && ws === socketRef.current) {
+                if (terminalResponse && isCurrentSocket()) {
                   touchHealthy();
                   publishTerminalResult(terminalResponse);
                   scheduleHealthCheck(ws);
@@ -836,7 +891,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
                 const { parseAiAssistantServerMessage } =
                   await import("./aiAssistantServerProtocol");
                 const assistantResponse = parseAiAssistantServerMessage(messageData);
-                if (assistantResponse && !disposed && ws === socketRef.current) {
+                if (assistantResponse && isCurrentSocket()) {
                   touchHealthy();
                   publishAiAssistantResult(assistantResponse);
                   scheduleHealthCheck(ws);
@@ -856,7 +911,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
               .then(async () => {
                 const { parseAppsServerMessage } = await import("./appsServerProtocol");
                 const appsResponse = parseAppsServerMessage(messageData);
-                if (appsResponse && !disposed && ws === socketRef.current) {
+                if (appsResponse && isCurrentSocket()) {
                   touchHealthy();
                   publishAppsResult(appsResponse);
                   scheduleHealthCheck(ws);
@@ -880,7 +935,21 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         }
 
         function handleValidatedSocketMessage(response: ServerMessage) {
+          const authenticated = authenticatedSocketRef.current === ws;
+          const pairingMessage =
+            response.type === "pair.challenge" ||
+            response.type === "pair.bootstrap.challenge" ||
+            response.type === "pair.accepted" ||
+            response.type === "pair.rejected";
+          if (pairingMessage ? authenticated : !authenticated) {
+            return;
+          }
+
           if (response.type === "pair.challenge") {
+            if (response.clientId !== clientId || pendingPairingKey !== null) {
+              markUnavailable(ws, undefined, "VAIR-PAIR-RECONNECT-PROOF-UNAVAILABLE");
+              return;
+            }
             sendPairProof(response.challenge);
             return;
           }
@@ -914,13 +983,11 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
 
             verifiedHostIdentity = verified.hostIdentity;
             pendingPairingBootstrap = null;
-            ws.send(
-              JSON.stringify({
-                type: "pair.bootstrap.proof",
-                clientId,
-                proof: verified.clientProof,
-              } satisfies ClientMessage),
-            );
+            sendHandshakeMessage({
+              type: "pair.bootstrap.proof",
+              clientId,
+              proof: verified.clientProof,
+            });
             return;
           }
 
@@ -928,6 +995,9 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
             const expectedHostFingerprint =
               verifiedHostIdentity?.fingerprint ?? currentPc().hostIdentityFingerprint;
             if (
+              response.clientId !== clientId ||
+              (pendingPairingKey !== null && verifiedHostIdentity === null) ||
+              (pc.transportMode === "relay" && !relayChannel) ||
               !expectedHostFingerprint ||
               !isExpectedHostIdentity(response, expectedHostFingerprint)
             ) {
@@ -941,6 +1011,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
               );
               return;
             }
+            authenticatedSocketRef.current = ws;
             touchHealthy();
             setConnectionEpoch((current) => current + 1);
             if (commitManualPcOnAcceptance) {
@@ -966,7 +1037,9 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
                   response.hostIdentity!.publicKey,
                   response.hostIdentity!.fingerprint,
                 );
-                savePcProfiles(next);
+                if (next !== current) {
+                  savePcProfiles(next);
+                }
                 return next;
               });
             }
@@ -1080,9 +1153,6 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
 
           if (response.type === "health.pong") {
             touchHealthy();
-            hasShownUnavailable = false;
-            setLastConnectionError(null);
-            setState("paired");
             scheduleHealthCheck(ws);
             return;
           }
@@ -1135,7 +1205,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
                     },
               );
             }
-            if (response.action === "displayOff" && response.succeeded) {
+            if (matched && response.action === "displayOff" && response.succeeded) {
               window.clearTimeout(healthCheckTimer);
               healthCheckDueAt = Date.now() + displayOffHealthCheckDelayMs;
               healthCheckTimer = window.setTimeout(() => {
@@ -1392,7 +1462,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
             return;
           }
 
-          ws.send(JSON.stringify({ type: "pair.proof", clientId, signature }));
+          sendHandshakeMessage({ type: "pair.proof", clientId, signature });
         }
 
         function onSocketClose() {
@@ -1417,12 +1487,27 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         }
 
         let receiveQueue = Promise.resolve();
-        removeSocketListeners = registerControllerSocketListeners(ws, {
+        let pendingRelayMessages = 0;
+        const unregister = registerControllerSocketListeners(ws, {
           close: onSocketClose,
           error: onSocketError,
           message: (event) => {
             if (pc.transportMode === "relay") {
-              receiveQueue = receiveQueue.then(() => onSocketMessage(event));
+              if (pendingRelayMessages >= maxPendingRelayMessages) {
+                markUnavailable(ws, undefined, "VAIR-PAIR-RELAY-BACKPRESSURE");
+                return;
+              }
+              pendingRelayMessages += 1;
+              receiveQueue = receiveQueue
+                .then(() => onSocketMessage(event))
+                .catch(() => {
+                  if (isCurrentSocket()) {
+                    markUnavailable(ws, undefined, "VAIR-PAIR-RELAY-ENCRYPTION");
+                  }
+                })
+                .finally(() => {
+                  pendingRelayMessages -= 1;
+                });
             } else {
               void onSocketMessage(event);
             }
@@ -1431,6 +1516,10 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
             void onSocketOpen();
           },
         });
+        removeSocketListeners = () => {
+          listening = false;
+          unregister();
+        };
         if (!(ws instanceof WebSocket) && ws.readyState === "open") {
           void onSocketOpen();
         }
@@ -1438,6 +1527,9 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     }
 
     reconnectRef.current = () => {
+      if (backgroundSuspended || retryTimer !== undefined) {
+        return;
+      }
       markUnavailable(
         socketRef.current ?? undefined,
         getPcUnavailableMessage(currentPc(), screenshotMode),
@@ -1486,7 +1578,6 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
 
     return () => {
       disposed = true;
-      relayEncryptedSendRef.current = null;
       reconnectRef.current = null;
       rescheduleHealthCheckRef.current = null;
       window.removeEventListener("focus", reconnectIfStale);
@@ -1494,10 +1585,13 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       window.removeEventListener("pageshow", resumeFromBackground);
       document.removeEventListener("visibilitychange", resumeFromBackground);
       clearTimers();
+      const socket = socketRef.current;
       releaseSocketListeners();
-      socketRef.current?.close();
+      socketRef.current = null;
+      socket?.close();
     };
   }, [
+    authenticatedSocketRef,
     clientId,
     connectionPcId,
     connectionPcUrl,

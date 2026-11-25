@@ -31,6 +31,9 @@ class MockSignalingSocket extends EventTarget {
 
 class MockDataChannel extends EventTarget {
   binaryType: BinaryType = "blob";
+  ordered = true;
+  maxRetransmits: number | null = null;
+  maxPacketLifeTime: number | null = null;
   readyState: RTCDataChannelState = "connecting";
   closed = false;
   constructor(readonly label: string) {
@@ -262,7 +265,7 @@ describe("connectSecureDirect", () => {
 
     const established = await connection;
     expect(JSON.parse(signaling.sent[0]!)).toEqual({ type: "secure.answer", sdp: "v=0\r\n" });
-    signaling.close();
+    expect(signaling.readyState).toBe(WebSocket.CLOSED);
     expect(peer.closed).toBe(false);
     expect(channel.closed).toBe(false);
 

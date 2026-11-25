@@ -11,9 +11,9 @@ vi.mock("./freshAppRefresh", () => ({
 
 const activePc: PcProfile = {
   customName: false,
-  id: "https://pc.local",
+  id: window.location.origin,
   name: "PC",
-  url: "https://pc.local",
+  url: window.location.origin,
 };
 const relayPc: PcProfile = {
   customName: false,
@@ -149,6 +149,9 @@ describe("PWA web build refresh", () => {
     expect(shouldRefreshWebClient(activePc, undefined)).toBe(false);
     expect(shouldRefreshWebClient(activePc, "build-a")).toBe(false);
     expect(shouldRefreshWebClient(activePc, "build-b")).toBe(true);
+    expect(shouldRefreshWebClient({ ...activePc, url: "https://other-pc.local" }, "build-b")).toBe(
+      false,
+    );
     expect(shouldRefreshWebClient(relayPc, "build-b")).toBe(false);
     expect(shouldRefreshWebClient(secureDirectPc, "build-b")).toBe(false);
   });

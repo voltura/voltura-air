@@ -12,6 +12,7 @@ function createSender(bufferedAmount = 0) {
   const reconnect = vi.fn();
   const rescheduleHealthCheck = vi.fn();
   const options = {
+    authenticatedSocketRef: { current: socket as WebSocket | null },
     lastMovementAckAtRef: { current: 0 },
     lastUserActivityAtRef: { current: 0 },
     nextInputSequenceRef: { current: 1 },
@@ -33,6 +34,20 @@ afterEach(() => {
 });
 
 describe("connection sender movement flow control", () => {
+  it("withholds input and audio requests while an open replacement socket is authenticating", () => {
+    const { hook, options, socket } = createSender();
+    options.authenticatedSocketRef.current = null;
+    options.supportsVolumeControlRef.current = true;
+
+    act(() => {
+      hook.result.current.send({ type: "keyboard.special", key: "Enter" });
+      hook.result.current.requestAudioState();
+    });
+
+    expect(socket.send).not.toHaveBeenCalled();
+    expect(options.pendingInputAcksRef.current.size).toBe(0);
+  });
+
   it("includes input context only when the host advertises v1 support", () => {
     const supported = createSender();
     act(() => {

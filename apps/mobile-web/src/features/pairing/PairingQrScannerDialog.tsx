@@ -5,6 +5,7 @@ import { ModalDialog } from "../../ui/overlays/ModalDialog";
 
 const liveFrameIntervalMs = 250;
 const liveFrameMaximumDimension = 640;
+const cameraFrameTimeoutMs = 5000;
 
 interface PairingQrScannerDialogProps {
   attemptId: number | null;
@@ -43,6 +44,7 @@ export function PairingQrScannerDialog({
     let active = true;
     let finished = false;
     let timer = 0;
+    let frameTimeout: number | undefined;
     let stream: MediaStream | null = null;
     let videoTrack: MediaStreamTrack | null = null;
     let decoder: ReturnType<typeof createQrDecoderSession> | null = null;
@@ -51,6 +53,9 @@ export function PairingQrScannerDialog({
     const release = () => {
       active = false;
       window.clearTimeout(timer);
+      window.clearTimeout(frameTimeout);
+      videoTrack?.removeEventListener("ended", cameraEnded);
+      videoTrack = null;
       decoder?.dispose();
       decoder = null;
       stream?.getTracks().forEach((track) => {
@@ -85,13 +90,17 @@ export function PairingQrScannerDialog({
         scheduleFrame(100);
         return;
       }
+      window.clearTimeout(frameTimeout);
+      frameTimeout = undefined;
 
       const sourceDimension = Math.min(video.videoWidth, video.videoHeight);
       const targetDimension = Math.min(sourceDimension, liveFrameMaximumDimension);
       const sourceX = Math.floor((video.videoWidth - sourceDimension) / 2);
       const sourceY = Math.floor((video.videoHeight - sourceDimension) / 2);
-      canvas.width = targetDimension;
-      canvas.height = targetDimension;
+      if (canvas.width !== targetDimension || canvas.height !== targetDimension) {
+        canvas.width = targetDimension;
+        canvas.height = targetDimension;
+      }
       const context = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
       if (!context) {
         fallback("Live QR scanning is unavailable. Take a photo of the QR code instead.");
@@ -193,6 +202,9 @@ export function PairingQrScannerDialog({
           return;
         }
         video.srcObject = candidate;
+        frameTimeout = window.setTimeout(() => {
+          fallback("The camera preview did not become ready. Take a photo of the QR code instead.");
+        }, cameraFrameTimeoutMs);
         setStatus("Point the camera at the QR code shown on the PC.");
         void video
           .play()
@@ -216,7 +228,6 @@ export function PairingQrScannerDialog({
     return () => {
       document.removeEventListener("visibilitychange", leaveForeground);
       window.removeEventListener("pagehide", pageHide);
-      videoTrack?.removeEventListener("ended", cameraEnded);
       release();
       if (releaseAttemptRef.current === release) {
         releaseAttemptRef.current = () => undefined;

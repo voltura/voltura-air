@@ -8,7 +8,7 @@ export const deviceNameKey = "voltura-air.deviceName";
 const deviceNameQueryParam = "n";
 
 export function getOrCreateClientId(source: string): string {
-  const existing = readLocalStorage(clientIdKey);
+  const existing = normalizeClientId(readLocalStorage(clientIdKey));
   if (existing) {
     return existing;
   }
@@ -80,7 +80,7 @@ export function ensureClientMetadataInAddress(clientId: string, deviceName: stri
 
     url.searchParams.set(clientIdQueryParam, clientId);
     url.searchParams.set(deviceNameQueryParam, normalizedDeviceName);
-    window.history.replaceState(null, "", url);
+    window.history.replaceState(window.history.state, "", url);
   } catch {
     // History updates are best-effort on restricted or synthetic documents.
   }
@@ -119,17 +119,21 @@ export function loadDeviceName(source: string): string {
 }
 
 export function clearPairTokenFromAddress(): void {
-  const url = new URL(window.location.href);
-  let changed = false;
-  if (url.searchParams.has("t")) {
-    url.searchParams.delete("t");
-    changed = true;
-  }
-  if (isHostedControllerPath(url.pathname) && url.hash) {
-    url.hash = "";
-    changed = true;
-  }
-  if (changed) {
-    window.history.replaceState(null, "", url);
+  try {
+    const url = new URL(window.location.href);
+    let changed = false;
+    if (url.searchParams.has("t")) {
+      url.searchParams.delete("t");
+      changed = true;
+    }
+    if (isHostedControllerPath(url.pathname) && url.hash) {
+      url.hash = "";
+      changed = true;
+    }
+    if (changed) {
+      window.history.replaceState(window.history.state, "", url);
+    }
+  } catch {
+    // Restricted history must not interrupt the active connection.
   }
 }

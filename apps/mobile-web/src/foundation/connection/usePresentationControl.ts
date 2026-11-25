@@ -250,7 +250,12 @@ export function usePresentationControl(
   );
 
   const completePresentationCommand = (result: PresentationCommandResultMessage) => {
-    if (pendingRef.current?.operationId !== result.operationId) {
+    const pending = pendingRef.current;
+    if (
+      pending?.operationId !== result.operationId ||
+      pending.target !== result.target ||
+      pending.action !== result.action
+    ) {
       return false;
     }
 
@@ -292,7 +297,8 @@ export function usePresentationControl(
   );
 
   const completePresentationSession = (result: PresentationSessionResultMessage) => {
-    if (pendingSessionRef.current?.operationId !== result.operationId) {
+    const pending = pendingSessionRef.current;
+    if (pending?.operationId !== result.operationId || pending.action !== result.action) {
       return false;
     }
 
@@ -347,7 +353,11 @@ export function usePresentationControl(
   );
 
   const completePowerPointLaunch = (result: PowerPointLaunchResultMessage) => {
-    if (pendingLaunchRef.current?.operationId !== result.operationId) {
+    const pending = pendingLaunchRef.current;
+    if (
+      pending?.operationId !== result.operationId ||
+      pending.presentationId !== result.presentationId
+    ) {
       return false;
     }
 

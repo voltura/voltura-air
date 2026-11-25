@@ -53,6 +53,7 @@ export function usePairingController(options: PairingControllerOptions) {
   );
   const pairingQrInputRef = useRef<HTMLInputElement | null>(null);
   const scanGenerationRef = useRef(0);
+  const photoAbortRef = useRef<AbortController | null>(null);
   const readingQrRef = useRef(false);
   const [isPairingQrReading, setIsPairingQrReading] = useState(false);
   const [livePairingScannerAttempt, setLivePairingScannerAttempt] = useState<number | null | false>(
@@ -62,14 +63,17 @@ export function usePairingController(options: PairingControllerOptions) {
 
   const retireScan = () => {
     scanGenerationRef.current += 1;
+    photoAbortRef.current?.abort();
+    photoAbortRef.current = null;
     readingQrRef.current = false;
     setIsPairingQrReading(false);
-    setLivePairingScannerAttempt(null);
+    setLivePairingScannerAttempt((current) => (current === false ? false : null));
   };
 
   useEffect(
     () => () => {
       scanGenerationRef.current += 1;
+      photoAbortRef.current?.abort();
     },
     [],
   );
@@ -87,7 +91,6 @@ export function usePairingController(options: PairingControllerOptions) {
 
     retireScan();
     beginNewPairing();
-    setLivePairingScannerAttempt(null);
     setPendingPairing(pairingInfo);
     setPairingDeviceName(deviceName === pairingDeviceNamePlaceholder ? "" : deviceName);
     setPairingScanMessage("Confirm the device name shown on the PC, or change it before pairing.");
@@ -170,6 +173,10 @@ export function usePairingController(options: PairingControllerOptions) {
     }
     const scanGeneration = scanGenerationRef.current + 1;
     scanGenerationRef.current = scanGeneration;
+    photoAbortRef.current?.abort();
+    const photoAbort = new AbortController();
+    photoAbortRef.current = photoAbort;
+    setLivePairingScannerAttempt((current) => (current === false ? false : null));
 
     readingQrRef.current = true;
     setIsPairingQrReading(true);
@@ -178,7 +185,7 @@ export function usePairingController(options: PairingControllerOptions) {
 
       let scannedText: string;
       try {
-        scannedText = await decodePairingQrImage(file);
+        scannedText = await decodePairingQrImage(file, photoAbort.signal);
       } catch {
         if (scanGenerationRef.current !== scanGeneration) {
           return;
@@ -212,6 +219,7 @@ export function usePairingController(options: PairingControllerOptions) {
       );
     } finally {
       if (scanGenerationRef.current === scanGeneration) {
+        photoAbortRef.current = null;
         readingQrRef.current = false;
         setIsPairingQrReading(false);
       }

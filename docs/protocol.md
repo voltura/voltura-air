@@ -315,8 +315,10 @@ The host consumes the challenge before verification. A session accepts one
 proof; cross-session, different-challenge, reused, and post-restart proofs fail.
 
 The host sends `pair.accepted` before enabling status or feature broadcasts to
-that socket. The socket remains tracked for revocation while acceptance is sent;
-a failed send or revocation cannot enable broadcasts afterward.
+that socket. The controller waits for that session's acceptance before enabling
+commands or processing status and feature broadcasts. The socket remains
+tracked for revocation while acceptance is sent. A failed send or revocation
+cannot enable broadcasts afterward.
 
 Success:
 
@@ -1295,7 +1297,8 @@ browser fallback.
 ```
 
 Codes: `accepted`, `permission-denied`, `invalid-url`, `unsupported-scheme`,
-`launch-failed`. Failures keep the socket open and never return raw native
+`launch-failed`. The optional `normalizedUrl` is omitted if the normalized address
+exceeds the 512-unit result field limit. Failures keep the socket open and never return raw native
 errors. Success means Windows accepted the request, not that the page loaded.
 
 ## Text transfer

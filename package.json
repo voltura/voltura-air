@@ -106,6 +106,6 @@
   "packageManager": "npm@12.2.3",
   "allowScripts": {
     "esbuild@0.28.2": true,
-    "workerd@1.20261113.1": true
+    "workerd@1.20261118.1": true
   }
 }

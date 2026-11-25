@@ -208,6 +208,7 @@ export function shouldRefreshWebClient(
 ): webClientBuildId is string {
   return (
     activePc.transportMode === undefined &&
+    activePc.url === window.location.origin &&
     Boolean(webClientBuildId && webClientBuildId !== __WEB_BUILD_ID__)
   );
 }

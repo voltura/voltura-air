@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { createLocalId } from "../identity/localId";
-import type { ClientMessage, UrlOpenResultMessage } from "../protocol/messages";
+import {
+  maxUrlOpenLength,
+  type ClientMessage,
+  type UrlOpenResultMessage,
+} from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
 
 const responseTimeoutMs = 8000;
@@ -62,7 +66,12 @@ export function useUrlOpen(state: ConnectionState, send: (payload: ClientMessage
   }, [urlOpenResult]);
 
   const requestUrlOpen = (url: string): string | null => {
-    if (state !== "paired" || pendingOperationRef.current !== null || url.trim().length === 0) {
+    if (
+      state !== "paired" ||
+      pendingOperationRef.current !== null ||
+      url.length > maxUrlOpenLength ||
+      url.trim().length === 0
+    ) {
       return null;
     }
 

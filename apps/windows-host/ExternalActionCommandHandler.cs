@@ -113,7 +113,9 @@ internal sealed class ExternalActionCommandHandler(
             succeeded = result.Succeeded,
             code = result.Code,
             message = result.Message,
-            normalizedUrl = result.NormalizedUrl
+            normalizedUrl = result.NormalizedUrl is { Length: <= UrlOpenLimits.MaxResultUrlLength }
+                ? result.NormalizedUrl
+                : null
         }, cancellationToken);
     }
 }

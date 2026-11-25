@@ -42,9 +42,7 @@ export function useInitialConnectionProfileState() {
   const storedActivePcId = useMemo(() => loadActivePcId(), []);
   const hostedAddressIsStored =
     hostedAddress === null ||
-    storedPcProfiles.some(
-      (profile) => profile.id === addressPcProfile.id && profile.url === addressPcProfile.url,
-    );
+    storedPcProfiles.some((profile) => profile.id === addressPcProfile.id);
   const effectiveStoredActivePcId = useMemo(
     () =>
       getEffectiveStoredActivePcId(

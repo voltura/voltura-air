@@ -50,14 +50,14 @@ export function ModalDialog({
   const titleId = useId();
 
   const finishClosing = useCallback(() => {
-    invokingElementRef.current?.focus();
+    invokingElementRef.current?.focus({ preventScroll: true });
     invokingElementRef.current = null;
     onClose();
   }, [onClose]);
 
   useEffect(() => {
     if (!isOpen && invokingElementRef.current) {
-      invokingElementRef.current.focus();
+      invokingElementRef.current.focus({ preventScroll: true });
       invokingElementRef.current = null;
     }
   }, [isOpen]);
@@ -182,22 +182,31 @@ export function ModalDialog({
       return;
     }
 
-    const dismissFromBackdrop = (event: MouseEvent) => {
-      if (event.target !== dialog) {
-        return;
-      }
+    const isBackdrop = (event: MouseEvent) => {
       const bounds = dialog.getBoundingClientRect();
-      const outsideSurface =
-        event.clientX < bounds.left ||
-        event.clientX > bounds.right ||
-        event.clientY < bounds.top ||
-        event.clientY > bounds.bottom;
-      if (outsideSurface) {
+      return (
+        event.target === dialog &&
+        (event.clientX < bounds.left ||
+          event.clientX > bounds.right ||
+          event.clientY < bounds.top ||
+          event.clientY > bounds.bottom)
+      );
+    };
+    let pressedInside = false;
+    const rememberPress = (event: PointerEvent) => {
+      pressedInside = !isBackdrop(event);
+    };
+    const dismissFromBackdrop = (event: MouseEvent) => {
+      const startsOnBackdrop = !pressedInside;
+      pressedInside = false;
+      if (startsOnBackdrop && isBackdrop(event)) {
         closeDialog();
       }
     };
+    dialog.addEventListener("pointerdown", rememberPress);
     dialog.addEventListener("click", dismissFromBackdrop);
     return () => {
+      dialog.removeEventListener("pointerdown", rememberPress);
       dialog.removeEventListener("click", dismissFromBackdrop);
     };
   }, [closeDialog, isOpen]);

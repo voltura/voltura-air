@@ -75,7 +75,9 @@ export function parseAppsPreviewRecord(data: ArrayBuffer): AppsPreviewRecord | n
       width > maximumPreviewWidth ||
       height > maximumPreviewHeight ||
       encodedBytes > maximumPreviewBytes ||
-      available !== (width > 0 && height > 0 && encodedBytes > 0)
+      (available
+        ? width === 0 || height === 0 || encodedBytes === 0
+        : width !== 0 || height !== 0 || encodedBytes !== 0)
     ) {
       return null;
     }
@@ -99,7 +101,7 @@ export function parseAppsPreviewRecord(data: ArrayBuffer): AppsPreviewRecord | n
 export class AppsPreviewAssembler {
   readonly #pending = new Map<
     string,
-    { width: number; height: number; bytes: Uint8Array; received: number }
+    { width: number; height: number; bytes: Uint8Array<ArrayBuffer>; received: number }
   >();
 
   accept(record: AppsPreviewRecord): AppsPreviewAssembly | null | undefined {
@@ -140,7 +142,7 @@ export class AppsPreviewAssembler {
       windowId: record.windowId,
       width: pending.width,
       height: pending.height,
-      blob: new Blob([pending.bytes.slice().buffer], { type: "image/jpeg" }),
+      blob: new Blob([pending.bytes], { type: "image/jpeg" }),
     };
   }
 

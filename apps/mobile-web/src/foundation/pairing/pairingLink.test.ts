@@ -94,6 +94,16 @@ describe("parsePairingLink", () => {
     });
   });
 
+  it("retains the hosted route across a refresh marker on the app address", () => {
+    const route = "r".repeat(22);
+    const base = `https://voltura.se/air/dev-app/?m=s&r=${route}&v=${version}`;
+    expect(parseHostedConnectionAddress(`${base}&refresh=123`)).toEqual({
+      pcUrl: `https://voltura.se/s/${route}`,
+    });
+    expect(parsePairingLink(`${base}&refresh=123#${pairToken}`)).toBeNull();
+    expect(parseHostedConnectionAddress(`${base}&r=${route}`)).toBeNull();
+  });
+
   it("reads the hosted redirect target and a bounded custom relay endpoint", () => {
     const route = "r".repeat(22);
     const endpoint = btoa("https://relay.example").replace(/=+$/u, "");
@@ -163,6 +173,14 @@ describe("validateManualConnectionInput", () => {
       valid: true,
       target: { kind: "host", pcUrl: "http://192.168.1.50:51395" },
     });
+  });
+
+  it("preserves an explicitly supplied default port and rejects port zero", () => {
+    expect(validateManualConnectionInput("https://pc.local:443", fallbackUrl)).toEqual({
+      valid: true,
+      target: { kind: "host", pcUrl: "https://pc.local" },
+    });
+    expect(validateManualConnectionInput("http://pc.local:0", fallbackUrl).valid).toBe(false);
   });
 
   it("returns a pairing target for a complete Voltura Air pairing link", () => {

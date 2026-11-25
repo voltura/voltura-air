@@ -117,20 +117,7 @@ export function isExpectedHostIdentity(
   }
 
   const identity = message.hostIdentity;
-  if (identity?.fingerprint !== expectedFingerprint) {
-    return false;
-  }
-
-  try {
-    const encoded = decodeBase64Url(identity.publicKey);
-    return (
-      encoded.length === 65 &&
-      encoded[0] === 0x04 &&
-      base64Url(sha256(encoded).slice(0, 16)) === expectedFingerprint
-    );
-  } catch {
-    return false;
-  }
+  return identity?.fingerprint === expectedFingerprint && isValidHostIdentity(identity);
 }
 
 function isValidHostIdentity(identity: { publicKey: string; fingerprint: string }): boolean {
@@ -139,6 +126,7 @@ function isValidHostIdentity(identity: { publicKey: string; fingerprint: string 
     return (
       encoded.length === 65 &&
       encoded[0] === 0x04 &&
+      p256.utils.isValidPublicKey(encoded, false) &&
       base64Url(sha256(encoded).slice(0, 16)) === identity.fingerprint
     );
   } catch {
@@ -184,7 +172,7 @@ function constantTimeEqual(left: string, right: string): boolean {
 }
 
 export function hasStoredReconnectKey(clientId: string, pcId: string): boolean {
-  return readLocalStorage(privateKeyStoreKey(clientId, pcId)) !== null;
+  return getStoredPrivateKey(clientId, pcId) !== null;
 }
 
 export function signReconnectChallenge(
@@ -235,12 +223,13 @@ export function shouldClearStoredReconnectKeyForRejection(reason: string): boole
 
 function getStoredPrivateKey(clientId: string, pcId: string): Uint8Array | null {
   const raw = readLocalStorage(privateKeyStoreKey(clientId, pcId));
-  if (!raw) {
+  if (!raw || !/^[A-Za-z0-9_-]{43}$/u.test(raw)) {
     return null;
   }
 
   try {
-    return decodeBase64Url(raw);
+    const key = decodeBase64Url(raw);
+    return p256.utils.isValidSecretKey(key) ? key : null;
   } catch {
     return null;
   }

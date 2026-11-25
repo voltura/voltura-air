@@ -18,6 +18,7 @@ import type {
 // PC 120, adapter 256, IP 64, URL 512, and build/session identifiers 128.
 import { isRemoteModeId, normalizeRemoteMode } from "../settings/remoteSettings";
 import { normalizeAccentColor } from "../protocol/accentColorProtocol";
+import { maxTextTransferLength } from "../protocol/messages";
 
 const movementAckIntervalMs = 200;
 const maxPendingInputAcks = 64;
@@ -564,7 +565,9 @@ function isServerMessage(value: unknown): value is ServerMessage {
       return (
         isOperationId(value.operationId) &&
         isResultBase(value) &&
-        isOptional(value, "text", isString)
+        isOptional(value, "text", (candidate) =>
+          isBoundedString(candidate, maxTextTransferLength, true),
+        )
       );
     case "diagnostics.get.result":
       return (

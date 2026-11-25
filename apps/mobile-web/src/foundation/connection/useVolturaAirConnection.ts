@@ -77,6 +77,7 @@ export function useVolturaAirConnection() {
     id: 0,
   }));
   const socketRef = useRef<ControllerSocket | null>(null);
+  const authenticatedSocketRef = useRef<ControllerSocket | null>(null);
   const deviceNameRef = useRef(deviceName);
   const pairingAttemptRef = useRef(pairingAttempt);
   const lastHealthyAtRef = useRef(0);
@@ -125,6 +126,7 @@ export function useVolturaAirConnection() {
     urlOpenCapability,
   } = useConnectionRuntimeState(pendingInputAcksRef, pendingMovementAckRef);
   const { requestAudioState, send } = useConnectionSender({
+    authenticatedSocketRef,
     lastMovementAckAtRef,
     lastUserActivityAtRef,
     nextInputSequenceRef,
@@ -241,6 +243,7 @@ export function useVolturaAirConnection() {
     requestCustomScreen,
   } = useCustomScreens(state, connectionEpoch, customScreensCapability?.catalogRevision, send);
   useConnectionSocketLifecycle({
+    authenticatedSocketRef,
     clearRuntimeStateFromSocket: clearRuntimeState,
     clientId,
     completeAppLaunch: completeAppLaunchState,

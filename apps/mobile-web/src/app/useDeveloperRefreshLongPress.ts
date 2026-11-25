@@ -32,15 +32,18 @@ export function useDeveloperRefreshLongPress(
 
   const onPointerDown = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
-      if (!enabled || event.button !== 0) {
+      if (!enabled || event.button !== 0 || pointerRef.current) {
         return;
       }
 
       cancel();
       triggeredRef.current = false;
       pointerRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
-      if (typeof event.currentTarget.setPointerCapture === "function") {
-        event.currentTarget.setPointerCapture(event.pointerId);
+      try {
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+      } catch {
+        cancel();
+        return;
       }
       timerRef.current = window.setTimeout(() => {
         triggeredRef.current = true;
@@ -67,13 +70,20 @@ export function useDeveloperRefreshLongPress(
 
   const onPointerEnd = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
+      if (pointerRef.current?.id !== event.pointerId) {
+        return;
+      }
       cancel();
       if (
         typeof event.currentTarget.hasPointerCapture === "function" &&
         event.currentTarget.hasPointerCapture(event.pointerId) &&
         typeof event.currentTarget.releasePointerCapture === "function"
       ) {
-        event.currentTarget.releasePointerCapture(event.pointerId);
+        try {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        } catch {
+          // Capture may already have ended with the pointer.
+        }
       }
       triggeredRef.current = false;
     },
@@ -86,7 +96,7 @@ export function useDeveloperRefreshLongPress(
     }
   }, []);
 
-  useEffect(() => cancel, [cancel, enabled]);
+  useEffect(() => cancel, [cancel, enabled, refreshApp]);
 
   useEffect(() => {
     const onVisibility = () => {

@@ -71,7 +71,8 @@ export function usePowerControl(state: ConnectionState, send: (payload: ClientMe
   };
 
   const completePowerAction = (result: SystemPowerResultMessage) => {
-    if (pendingRef.current?.operationId !== result.operationId) {
+    const pending = pendingRef.current;
+    if (pending?.operationId !== result.operationId || pending.action !== result.action) {
       return false;
     }
 

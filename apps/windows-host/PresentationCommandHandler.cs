@@ -65,7 +65,6 @@ internal sealed class PresentationCommandHandler(
         string operationId,
         CancellationToken cancellationToken)
     {
-        presentationCatalog.Refresh();
         if (!statusFactory.CanControlPresentations(clientId))
         {
             await SendRefreshResultAsync(
@@ -75,11 +74,12 @@ internal sealed class PresentationCommandHandler(
                     false,
                     "permission-denied",
                     "Presentation control is disabled for this device on the PC.",
-                    powerPoint.Snapshot),
+                    PowerPointAutomationSnapshot.Unavailable),
                 cancellationToken).ConfigureAwait(false);
             return;
         }
 
+        presentationCatalog.Refresh();
         var result = await powerPoint.RefreshAsync(cancellationToken).ConfigureAwait(false);
         await SendRefreshResultAsync(socket, operationId, result, cancellationToken).ConfigureAwait(false);
     }

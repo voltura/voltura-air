@@ -5,7 +5,7 @@ export function canUseLivePairingQrScanner(
   return protocol === "https:" && typeof mediaDevices?.getUserMedia === "function";
 }
 
-export async function decodePairingQrImage(file: File): Promise<string> {
+export async function decodePairingQrImage(file: File, signal?: AbortSignal): Promise<string> {
   const { decodeQrImage } = await import("../../foundation/pairing/qrCode");
-  return decodeQrImage(file);
+  return decodeQrImage(file, signal);
 }

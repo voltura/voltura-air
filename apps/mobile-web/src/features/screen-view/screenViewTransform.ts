@@ -43,6 +43,9 @@ export function normalizedScreenPoint(
   }
   const x = (clientX - bounds.left) / bounds.width;
   const y = (clientY - bounds.top) / bounds.height;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
   if (!clamp && (x < 0 || x > 1 || y < 0 || y > 1)) {
     return null;
   }
@@ -57,6 +60,9 @@ export function updateScreenViewPinch(
   viewportWidth: number,
   viewportHeight: number,
 ): ScreenViewTransform {
+  if (viewportWidth <= 0 || viewportHeight <= 0 || !Number.isFinite(distance)) {
+    return start.transform;
+  }
   const scale = Math.min(
     maxScreenViewScale,
     Math.max(1, (start.transform.scale * distance) / Math.max(1, start.distance)),

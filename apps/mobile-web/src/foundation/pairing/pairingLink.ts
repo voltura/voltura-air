@@ -71,7 +71,7 @@ export function parsePairingLink(source: string): PairingLink | null {
       }
     }
 
-    const pcUrl = resolvePairingPcUrl(url);
+    const pcUrl = resolvePairingPcUrl(url, trimmedSource);
     return pcUrl ? { pairToken: tokens[0]!, pcUrl } : null;
   } catch {
     return null;
@@ -85,27 +85,31 @@ function parseRelayPairingLink(url: URL): PairingLink | null {
 
 export function parseHostedConnectionAddress(source: string): HostedConnectionAddress | null {
   try {
-    return parseHostedConnectionUrl(new URL(source));
+    return parseHostedConnectionUrl(new URL(source), true);
   } catch {
     return null;
   }
 }
 
-function parseHostedConnectionUrl(url: URL): HostedConnectionAddress | null {
-  if (url.protocol !== "https:" || url.hostname !== "voltura.se") {
+function parseHostedConnectionUrl(
+  url: URL,
+  allowRefreshMarker = false,
+): HostedConnectionAddress | null {
+  if (url.origin !== "https://voltura.se" || hasCredentials(url)) {
     return null;
   }
   const shortMatch = /^\/(a|s|d)\/([A-Za-z0-9_-]{22})\/?$/u.exec(url.pathname);
   const shortMode = shortMatch?.[1];
   const shortRoute = shortMatch?.[2];
   const isHostedApp = hostedAppPaths.has(url.pathname);
-  const hostedRoute = isHostedApp ? url.searchParams.get("r") : null;
+  const hostedRoutes = isHostedApp ? url.searchParams.getAll("r") : [];
   const hostedMode = isHostedApp && url.searchParams.get("m") === "s" ? "s" : "a";
-  const route = shortRoute ?? hostedRoute;
+  const route = shortRoute ?? hostedRoutes[0];
   const token = url.hash.startsWith("#") ? url.hash.slice(1) : "";
   const versions = url.searchParams.getAll("v");
   if (
     !route ||
+    hostedRoutes.length > 1 ||
     !relayRoutePattern.test(route) ||
     (token && !pairingTokenPattern.test(token)) ||
     versions.length !== 1 ||
@@ -114,6 +118,9 @@ function parseHostedConnectionUrl(url: URL): HostedConnectionAddress | null {
     return null;
   }
   const allowed = shortRoute ? new Set(["v"]) : new Set(["r", "v", "e", "m"]);
+  if (allowRefreshMarker && isHostedApp && url.searchParams.getAll("refresh").length === 1) {
+    allowed.add("refresh");
+  }
   if ([...url.searchParams.keys()].some((key) => !allowed.has(key))) {
     return null;
   }
@@ -147,7 +154,7 @@ export function normalizeHostedPcUrl(
   try {
     const url = new URL(source);
     const match =
-      url.protocol === "https:" && url.hostname === "voltura.se"
+      url.origin === "https://voltura.se" && !hasCredentials(url)
         ? /^\/(a|s|d)\/([A-Za-z0-9_-]{22})\/?$/u.exec(url.pathname)
         : null;
     if (!match?.[1] || !match[2] || url.hash) {
@@ -163,7 +170,7 @@ export function normalizeHostedPcUrl(
       return null;
     }
     const endpoint = encodedEndpoint ? decodeRelayEndpoint(encodedEndpoint) : null;
-    if (encodedEndpoint && !endpoint) {
+    if (encodedEndpoint !== null && !endpoint) {
       return null;
     }
     return {
@@ -245,7 +252,8 @@ export function validateManualConnectionInput(
 
   try {
     const hasScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed);
-    const url = new URL(hasScheme ? trimmed : `http://${trimmed}`);
+    const candidate = hasScheme ? trimmed : `http://${trimmed}`;
+    const url = new URL(candidate);
     if (!isHttpUrl(url)) {
       return invalid("Only HTTP and HTTPS host addresses are supported.");
     }
@@ -264,7 +272,7 @@ export function validateManualConnectionInput(
     if (url.pathname !== "/" || url.search || url.hash) {
       return invalid("Host addresses cannot include a path, query, or fragment.");
     }
-    if (!url.port) {
+    if (!hasExplicitValidPort(candidate)) {
       return invalid(invalidHostMessage);
     }
 
@@ -313,7 +321,7 @@ export function normalizePcUrl(value: unknown): string | null {
   }
 }
 
-function resolvePairingPcUrl(url: URL): string | null {
+function resolvePairingPcUrl(url: URL, source: string): string | null {
   const hostHints = url.searchParams.getAll("h");
   if (hostHints.length > 1) {
     return null;
@@ -338,7 +346,7 @@ function resolvePairingPcUrl(url: URL): string | null {
       host.pathname === "/" &&
       !host.search &&
       !host.hash &&
-      Boolean(host.port)
+      hasExplicitValidPort(hostHint ?? source)
       ? host.origin
       : null;
   } catch {
@@ -375,6 +383,11 @@ function isHttpUrl(url: URL): boolean {
 
 function hasCredentials(url: URL): boolean {
   return Boolean(url.username || url.password);
+}
+
+function hasExplicitValidPort(source: string): boolean {
+  const port = /^https?:\/\/[^/?#\\]+:(\d+)(?:[/?#\\]|$)/iu.exec(source)?.[1];
+  return port !== undefined && Number(port) > 0 && Number(port) <= 65535;
 }
 
 function invalid(message: string): ManualConnectionValidation {

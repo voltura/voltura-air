@@ -28,6 +28,7 @@ function AppsPreviewImage({ url }: { url: string }) {
   const [displayedUrl, setDisplayedUrl] = useState(url);
   const [readyUrl, setReadyUrl] = useState<string | null>(null);
   const [currentReadyUrl, setCurrentReadyUrl] = useState<string | null>(null);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const incomingUrl = url === displayedUrl ? null : url;
   const incomingReady = incomingUrl !== null && readyUrl === incomingUrl;
 
@@ -43,13 +44,18 @@ function AppsPreviewImage({ url }: { url: string }) {
 
   return (
     <span className="apps-preview-images">
-      <img
-        src={displayedUrl}
-        alt=""
-        className={`apps-preview-image-current${readyUrl === displayedUrl || currentReadyUrl === displayedUrl ? " is-ready" : ""}`}
-        draggable={false}
-        onLoad={() => setCurrentReadyUrl(displayedUrl)}
-      />
+      {failedUrl === displayedUrl ? (
+        <PreviewFallback state="unavailable" />
+      ) : (
+        <img
+          src={displayedUrl}
+          alt=""
+          className={`apps-preview-image-current${readyUrl === displayedUrl || currentReadyUrl === displayedUrl ? " is-ready" : ""}`}
+          draggable={false}
+          onError={() => setFailedUrl(displayedUrl)}
+          onLoad={() => setCurrentReadyUrl(displayedUrl)}
+        />
+      )}
       {incomingUrl && (
         <img
           src={incomingUrl}
@@ -59,6 +65,18 @@ function AppsPreviewImage({ url }: { url: string }) {
           onLoad={() => setReadyUrl(incomingUrl)}
         />
       )}
+    </span>
+  );
+}
+
+function PreviewFallback({ state }: { state: AppsPreviewState }) {
+  return (
+    <span
+      className={`apps-preview-fallback${state === "loading" ? " is-loading" : ""}`}
+      aria-hidden="true"
+    >
+      {state === "loading" ? <LoaderCircle /> : <AppWindow />}
+      <small>{state === "loading" ? "Loading preview…" : "Preview unavailable"}</small>
     </span>
   );
 }
@@ -241,15 +259,7 @@ export function AppsWindowCard({
           {previewUrl ? (
             <AppsPreviewImage url={previewUrl} />
           ) : (
-            <span
-              className={`apps-preview-fallback${previewState === "loading" ? " is-loading" : ""}`}
-              aria-hidden="true"
-            >
-              {previewState === "loading" ? <LoaderCircle /> : <AppWindow />}
-              <small>
-                {previewState === "loading" ? "Loading preview…" : "Preview unavailable"}
-              </small>
-            </span>
+            <PreviewFallback state={previewState} />
           )}
           {(appWindow.active || appWindow.minimized) && (
             <span className="apps-active-badge">{appWindow.active ? "Active" : "Minimized"}</span>

@@ -6,6 +6,7 @@ import { copyTextToClipboard } from "../../foundation/diagnostics/mobileDiagnost
 import type { PcProfile } from "../../foundation/connection/useVolturaAirConnection";
 import { signClientPayload } from "../../foundation/connection/pairingCredentials";
 import { subscribeTerminalResults } from "../../foundation/connection/terminalResultBus";
+import { createLocalId } from "../../foundation/identity/localId";
 import type {
   ClientMessage,
   TerminalCapability,
@@ -49,7 +50,6 @@ const terminalSelectionHoldMilliseconds = 500;
 const terminalTouchMovementThreshold = 8;
 
 const encoder = new TextEncoder();
-const localId = () => crypto.randomUUID().replaceAll("_", "-");
 
 export function TerminalWorkspace({
   active,
@@ -92,8 +92,6 @@ export function TerminalWorkspace({
   const [hasSelection, setHasSelection] = useState(false);
   const [selectionCopyFailed, setSelectionCopyFailed] = useState(false);
   const [currentTerminalId, setCurrentTerminalId] = useState<string | null>(null);
-
-  inputQueueRef.current ??= new TerminalInputQueue(() => transportFailureRef.current());
 
   useEffect(() => {
     stateRef.current = state;
@@ -154,6 +152,8 @@ export function TerminalWorkspace({
     if (!hostRef.current || terminalRef.current) {
       return;
     }
+    const inputQueue = new TerminalInputQueue(() => transportFailureRef.current());
+    inputQueueRef.current = inputQueue;
     const terminal = new Terminal({
       cursorBlink: true,
       convertEol: false,
@@ -199,8 +199,11 @@ export function TerminalWorkspace({
       if (!proposed || proposed.cols < 10 || proposed.rows < 5) {
         return false;
       }
-      terminal.resize(Math.max(minimumTerminalColumns, proposed.cols), proposed.rows);
-      inputQueueRef.current?.enqueueResize(createTerminalResize(terminal.cols, terminal.rows));
+      terminal.resize(
+        Math.max(minimumTerminalColumns, Math.min(500, proposed.cols)),
+        Math.min(300, proposed.rows),
+      );
+      inputQueue.enqueueResize(createTerminalResize(terminal.cols, terminal.rows));
       return true;
     };
     fitAndResizeRef.current = fitAndResize;
@@ -445,6 +448,8 @@ export function TerminalWorkspace({
       fitRef.current = null;
       fitAndResizeRef.current = () => false;
       closePeer();
+      inputQueue.clear();
+      inputQueueRef.current = null;
     };
   }, [closePeer, sendBytes]);
 
@@ -488,7 +493,7 @@ export function TerminalWorkspace({
       return;
     }
     fitAndResizeRef.current();
-    const operationId = localId();
+    const operationId = createLocalId();
     const { columns, rows } = dimensions();
     const transcript = terminalAttachTranscript(
       clientId,
@@ -657,7 +662,7 @@ export function TerminalWorkspace({
         ) {
           throw new Error("Invalid Terminal answer.");
         }
-        const answerOperationId = localId();
+        const answerOperationId = createLocalId();
         const signature = signClientPayload(
           clientId,
           activePc.id,
@@ -820,7 +825,7 @@ export function TerminalWorkspace({
       return;
     }
     fitAndResizeRef.current();
-    const operationId = localId();
+    const operationId = createLocalId();
     const { columns, rows } = dimensions();
     const signature = signClientPayload(
       clientId,
@@ -851,7 +856,7 @@ export function TerminalWorkspace({
   const stop = () => {
     const terminalId = terminalIdRef.current;
     if (terminalId) {
-      send({ type: "terminal.stop", operationId: localId(), terminalId });
+      send({ type: "terminal.stop", operationId: createLocalId(), terminalId });
     }
   };
   const key = (value: string) => sendBytes(encoder.encode(value));

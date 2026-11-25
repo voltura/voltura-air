@@ -735,19 +735,28 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
     private async Task SendFramesAsync(ActiveView active, CancellationToken cancellationToken)
     {
         var cursorDelivery = new ScreenViewCursorDelivery();
-        long? recoveryStarted = null;
-        ScreenViewCaptureException? recoveryFailure = null;
+        (long Started, long Revision, ScreenViewCaptureException Failure)? recovery = null;
+        bool refreshRecoverySource = false;
+        long lastCaptureRevision = -1;
         while (!cancellationToken.IsCancellationRequested)
         {
-            string displayId = active.DisplayId;
-            if (recoveryStarted is { } started && TimeProvider.System.GetElapsedTime(started) >= TimeSpan.FromSeconds(10))
+            ActiveDisplay selection = active.Display;
+            string displayId = selection.Source.Id;
+            if (recovery is { } obsolete && obsolete.Revision != selection.Revision)
             {
-                active.Peer.TrySendEvent(ScreenViewRecordEncoder.EncodeStatus(recoveryFailure!.Code, recoveryFailure.Message));
+                recovery = null;
+                refreshRecoverySource = false;
+            }
+            if (recovery is { } current && TimeProvider.System.GetElapsedTime(current.Started) >= TimeSpan.FromSeconds(10))
+            {
+                if (cancellationToken.IsCancellationRequested) return;
+                if (active.Display.Revision != selection.Revision) continue;
+                active.Peer.TrySendEvent(ScreenViewRecordEncoder.EncodeStatus(current.Failure.Code, current.Failure.Message));
                 return;
             }
             try
             {
-                if (recoveryStarted is not null)
+                if (refreshRecoverySource)
                 {
                     IReadOnlyList<ScreenViewSource> sources = _capture.GetSources();
                     ScreenViewSource? source = sources.FirstOrDefault(source => source.Id == displayId);
@@ -756,19 +765,31 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                     lock (_gate)
                     {
                         if (!ReferenceEquals(_active, active) || cancellationToken.IsCancellationRequested) return;
-                        if (active.DisplayId != displayId) continue;
-                        ReleaseHeldButtonsLocked(active);
-                        active.SetSource(source, VirtualDesktopBounds.From(sources));
+                        if (active.Display.Revision != selection.Revision) continue;
+                        VirtualDesktopBounds bounds = VirtualDesktopBounds.From(sources);
+                        ScreenViewSource previous = selection.Source;
+                        if (bounds != selection.Bounds ||
+                            source.DesktopLeft != previous.DesktopLeft || source.DesktopTop != previous.DesktopTop ||
+                            source.Width != previous.Width || source.Height != previous.Height ||
+                            source.Rotation != previous.Rotation)
+                        {
+                            ReleaseHeldButtonsLocked(active);
+                        }
+                        active.RefreshSource(source, bounds);
                     }
+                    refreshRecoverySource = false;
                 }
                 ScreenViewQualityProfile quality = active.Quality;
+                bool forceKeyFrame = active.TakeForceKeyFrame() || selection.Revision != lastCaptureRevision;
+                lastCaptureRevision = selection.Revision;
                 ScreenViewEncodedFrame? frame = await _capture.CaptureVideoAsync(
                     displayId,
                     quality.CaptureProfile,
                     quality.TargetBitrate,
-                    active.TakeForceKeyFrame(),
+                    forceKeyFrame,
                     cancellationToken).ConfigureAwait(false);
-                if (!string.Equals(displayId, active.DisplayId, StringComparison.Ordinal)) continue;
+                if (cancellationToken.IsCancellationRequested) return;
+                if (active.Display.Revision != selection.Revision) continue;
                 if (active.Renewal is not null && frame is { IsKeyFrame: true, Bytes.Length: > 0 })
                 {
                     lock (_gate)
@@ -788,13 +809,20 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                 cursorDelivery.Publish(active.Peer, displayId, frame?.Cursor);
                 if (frame is { Bytes.Length: > 0 })
                 {
-                    recoveryStarted = null;
-                    recoveryFailure = null;
+                    if (recovery is not null && !frame.IsKeyFrame)
+                    {
+                        active.RequestKeyFrame();
+                        continue;
+                    }
                     ScreenViewDevelopmentTrace.FirstEncoded(_appLog);
                     ScreenViewDevelopmentTrace.Stage("send");
                     bool accepted = active.Peer.TrySendH264(frame.Bytes, frame.FramesPerSecond);
                     ScreenViewDevelopmentTrace.Sent(accepted);
-                    if (!accepted)
+                    if (accepted)
+                    {
+                        recovery = null;
+                    }
+                    else
                     {
                         active.RequestKeyFrame();
                         active.ReportBackpressure();
@@ -803,10 +831,12 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             }
             catch (ScreenViewCaptureException ex)
             {
+                if (cancellationToken.IsCancellationRequested) return;
+                if (active.Display.Revision != selection.Revision) continue;
                 if (ex.CanRetryCapture)
                 {
-                    recoveryStarted ??= TimeProvider.System.GetTimestamp();
-                    recoveryFailure = ex;
+                    recovery = (recovery?.Started ?? TimeProvider.System.GetTimestamp(), selection.Revision, ex);
+                    refreshRecoverySource = true;
                     _capture.EndCapture();
                     active.RequestKeyFrame();
                     await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
@@ -1040,6 +1070,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         }
     }
 
+    private sealed record ActiveDisplay(ScreenViewSource Source, VirtualDesktopBounds Bounds, long Revision);
+
     private sealed class ActiveView(
         string clientId,
         string operationId,
@@ -1051,8 +1083,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         ScreenViewSoundQuality soundQuality,
         WebSocket? owner)
     {
-        private ScreenViewSource _source = source;
-        private VirtualDesktopBounds _virtualDesktop = virtualDesktop;
+        private ActiveDisplay _display = new(source, virtualDesktop, 0);
         private readonly HashSet<string> _heldButtons = new(StringComparer.Ordinal);
         private readonly ScreenViewQualityController _quality = new(
             source,
@@ -1067,9 +1098,10 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         private WebSocket? _owner = owner;
         public string ClientId { get; } = clientId;
         public string OperationId { get; } = operationId;
-        public ScreenViewSource Source => Volatile.Read(ref _source);
+        public ActiveDisplay Display => Volatile.Read(ref _display);
+        public ScreenViewSource Source => Display.Source;
         public string DisplayId => Source.Id;
-        public VirtualDesktopBounds VirtualDesktop => Volatile.Read(ref _virtualDesktop);
+        public VirtualDesktopBounds VirtualDesktop => Display.Bounds;
         public ScreenViewQualityProfile Quality => _quality.Current;
         private IScreenViewWebRtcPeer _peer = peer;
         public IScreenViewWebRtcPeer Peer => Volatile.Read(ref _peer);
@@ -1111,10 +1143,21 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             Interlocked.Exchange(ref _soundQuality, (int)value);
         public void SetSource(ScreenViewSource source, VirtualDesktopBounds virtualDesktop)
         {
-            Volatile.Write(ref _source, source);
-            Volatile.Write(ref _virtualDesktop, virtualDesktop);
+            ActiveDisplay previous = Display;
             _quality.SetSource(source);
-            RequestKeyFrame();
+            Volatile.Write(ref _display, new(source, virtualDesktop, previous.Revision + 1));
+        }
+        public void RefreshSource(ScreenViewSource source, VirtualDesktopBounds virtualDesktop)
+        {
+            ActiveDisplay display = Display;
+            ScreenViewSource previous = display.Source;
+            if (source.Width != previous.Width || source.Height != previous.Height ||
+                source.EffectiveDpiX != previous.EffectiveDpiX || source.EffectiveDpiY != previous.EffectiveDpiY)
+            {
+                _quality.SetSource(source);
+            }
+            if (source != previous || virtualDesktop != display.Bounds)
+                Volatile.Write(ref _display, new(source, virtualDesktop, display.Revision));
         }
         public void Hold(string button) => _heldButtons.Add(button);
         public void Release(string button) => _heldButtons.Remove(button);

@@ -312,12 +312,15 @@ and retain GPU conversion resources when the output dimensions are unchanged.
 
 Display-mode changes can invalidate DXGI duplication. The capture source releases
 the invalid native session and identifies recoverable device/display errors. The
-active coordinator preserves the peer and audio while retrying capture at 250 ms
-intervals for at most 10 seconds, refreshing display geometry and requesting a
-keyframe. Recovery finishes on a video frame, not a cursor update or an empty
-capture. Stop, revocation and shutdown cancel recovery; access denial, session
-disconnection and protected content stop immediately. An exhausted recovery
-reports the capture error and releases the viewing session.
+active coordinator preserves the peer and audio while retrying a capture failure
+at 250 ms intervals for at most 10 seconds. Each failed attempt refreshes display
+geometry before the next capture. Unchanged dimensions and DPI retain the adaptive
+quality profile, and unchanged pointer bounds retain held buttons. Recovery
+finishes when the peer accepts a keyframe. A source switch retires the previous
+selection's capture and recovery results. Stop, revocation and shutdown cancel
+recovery. Access denial, session disconnection and protected content stop
+immediately. An exhausted recovery reports the capture error and releases the
+viewing session.
 
 Custom screens cross the trust boundary as visual definitions and opaque IDs
 only. The host-owned store retains actions and assignments, the status

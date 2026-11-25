@@ -132,6 +132,192 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         finally { AppPermissionSettings.Save(originalPermissions); }
     }
 
+    [Fact]
+    public async Task RecoveryKeepsTheLowerEncoderProfileWhenDisplayGeometryIsUnchanged()
+    {
+        AppPermissionSettings.Save(AppPermissionSettings.Load() with { AllowScreenViewing = true });
+        var capture = new AdaptiveCaptureSource { CaptureFailuresRemaining = 1, EncoderFailuresRemaining = 1 };
+        var peer = new AdaptivePeer(true);
+        await using var fixture = await WebHostFixture.StartAsync(
+            screenViewCapture: capture, screenViewPeerFactory: new AdaptivePeerFactory(peer));
+        using var key = new PairingTestKey();
+        using WebSocket control = await ConnectAsync(fixture.WebHost);
+        await PairAsync(control, fixture.Manager, key);
+        await StartAndAnswerAsync(control, key, "screen-recovery-profile");
+        await peer.AcceptedFrame.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        ScreenViewCaptureProfile[] attempts = [.. capture.Profiles.Take(3)];
+        Assert.Equal(3, attempts.Length);
+        Assert.Equal(attempts[0], attempts[1]);
+        Assert.NotEqual(attempts[1], attempts[2]);
+        Assert.False(peer.Disposed.Task.IsCompleted);
+        await AssertControlHealthyAsync(control);
+    }
+
+    [Fact]
+    public async Task RecoveryWaitsForAnAcceptedKeyFrameBeforeSendingDependentFrames()
+    {
+        AppPermissionSettings.Save(AppPermissionSettings.Load() with { AllowScreenViewing = true });
+        int captured = 0;
+        var capture = new AdaptiveCaptureSource
+        {
+            CaptureFailuresRemaining = 1,
+            CaptureOverride = async (_, profile, _, token) =>
+            {
+                int index = ++captured;
+                if (index > 4) await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                bool keyFrame = index % 2 == 0;
+                return new([0, 0, 0, 1, keyFrame ? (byte)0x65 : (byte)0x41, checked((byte)index)],
+                    profile.MaxWidth, profile.MaxHeight, profile.FramesPerSecond, keyFrame);
+            }
+        };
+        var peer = new AdaptivePeer(false, true) { TrackVideoSends = true };
+        await using var fixture = await WebHostFixture.StartAsync(
+            screenViewCapture: capture, screenViewPeerFactory: new AdaptivePeerFactory(peer));
+        using var key = new PairingTestKey();
+        using WebSocket control = await ConnectAsync(fixture.WebHost);
+        await PairAsync(control, fixture.Manager, key);
+        await StartAndAnswerAsync(control, key, "screen-recovery-keyframe");
+        await peer.AcceptedFrame.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(new byte[] { 2, 4 }, peer.SentVideoMarkers.ToArray());
+        Assert.All(capture.ForceKeyFrameRequests.Take(5), requested => Assert.True(requested));
+        await AssertControlHealthyAsync(control);
+    }
+
+    [Fact]
+    public async Task RecoveryDoesNotReleaseADragWhenTheDesktopBoundsDidNotChange()
+    {
+        AppPermissionSettings.Save(AppPermissionSettings.Load() with { AllowScreenViewing = true, AllowRemoteInput = true });
+        var waitingForVideo = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var nextCapture = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowEmptyFrame = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var capture = new AdaptiveCaptureSource
+        {
+            CaptureFailuresRemaining = 1,
+            CaptureOverride = async (_, _, _, token) =>
+            {
+                if (waitingForVideo.TrySetResult())
+                {
+                    await allowEmptyFrame.Task.WaitAsync(token);
+                    return null;
+                }
+                nextCapture.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                return null;
+            }
+        };
+        var peer = new AdaptivePeer(true);
+        await using var fixture = await WebHostFixture.StartAsync(
+            screenViewCapture: capture, screenViewPeerFactory: new AdaptivePeerFactory(peer));
+        using var key = new PairingTestKey();
+        using WebSocket control = await ConnectAsync(fixture.WebHost);
+        await PairAsync(control, fixture.Manager, key);
+        await StartAndAnswerAsync(control, key, "screen-recovery-drag");
+        await waitingForVideo.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        _ = await SendUntilTypeAsync(control, new
+        {
+            type = "screen.pointer.button",
+            seq = 41,
+            displayId = "display-1",
+            x = 0.25,
+            y = 0.75,
+            button = "left",
+            action = "down"
+        }, "input.ack");
+        allowEmptyFrame.TrySetResult();
+        await nextCapture.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.DoesNotContain("ReleaseMouseButtons", fixture.InputInjector.Events);
+        _ = await SendUntilTypeAsync(control, new { type = "screen.view.stop", operationId = "screen-recovery-drag-stop" }, "screen.view.stop.result");
+        Assert.Contains("ReleaseMouseButtons", fixture.InputInjector.Events);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task APreviousSelectionCannotPublishResultsAfterSwitchingAwayAndBack(bool lateFailure)
+    {
+        AppPermissionSettings.Save(AppPermissionSettings.Load() with { AllowScreenViewing = true });
+        var pending = new TaskCompletionSource<ScreenViewEncodedFrame?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var captureStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int attempts = 0;
+        var capture = new AdaptiveCaptureSource
+        {
+            Sources = [new("display-1", "Display 1", 1920, 1080, true), new("display-2", "Display 2", 1024, 768, false, 1920, 0)],
+            CaptureOverride = async (_, profile, _, token) =>
+            {
+                int attempt = ++attempts;
+                if (attempt == 1)
+                {
+                    captureStarted.TrySetResult();
+                    return await pending.Task.WaitAsync(token);
+                }
+                if (attempt > 2) await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                return new([0, 0, 0, 1, 0x65, 2], profile.MaxWidth, profile.MaxHeight, profile.FramesPerSecond, true);
+            }
+        };
+        var peer = new AdaptivePeer(true) { TrackVideoSends = true };
+        await using var fixture = await WebHostFixture.StartAsync(
+            screenViewCapture: capture, screenViewPeerFactory: new AdaptivePeerFactory(peer));
+        using var key = new PairingTestKey();
+        using WebSocket control = await ConnectAsync(fixture.WebHost);
+        await PairAsync(control, fixture.Manager, key);
+        await StartAndAnswerAsync(control, key, "screen-display-generation");
+        await captureStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        foreach (string displayId in new[] { "display-2", "display-1" })
+        {
+            JsonElement switched = await SendUntilTypeAsync(control, new
+            {
+                type = "screen.view.source.set",
+                operationId = $"switch-{displayId}",
+                displayId
+            }, "screen.view.source.result");
+            Assert.True(switched.GetProperty("succeeded").GetBoolean());
+        }
+
+        if (lateFailure) pending.TrySetException(new ScreenViewCaptureException("capture-failed", "Previous selection failed."));
+        else pending.TrySetResult(new([0, 0, 0, 1, 0x65, 1], 1920, 1080, 30, true));
+
+        await peer.AcceptedFrame.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal((byte)2, Assert.Single(peer.SentVideoMarkers));
+        Assert.Equal([true, true], capture.ForceKeyFrameRequests.Take(2).ToArray());
+        Assert.False(peer.Disposed.Task.IsCompleted);
+        await AssertControlHealthyAsync(control);
+    }
+
+    [Fact]
+    public async Task AFrameThatCompletesAfterStopIsNeverSent()
+    {
+        AppPermissionSettings.Save(AppPermissionSettings.Load() with { AllowScreenViewing = true });
+        var captureStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stopping = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lateFrame = new TaskCompletionSource<ScreenViewEncodedFrame?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var capture = new AdaptiveCaptureSource
+        {
+            CaptureOverride = async (_, _, _, token) =>
+            {
+                using CancellationTokenRegistration registration = token.Register(() => stopping.TrySetResult());
+                captureStarted.TrySetResult();
+                return await lateFrame.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+            }
+        };
+        var peer = new AdaptivePeer(true) { TrackVideoSends = true };
+        await using var fixture = await WebHostFixture.StartAsync(
+            screenViewCapture: capture, screenViewPeerFactory: new AdaptivePeerFactory(peer));
+        using var key = new PairingTestKey();
+        using WebSocket control = await ConnectAsync(fixture.WebHost);
+        await PairAsync(control, fixture.Manager, key);
+        await StartAndAnswerAsync(control, key, "screen-stop-inflight");
+        await captureStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Task<JsonElement> stop = SendUntilTypeAsync(
+            control, new { type = "screen.view.stop", operationId = "stop-inflight" }, "screen.view.stop.result");
+        await stopping.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        lateFrame.TrySetResult(new([0, 0, 0, 1, 0x65, 1], 1920, 1080, 30, true));
+        Assert.True((await stop).GetProperty("succeeded").GetBoolean());
+        await peer.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Empty(peer.SentVideoMarkers);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -538,6 +724,8 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         public int EncoderFailuresRemaining;
         public int CaptureFailuresRemaining;
         public bool RecoverableFailure { get; init; } = true;
+        public IReadOnlyList<ScreenViewSource> Sources { get; init; } = [new("display-1", "Display 1", 1920, 1080, true)];
+        public Func<string, ScreenViewCaptureProfile, bool, CancellationToken, Task<ScreenViewEncodedFrame?>>? CaptureOverride { get; init; }
         private bool _recovering;
         public TaskCompletionSource Failed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Recovered = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -546,8 +734,7 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         public System.Collections.Concurrent.ConcurrentQueue<bool> ForceKeyFrameRequests { get; } = new();
         public System.Collections.Concurrent.ConcurrentQueue<ScreenViewCaptureProfile> Profiles { get; } = new();
         public System.Collections.Concurrent.ConcurrentQueue<int> Bitrates { get; } = new();
-        public IReadOnlyList<ScreenViewSource> GetSources() =>
-            [new("display-1", "Display 1", 1920, 1080, true)];
+        public IReadOnlyList<ScreenViewSource> GetSources() => Sources;
         public Task<ScreenViewEncodedFrame?> CaptureVideoAsync(
             string sourceId,
             ScreenViewCaptureProfile profile,
@@ -575,6 +762,8 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
             }
             if (Interlocked.Decrement(ref EncoderFailuresRemaining) >= 0)
                 throw new ScreenViewCaptureException("encoder-failed", "Injected encoder sample failure.");
+            if (CaptureOverride is not null)
+                return CaptureOverride(sourceId, profile, forceKeyFrame, cancellationToken);
             Captured.TrySetResult();
             return Task.FromResult<ScreenViewEncodedFrame?>(new([0, 0, 0, 1, 0x65, 1], profile.MaxWidth, profile.MaxHeight, profile.FramesPerSecond, true));
         }
@@ -589,6 +778,7 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
     private sealed class AdaptivePeer(params bool[] sendResults) : IScreenViewWebRtcPeer
     {
         public TimeSpan OfferDelay { get; init; }
+        public bool TrackVideoSends { get; init; }
         private readonly Queue<bool> _sendResults = new(sendResults);
         public event EventHandler? Stopped;
         public event EventHandler? AudioStopped;
@@ -599,6 +789,7 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         public TaskCompletionSource Disposed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Queue<bool> CursorSendResults { get; } = new();
         public List<byte[]> CursorRecords { get; } = [];
+        public System.Collections.Concurrent.ConcurrentQueue<byte> SentVideoMarkers { get; } = new();
         public async Task<string> CreateOfferAsync(CancellationToken cancellationToken)
         {
             await Task.Delay(OfferDelay, cancellationToken);
@@ -607,6 +798,7 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         public void ApplyAnswer(string answerSdp) { }
         public bool TrySendH264(byte[] accessUnit, int framesPerSecond)
         {
+            if (TrackVideoSends) SentVideoMarkers.Enqueue(accessUnit[^1]);
             bool accepted = _sendResults.Count == 0 || _sendResults.Dequeue();
             if (accepted) AcceptedFrame.TrySetResult();
             return accepted;

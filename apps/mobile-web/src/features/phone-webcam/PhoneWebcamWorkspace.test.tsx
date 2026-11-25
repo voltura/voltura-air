@@ -340,6 +340,35 @@ describe("PhoneWebcamWorkspace", () => {
     expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: "phone.webcam.stop" }));
   });
 
+  it("allows a retry after initial camera capture times out and stops any late input", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const nativeCapture = createDeferred<MediaStream>();
+    const lateTrack = createTrack("front", 1920, 1080);
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(createTrack("permission", 640, 480)))
+      .mockReturnValueOnce(nativeCapture.promise)
+      .mockResolvedValueOnce(createStream(createTrack("front", 1920, 1080)));
+    stubMediaDevices(getUserMedia);
+    storeReconnectKey();
+    const hostKey = createPairingKeyMaterial()!;
+    const send = vi.fn();
+    renderWorkspace(send, hostKey.reconnectPublicKey);
+    fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
+    await screen.findByLabelText("Camera");
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    expect(screen.getByRole("status").textContent).toContain("The camera did not start in time.");
+    expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: "phone.webcam.start" }));
+    await act(() => {
+      nativeCapture.resolve(createStream(lateTrack));
+      return nativeCapture.promise;
+    });
+    expect(lateTrack.stop).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    await findStart(send, 1);
+    vi.useRealTimers();
+  });
+
   it("ignores duplicate webcam offers and retires stalled setup even if close fires a state event", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const constructed = vi.fn();
@@ -1577,6 +1606,109 @@ describe("PhoneWebcamWorkspace", () => {
     expect(firstTrack.stop).not.toHaveBeenCalled();
   });
 
+  it("keeps the original stream when opening a replacement stalls and stops the late camera", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const active = createTrack("front", 1920, 1080);
+    const lateTrack = createTrack("back", 1920, 1080);
+    const opening = createDeferred<MediaStream>();
+    const sender = new FakeSender();
+    const { send } = await establishStreamingSession(
+      vi.fn()
+        .mockResolvedValueOnce(createStream(createTrack("permission", 640, 480)))
+        .mockResolvedValueOnce(createStream(active))
+        .mockReturnValueOnce(opening.promise),
+      sender,
+    );
+    fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "back" } });
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    expect(screen.getByRole("status").textContent).toContain("The selected camera did not open in time.");
+    expect((screen.getByLabelText("Camera") as HTMLSelectElement).value).toBe("front");
+    await act(() => {
+      opening.resolve(createStream(lateTrack));
+      return opening.promise;
+    });
+    expect(lateTrack.stop).toHaveBeenCalledOnce();
+    expect(active.stop).not.toHaveBeenCalled();
+    expect(sender.replaceTrack).toHaveBeenCalledOnce();
+    expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: "phone.webcam.stop" }));
+    vi.useRealTimers();
+  });
+
+  it.each(["attach", "detach", "rollback"] as const)(
+    "closes the current peer and releases the camera when a sender %s stalls",
+    async (step) => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const active = createTrack("front", 1920, 1080);
+      const next = createTrack("back", 1920, 1080);
+      const update = createDeferred<void>();
+      const sender = new FakeSender();
+      sender.replaceTrack.mockResolvedValueOnce(undefined);
+      if (step === "rollback") {
+        sender.replaceTrack.mockImplementationOnce(() => {
+          Object.assign(next, { readyState: "ended" });
+          return Promise.resolve();
+        });
+      }
+      sender.replaceTrack.mockReturnValueOnce(update.promise);
+      const getUserMedia = vi.fn()
+        .mockResolvedValueOnce(createStream(createTrack("permission", 640, 480)))
+        .mockResolvedValueOnce(createStream(active));
+      if (step === "detach") {
+        getUserMedia.mockRejectedValueOnce(new DOMException("Camera busy", "NotReadableError"));
+      } else {
+        getUserMedia.mockResolvedValueOnce(createStream(next));
+      }
+      const { send } = await establishStreamingSession(getUserMedia, sender);
+      fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "back" } });
+      await waitFor(() => expect(sender.replaceTrack).toHaveBeenCalledTimes(step === "rollback" ? 3 : 2));
+      await act(() => vi.advanceTimersByTimeAsync(5_000));
+      expect(screen.getByRole("status").textContent).toContain("The camera switch timed out.");
+      expect(active.stop).toHaveBeenCalledOnce();
+      if (step !== "detach") {
+        expect(next.stop).toHaveBeenCalledOnce();
+      }
+      expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.stop")).toHaveLength(1);
+      await act(() => {
+        update.resolve();
+        return update.promise;
+      });
+      expect(screen.getByRole("status").textContent).toContain("The camera switch timed out.");
+      expect(getUserMedia).toHaveBeenCalledTimes(3);
+      vi.useRealTimers();
+    },
+  );
+
+  it("keeps the Stop status when a canceled rollback finishes late", async () => {
+    const active = createTrack("front", 1920, 1080);
+    const next = createTrack("back", 1920, 1080);
+    const rollback = createDeferred<void>();
+    const sender = new FakeSender();
+    sender.replaceTrack.mockResolvedValueOnce(undefined).mockImplementationOnce(() => {
+      Object.assign(next, { readyState: "ended" });
+      return Promise.resolve();
+    }).mockReturnValueOnce(rollback.promise);
+    const { send } = await establishStreamingSession(
+      vi.fn()
+        .mockResolvedValueOnce(createStream(createTrack("permission", 640, 480)))
+        .mockResolvedValueOnce(createStream(active))
+        .mockResolvedValueOnce(createStream(next)),
+      sender,
+    );
+    fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "back" } });
+    await waitFor(() => expect(sender.replaceTrack).toHaveBeenCalledTimes(3));
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    const stoppedStatus = screen.getByRole("status").textContent;
+    await act(() => {
+      rollback.reject(new Error("Browser completed after Stop"));
+      return Promise.resolve();
+    });
+    expect(stoppedStatus).toContain("Ready to start.");
+    expect(screen.getByRole("status").textContent).toBe(stoppedStatus);
+    expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.stop")).toHaveLength(1);
+    expect(active.stop).toHaveBeenCalledOnce();
+    expect(next.stop).toHaveBeenCalledOnce();
+  });
+
   it("refreshes the selected camera on the existing peer after orientation changes", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const permissionTrack = createTrack("permission", 640, 480);
@@ -1636,6 +1768,31 @@ describe("PhoneWebcamWorkspace", () => {
       await replacementCamera.promise;
     });
     await waitFor(() => expect(sender.replaceTrack).toHaveBeenCalledWith(replacementTrack));
+    expect((screen.getByLabelText("Camera") as HTMLSelectElement).value).toBe("back");
+    vi.useRealTimers();
+  });
+
+  it("ignores rotation that occurs after a manual camera switch has begun", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const replacement = createDeferred<MediaStream>();
+    const next = createTrack("back", 1920, 1080);
+    const sender = new FakeSender();
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(createTrack("permission", 640, 480)))
+      .mockResolvedValueOnce(createStream(createTrack("front", 1920, 1080)))
+      .mockReturnValueOnce(replacement.promise);
+    await establishStreamingSession(getUserMedia, sender);
+    fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "back" } });
+    act(() => {
+      window.dispatchEvent(new Event("orientationchange"));
+    });
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    expect(getUserMedia).toHaveBeenCalledTimes(3);
+    await act(() => {
+      replacement.resolve(createStream(next));
+      return replacement.promise;
+    });
+    await waitFor(() => expect(sender.replaceTrack).toHaveBeenLastCalledWith(next));
     expect((screen.getByLabelText("Camera") as HTMLSelectElement).value).toBe("back");
     vi.useRealTimers();
   });
@@ -1909,6 +2066,41 @@ describe("PhoneWebcamWorkspace", () => {
 
     await waitFor(() => expect(sender.replaceTrack).toHaveBeenCalledWith(restoredTrack));
     expect(getStats).toHaveBeenCalledTimes(4);
+    vi.useRealTimers();
+  });
+
+  it("expires stalled quality readings without overlapping native polls or stopping video", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const pending = createDeferred<Map<string, unknown>>();
+    const active = createTrack("front", 1920, 1080);
+    const sample = (width: number, bytesSent: number) => new Map<string, unknown>([
+      ["video", { type: "outbound-rtp", kind: "video", frameWidth: width, frameHeight: 360, framesPerSecond: 24, bytesSent }],
+    ]);
+    const getStats = vi.fn()
+      .mockResolvedValueOnce(sample(640, 1_000))
+      .mockResolvedValueOnce(sample(640, 100_000))
+      .mockReturnValueOnce(pending.promise)
+      .mockResolvedValue(sample(800, 200_000));
+    const { send } = await establishStreamingSession(
+      vi.fn().mockResolvedValueOnce(createStream(createTrack("permission", 640, 480)))
+        .mockResolvedValueOnce(createStream(active)),
+      new FakeSender(),
+      getStats,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(2_000));
+    expect(screen.getByRole("status").textContent).toMatch(/24.0 fps.*Mbps/);
+    await act(() => vi.advanceTimersByTimeAsync(5_500));
+    expect(screen.getByRole("status").textContent).not.toMatch(/fps|Mbps/);
+    expect(getStats).toHaveBeenCalledTimes(3);
+    await act(() => {
+      pending.resolve(sample(320, 99_000_000));
+      return pending.promise;
+    });
+    expect(screen.getByRole("status").textContent).not.toContain("320×360");
+    await act(() => vi.advanceTimersByTimeAsync(1_000));
+    expect(screen.getByRole("status").textContent).toContain("800×360");
+    expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: "phone.webcam.stop" }));
+    expect(active.stop).not.toHaveBeenCalled();
     vi.useRealTimers();
   });
 

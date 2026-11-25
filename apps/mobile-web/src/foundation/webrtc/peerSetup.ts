@@ -5,7 +5,11 @@ export function webRtcSetupAbortError(signal?: AbortSignal): Error {
     : new DOMException("WebRTC setup stopped.", "AbortError");
 }
 
-export function runWebRtcSetupStep<T>(signal: AbortSignal, step: () => Promise<T>): Promise<T> {
+export function runWebRtcSetupStep<T>(
+  signal: AbortSignal,
+  step: () => Promise<T>,
+  releaseLateResult?: (result: T) => void,
+): Promise<T> {
   if (signal.aborted) {
     return Promise.reject(webRtcSetupAbortError(signal));
   }
@@ -24,7 +28,11 @@ export function runWebRtcSetupStep<T>(signal: AbortSignal, step: () => Promise<T
     try {
       void step().then((result) => {
         cleanup();
-        resolve(result);
+        if (signal.aborted) {
+          releaseLateResult?.(result);
+        } else {
+          resolve(result);
+        }
       }, fail);
     } catch (error) {
       fail(error);

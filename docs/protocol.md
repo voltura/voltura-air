@@ -928,7 +928,14 @@ browser peer ends the wait for SDP, initial track setup, and ICE.
 Every terminal path releases the peer, decoder, bounded queues, local frame pipe input, and
 phone tracks, Opus decoder, audio queue, and WASAPI output. Mute changes the browser audio track's enabled state and has no protocol message. Camera switching, rotation recovery, and bounded outbound-stall
 recovery are browser-local `replaceTrack` operations on the same healthy peer and
-add no protocol message. Page hiding is an immediate stop; one fresh
+add no protocol message. A manual camera switch takes precedence over an automatic
+refresh. Initial and replacement camera opens have a 10-second deadline. The
+browser stops tracks returned after cancellation or expiry. A sender mutation
+that exceeds five seconds ends the webcam session so a late mutation cannot
+affect the next peer. After four seconds without a stats response, the browser
+clears the displayed bitrate and frame rate, resets stall detection, and
+discards the late sample. It waits for that request to settle before polling
+the same peer again. Page hiding is an immediate stop; one fresh
 foreground session is the only automatic recovery attempt for that background
 transition.
 

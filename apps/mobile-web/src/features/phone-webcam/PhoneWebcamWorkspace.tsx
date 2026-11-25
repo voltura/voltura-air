@@ -59,9 +59,26 @@ const stalledRecoveryCooldownMs = 10_000;
 const startResponseTimeoutMs = 10_000;
 const peerSetupTimeoutMs = 20_000;
 const disconnectedRecoveryMs = 8_000;
+const cameraCaptureTimeoutMs = 10_000;
+const senderUpdateTimeoutMs = 5_000;
+const statsResponseTimeoutMs = 4_000;
 
 function isEndedTrack(track: MediaStreamTrack) {
   return track.readyState === "ended";
+}
+
+function openCameraCapture(signal: AbortSignal, constraints: MediaStreamConstraints) {
+  return runWebRtcSetupStep(
+    signal,
+    () => navigator.mediaDevices.getUserMedia(constraints),
+    (stream) => stream.getTracks().forEach((track) => track.stop()),
+  );
+}
+
+function scheduleCameraDeadline(capture: AbortController) {
+  return window.setTimeout(() => {
+    capture.abort(new DOMException("The camera did not become available.", "TimeoutError"));
+  }, cameraCaptureTimeoutMs);
 }
 
 export default function PhoneWebcamWorkspace({
@@ -102,8 +119,10 @@ export default function PhoneWebcamWorkspace({
   const replacementRef = useRef<PendingReplacement | null>(null);
   const replacementGenerationRef = useRef(0);
   const acquiringReplacementGenerationRef = useRef<number | null>(null);
+  const replacementCaptureRef = useRef<AbortController | null>(null);
   const activeStreamEndedRef = useRef(false);
   const acquiringGenerationRef = useRef<number | null>(null);
+  const initialCaptureRef = useRef<AbortController | null>(null);
   const operationIdRef = useRef<string | null>(null);
   const resumeRef = useRef(false);
   const lastConnectionRef = useRef({ pcId: activePc.id, epoch: connectionEpoch });
@@ -151,6 +170,10 @@ export default function PhoneWebcamWorkspace({
       statsGenerationRef.current += 1;
       acquiringGenerationRef.current = null;
       acquiringReplacementGenerationRef.current = null;
+      initialCaptureRef.current?.abort();
+      initialCaptureRef.current = null;
+      replacementCaptureRef.current?.abort();
+      replacementCaptureRef.current = null;
       activeStreamEndedRef.current = false;
       const operationId = operationIdRef.current;
       operationIdRef.current = null;
@@ -301,6 +324,7 @@ export default function PhoneWebcamWorkspace({
     async (
       includeMicrophone: boolean,
       generation: number,
+      signal: AbortSignal,
     ): Promise<{
       stream: MediaStream;
       settings: MediaTrackSettings;
@@ -320,7 +344,7 @@ export default function PhoneWebcamWorkspace({
       let microphoneIncluded = includeMicrophone;
       let microphoneFallback = false;
       try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        stream = await openCameraCapture(signal, constraints);
         if (
           includeMicrophone &&
           (!stream.getAudioTracks()[0] || stream.getAudioTracks()[0]?.readyState === "ended")
@@ -328,14 +352,15 @@ export default function PhoneWebcamWorkspace({
           throw new Error("No audio track.");
         }
       } catch (error) {
-        if (!includeMicrophone) {
+        if (!includeMicrophone || signal.aborted) {
+          stream?.getTracks().forEach((track) => track.stop());
           throw error;
         }
         stream?.getTracks().forEach((track) => track.stop());
         if (generationRef.current !== generation) {
           throw error;
         }
-        stream = await navigator.mediaDevices.getUserMedia({ ...constraints, audio: false });
+        stream = await openCameraCapture(signal, { ...constraints, audio: false });
         microphoneIncluded = false;
         microphoneFallback = true;
         if (generationRef.current === generation) {
@@ -370,6 +395,7 @@ export default function PhoneWebcamWorkspace({
     if (
       !supportedTransport ||
       phase !== "idle" ||
+      acquiringGenerationRef.current !== null ||
       state !== "paired" ||
       document.visibilityState !== "visible" ||
       !capability.canUse ||
@@ -384,12 +410,16 @@ export default function PhoneWebcamWorkspace({
     }
     const generation = ++generationRef.current;
     acquiringGenerationRef.current = generation;
+    const capture = new AbortController();
+    initialCaptureRef.current = capture;
+    const captureDeadline = scheduleCameraDeadline(capture);
     setPhase("connecting");
     setStatus("Opening the selected camera…");
     try {
       const opened = await openSelectedCamera(
         useMicrophone && microphonePermissionGranted,
         generation,
+        capture.signal,
       );
       if (generationRef.current !== generation || acquiringGenerationRef.current !== generation) {
         opened.stream.getTracks().forEach((track) => track.stop());
@@ -489,12 +519,20 @@ export default function PhoneWebcamWorkspace({
       }, startResponseTimeoutMs);
     } catch (error) {
       if (generationRef.current === generation) {
+        const cameraFailure = error instanceof DOMException ? error.name : undefined;
         releaseLocal(
           true,
-          error instanceof DOMException && error.name === "NotAllowedError"
+          cameraFailure === "NotAllowedError"
             ? "Camera access was not allowed."
-            : "The selected camera could not be started.",
+            : cameraFailure === "TimeoutError"
+              ? "The camera did not start in time. Tap Start to try again."
+              : "The selected camera could not be started.",
         );
+      }
+    } finally {
+      window.clearTimeout(captureDeadline);
+      if (initialCaptureRef.current === capture) {
+        initialCaptureRef.current = null;
       }
     }
   }, [
@@ -536,7 +574,7 @@ export default function PhoneWebcamWorkspace({
     }, 250);
   }, [state]);
 
-  const beginStats = useCallback((peer: RTCPeerConnection) => {
+  const beginStats = useCallback((peer: RTCPeerConnection, signal: AbortSignal) => {
     window.clearInterval(statsTimerRef.current);
     statsGenerationRef.current += 1;
     lastStatsRef.current = null;
@@ -550,22 +588,35 @@ export default function PhoneWebcamWorkspace({
         const sender = senderRef.current;
         const track = sender?.track ?? null;
         const statsGeneration = statsGenerationRef.current;
+        const ownsStats = () =>
+          peerRef.current === peer &&
+          peer.connectionState === "connected" &&
+          senderRef.current === sender &&
+          sender?.track === track &&
+          statsGenerationRef.current === statsGeneration;
         pollPending = true;
+        let expired = false;
+        const deadline = window.setTimeout(() => {
+          expired = true;
+          if (ownsStats()) {
+            lastStatsRef.current = null;
+            stalledStatsSamplesRef.current = 0;
+            setQuality(({ width, height }) =>
+              width === undefined || height === undefined ? {} : { width, height },
+            );
+          }
+        }, statsResponseTimeoutMs);
         let report: RTCStatsReport;
         try {
-          report = await peer.getStats(track);
+          report = await runWebRtcSetupStep(signal, () => peer.getStats(track));
         } catch {
           // Optional statistics must not interrupt the stream or future polls.
           return;
         } finally {
+          window.clearTimeout(deadline);
           pollPending = false;
         }
-        if (
-          peerRef.current !== peer ||
-          senderRef.current !== sender ||
-          sender?.track !== track ||
-          statsGenerationRef.current !== statsGeneration
-        ) {
+        if (expired || !ownsStats()) {
           return;
         }
         const outbound = readOutboundVideoReport(report);
@@ -725,7 +776,7 @@ export default function PhoneWebcamWorkspace({
           setPhase("streaming");
           setStatus(relayMode ? "Streaming through Relay" : "Streaming through Enhanced Direct");
           if (statsTimerRef.current === undefined) {
-            beginStats(peer);
+            beginStats(peer, setup.signal);
           }
         } else if (peer.connectionState === "disconnected") {
           statsGenerationRef.current += 1;
@@ -887,8 +938,12 @@ export default function PhoneWebcamWorkspace({
     async (deviceId: string, reason: CameraChangeReason = "selection") => {
       if (reason === "selection") {
         window.clearTimeout(orientationTimerRef.current);
+      } else if (acquiringReplacementGenerationRef.current !== null) {
+        return;
       }
-      if (!senderRef.current || phase !== "streaming") {
+      const sender = senderRef.current;
+      const peerSignal = peerSetupRef.current?.signal;
+      if (!sender || !peerSignal || phase !== "streaming") {
         setSelectedCameraId(deviceId);
         return;
       }
@@ -905,7 +960,10 @@ export default function PhoneWebcamWorkspace({
       const generation = generationRef.current;
       const replacementGeneration = ++replacementGenerationRef.current;
       acquiringReplacementGenerationRef.current = replacementGeneration;
-      const sender = senderRef.current;
+      replacementCaptureRef.current?.abort();
+      const capture = new AbortController();
+      replacementCaptureRef.current = capture;
+      const captureDeadline = scheduleCameraDeadline(capture);
       let releasedActiveVideo = false;
       const previousReplacement = replacementRef.current;
       replacementRef.current = null;
@@ -914,6 +972,19 @@ export default function PhoneWebcamWorkspace({
         replacementGenerationRef.current === replacementGeneration &&
         generationRef.current === generation &&
         senderRef.current === sender;
+      const updateSender = async (track: MediaStreamTrack | null) => {
+        const deadline = window.setTimeout(() => {
+          // An outstanding mutation can still affect the same sender after a newer selection.
+          if (generationRef.current === generation && senderRef.current === sender) {
+            releaseRef.current(true, "The camera switch timed out. Tap Start to try again.");
+          }
+        }, senderUpdateTimeoutMs);
+        try {
+          await runWebRtcSetupStep(peerSignal, () => sender.replaceTrack(track));
+        } finally {
+          window.clearTimeout(deadline);
+        }
+      };
       let replacement: MediaStream | null = null;
       let ownedReplacement: PendingReplacement | null = null;
       try {
@@ -931,13 +1002,13 @@ export default function PhoneWebcamWorkspace({
             return;
           }
           try {
-            replacement = await navigator.mediaDevices.getUserMedia(constraints);
+            replacement = await openCameraCapture(capture.signal, constraints);
             break;
           } catch (error) {
             const denied =
               error instanceof DOMException &&
               (error.name === "NotAllowedError" || error.name === "SecurityError");
-            if (!ownsReplacement() || denied || attempt === 1) {
+            if (!ownsReplacement() || capture.signal.aborted || denied || attempt === 1) {
               throw error;
             }
             const requiresExclusiveCapture =
@@ -954,19 +1025,25 @@ export default function PhoneWebcamWorkspace({
               }
               activeStream?.getVideoTracks().forEach((track) => track.stop());
               activeStreamEndedRef.current = false;
-              await sender.replaceTrack(null);
+              await updateSender(null);
               if (!ownsReplacement()) {
                 return;
               }
             }
-            await new Promise<void>((resolve) => {
-              window.setTimeout(resolve, 200);
-            });
+            let retryTimer: number | undefined;
+            try {
+              await runWebRtcSetupStep(capture.signal, () => new Promise<void>((resolve) => {
+                retryTimer = window.setTimeout(resolve, 200);
+              }));
+            } finally {
+              window.clearTimeout(retryTimer);
+            }
           }
         }
         if (!replacement) {
           throw new Error("Camera replacement did not open a video stream.");
         }
+        window.clearTimeout(captureDeadline);
         if (
           replacementGenerationRef.current !== replacementGeneration ||
           generationRef.current !== generation ||
@@ -1018,13 +1095,15 @@ export default function PhoneWebcamWorkspace({
           },
           { once: true },
         );
-        await sender.replaceTrack(nextTrack);
+        await updateSender(nextTrack);
         if (isEndedTrack(nextTrack)) {
           if (ownsReplacement()) {
             try {
-              await sender.replaceTrack(streamRef.current?.getVideoTracks()[0] ?? null);
+              await updateSender(streamRef.current?.getVideoTracks()[0] ?? null);
             } catch {
-              releaseLocal(true, "The camera connection could not be restored.");
+              if (ownsReplacement()) {
+                releaseLocal(true, "The camera connection could not be restored.");
+              }
             }
           }
           throw new Error("The replacement camera stopped.");
@@ -1073,7 +1152,7 @@ export default function PhoneWebcamWorkspace({
             ? "Streaming through Relay"
             : "Streaming through Enhanced Direct",
         );
-      } catch {
+      } catch (error) {
         if (acquiringReplacementGenerationRef.current === replacementGeneration) {
           acquiringReplacementGenerationRef.current = null;
         }
@@ -1113,7 +1192,16 @@ export default function PhoneWebcamWorkspace({
           senderRef.current === sender
         ) {
           setSelectedCameraId(previousCameraId);
-          setStatus("The selected camera could not replace the active camera.");
+          setStatus(
+            error instanceof DOMException && error.name === "TimeoutError"
+              ? "The selected camera did not open in time."
+              : "The selected camera could not replace the active camera.",
+          );
+        }
+      } finally {
+        window.clearTimeout(captureDeadline);
+        if (replacementCaptureRef.current === capture) {
+          replacementCaptureRef.current = null;
         }
       }
     },

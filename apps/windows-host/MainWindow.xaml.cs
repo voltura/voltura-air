@@ -366,6 +366,8 @@ public partial class MainWindow : Window
         _allowClose = true;
     }
 
+    internal Task StopPhoneWebcamPreviewAsync() => _phoneWebcamPage.StopPreviewAsync();
+
     internal bool ShouldCloseAfterDeviceConnected() =>
         IsVisible &&
         (_navigation.ActivePage == HostPage.Connect || WindowState == WindowState.Minimized);

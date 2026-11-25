@@ -73,20 +73,26 @@ internal sealed class PhoneWebcamPreviewSession : IPhoneWebcamPreviewSession
                 return _stopTask;
             }
 
-            _stopTask = CompleteStopAsync();
+            _stopTask = Task.Run(CompleteStopAsync);
             return _stopTask;
         }
     }
 
     private async Task CompleteStopAsync()
     {
-        await _shutdown.CancelAsync().ConfigureAwait(false);
-        lock (_sourceLock)
+        try
         {
-            TryShutdown(_source);
+            await _shutdown.CancelAsync().ConfigureAwait(false);
+            lock (_sourceLock)
+            {
+                if (TryShutdown(_source)) _source = null;
+            }
+            await _worker.ConfigureAwait(false);
         }
-        await _worker.ConfigureAwait(false);
-        _shutdown.Dispose();
+        finally
+        {
+            _shutdown.Dispose();
+        }
     }
 
     private void Capture()
@@ -98,18 +104,16 @@ internal sealed class PhoneWebcamPreviewSession : IPhoneWebcamPreviewSession
         catch (OperationCanceledException)
         {
         }
-        catch (SharpGenException exception) when (
-            _shutdown.IsCancellationRequested && exception.ResultCode == ResultCode.Shutdown)
-        {
-        }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            _reportFailure($"Voltura Air could not open its Windows camera preview: {exception.Message}");
+            if (!_shutdown.IsCancellationRequested)
+                _reportFailure($"Voltura Air could not open its Windows camera preview: {exception.Message}");
         }
     }
 
     private void CaptureCore(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         MFStartup(true).CheckError();
         try
         {
@@ -117,12 +121,16 @@ internal sealed class PhoneWebcamPreviewSession : IPhoneWebcamPreviewSession
             IMFActivate activate = devices.FirstOrDefault(device =>
                     device.FriendlyName.StartsWith(CameraName, StringComparison.Ordinal))
                 ?? throw new InvalidOperationException("Voltura Air Webcam is not available to Windows camera consumers.");
+            cancellationToken.ThrowIfCancellationRequested();
             using IMFMediaSource source = activate.ActivateObject<IMFMediaSource>();
-            SetSource(source, cancellationToken);
+            bool publishedSource = false;
             try
             {
-                using IMFAttributes attributes = MFCreateAttributes(1);
+                SetSource(source, cancellationToken);
+                publishedSource = true;
+                using IMFAttributes attributes = MFCreateAttributes(2);
                 attributes.Set(SourceReaderAttributeKeys.EnableVideoProcessing, false).CheckError();
+                attributes.Set(SourceReaderAttributeKeys.DisconnectMediasourceOnShutdown, true).CheckError();
                 using IMFSourceReader reader = MFCreateSourceReaderFromMediaSource(source, attributes);
                 using IMFMediaType requestedType = CreateCaptureType();
                 reader.SetCurrentMediaType(SourceReaderIndex.FirstVideoStream, requestedType);
@@ -132,9 +140,9 @@ internal sealed class PhoneWebcamPreviewSession : IPhoneWebcamPreviewSession
             {
                 lock (_sourceLock)
                 {
+                    if (!publishedSource || ReferenceEquals(_source, source)) TryShutdown(source);
                     _source = null;
                 }
-                TryShutdown(source);
             }
         }
         finally
@@ -164,10 +172,8 @@ internal sealed class PhoneWebcamPreviewSession : IPhoneWebcamPreviewSession
                 out _,
                 out SourceReaderFlag flags,
                 out _);
-            if ((flags & SourceReaderFlag.Error) != 0)
-            {
-                throw new InvalidOperationException("The Windows camera consumer reported a capture error.");
-            }
+            cancellationToken.ThrowIfCancellationRequested();
+            ValidateCaptureFlags(flags);
             if (sample is null || ++frameNumber % 2 != 0)
             {
                 continue;
@@ -180,28 +186,43 @@ internal sealed class PhoneWebcamPreviewSession : IPhoneWebcamPreviewSession
                     $"The Windows camera returned {buffer.CurrentLength} NV12 bytes; expected {SourceBytes}.");
             }
 
-            byte[]? preview = null;
+            byte[]? preview = ArrayPool<byte>.Shared.Rent(PreviewBytes);
             PhoneWebcamPreviewFrame? frame = null;
-            buffer.Lock(out nint pointer, out _, out _);
             try
             {
-                preview = ArrayPool<byte>.Shared.Rent(PreviewBytes);
-                ConvertNv12ToPreview(pointer, preview);
+                buffer.Lock(out nint pointer, out _, out _);
+                try
+                {
+                    ConvertNv12ToPreview(pointer, preview);
+                }
+                finally
+                {
+                    buffer.Unlock();
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
                 frame = new PhoneWebcamPreviewFrame(preview);
+                preview = null;
                 _publish(frame);
                 frame = null;
-                preview = null;
             }
             finally
             {
-                buffer.Unlock();
                 frame?.Dispose();
-                if (preview is not null && frame is null)
+                if (preview is not null)
                 {
                     ArrayPool<byte>.Shared.Return(preview);
                 }
             }
         }
+    }
+
+    internal static void ValidateCaptureFlags(SourceReaderFlag flags)
+    {
+        if ((flags & SourceReaderFlag.Error) != 0)
+            throw new InvalidOperationException("The Windows camera consumer reported a capture error.");
+        if ((flags & SourceReaderFlag.EndOfStream) != 0)
+            throw new InvalidOperationException("The Windows camera stopped sending preview frames.");
     }
 
     private static IMFMediaType CreateCaptureType()
@@ -252,11 +273,11 @@ internal sealed class PhoneWebcamPreviewSession : IPhoneWebcamPreviewSession
 
     private static byte Clamp(int value) => (byte)Math.Clamp(value, byte.MinValue, byte.MaxValue);
 
-    private static void TryShutdown(IMFMediaSource? source)
+    private static bool TryShutdown(IMFMediaSource? source)
     {
         if (source is null)
         {
-            return;
+            return true;
         }
 
         try
@@ -266,5 +287,11 @@ internal sealed class PhoneWebcamPreviewSession : IPhoneWebcamPreviewSession
         catch (SharpGenException exception) when (exception.ResultCode == ResultCode.Shutdown)
         {
         }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            Console.Error.WriteLine("Voltura Air Phone webcam preview source shutdown failed ({0}).", exception.GetType().Name);
+            return false;
+        }
+        return true;
     }
 }

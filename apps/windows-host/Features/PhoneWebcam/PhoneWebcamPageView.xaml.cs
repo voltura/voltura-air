@@ -17,23 +17,28 @@ public partial class PhoneWebcamPageView : WpfUserControl
 
     internal void SetPreviewFrame(PhoneWebcamPreviewFrame frame)
     {
-        if (_previewBitmap is null)
+        _previewBitmap ??= new WriteableBitmap(
+            PhoneWebcamPreviewSession.PreviewWidth,
+            PhoneWebcamPreviewSession.PreviewHeight,
+            96,
+            96,
+            PixelFormats.Bgra32,
+            null);
+        if (!_previewBitmap.TryLock(new Duration(TimeSpan.Zero))) return;
+        try
         {
-            _previewBitmap = new WriteableBitmap(
-                PhoneWebcamPreviewSession.PreviewWidth,
-                PhoneWebcamPreviewSession.PreviewHeight,
-                96,
-                96,
-                PixelFormats.Bgra32,
-                null);
-            PreviewImage.Source = _previewBitmap;
+            _previewBitmap.WritePixels(
+                new Int32Rect(0, 0, PhoneWebcamPreviewSession.PreviewWidth, PhoneWebcamPreviewSession.PreviewHeight),
+                frame.Buffer,
+                PhoneWebcamPreviewSession.PreviewStride,
+                0);
+        }
+        finally
+        {
+            _previewBitmap.Unlock();
         }
 
-        _previewBitmap.WritePixels(
-            new Int32Rect(0, 0, PhoneWebcamPreviewSession.PreviewWidth, PhoneWebcamPreviewSession.PreviewHeight),
-            frame.Buffer,
-            PhoneWebcamPreviewSession.PreviewStride,
-            0);
+        if (PreviewImage.Source is null) PreviewImage.Source = _previewBitmap;
         PreviewImage.Visibility = Visibility.Visible;
         PreviewEmptyState.Visibility = Visibility.Collapsed;
     }

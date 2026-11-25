@@ -110,6 +110,9 @@ When no phone is streaming, the output area shows concise start guidance and
 does not open the virtual camera merely to display its waiting frame. While
 streaming, it consumes the registered virtual camera exactly like another
 Windows application and stops that preview on navigation, removal, or shutdown.
+A replacement opens once the previous reader has stopped. Updates to streaming
+dimensions keep the existing preview visible. The page keeps one pending frame
+and skips a draw when the compositor is still using the bitmap.
 An active microphone-enabled session exposes one explicit **Test audio** action;
 starting it monitors `CABLE Output` through the default speakers, and stopping,
 navigation, or session teardown releases it. The page warns that audible speakers

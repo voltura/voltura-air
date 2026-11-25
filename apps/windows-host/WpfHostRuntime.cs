@@ -258,7 +258,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         {
             if (screenViewSessionSwitch is not null) SystemEvents.SessionSwitch -= screenViewSessionSwitch;
             TryDispose(trayContext, appLog, "tray_context");
-            TryCloseWindow(mainWindow, appLog);
+            await TryCloseWindowAsync(mainWindow, appLog);
             await TryDisposeAsync(activitySimulationService, appLog, "activity_simulation_service");
             if (webHost is not null)
             {
@@ -307,7 +307,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         var appLog = _appLog;
         if (_screenViewSessionSwitch is not null) SystemEvents.SessionSwitch -= _screenViewSessionSwitch;
         TryDispose(_trayContext, appLog, "tray_context");
-        TryCloseWindow(MainWindow, appLog);
+        await TryCloseWindowAsync(MainWindow, appLog);
         await TryDisposeAsync(_activitySimulationService, appLog, "activity_simulation_service");
         await TryStopWebHostAsync(_webHost, appLog);
         await TryDisposeAsync(_webHost, appLog, "web_host");
@@ -336,7 +336,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
     internal static IUsageStatisticsSettings CreateUsageStatisticsSettings(bool isolatedTestMode) =>
         isolatedTestMode ? new IsolatedUsageStatisticsSettings() : new UsageStatisticsSettings();
 
-    private static void TryCloseWindow(MainWindow? mainWindow, IAppLog appLog)
+    private static async Task TryCloseWindowAsync(MainWindow? mainWindow, IAppLog appLog)
     {
         if (mainWindow is null)
         {
@@ -351,6 +351,15 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogCleanupFailure(appLog, "main_window", ex);
+        }
+
+        try
+        {
+            await mainWindow.StopPhoneWebcamPreviewAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogCleanupFailure(appLog, "phone_webcam_preview", ex);
         }
     }
 

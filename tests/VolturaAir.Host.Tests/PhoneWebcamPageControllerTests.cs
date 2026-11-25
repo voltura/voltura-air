@@ -67,8 +67,10 @@ public sealed partial class HostUiLayoutTests
         });
     }
 
-    [Fact]
-    public void PhoneWebcamPreviewShutdownCompletesBeforeItsCallerContinues()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PhoneWebcamPreviewShutdownCompletesBeforeItsCallerContinues(bool wasDetached)
     {
         if (ShouldSkipNativeUiLayoutTests())
         {
@@ -82,7 +84,7 @@ public sealed partial class HostUiLayoutTests
             WpfTheme.Apply(window);
             var root = new Grid();
             window.Content = root;
-            var preview = new ControlledPreviewSession();
+            var preview = new ControlledPreviewSession(blockStop: true);
             using var controller = new PhoneWebcamPageController(
                 window,
                 new InstalledPhoneWebcamFeature(),
@@ -90,6 +92,7 @@ public sealed partial class HostUiLayoutTests
                 (_, _) => preview);
             _ = controller.CreateView();
 
+            if (wasDetached) controller.StopPreview();
             Task stop = controller.StopPreviewAsync();
 
             Assert.True(preview.StopStarted);
@@ -97,6 +100,102 @@ public sealed partial class HostUiLayoutTests
             preview.CompleteStop();
             WaitForWpf(() => stop.IsCompleted, "Phone webcam preview release");
             stop.GetAwaiter().GetResult();
+        });
+    }
+
+    [Fact]
+    public void PhoneWebcamPreviewOpensOnlyTheLatestPageAfterAPreviousReaderStops()
+    {
+        if (ShouldSkipNativeUiLayoutTests()) return;
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var window = new Window();
+            WpfTheme.Apply(window);
+            var previews = new List<ControlledPreviewSession>();
+            using var controller = new PhoneWebcamPageController(
+                window, new InstalledPhoneWebcamFeature(), static () => { }, (publish, _) =>
+                {
+                    var preview = new ControlledPreviewSession(publish, blockStop: previews.Count == 0);
+                    previews.Add(preview);
+                    return preview;
+                });
+
+            _ = controller.CreateView();
+            PhoneWebcamPageView replaced = controller.CreateView();
+            PhoneWebcamPageView current = controller.CreateView();
+            Assert.True(Assert.Single(previews).StopStarted);
+            previews[0].CompleteStop();
+            WaitForWpf(() => previews.Count == 2, "latest Phone webcam preview");
+
+            var frame = new PhoneWebcamPreviewFrame(ArrayPool<byte>.Shared.Rent(
+                PhoneWebcamPreviewSession.PreviewStride * PhoneWebcamPreviewSession.PreviewHeight));
+            previews[1].Publish(frame);
+            WaitForWpf(() => current.PreviewImage.Source is not null, "latest Phone webcam preview frame");
+            Assert.Null(replaced.PreviewImage.Source);
+            Assert.Throws<ObjectDisposedException>(() => _ = frame.Buffer);
+        });
+    }
+
+    [Fact]
+    public void PhoneWebcamPreviewKeepsItsReaderAndBitmapAcrossAQualityUpdate()
+    {
+        if (ShouldSkipNativeUiLayoutTests()) return;
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var window = new Window();
+            WpfTheme.Apply(window);
+            var feature = new InstalledPhoneWebcamFeature();
+            var refreshes = 0;
+            ControlledPreviewSession? active = null;
+            using var controller = new PhoneWebcamPageController(
+                window, feature, () => refreshes++, (publish, _) => active = new ControlledPreviewSession(publish));
+            PhoneWebcamPageView view = controller.CreateView();
+            using var frame = new PhoneWebcamPreviewFrame(ArrayPool<byte>.Shared.Rent(
+                PhoneWebcamPreviewSession.PreviewStride * PhoneWebcamPreviewSession.PreviewHeight));
+            Assert.NotNull(active);
+            active.Publish(frame);
+            WaitForWpf(() => view.PreviewImage.Source is not null, "first Phone webcam quality frame");
+            var bitmap = view.PreviewImage.Source;
+
+            feature.ReportActivity(new("streaming", Width: 1280, Height: 720));
+            WaitForWpf(() => view.SessionStatusText.Text == "Streaming · 1280×720", "Phone webcam quality label");
+            Assert.Equal(0, refreshes);
+            Assert.Same(bitmap, view.PreviewImage.Source);
+            Assert.False(active.StopStarted);
+        });
+    }
+
+    [Fact]
+    public void PhoneWebcamPreviewFailureRetiresFramesThatAreAlreadyQueued()
+    {
+        if (ShouldSkipNativeUiLayoutTests()) return;
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var window = new Window();
+            WpfTheme.Apply(window);
+            ControlledPreviewSession? active = null;
+            Action<string>? fail = null;
+            using var controller = new PhoneWebcamPageController(
+                window, new InstalledPhoneWebcamFeature(), static () => { }, (publish, report) =>
+                {
+                    fail = report;
+                    return active = new ControlledPreviewSession(publish);
+                });
+            PhoneWebcamPageView view = controller.CreateView();
+            using var frame = new PhoneWebcamPreviewFrame(ArrayPool<byte>.Shared.Rent(
+                PhoneWebcamPreviewSession.PreviewStride * PhoneWebcamPreviewSession.PreviewHeight));
+            Assert.NotNull(active);
+            Assert.NotNull(fail);
+            active.Publish(frame);
+            fail("The test reader closed.");
+            WaitForWpf(() => view.RetryPreviewButton.Visibility == Visibility.Visible, "Phone webcam preview failure");
+            DoWpfEvents();
+            Assert.Null(view.PreviewImage.Source);
+            Assert.Equal("The test reader closed.", view.PreviewEmptyMessage.Text);
+            Assert.Throws<ObjectDisposedException>(() => _ = frame.Buffer);
         });
     }
 
@@ -586,8 +685,14 @@ public sealed partial class HostUiLayoutTests
         public PhoneWebcamAudioTargetStatus AudioTargetStatus { get; } = audioStatus ?? new(
             PhoneWebcamAudioTargetState.DetectionFailed,
             "Unavailable.");
-        public event EventHandler? ActivityChanged { add { } remove { } }
+        public event EventHandler? ActivityChanged;
         public event EventHandler? StatusChanged { add { } remove { } }
+
+        internal void ReportActivity(PhoneWebcamActivity activity)
+        {
+            Activity = activity;
+            ActivityChanged?.Invoke(this, EventArgs.Empty);
+        }
 
         public Task<PhoneWebcamFeatureStatus> EnableAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(Status);
@@ -630,7 +735,7 @@ public sealed partial class HostUiLayoutTests
         public Task<PhoneWebcamFeatureStatus> RemoveAsync(CancellationToken cancellationToken) => Task.FromResult(Failed);
     }
 
-    private sealed class ControlledPreviewSession(Action<PhoneWebcamPreviewFrame>? publish = null) : IPhoneWebcamPreviewSession
+    private sealed class ControlledPreviewSession(Action<PhoneWebcamPreviewFrame>? publish = null, bool blockStop = false) : IPhoneWebcamPreviewSession
     {
         private readonly TaskCompletionSource _stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -644,6 +749,7 @@ public sealed partial class HostUiLayoutTests
         public Task StopAsync()
         {
             StopStarted = true;
+            if (!blockStop) CompleteStop();
             return _stopped.Task;
         }
 

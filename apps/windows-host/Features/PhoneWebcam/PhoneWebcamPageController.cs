@@ -21,6 +21,8 @@ internal sealed class PhoneWebcamPageController : IDisposable
     private PhoneWebcamPageView? _currentView;
     private int _renderQueued;
     private int _previewGeneration;
+    private Task _previewRetirement = Task.CompletedTask;
+    private bool _previewRequested;
     private int _audioMonitorGeneration;
     private readonly HashSet<Task> _audioOperations = [];
     private Task _audioRetirement = Task.CompletedTask;
@@ -51,11 +53,7 @@ internal sealed class PhoneWebcamPageController : IDisposable
         _currentView = view;
         PhoneWebcamFeatureStatus status = _phoneWebcam.Status;
         view.InstallationStatusText.Text = DescribeInstallation(status);
-        string sessionStatus = status.IsInstalled ? DescribeActivity() : status.Message;
-        view.SessionStatusText.Text = sessionStatus;
-        view.SessionStatusText.Visibility = string.IsNullOrWhiteSpace(sessionStatus)
-            ? Visibility.Collapsed
-            : Visibility.Visible;
+        RenderSessionStatus(view, status);
         RenderMicrophoneSetup(view);
         view.GetVbCableButton.Click += (_, _) =>
         {
@@ -84,7 +82,8 @@ internal sealed class PhoneWebcamPageController : IDisposable
                 case "streaming":
                     view.ShowOpeningPreview();
                     view.RetryPreviewButton.Click += (_, _) => RestartPreview();
-                    StartPreview();
+                    _previewRequested = true;
+                    TryStartPreview();
                     break;
                 case "connecting":
                     view.ShowEmptyState(
@@ -149,18 +148,42 @@ internal sealed class PhoneWebcamPageController : IDisposable
     {
         StopAudioMonitor();
         IPhoneWebcamPreviewSession? preview = DetachPreview();
-        preview?.Dispose();
-    }
-
-    internal async Task StopPreviewAsync()
-    {
-        StopAudioMonitor();
-        IPhoneWebcamPreviewSession? preview = DetachPreview();
         if (preview is not null)
         {
-            await preview.StopAsync();
+            _previewRetirement = RetirePreviewAsync(preview);
+            if (!_previewRetirement.IsCompleted)
+            {
+                _ = ResumePreviewAfterRetirementAsync(_previewRetirement);
+            }
         }
-        await AwaitAudioQuiescenceAsync();
+    }
+
+    internal Task StopPreviewAsync()
+    {
+        StopPreview();
+        return Task.WhenAll(_previewRetirement, AwaitAudioQuiescenceAsync());
+    }
+
+    private static async Task RetirePreviewAsync(IPhoneWebcamPreviewSession preview)
+    {
+        try
+        {
+            await preview.StopAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            await Console.Error.WriteLineAsync($"Voltura Air Phone webcam preview cleanup failed ({exception.GetType().Name}).")
+                .ConfigureAwait(false);
+        }
+    }
+
+    private async Task ResumePreviewAfterRetirementAsync(Task retirement)
+    {
+        await retirement.ConfigureAwait(false);
+        if (!_owner.Dispatcher.HasShutdownStarted)
+        {
+            _ = _owner.Dispatcher.BeginInvoke(TryStartPreview);
+        }
     }
 
     private async Task ToggleAudioMonitorAsync(PhoneWebcamPageView view)
@@ -394,6 +417,7 @@ internal sealed class PhoneWebcamPageController : IDisposable
     {
         Interlocked.Increment(ref _previewGeneration);
         _currentView = null;
+        _previewRequested = false;
         IPhoneWebcamPreviewSession? preview = Interlocked.Exchange(ref _preview, null);
         lock (_previewLock)
         {
@@ -422,13 +446,15 @@ internal sealed class PhoneWebcamPageController : IDisposable
         _refresh();
     }
 
-    private void StartPreview()
+    private void TryStartPreview()
     {
-        if (_disposed || _currentView is null)
+        if (_disposed || _currentView is null || !_previewRequested || !_previewRetirement.IsCompleted ||
+            !_phoneWebcam.Status.IsInstalled || _phoneWebcam.Activity.State != "streaming")
         {
             return;
         }
 
+        _previewRequested = false;
         int generation = Volatile.Read(ref _previewGeneration);
         _preview = _previewFactory(
             frame => QueueFrame(generation, frame),
@@ -465,12 +491,7 @@ internal sealed class PhoneWebcamPageController : IDisposable
 
         if (Interlocked.Exchange(ref _renderQueued, 1) == 0)
         {
-            if (_owner.Dispatcher.HasShutdownStarted)
-            {
-                Interlocked.Exchange(ref _renderQueued, 0);
-                return;
-            }
-            _owner.Dispatcher.BeginInvoke(RenderLatestFrame, DispatcherPriority.Render);
+            PostPreviewRender();
         }
     }
 
@@ -498,19 +519,28 @@ internal sealed class PhoneWebcamPageController : IDisposable
             Interlocked.Exchange(ref _renderQueued, 0);
         }
 
+        bool hasAnotherFrame;
         lock (_previewLock)
         {
-            if (_pendingFrame is not null && Interlocked.Exchange(ref _renderQueued, 1) == 0)
-            {
-                if (_owner.Dispatcher.HasShutdownStarted)
-                {
-                    Interlocked.Exchange(ref _renderQueued, 0);
-                }
-                else
-                {
-                    _owner.Dispatcher.BeginInvoke(RenderLatestFrame, DispatcherPriority.Render);
-                }
-            }
+            hasAnotherFrame = _pendingFrame is not null && Interlocked.Exchange(ref _renderQueued, 1) == 0;
+        }
+        if (hasAnotherFrame) PostPreviewRender();
+    }
+
+    private void PostPreviewRender()
+    {
+        DispatcherOperation operation = _owner.Dispatcher.InvokeAsync(RenderLatestFrame, DispatcherPriority.Render);
+        operation.Aborted += (_, _) => DiscardPendingPreviewFrame();
+        if (operation.Status == DispatcherOperationStatus.Aborted) DiscardPendingPreviewFrame();
+    }
+
+    private void DiscardPendingPreviewFrame()
+    {
+        lock (_previewLock)
+        {
+            _pendingFrame?.Dispose();
+            _pendingFrame = null;
+            Interlocked.Exchange(ref _renderQueued, 0);
         }
     }
 
@@ -527,6 +557,8 @@ internal sealed class PhoneWebcamPageController : IDisposable
                 return;
             }
 
+            Interlocked.Increment(ref _previewGeneration);
+            DiscardPendingPreviewFrame();
             _currentView.ShowPreviewFailure(message);
         });
     }
@@ -538,12 +570,24 @@ internal sealed class PhoneWebcamPageController : IDisposable
             return;
         }
 
+        bool wasStreaming = _phoneWebcam.Activity.State == "streaming";
         _owner.Dispatcher.BeginInvoke(() =>
         {
-            if (_currentView is not null)
+            if (_currentView is not { } view)
             {
-                _refresh();
+                return;
             }
+
+            PhoneWebcamFeatureStatus status = _phoneWebcam.Status;
+            if (wasStreaming && status.IsInstalled && _phoneWebcam.Activity.State == "streaming" &&
+                (_preview is not null || _previewRequested))
+            {
+                RenderSessionStatus(view, status);
+                if (!CanTestAudio()) StopAudioMonitor();
+                RenderMicrophoneSetup(view);
+                return;
+            }
+            _refresh();
         });
     }
 
@@ -574,6 +618,15 @@ internal sealed class PhoneWebcamPageController : IDisposable
             "streaming" => "Streaming",
             _ => string.Empty
         };
+    }
+
+    private void RenderSessionStatus(PhoneWebcamPageView view, PhoneWebcamFeatureStatus status)
+    {
+        string sessionStatus = status.IsInstalled ? DescribeActivity() : status.Message;
+        view.SessionStatusText.Text = sessionStatus;
+        view.SessionStatusText.Visibility = string.IsNullOrWhiteSpace(sessionStatus)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
     }
 
     private static string DescribeInstallation(PhoneWebcamFeatureStatus status) => status.State switch

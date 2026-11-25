@@ -731,6 +731,8 @@ creates a WebRTC answer and signs UTF-8
 with its reconnect key. `answerHash` is the same unpadded base64url SHA-256
 construction over the exact answer SDP. Invalid, mismatched, expired, or
 oversized signaling is rejected and releases the pending peer.
+Stopping or replacing that peer ends the browser's wait for SDP and ICE.
+A later WebRTC callback cannot send an answer for the retired peer.
 
 Direct mode uses host ICE candidates without STUN or TURN. Relay mode requests
 a signed, single-use 15-minute TURN credential from the active route and uses
@@ -916,7 +918,9 @@ terminal event correlated to the started operation with one current reason:
 
 Accepted reasons are `stopped`, `connection-lost`, `transport-lost`,
 `decoder-failed`, `audio-failed`, `permission-revoked`, `pairing-revoked`, `host-stopped`, and `offer-expired`.
-Clients ignore terminal events for an older operation. Every terminal path releases the peer, decoder, bounded queues, local frame pipe input, and
+Clients ignore terminal events for an older operation. Stopping or retiring the
+browser peer ends the wait for SDP, initial track setup, and ICE.
+Every terminal path releases the peer, decoder, bounded queues, local frame pipe input, and
 phone tracks, Opus decoder, audio queue, and WASAPI output. Mute changes the browser audio track's enabled state and has no protocol message. Camera switching, rotation recovery, and bounded outbound-stall
 recovery are browser-local `replaceTrack` operations on the same healthy peer and
 add no protocol message. Page hiding is an immediate stop; one fresh

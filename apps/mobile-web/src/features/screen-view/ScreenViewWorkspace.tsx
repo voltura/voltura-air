@@ -48,6 +48,7 @@ import {
   isRelayCandidate,
   waitForIceGathering,
 } from "../../foundation/webrtc/iceGathering";
+import { runWebRtcSetupStep } from "../../foundation/webrtc/peerSetup";
 import {
   parseScreenPlaintextRecord,
   rememberPendingScreenCursor,
@@ -184,6 +185,7 @@ export default function ScreenViewWorkspace({
   const cursorFrameRef = useRef<number | undefined>(undefined);
   const hasVisualFrameRef = useRef(false);
   const peerRef = useRef<RTCPeerConnection | null>(null);
+  const peerSetupRef = useRef<AbortController | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const eventsRef = useRef<RTCDataChannel | null>(null);
   const pendingOfferRef = useRef<PendingOffer | null>(null);
@@ -204,7 +206,11 @@ export default function ScreenViewWorkspace({
   const negotiationGenerationRef = useRef(0);
   const credentialRenewalRef = useRef<number | undefined>(undefined);
   const renewalRestartRef = useRef<number | undefined>(undefined);
-  const renewalRef = useRef<{ operationId: string; peer: RTCPeerConnection | null } | null>(null);
+  const renewalRef = useRef<{
+    operationId: string;
+    peer: RTCPeerConnection | null;
+    setup?: AbortController;
+  } | null>(null);
   const [credentialExpires, setCredentialExpires] = useState(0);
   const recordAfterRenewalRef = useRef(false);
   const disconnectedRecoveryRef = useRef<number | undefined>(undefined);
@@ -981,7 +987,8 @@ export default function ScreenViewWorkspace({
       );
       return;
     }
-    const offerHash = hashScreenSdp(message.offerSdp);
+    const offerSdp = message.offerSdp;
+    const offerHash = hashScreenSdp(offerSdp);
     const hostTranscript = `VolturaAir screen-view:offer:v2:${clientId}:${message.operationId}:${pending.displayId}:${offerHash}${pending.renewalOf ? `:renew:${pending.renewalOf}` : ""}`;
     if (
       !verifyHostScreenSignature(
@@ -1017,8 +1024,10 @@ export default function ScreenViewWorkspace({
       );
       return;
     }
+    let stream: MediaStream;
     let peer: RTCPeerConnection;
     try {
+      stream = new MediaStream();
       peer = new RTCPeerConnection({
         iceServers: message.iceServers ?? [],
         iceTransportPolicy: relayMode ? "relay" : "all",
@@ -1040,11 +1049,11 @@ export default function ScreenViewWorkspace({
       negotiationGenerationRef.current === negotiationGeneration;
     let relayCandidateCount = 0;
     let lastIceErrorCode: number | null = null;
-    const stream = new MediaStream();
+    const setup = new AbortController();
     let events: RTCDataChannel | null = null;
     let pendingCursor: ScreenCursorRecord | null = null;
     if (renewing) {
-      renewalRef.current = { operationId: message.operationId, peer };
+      renewalRef.current = { operationId: message.operationId, peer, setup };
       startResponseTimeoutRef.current = window.setTimeout(() => {
         if (renewalRef.current?.peer === peer) {
           failRenewal(
@@ -1054,6 +1063,7 @@ export default function ScreenViewWorkspace({
       }, peerSetupTimeoutMs);
     } else {
       peerRef.current = peer;
+      peerSetupRef.current = setup;
       startQualityMonitor(peer);
       startResponseTimeoutRef.current = window.setTimeout(() => {
         if (isCurrentNegotiation()) {
@@ -1070,8 +1080,10 @@ export default function ScreenViewWorkspace({
         return;
       }
       const retired = peerRef.current;
+      const retiredSetup = peerSetupRef.current;
       const retiredEvents = eventsRef.current;
       peerRef.current = peer;
+      peerSetupRef.current = setup;
       eventsRef.current = events;
       remoteStreamRef.current = stream;
       renewalRef.current = null;
@@ -1082,6 +1094,7 @@ export default function ScreenViewWorkspace({
         videoRef.current.srcObject = stream;
       }
       retiredEvents?.close();
+      retiredSetup?.abort();
       retired?.close();
       startQualityMonitor(peer);
       scheduleCredentialRenewal(message.turnExpiresAt);
@@ -1232,24 +1245,22 @@ export default function ScreenViewWorkspace({
     });
 
     try {
-      await peer.setRemoteDescription({ type: "offer", sdp: message.offerSdp });
+      await runWebRtcSetupStep(setup.signal, () =>
+        peer.setRemoteDescription({ type: "offer", sdp: offerSdp }),
+      );
       if (!isCurrentNegotiation()) {
-        peer.close();
         return;
       }
-      const answer = await peer.createAnswer();
+      const answer = await runWebRtcSetupStep(setup.signal, () => peer.createAnswer());
       if (!isCurrentNegotiation()) {
-        peer.close();
         return;
       }
-      await peer.setLocalDescription(answer);
+      await runWebRtcSetupStep(setup.signal, () => peer.setLocalDescription(answer));
       if (!isCurrentNegotiation()) {
-        peer.close();
         return;
       }
-      await waitForIceGathering(peer, relayMode);
+      await waitForIceGathering(peer, relayMode, setup.signal);
       if (!isCurrentNegotiation()) {
-        peer.close();
         return;
       }
       const answerSdp = peer.localDescription?.sdp;
@@ -1286,7 +1297,6 @@ export default function ScreenViewWorkspace({
       }
     } catch (error) {
       if (!isCurrentNegotiation()) {
-        peer.close();
         return;
       }
       if (error instanceof IceGatheringTimeoutError) {
@@ -1431,7 +1441,10 @@ export default function ScreenViewWorkspace({
     eventsRef.current?.close();
     eventsRef.current = null;
     const peer = peerRef.current;
+    const setup = peerSetupRef.current;
     peerRef.current = null;
+    peerSetupRef.current = null;
+    setup?.abort();
     peer?.close();
     remoteStreamRef.current = null;
     if (videoRef.current) {
@@ -1499,6 +1512,7 @@ export default function ScreenViewWorkspace({
     if (!renewal) {
       return;
     }
+    renewal.setup?.abort();
     renewal.peer?.close();
     if (pendingOfferRef.current?.operationId === renewal.operationId) {
       pendingOfferRef.current = null;

@@ -102,6 +102,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -667,6 +668,52 @@ describe("Relay screen renewal", () => {
     const calls = view.send.mock.calls.length;
     await advance(15 * 60_000);
     expect(view.send.mock.calls).toHaveLength(calls);
+  });
+
+  it("keeps the current stream when the renewal stream cannot be constructed", async () => {
+    const view = await openView();
+    const currentStream = view.video.srcObject;
+    await advance(14 * 60_000);
+    vi.stubGlobal("MediaStream", class {
+      constructor() {
+        throw new Error("The browser could not create a stream");
+      }
+    });
+    await view.accept();
+    expect(Peer.instances).toEqual([view.original]);
+    expect(view.original.close).not.toHaveBeenCalled();
+    expect(view.video.srcObject).toBe(currentStream);
+  });
+
+  it.each([false, true])("retires pending SDP when the viewer leaves (renewal: %s)", async (renewing) => {
+    const existingView = renewing ? await openView() : undefined;
+    if (existingView) {
+      await advance(14 * 60_000);
+    }
+    let finishDescription!: () => void;
+    const pendingDescription = new Promise<void>((resolve) => {
+      finishDescription = resolve;
+    });
+    const setDescription = vi.spyOn(Peer.prototype, "setRemoteDescription").mockReturnValueOnce(pendingDescription);
+    const createAnswer = vi.spyOn(Peer.prototype, "createAnswer");
+    const view = existingView ?? (await openView(true, false));
+    if (existingView) {
+      await existingView.accept();
+    }
+    const operation = view.starts().at(-1)!;
+    expect(setDescription).toHaveBeenCalledOnce();
+    const candidate = Peer.instances.at(-1)!;
+    view.unmount();
+    expect(candidate.close).toHaveBeenCalledOnce();
+    await act(() => {
+      finishDescription();
+      return pendingDescription;
+    });
+    expect(createAnswer).not.toHaveBeenCalled();
+    expect(view.send).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "screen.view.answer",
+      operationId: operation.operationId,
+    }));
   });
 
   it("renews before starting a recording that could overlap credential expiry", async () => {

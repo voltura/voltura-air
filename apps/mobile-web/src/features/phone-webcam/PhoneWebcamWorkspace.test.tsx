@@ -340,23 +340,25 @@ describe("PhoneWebcamWorkspace", () => {
     expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: "phone.webcam.stop" }));
   });
 
-  it("ignores duplicate webcam offers and stops capture when peer setup stalls", async () => {
+  it("ignores duplicate webcam offers and retires stalled setup even if close fires a state event", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const constructed = vi.fn();
     const released = vi.fn();
     const activeTrack = createTrack("front", 1920, 1080);
-    class PendingPeer {
+    const remoteDescription = createDeferred<void>();
+    class PendingPeer extends EventTarget {
+      connectionState = "new";
       constructor() {
+        super();
         constructed();
       }
-      addEventListener() {
-        /* Negotiation remains pending. */
-      }
       setRemoteDescription() {
-        return new Promise<void>(() => undefined);
+        return remoteDescription.promise;
       }
       close() {
         released();
+        this.connectionState = "closed";
+        this.dispatchEvent(new Event("connectionstatechange"));
       }
     }
     vi.stubGlobal("RTCPeerConnection", PendingPeer);
@@ -380,9 +382,14 @@ describe("PhoneWebcamWorkspace", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(20_000);
     });
+    await act(() => {
+      remoteDescription.reject(new Error("Browser finished closing"));
+      return Promise.resolve();
+    });
     expect(released).toHaveBeenCalledOnce();
     expect(activeTrack.stop).toHaveBeenCalledOnce();
     expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: "phone.webcam.stop" }));
+    expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: "phone.webcam.answer" }));
     expect(screen.getByRole("status").textContent).toContain("webcam connection timed out");
     vi.useRealTimers();
   });

@@ -21,14 +21,40 @@ class GatheringPeer extends EventTarget {
     this.dispatchEvent(new Event("icegatheringstatechange"));
   }
 
-  wait(relay = true) {
-    return waitForIceGathering(this as unknown as RTCPeerConnection, relay);
+  wait(relay = true, signal?: AbortSignal) {
+    return waitForIceGathering(this as unknown as RTCPeerConnection, relay, signal);
   }
 }
 
 afterEach(() => vi.useRealTimers());
 
 describe("complete ICE answer snapshot", () => {
+  it("releases the timer and listeners when the setup owner closes a silent peer", async () => {
+    vi.useFakeTimers();
+    const peer = new GatheringPeer();
+    const setup = new AbortController();
+    const removePeerListener = vi.spyOn(peer, "removeEventListener");
+    const removeAbortListener = vi.spyOn(setup.signal, "removeEventListener");
+    const waiting = peer.wait(true, setup.signal);
+    peer.connectionState = "closed";
+    const reason = new Error("Setup stopped");
+    setup.abort(reason);
+    await expect(waiting).rejects.toBe(reason);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(removePeerListener).toHaveBeenCalledTimes(2);
+    expect(removeAbortListener).toHaveBeenCalledWith("abort", expect.any(Function));
+  });
+
+  it("does not start gathering for a retired setup", async () => {
+    vi.useFakeTimers();
+    const peer = new GatheringPeer();
+    const addListener = vi.spyOn(peer, "addEventListener");
+    const reason = new Error("Setup already stopped");
+    await expect(peer.wait(true, AbortSignal.abort(reason))).rejects.toBe(reason);
+    expect(addListener).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it.each(["closed", "failed"] as const)(
     "retires candidate gathering immediately when the connection is %s",
     async (state) => {

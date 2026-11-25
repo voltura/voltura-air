@@ -15,6 +15,7 @@ import {
   verifyHostSessionSignature,
 } from "../../foundation/webrtc/sessionCrypto";
 import { hasOnlyRelayCandidates, waitForIceGathering } from "../../foundation/webrtc/iceGathering";
+import { runWebRtcSetupStep } from "../../foundation/webrtc/peerSetup";
 import "./phone-webcam.css";
 
 interface PhoneWebcamWorkspaceProps {
@@ -95,6 +96,7 @@ export default function PhoneWebcamWorkspace({
   const microphoneAvailableRef = useRef(capability.microphoneAvailable);
   const streamRef = useRef<MediaStream | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
+  const peerSetupRef = useRef<AbortController | null>(null);
   const senderRef = useRef<RTCRtpSender | null>(null);
   const pendingRef = useRef<PendingStart | null>(null);
   const replacementRef = useRef<PendingReplacement | null>(null);
@@ -154,8 +156,12 @@ export default function PhoneWebcamWorkspace({
       operationIdRef.current = null;
       pendingRef.current = null;
       senderRef.current = null;
-      peerRef.current?.close();
+      const retiredPeer = peerRef.current;
+      const retiredSetup = peerSetupRef.current;
       peerRef.current = null;
+      peerSetupRef.current = null;
+      retiredSetup?.abort();
+      retiredPeer?.close();
       const stream = streamRef.current;
       streamRef.current = null;
       for (const track of stream?.getTracks() ?? []) {
@@ -665,7 +671,8 @@ export default function PhoneWebcamWorkspace({
         releaseLocal(true, "The PC offered unexpected Phone webcam media.");
         return;
       }
-      const offerHash = hashSessionDescription(message.offerSdp);
+      const offerSdp = message.offerSdp;
+      const offerHash = hashSessionDescription(offerSdp);
       const hostTranscript = `VolturaAir phone-webcam:offer:v2:${clientId}:${message.operationId}:${offerHash}`;
       if (
         !verifyHostSessionSignature(
@@ -695,6 +702,8 @@ export default function PhoneWebcamWorkspace({
         return;
       }
       peerRef.current = peer;
+      const setup = new AbortController();
+      peerSetupRef.current = setup;
       startResponseTimerRef.current = window.setTimeout(() => {
         if (isCurrent() && peerRef.current === peer) {
           releaseRef.current(
@@ -734,9 +743,10 @@ export default function PhoneWebcamWorkspace({
         }
       });
       try {
-        await peer.setRemoteDescription({ type: "offer", sdp: message.offerSdp });
+        await runWebRtcSetupStep(setup.signal, () =>
+          peer.setRemoteDescription({ type: "offer", sdp: offerSdp }),
+        );
         if (!isCurrent()) {
-          peer.close();
           return;
         }
         negotiationStage = "attaching the camera";
@@ -751,9 +761,8 @@ export default function PhoneWebcamWorkspace({
         if (!track) {
           throw new Error("Missing camera track.");
         }
-        await transceiver.sender.replaceTrack(track);
+        await runWebRtcSetupStep(setup.signal, () => transceiver.sender.replaceTrack(track));
         if (!isCurrent()) {
-          peer.close();
           return;
         }
         if (pending.useMicrophone) {
@@ -771,14 +780,12 @@ export default function PhoneWebcamWorkspace({
           }
         }
         negotiationStage = "creating the encrypted media answer";
-        const answer = await peer.createAnswer();
+        const answer = await runWebRtcSetupStep(setup.signal, () => peer.createAnswer());
         if (!isCurrent()) {
-          peer.close();
           return;
         }
-        await peer.setLocalDescription(answer);
+        await runWebRtcSetupStep(setup.signal, () => peer.setLocalDescription(answer));
         if (!isCurrent()) {
-          peer.close();
           return;
         }
         negotiationStage = "configuring the camera stream";
@@ -791,15 +798,13 @@ export default function PhoneWebcamWorkspace({
         encoding.maxBitrate = message.maximumBitrate ?? 12_000_000;
         encoding.maxFramerate = preferredFps;
         parameters.degradationPreference = "maintain-resolution";
-        await transceiver.sender.setParameters(parameters);
+        await runWebRtcSetupStep(setup.signal, () => transceiver.sender.setParameters(parameters));
         if (!isCurrent()) {
-          peer.close();
           return;
         }
         negotiationStage = "gathering the connection route";
-        await waitForIceGathering(peer, relayMode);
+        await waitForIceGathering(peer, relayMode, setup.signal);
         if (!isCurrent()) {
-          peer.close();
           return;
         }
         negotiationStage = "validating the media answer";
@@ -839,8 +844,6 @@ export default function PhoneWebcamWorkspace({
       } catch (error) {
         if (isCurrent()) {
           releaseLocal(true, describeNegotiationFailure(negotiationStage, error));
-        } else {
-          peer.close();
         }
       }
     },

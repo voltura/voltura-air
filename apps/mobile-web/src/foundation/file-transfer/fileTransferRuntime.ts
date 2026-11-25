@@ -51,6 +51,17 @@ export function createFileTransferCancelMessage(
   };
 }
 
+export function closeFileTransferPeer(runtime: TransferRuntime) {
+  const { channel, peer, peerSetup } = runtime;
+  runtime.channel = null;
+  runtime.peer = null;
+  runtime.peerSetup = null;
+  runtime.answerOperationId = null;
+  peerSetup?.abort();
+  channel?.close();
+  peer?.close();
+}
+
 export interface TransferRuntime {
   operationId: string;
   transferId: string;
@@ -59,8 +70,9 @@ export interface TransferRuntime {
   declaredSize: number;
   uploadFile: File | null;
   peer: RTCPeerConnection | null;
+  peerSetup: AbortController | null;
   channel: RTCDataChannel | null;
-  offerHash: string;
+  answerOperationId: string | null;
   writable: FileSystemWritableFileStream | null;
   directory: FileSystemDirectoryHandle | null;
   handle: FileSystemFileHandle | null;

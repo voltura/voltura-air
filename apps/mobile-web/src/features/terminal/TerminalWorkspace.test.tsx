@@ -262,7 +262,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function startRequestId(send: ReturnType<typeof vi.fn<(message: ClientMessage) => void>>): string {
+function startRequestId(send: ReturnType<typeof vi.fn<(message: ClientMessage) => boolean | void>>): string {
   const request = send.mock.calls.find(([message]) => message.type === "terminal.start")?.[0];
   if (request?.type !== "terminal.start") {
     throw new Error("Expected Terminal start");
@@ -271,7 +271,7 @@ function startRequestId(send: ReturnType<typeof vi.fn<(message: ClientMessage) =
 }
 
 describe("TerminalWorkspace", () => {
-  function renderTerminal(send: (message: ClientMessage) => void) {
+  function renderTerminal(send: (message: ClientMessage) => boolean | void) {
     return render(
       <TerminalWorkspace
         active
@@ -291,8 +291,7 @@ describe("TerminalWorkspace", () => {
     );
   }
 
-  async function connectTerminal() {
-    const send = vi.fn<(message: ClientMessage) => void>();
+  async function startTerminalNegotiation(send = vi.fn<(message: ClientMessage) => boolean | void>()) {
     const view = renderTerminal(send);
     fireEvent.click(screen.getByRole("button", { name: "Start Terminal" }));
     const offer = {
@@ -317,6 +316,11 @@ describe("TerminalWorkspace", () => {
       publishTerminalResult(offer);
       await Promise.resolve();
     });
+    return { send, offer, view };
+  }
+
+  async function connectTerminal() {
+    const { send, offer, view } = await startTerminalNegotiation();
     const peer = FakePeerConnection.latest!;
     vi.spyOn(peer, "close");
     const channel = new FakeDataChannel();
@@ -421,6 +425,110 @@ describe("TerminalWorkspace", () => {
         "The PC did not finish the Terminal connection. Check the connection or stop Terminal.",
       ),
     ).toBeTruthy();
+  });
+
+  it("retires a stalled attach before the browser's offer finishes", async () => {
+    const { channel, offer, send } = await connectTerminal();
+    vi.useFakeTimers();
+    let finishDescription!: () => void;
+    const applyingOffer = new Promise<void>((resolve) => {
+      finishDescription = resolve;
+    });
+    vi.spyOn(FakePeerConnection.prototype, "setRemoteDescription").mockReturnValueOnce(applyingOffer);
+    const createAnswer = vi.spyOn(FakePeerConnection.prototype, "createAnswer");
+    act(() => channel.emit("close"));
+    const attach = send.mock.calls.map(([message]) => message).find((message) => message.type === "terminal.attach")!;
+    await act(() => {
+      publishTerminalResult({ ...offer, operationId: attach.operationId });
+      return Promise.resolve();
+    });
+    const peer = FakePeerConnection.latest!;
+    const close = vi.spyOn(peer, "close");
+    await act(() => vi.advanceTimersByTimeAsync(15_000));
+    await act(() => {
+      finishDescription();
+      return applyingOffer;
+    });
+    expect(close).toHaveBeenCalledOnce();
+    expect(createAnswer).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "terminal.answer",
+      offerOperationId: attach.operationId,
+    }));
+  });
+
+  it("retires a peer immediately when its answer cannot be sent", async () => {
+    const send = vi.fn<(message: ClientMessage) => boolean | void>();
+    send.mockImplementation((message) => message.type === "terminal.answer" ? false : undefined);
+    const close = vi.spyOn(FakePeerConnection.prototype, "close");
+    await startTerminalNegotiation(send);
+    expect(close).toHaveBeenCalledOnce();
+    expect(screen.getByText(/Terminal answer could not be sent/)).toBeTruthy();
+  });
+
+  it("ignores stale Terminal answer errors and closes only the peer whose answer was rejected", async () => {
+    const { peer, send } = await connectTerminal();
+    const answer = send.mock.calls.map(([message]) => message).find((message) => message.type === "terminal.answer")!;
+    const failure = {
+      type: "terminal.answer.result" as const,
+      operationId: "retired-answer",
+      succeeded: false,
+      message: "Terminal answer rejected",
+    };
+    act(() => publishTerminalResult(failure));
+    expect(peer.close).not.toHaveBeenCalled();
+    expect(screen.getByText("Windows PowerShell is active.")).toBeTruthy();
+    act(() => publishTerminalResult({ ...failure, operationId: answer.operationId }));
+    expect(peer.close).toHaveBeenCalledOnce();
+    expect(screen.getByText(failure.message)).toBeTruthy();
+  });
+
+  it("keeps the attach deadline when an answer error from the previous peer arrives", async () => {
+    const { channel, peer, send } = await connectTerminal();
+    vi.useFakeTimers();
+    const answer = send.mock.calls.map(([message]) => message).find((message) => message.type === "terminal.answer")!;
+    act(() => channel.emit("close"));
+    act(() => publishTerminalResult({
+      type: "terminal.answer.result",
+      operationId: answer.operationId,
+      succeeded: false,
+      message: "The previous answer expired.",
+    }));
+    expect(screen.getByText("Reconnecting Terminal…")).toBeTruthy();
+    expect(peer.close).not.toHaveBeenCalled();
+    await act(() => vi.advanceTimersByTimeAsync(15_000));
+    expect(peer.close).toHaveBeenCalledOnce();
+    expect(screen.getByText(/did not finish the Terminal connection/)).toBeTruthy();
+  });
+
+  it("shows errors only for the latest Stop request", async () => {
+    const { peer, send } = await connectTerminal();
+    const stop = screen.getByRole("button", { name: "Stop" });
+    fireEvent.click(stop);
+    fireEvent.click(stop);
+    const stops = send.mock.calls.map(([message]) => message).filter((message) => message.type === "terminal.stop");
+    const failure = {
+      type: "terminal.stop.result" as const,
+      operationId: stops[0]!.operationId,
+      succeeded: false,
+      message: "Unable to stop this Terminal",
+    };
+    act(() => publishTerminalResult(failure));
+    expect(screen.getByText("Windows PowerShell is active.")).toBeTruthy();
+    act(() => publishTerminalResult({ ...failure, operationId: stops[1]!.operationId }));
+    expect(screen.getByText(failure.message)).toBeTruthy();
+    expect(peer.close).not.toHaveBeenCalled();
+  });
+
+  it("reports a Stop request that cannot be sent and lets Stop be retried", async () => {
+    const { peer, send } = await connectTerminal();
+    send.mockImplementation((message) => message.type === "terminal.stop" ? false : undefined);
+    const stop = screen.getByRole("button", { name: "Stop" });
+    fireEvent.click(stop);
+    expect(screen.getByText(/Terminal stop request could not be sent/)).toBeTruthy();
+    fireEvent.click(stop);
+    expect(send.mock.calls.filter(([message]) => message.type === "terminal.stop")).toHaveLength(2);
+    expect(peer.close).not.toHaveBeenCalled();
   });
 
   it("closes duplicate and late data channels without replacing the owned transport", async () => {

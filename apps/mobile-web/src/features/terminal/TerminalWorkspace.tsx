@@ -18,6 +18,7 @@ import {
   verifyHostSessionSignature,
 } from "../../foundation/webrtc/sessionCrypto";
 import { hasOnlyRelayCandidates, waitForIceGathering } from "../../foundation/webrtc/iceGathering";
+import { runWebRtcSetupStep } from "../../foundation/webrtc/peerSetup";
 import {
   createTerminalAcknowledgement,
   createTerminalResize,
@@ -41,7 +42,7 @@ interface Props {
   capability: TerminalCapability;
   clientId: string;
   connectionEpoch: number;
-  send: (message: ClientMessage) => void;
+  send: (message: ClientMessage) => boolean | void;
   state: ConnectionState;
 }
 
@@ -66,6 +67,9 @@ export function TerminalWorkspace({
   const fitAndResizeRef = useRef<() => boolean>(() => false);
   const stopMomentumRef = useRef<() => void>(() => undefined);
   const peerRef = useRef<RTCPeerConnection | null>(null);
+  const peerSetupRef = useRef<AbortController | null>(null);
+  const answerOperationRef = useRef<string | null>(null);
+  const stopOperationRef = useRef<{ operationId: string; terminalId: string } | null>(null);
   const channelRef = useRef<RTCDataChannel | null>(null);
   const terminalIdRef = useRef<string | null>(null);
   const acknowledgedRef = useRef(0);
@@ -109,15 +113,19 @@ export function TerminalWorkspace({
   const closePeer = useCallback(() => {
     window.clearTimeout(setupTimerRef.current);
     setupTimerRef.current = undefined;
+    answerOperationRef.current = null;
+    const peer = peerRef.current;
+    const setup = peerSetupRef.current;
+    peerRef.current = null;
+    peerSetupRef.current = null;
     const channel = channelRef.current;
     channelRef.current = null;
+    setup?.abort();
     inputQueueRef.current?.disconnect(channel ?? undefined);
     channel?.close();
     setInputReady(false);
     modifierRef.current = null;
     setModifier(null);
-    const peer = peerRef.current;
-    peerRef.current = null;
     peer?.close();
     if (renewalTimerRef.current !== undefined) {
       window.clearTimeout(renewalTimerRef.current);
@@ -514,6 +522,7 @@ export function TerminalWorkspace({
     pendingAttachRef.current = { epoch, operationId };
     offerOperationRef.current = operationId;
     pendingStartRef.current = null;
+    answerOperationRef.current = null;
     beginSetupDeadline();
     receivedRef.current = acknowledgedRef.current;
     setCurrentTerminalId(terminalId);
@@ -574,11 +583,14 @@ export function TerminalWorkspace({
         if (relay && !message.iceServers?.length) {
           throw new Error("Relay credentials were unavailable.");
         }
-        peer = new RTCPeerConnection({
+        const connection = new RTCPeerConnection({
           iceServers: message.iceServers ?? [],
           iceTransportPolicy: relay ? "relay" : "all",
         });
-        peerRef.current = peer;
+        peer = connection;
+        const setup = new AbortController();
+        peerRef.current = connection;
+        peerSetupRef.current = setup;
         peer.addEventListener("datachannel", ({ channel }) => {
           if (
             peerRef.current !== peer ||
@@ -646,12 +658,13 @@ export function TerminalWorkspace({
             });
           });
         });
-        await peer.setRemoteDescription({ type: "offer", sdp: message.offerSdp });
-        const answer = await peer.createAnswer();
-        await peer.setLocalDescription(answer);
-        await waitForIceGathering(peer, relay);
+        await runWebRtcSetupStep(setup.signal, () =>
+          connection.setRemoteDescription({ type: "offer", sdp: message.offerSdp }),
+        );
+        const answer = await runWebRtcSetupStep(setup.signal, () => connection.createAnswer());
+        await runWebRtcSetupStep(setup.signal, () => connection.setLocalDescription(answer));
+        await waitForIceGathering(connection, relay, setup.signal);
         if (peerRef.current !== peer) {
-          peer.close();
           return;
         }
         const answerSdp = peer.localDescription?.sdp;
@@ -679,7 +692,8 @@ export function TerminalWorkspace({
         if (!signature) {
           throw new Error("Missing reconnect key.");
         }
-        send({
+        answerOperationRef.current = answerOperationId;
+        const sent = send({
           type: "terminal.answer",
           operationId: answerOperationId,
           offerOperationId: message.operationId,
@@ -687,6 +701,9 @@ export function TerminalWorkspace({
           answerSdp,
           clientSignature: signature,
         });
+        if (sent === false) {
+          throw new Error("The Terminal answer could not be sent. Reconnect and try again.");
+        }
         if (message.turnExpiresAt) {
           const renewIn = Math.max(
             30_000,
@@ -696,7 +713,6 @@ export function TerminalWorkspace({
         }
       } catch (error) {
         if (peer && peerRef.current !== peer) {
-          peer.close();
           return;
         }
         closePeer();
@@ -764,6 +780,7 @@ export function TerminalWorkspace({
           pendingAttachRef.current = null;
           pendingStartRef.current = null;
           offerOperationRef.current = null;
+          stopOperationRef.current = null;
           inputQueueRef.current?.clear();
           terminalRef.current?.clearSelection();
           setRunning(false);
@@ -776,11 +793,25 @@ export function TerminalWorkspace({
           setStatus(
             message.state === "active" ? "Windows PowerShell is active." : "Connecting Terminal…",
           );
-        } else if (
-          (message.type === "terminal.answer.result" || message.type === "terminal.stop.result") &&
-          !message.succeeded
-        ) {
-          setStatus(message.message);
+        } else if (message.type === "terminal.answer.result") {
+          if (message.operationId !== answerOperationRef.current) {
+            return;
+          }
+          answerOperationRef.current = null;
+          if (!message.succeeded) {
+            closePeer();
+            setConnecting(false);
+            setStatus(message.message);
+          }
+        } else if (message.type === "terminal.stop.result") {
+          const expected = stopOperationRef.current;
+          if (message.operationId !== expected?.operationId) {
+            return;
+          }
+          stopOperationRef.current = null;
+          if (expected.terminalId === terminalIdRef.current && !message.succeeded) {
+            setStatus(message.message);
+          }
         }
       }),
     [acceptOffer, closePeer],
@@ -798,6 +829,7 @@ export function TerminalWorkspace({
       closePeer();
       terminalIdRef.current = null;
       setCurrentTerminalId(null);
+      stopOperationRef.current = null;
       reconnectEpochRef.current = -1;
       pendingAttachRef.current = null;
       inputQueueRef.current?.clear();
@@ -848,6 +880,7 @@ export function TerminalWorkspace({
     offerOperationRef.current = operationId;
     beginSetupDeadline();
     terminalIdRef.current = null;
+    stopOperationRef.current = null;
     setCurrentTerminalId(null);
     setConnecting(true);
     setStatus("Starting Windows PowerShell…");
@@ -856,7 +889,12 @@ export function TerminalWorkspace({
   const stop = () => {
     const terminalId = terminalIdRef.current;
     if (terminalId) {
-      send({ type: "terminal.stop", operationId: createLocalId(), terminalId });
+      const operationId = createLocalId();
+      stopOperationRef.current = { operationId, terminalId };
+      if (send({ type: "terminal.stop", operationId, terminalId }) === false) {
+        stopOperationRef.current = null;
+        setStatus("The Terminal stop request could not be sent. Reconnect and try again.");
+      }
     }
   };
   const key = (value: string) => sendBytes(encoder.encode(value));

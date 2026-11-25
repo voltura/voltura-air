@@ -27,10 +27,6 @@ const storage = vi.hoisted(() => {
 vi.mock("../connection/pairingCredentials", () => ({
   signClientPayload: () => "client-signature",
 }));
-vi.mock("../webrtc/iceGathering", () => ({
-  hasOnlyRelayCandidates: () => true,
-  waitForIceGathering: () => Promise.resolve(),
-}));
 vi.mock("../webrtc/sessionCrypto", () => ({
   hashSessionDescription: () => "sdp-hash",
   verifyHostSessionSignature: () => true,
@@ -67,6 +63,7 @@ class TestDataChannel {
 class TestPeerConnection {
   static latest: TestPeerConnection | null = null;
   connectionState: RTCPeerConnectionState = "new";
+  iceGatheringState: RTCIceGatheringState = "complete";
   localDescription: RTCSessionDescriptionInit | null = { type: "answer", sdp: "answer-sdp" };
   readonly channel = new TestDataChannel();
   private readonly listeners = new Map<string, EventListener[]>();
@@ -76,10 +73,16 @@ class TestPeerConnection {
   addEventListener(type: string, listener: EventListener) {
     this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
   }
-  setRemoteDescription() {
+  removeEventListener(type: string, listener: EventListener) {
+    this.listeners.set(type, (this.listeners.get(type) ?? []).filter((candidate) => candidate !== listener));
+  }
+  deliverChannel(channel: TestDataChannel) {
     this.listeners
       .get("datachannel")
-      ?.forEach((listener) => listener({ channel: this.channel } as unknown as Event));
+      ?.forEach((listener) => listener({ channel } as unknown as Event));
+  }
+  setRemoteDescription() {
+    this.deliverChannel(this.channel);
     this.channel.dispatch("open");
     return Promise.resolve();
   }
@@ -141,11 +144,12 @@ describe("useFileTransfer download lifecycle", () => {
     offerSdp: "offer-sdp",
     hostSignature: "host-signature",
   };
-  function setup() {
+  function setup(canSend?: (message: ClientMessage) => boolean) {
     vi.stubGlobal("RTCPeerConnection", TestPeerConnection);
     const sent: ClientMessage[] = [];
-    const send = (message: ClientMessage) => {
+    const send = (message: ClientMessage): boolean | void => {
       sent.push(message);
+      return canSend?.(message);
     };
     const hook = renderHook(
       ({ sender, host = pc, identity = "client" }) => useFileTransfer(host, identity, true, sender),
@@ -183,6 +187,105 @@ describe("useFileTransfer download lifecycle", () => {
     expect(hook.result.current.presentation.readyToSave).toBe(true);
     return hook;
   }
+
+  it("removes candidate gathering listeners as soon as a transfer is canceled", async () => {
+    const setDescription = TestPeerConnection.prototype.setRemoteDescription;
+    const apply = vi.spyOn(TestPeerConnection.prototype, "setRemoteDescription").mockImplementationOnce(function (this: TestPeerConnection) {
+      this.iceGatheringState = "gathering";
+      return setDescription.call(this);
+    });
+    const removeListener = vi.spyOn(TestPeerConnection.prototype, "removeEventListener");
+    const hook = setup();
+    await act(() => {
+      publishFileManagerResult(offer);
+      return Promise.resolve();
+    });
+    expect(apply).toHaveBeenCalledOnce();
+    const peer = TestPeerConnection.latest!;
+    peer.close.mockImplementationOnce(() => {
+      peer.connectionState = "closed";
+    });
+    await act(() => {
+      hook.result.current.cancel();
+      return Promise.resolve();
+    });
+    expect(removeListener).toHaveBeenCalledWith("icegatheringstatechange", expect.any(Function));
+    expect(peer.close).toHaveBeenCalledOnce();
+    expect(hook.sent.some((message) => message.type === "file.transfer.answer")).toBe(false);
+  });
+
+  it("cleans up a transfer when its signed answer cannot be sent", async () => {
+    const hook = setup((message) => message.type !== "file.transfer.answer");
+    await act(() => {
+      publishFileManagerResult(offer);
+      return Promise.resolve();
+    });
+    expect(hook.result.current.presentation.message).toContain("answer could not be sent");
+    expect(TestPeerConnection.latest?.close).toHaveBeenCalledOnce();
+    expect(storage.writable.abort).toHaveBeenCalledOnce();
+    expect(hook.sent).toContainEqual(expect.objectContaining({ type: "file.transfer.cancel" }));
+  });
+
+  it("cleans up a rejected answer only for the current file transfer operation", async () => {
+    const hook = await connected();
+    const rejected = {
+      type: "file.transfer.answer.result" as const,
+      operationId: "retired-answer",
+      succeeded: false,
+      code: "offer-expired",
+      message: "The file-transfer offer expired.",
+    };
+    act(() => publishFileManagerResult(rejected));
+    expect(hook.result.current.presentation.active).toBe(true);
+    const answer = hook.sent.find((message) => message.type === "file.transfer.answer")!;
+    await act(() => {
+      publishFileManagerResult({ ...rejected, operationId: answer.operationId });
+      return Promise.resolve();
+    });
+    expect(hook.result.current.presentation.active).toBe(false);
+    expect(hook.result.current.presentation.message).toBe(rejected.message);
+    expect(storage.writable.abort).toHaveBeenCalledOnce();
+    expect(TestPeerConnection.latest?.close).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a completed download ready even when retired channel events arrive", async () => {
+    const hook = await ready();
+    const peer = TestPeerConnection.latest!;
+    const lateChannel = new TestDataChannel();
+    act(() => {
+      peer.channel.dispatch("message", new MessageEvent("message", { data: new ArrayBuffer(0) }));
+      peer.deliverChannel(lateChannel);
+    });
+    expect(hook.result.current.presentation.readyToSave).toBe(true);
+    expect(lateChannel.close).toHaveBeenCalledOnce();
+    expect(storage.remove).not.toHaveBeenCalled();
+    await act(() => hook.result.current.discardReadyFile());
+    expect(peer.close).toHaveBeenCalledOnce();
+    expect(peer.channel.close).toHaveBeenCalledOnce();
+  });
+
+  it("keeps download finalization independent of later data-channel messages", async () => {
+    const hook = await connected();
+    let finishWrite!: () => void;
+    storage.writable.close.mockImplementationOnce(() =>
+      new Promise<void>((resolve) => { finishWrite = resolve; }),
+    );
+    await act(() => {
+      publishFileManagerResult(completion);
+      return Promise.resolve();
+    });
+    expect(storage.writable.close).toHaveBeenCalledOnce();
+    const peer = TestPeerConnection.latest!;
+    act(() => peer.channel.dispatch("message", new MessageEvent("message", { data: new ArrayBuffer(0) })));
+    expect(storage.writable.abort).not.toHaveBeenCalled();
+    await act(() => {
+      finishWrite();
+      return Promise.resolve();
+    });
+    expect(hook.result.current.presentation.readyToSave).toBe(true);
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+
   it.each(["close", "commit"])(
     "contains transfer %s failure even if cleanup also fails",
     async (boundary) => {
@@ -433,6 +536,7 @@ describe("useFileTransfer download lifecycle", () => {
     expect(hook.result.current.presentation.active).toBe(true);
   });
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
     TestPeerConnection.latest = null;
     storage.remove.mockClear();
@@ -445,7 +549,7 @@ describe("useFileTransfer download lifecycle", () => {
   it("starts a screenshot download bound to the active screen operation and display", () => {
     vi.stubGlobal("RTCPeerConnection", TestPeerConnection);
     const sent: ClientMessage[] = [];
-    const send = (message: ClientMessage) => sent.push(message);
+    const send = (message: ClientMessage) => { sent.push(message); };
     let transfer: ReturnType<typeof useFileTransfer> | null = null;
     function Harness() {
       transfer = useFileTransfer(
@@ -501,7 +605,7 @@ describe("useFileTransfer download lifecycle", () => {
       },
     };
     let transfer: ReturnType<typeof useFileTransfer> | null = null;
-    const send = (message: ClientMessage) => sent.push(message);
+    const send = (message: ClientMessage) => { sent.push(message); };
     function Harness() {
       transfer = useFileTransfer(
         {
@@ -554,7 +658,7 @@ describe("useFileTransfer download lifecycle", () => {
       },
     };
     let transfer: ReturnType<typeof useFileTransfer> | null = null;
-    const send = (message: ClientMessage) => sent.push(message);
+    const send = (message: ClientMessage) => { sent.push(message); };
     function Harness() {
       transfer = useFileTransfer(
         {
@@ -596,7 +700,7 @@ describe("useFileTransfer download lifecycle", () => {
   it("keeps a canceled iPhone share ready, then clears it after a successful handoff", async () => {
     vi.stubGlobal("RTCPeerConnection", TestPeerConnection);
     const sent: ClientMessage[] = [];
-    const send = (message: ClientMessage) => sent.push(message);
+    const send = (message: ClientMessage) => { sent.push(message); };
     const target: FileTransferTarget = {
       sessionId: "session",
       panel: "left",
@@ -704,7 +808,7 @@ describe("useFileTransfer download lifecycle", () => {
       }),
     );
     const sent: ClientMessage[] = [];
-    const send = (message: ClientMessage) => sent.push(message);
+    const send = (message: ClientMessage) => { sent.push(message); };
     const target: FileTransferTarget = {
       sessionId: "session",
       panel: "left",

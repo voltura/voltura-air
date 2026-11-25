@@ -20,6 +20,7 @@ import type {
   ClientMessage,
 } from "../../foundation/protocol/messages";
 import { hasOnlyRelayCandidates, waitForIceGathering } from "../../foundation/webrtc/iceGathering";
+import { runWebRtcSetupStep } from "../../foundation/webrtc/peerSetup";
 import {
   hashSessionDescription,
   verifyHostSessionSignature,
@@ -32,7 +33,7 @@ interface Options {
   isListOperationPending: (operationId: string) => boolean;
   revision: string | null;
   selectedIndex: number;
-  send: (message: ClientMessage) => void;
+  send: (message: ClientMessage) => boolean | void;
   setMessage: (message: string) => void;
   state: ConnectionState;
   windows: AppsWindowSummary[];
@@ -55,6 +56,7 @@ export function useAppsPreviews({
   windows,
 }: Options) {
   const peerRef = useRef<RTCPeerConnection | null>(null);
+  const peerSetupRef = useRef<AbortController | null>(null);
   const channelRef = useRef<RTCDataChannel | null>(null);
   const previewIdRef = useRef<string | null>(null);
   const answerOperationRef = useRef<string | null>(null);
@@ -196,7 +198,10 @@ export function useAppsPreviews({
       const channel = channelRef.current;
       channelRef.current = null;
       const peer = peerRef.current;
+      const setup = peerSetupRef.current;
       peerRef.current = null;
+      peerSetupRef.current = null;
+      setup?.abort();
       channel?.close();
       peer?.close();
       window.clearTimeout(previewRequestTimeoutRef.current);
@@ -321,11 +326,14 @@ export function useAppsPreviews({
         if (relay && !offer.iceServers?.length) {
           throw new Error("Relay preview credentials were unavailable.");
         }
-        peer = new RTCPeerConnection({
+        const connection = new RTCPeerConnection({
           iceServers: offer.iceServers ?? [],
           iceTransportPolicy: relay ? "relay" : "all",
         });
-        peerRef.current = peer;
+        peer = connection;
+        const setup = new AbortController();
+        peerRef.current = connection;
+        peerSetupRef.current = setup;
         previewIdRef.current = offer.previewId;
         peer.addEventListener("datachannel", ({ channel }) => {
           if (
@@ -388,11 +396,13 @@ export function useAppsPreviews({
             setPreviewUrls(new Map(previewUrlsRef.current));
           });
         });
-        await peer.setRemoteDescription({ type: "offer", sdp: offer.offerSdp });
-        await peer.setLocalDescription(await peer.createAnswer());
-        await waitForIceGathering(peer, relay);
+        await runWebRtcSetupStep(setup.signal, () =>
+          connection.setRemoteDescription({ type: "offer", sdp: offer.offerSdp }),
+        );
+        const answer = await runWebRtcSetupStep(setup.signal, () => connection.createAnswer());
+        await runWebRtcSetupStep(setup.signal, () => connection.setLocalDescription(answer));
+        await waitForIceGathering(connection, relay, setup.signal);
         if (peerRef.current !== peer) {
-          peer.close();
           return;
         }
         const answerSdp = peer.localDescription?.sdp;
@@ -421,7 +431,7 @@ export function useAppsPreviews({
           throw new Error("Scan the PC pairing QR again before using Apps previews.");
         }
         answerOperationRef.current = operationId;
-        send({
+        const sent = send({
           type: "apps.preview.answer",
           operationId,
           offerOperationId: offer.operationId,
@@ -429,9 +439,11 @@ export function useAppsPreviews({
           answerSdp,
           clientSignature: signature,
         });
+        if (sent === false) {
+          throw new Error("The Apps preview answer could not be sent. Reconnect and try again.");
+        }
       } catch (error) {
         if (peer && peerRef.current !== peer) {
-          peer.close();
           return;
         }
         closePreview();

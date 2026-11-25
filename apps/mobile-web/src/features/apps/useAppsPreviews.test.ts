@@ -138,6 +138,48 @@ describe("Apps preview lifetime", () => {
     expect(channel.close).toHaveBeenCalledOnce();
   });
 
+  it("settles preview setup when closed while the browser is still applying its offer", async () => {
+    let finishDescription!: () => void;
+    const applyingOffer = new Promise<void>((resolve) => {
+      finishDescription = resolve;
+    });
+    vi.stubGlobal("RTCPeerConnection", function () {
+      const peer = new PreviewPeer();
+      peer.setRemoteDescription.mockReturnValueOnce(applyingOffer);
+      peers.push(peer);
+      return peer;
+    });
+    const { result, send } = setup();
+    let accepting!: Promise<void>;
+    act(() => {
+      accepting = result.current.acceptPreviewOffer(offer);
+    });
+    const peer = peers[0]!;
+    expect(peer.setRemoteDescription).toHaveBeenCalledOnce();
+    act(() => result.current.closePreview());
+    await act(() => accepting);
+    await act(() => {
+      finishDescription();
+      return applyingOffer;
+    });
+    expect(peer.createAnswer).not.toHaveBeenCalled();
+    expect(peer.close).toHaveBeenCalledOnce();
+    expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: "apps.preview.answer" }));
+  });
+
+  it("releases a preview when the answer cannot be sent", async () => {
+    const { result, send, setMessage } = setup();
+    send.mockImplementation((message) => message.type === "apps.preview.answer" ? false : undefined);
+    await act(() => result.current.acceptPreviewOffer(offer));
+    expect(peers[0]!.close).toHaveBeenCalledOnce();
+    expect(result.current.ownsPreview(offer.previewId)).toBe(false);
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({
+      type: "apps.preview.stop",
+      previewId: offer.previewId,
+    }));
+    expect(setMessage).toHaveBeenCalledWith(expect.stringContaining("answer could not be sent"));
+  });
+
   it("ignores messages from a replaced peer instead of closing its replacement", async () => {
     const { result } = setup();
     await act(() => result.current.acceptPreviewOffer(offer));
@@ -187,10 +229,11 @@ describe("Apps preview lifetime", () => {
 });
 
 function setup(withWindow = false) {
-  const send = vi.fn<(message: ClientMessage) => void>();
+  const send = vi.fn<(message: ClientMessage) => boolean | void>();
   const setMessage = vi.fn();
   return {
     send,
+    setMessage,
     ...renderHook(
       ({ previewAvailable }) =>
         useAppsPreviews({

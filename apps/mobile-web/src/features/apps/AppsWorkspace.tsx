@@ -35,7 +35,7 @@ interface Props {
   onFeedback: (message: string, tone: "success" | "error" | "pending") => void;
   onOpenTrackpad: () => void;
   pendingAppLaunchId: string | null;
-  send: (message: ClientMessage) => void;
+  send: (message: ClientMessage) => boolean | void;
   state: ConnectionState;
   supportsRemoteLaunch: boolean;
 }

@@ -10,6 +10,7 @@ import type {
   FileTransferResultMessage,
 } from "../protocol/messages";
 import { hasOnlyRelayCandidates, waitForIceGathering } from "../webrtc/iceGathering";
+import { runWebRtcSetupStep } from "../webrtc/peerSetup";
 import { hashSessionDescription, verifyHostSessionSignature } from "../webrtc/sessionCrypto";
 import {
   createFileTransferAcknowledgement,
@@ -33,6 +34,7 @@ import {
   createScreenCaptureTransferStartTranscript,
 } from "./fileTransferTranscripts";
 import {
+  closeFileTransferPeer,
   createFileTransferCancelMessage,
   idleFileTransferPresentation as idlePresentation,
   type FileTransferTarget,
@@ -56,7 +58,7 @@ export function useFileTransfer(
   activePc: PcProfile,
   clientId: string,
   enabled: boolean,
-  send: (message: ClientMessage) => void,
+  send: (message: ClientMessage) => boolean | void,
   onUploadCompleted?: (panel: "left" | "right", fileName: string) => void,
   onTransferNotice?: (message: string, tone: "success" | "error" | "neutral") => void,
 ) {
@@ -89,10 +91,7 @@ export function useFileTransfer(
 
   const closeRuntime = useCallback(
     async (runtime: TransferRuntime, removeStored: boolean) => {
-      runtime.channel?.close();
-      runtime.peer?.close();
-      runtime.channel = null;
-      runtime.peer = null;
+      closeFileTransferPeer(runtime);
       if (runtime.writable) {
         try {
           await runtime.writable.abort();
@@ -231,6 +230,7 @@ export function useFileTransfer(
       if (
         channel.label !== "voltura-file-transfer" ||
         runtime.channel ||
+        runtime.transportComplete ||
         runtimeRef.current !== runtime
       ) {
         channel.close();
@@ -257,7 +257,7 @@ export function useFileTransfer(
         }
       });
       const channelFailed = () => {
-        if (!runtime.transportComplete && !hasTransferredData(runtime)) {
+        if (runtime.channel === channel && !runtime.transportComplete && !hasTransferredData(runtime)) {
           fail(runtime, "The file data channel was lost.");
         }
       };
@@ -265,7 +265,11 @@ export function useFileTransfer(
       channel.addEventListener("error", channelFailed);
       let pendingDownloadRecords = 0;
       channel.addEventListener("message", (event) => {
-        if (runtimeRef.current !== runtime) {
+        if (
+          runtimeRef.current !== runtime ||
+          runtime.channel !== channel ||
+          finishingRef.current.has(runtime)
+        ) {
           return;
         }
         if (runtime.direction === "download") {
@@ -391,12 +395,14 @@ export function useFileTransfer(
           iceServers: message.iceServers ?? [],
           iceTransportPolicy: relayMode ? "relay" : "all",
         });
+        const setup = new AbortController();
         runtime.peer = peer;
-        runtime.offerHash = offerHash;
+        runtime.peerSetup = setup;
         peer.addEventListener("datachannel", (event) => attachChannel(runtime, event.channel));
         peer.addEventListener("connectionstatechange", () => {
           if (
             runtimeRef.current === runtime &&
+            runtime.peer === peer &&
             !runtime.transportComplete &&
             !hasTransferredData(runtime) &&
             (peer.connectionState === "failed" || peer.connectionState === "closed")
@@ -404,20 +410,13 @@ export function useFileTransfer(
             fail(runtime, "The file connection was lost.");
           }
         });
-        await peer.setRemoteDescription({ type: "offer", sdp: message.offerSdp });
-        if (runtimeRef.current !== runtime) {
-          return;
-        }
-        const answer = await peer.createAnswer();
-        if (runtimeRef.current !== runtime) {
-          return;
-        }
-        await peer.setLocalDescription(answer);
-        if (runtimeRef.current !== runtime) {
-          return;
-        }
-        await waitForIceGathering(peer, relayMode);
-        if (runtimeRef.current !== runtime) {
+        await runWebRtcSetupStep(setup.signal, () =>
+          peer.setRemoteDescription({ type: "offer", sdp: message.offerSdp }),
+        );
+        const answer = await runWebRtcSetupStep(setup.signal, () => peer.createAnswer());
+        await runWebRtcSetupStep(setup.signal, () => peer.setLocalDescription(answer));
+        await waitForIceGathering(peer, relayMode, setup.signal);
+        if (runtimeRef.current !== runtime || runtime.peer !== peer) {
           return;
         }
         const answerSdp = peer.localDescription?.sdp;
@@ -444,22 +443,23 @@ export function useFileTransfer(
         if (!signature) {
           throw new Error("Missing reconnect key.");
         }
-        sendRef.current({
+        const operationId = createLocalId();
+        runtime.answerOperationId = operationId;
+        const sent = sendRef.current({
           type: "file.transfer.answer",
-          operationId: createLocalId(),
+          operationId,
           transferId: runtime.transferId,
           answerSdp,
           clientSignature: signature,
         });
+        if (sent === false) {
+          throw new Error("The file transfer answer could not be sent. Reconnect and try again.");
+        }
         if (runtime.channel?.readyState !== "open") {
           updateProgress(runtime, 0, "Connecting…");
         }
       } catch (error) {
-        if (
-          error instanceof DOMException &&
-          error.name === "AbortError" &&
-          runtimeRef.current !== runtime
-        ) {
+        if (runtimeRef.current !== runtime || runtime.transportComplete) {
           return;
         }
         fail(
@@ -517,8 +517,7 @@ export function useFileTransfer(
         }
         runtime.readyFile = stored;
         runtime.transportComplete = true;
-        runtime.channel?.close();
-        runtime.peer?.close();
+        closeFileTransferPeer(runtime);
         setPresentation({
           active: false,
           fileName: runtime.fileName,
@@ -577,6 +576,14 @@ export function useFileTransfer(
           }));
         } else if (message.type === "file.transfer.offer") {
           void acceptOffer(message);
+        } else if (
+          message.type === "file.transfer.answer.result" &&
+          runtime?.answerOperationId === message.operationId
+        ) {
+          runtime.answerOperationId = null;
+          if (!message.succeeded && !finishingRef.current.has(runtime)) {
+            fail(runtime, message.message, false);
+          }
         } else if (
           message.type === "file.transfer.status" &&
           runtime?.transferId === message.transferId &&
@@ -742,8 +749,9 @@ export function useFileTransfer(
         declaredSize: uploadFile?.size ?? 0,
         uploadFile,
         peer: null,
+        peerSetup: null,
         channel: null,
-        offerHash: "",
+        answerOperationId: null,
         writable: null,
         directory: null,
         handle: null,
@@ -789,8 +797,9 @@ export function useFileTransfer(
         declaredSize: 0,
         uploadFile: null,
         peer: null,
+        peerSetup: null,
         channel: null,
-        offerHash: "",
+        answerOperationId: null,
         writable: null,
         directory: null,
         handle: null,

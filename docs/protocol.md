@@ -1434,6 +1434,12 @@ One host-wide transfer may run beside Screen viewing or Phone webcam. The host o
 - The host returns `file.transfer.start.result`, then `file.transfer.offer` with host-authoritative name/size, bounded SDP, pinned-host signature, and optional Relay ICE/usage fields. Its transcript is `VolturaAir file-transfer:offer:v1` plus client ID, host public key, request ID, transfer ID, direction, name, size, and SHA-256 SDP hash on separate lines. Negotiation expires after 20 seconds.
 - The device returns `file.transfer.answer` with bounded SDP and a reconnect-key signature over `VolturaAir file-transfer:answer:v1`, client ID, host public key, request ID, transfer ID, direction, host-authoritative name and size, offer hash, and answer hash. `file.transfer.cancel` targets exactly one established `transferId` or pending start `requestId`, so Cancel remains authoritative before the host has issued a transfer ID. `file.transfer.answer.result`, `file.transfer.cancel.result`, coalesced `file.transfer.status`, and terminal `file.transfer.result` carry setup, cancellation, progress, and outcome only.
 
+The browser ends the wait for SDP and ICE when it closes the transfer peer.
+An answer send failure or a rejection of the current answer ends the local
+transfer and cleans up its temporary download. After a successful transfer
+result, the browser finishes queued writes and ignores later channel records.
+Closing the transport preserves a completed download for Save or Share.
+
 Binary records begin with version in the high nibble and kind in the low nibble (`1` data, `2` cumulative acknowledgement), followed by an unsigned 64-bit big-endian offset. Data payload is 1 through 65,536 bytes; acknowledgements have no payload. Senders retain at most 1 MiB unacknowledged and also respect data-channel buffered amount. Upload ACKs follow flushed writes; download ACKs follow completed OPFS writes. No hash, retransmission, encryption, or resume layer is added above WebRTC. Retry starts from zero.
 
 Files downloads require browse and transfer permissions plus one current file revision. The host opens a stable source and supplies its name and length. A screen capture is prepared once in bounded host memory outside the live-capture lock after its native pixel copy, excludes the cursor, and is supplied as a generated source to the same coordinator; it creates no PC-side file. The browser checks estimated quota when available and writes an OPFS partial before exposing a fresh Save/Share activation. Canceling the native share sheet keeps that temporary file ready for retry while its owning view remains open; successful share handoff, explicit discard, fallback-download start, owner exit/start, disconnect, permission loss, cancellation, or failure removes it. Reload cleanup reuses an inherited OPFS owner only after acquiring its exclusive browser claim; a cloned live tab or unavailable claim gets a fresh owner and never sweeps the inherited directory. Uploads additionally require change permission. The host validates the Windows name, current destination revision, and available volume space before admission. An invalid name requires a replacement; conflicts use Replace, host-generated Keep both, or Cancel. Upload is admitted only by `file.transfer.start`, appears as a non-pausable existing mutation job, and queues behind other mutations. `file.job.create` does not accept `upload`.
@@ -1480,6 +1486,8 @@ relay-only candidates. The peer is a separate reliable ordered
 `voltura-apps-preview` data-channel-only connection; it shares lower-level
 ICE/TURN and TLS bridge code but no Files session, transfer coordinator, or
 Screen/Phone lifecycle.
+Closing the preview ends its pending browser SDP and ICE waits. If the answer
+cannot be sent, the browser releases the peer and attempts to stop the preview.
 
 Binary Apps preview records place version `1` in byte zero's high nibble. A
 request (`kind 1`) is exactly the discriminator, 32 ASCII revision bytes, a
@@ -1506,6 +1514,11 @@ and object URLs are transient and excluded from persistence, logs, and telemetry
 Terminal setup and lifecycle use the authenticated JSON control connection. `terminal.start` has exact fields `type`, `operationId`, `columns`, `rows`, and `clientSignature`. `terminal.attach` additionally binds exact `terminalId` and non-negative safe `acknowledgedOffset`. `terminal.answer` has `operationId`, `offerOperationId`, `terminalId`, bounded `answerSdp`, and `clientSignature`; `terminal.stop` has only `operationId` and `terminalId`. Columns are 10–500 and rows 5–300. Results are `terminal.start.result`, `terminal.attach.result`, `terminal.answer.result`, and `terminal.stop.result`; the host emits `terminal.offer`, capability/status updates, and `terminal.ended`.
 
 Start and attach signatures use `VolturaAir terminal:start:v1` and `VolturaAir terminal:attach:v1` transcripts followed by the client ID, pinned host public key, operation/session values, dimensions, and acknowledged offset in the documented message order. Offers bind those fields plus the SHA-256/base64url SDP hash under `VolturaAir terminal:offer:v1`; answers bind client ID, pinned host key, start/attach operation ID, answer operation ID, terminal ID, offer hash, and answer hash under `VolturaAir terminal:answer:v1`. Operation replay, invalid shape/SDP/signature, and cross-device ownership fail closed.
+
+Retiring the browser peer ends the wait for SDP and ICE. A failed answer send
+or rejection of the current answer releases that peer immediately. Stop replies
+apply only to the current Stop request for the current Terminal. If Stop cannot
+be sent, the browser reports the failure and leaves the operation available to retry.
 
 The host creates one reliable ordered `voltura-terminal` DataChannel. A transient ICE `disconnected` state is allowed to recover on that peer; `failed`, `closed`, DataChannel close, or record failure detaches it. Binary byte zero contains version `1` in the high nibble and kind in the low nibble: `1` input, `2` output, `3` cumulative output acknowledgement, `4` resize. Input/output records carry an unsigned 64-bit big-endian offset followed by 1–16,384 bytes (input offset is zero). Acknowledgement is exactly nine bytes. Resize is exactly five bytes: header plus unsigned 16-bit big-endian columns and rows. Invalid UTF-8 is terminal data, not JSON; xterm consumes the bytes without command-path decoding.
 

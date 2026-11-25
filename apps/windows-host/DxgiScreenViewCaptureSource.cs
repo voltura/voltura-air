@@ -18,6 +18,7 @@ namespace VolturaAir.Host;
 
 internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSource
 {
+    internal const PixelFormat ScreenshotPixelFormat = PixelFormat.Format32bppRgb;
     private const int MaxPatchCount = 24;
     private readonly Lock _gate = new();
     private CaptureSession? _session;
@@ -126,53 +127,52 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
     public ScreenViewScreenshot CaptureScreenshot(string sourceId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        Bitmap? snapshot = null;
         try
         {
-            lock (_gate)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                OutputLocation? output = EnumerateOutputs().FirstOrDefault(item =>
-                    string.Equals(item.Id, sourceId, StringComparison.Ordinal));
-                if (output is null)
-                    throw new ScreenViewCaptureException("display-unavailable", "The selected display is no longer available.");
-                if (checked((long)output.Width * output.Height) > ScreenViewScreenshotLimits.MaximumPixels)
-                    throw new ScreenViewCaptureException("screenshot-too-large", "This display is too large for a bounded native-resolution screenshot.");
-                snapshot = CaptureDesktopBitmap(output);
-            }
-
+            // The still capture opens its own GDI resources and never accesses the live DXGI session.
+            OutputLocation? output = EnumerateOutputs().FirstOrDefault(item =>
+                string.Equals(item.Id, sourceId, StringComparison.Ordinal));
+            if (output is null)
+                throw new ScreenViewCaptureException("display-unavailable", "The selected display is no longer available.");
+            if ((long)output.Width * output.Height > ScreenViewScreenshotLimits.MaximumPixels)
+                throw new ScreenViewCaptureException("screenshot-too-large", "This display is too large for a bounded native-resolution screenshot.");
             cancellationToken.ThrowIfCancellationRequested();
-#pragma warning disable CA2000 // Ownership is transferred through ScreenViewScreenshot on the successful return path.
-            var encoded = new BoundedScreenshotStream(ScreenViewScreenshotLimits.MaximumEncodedBytes, cancellationToken);
-#pragma warning restore CA2000
-            try
-            {
-                snapshot.Save(encoded, ImageFormat.Png);
-                if (encoded.LimitExceeded)
-                    throw new ScreenViewCaptureException("screenshot-too-large", "The PNG screenshot exceeds the 64 MiB transfer limit.");
-                encoded.Position = 0;
-                return new ScreenViewScreenshot(encoded, encoded.Length, snapshot.Width, snapshot.Height);
-            }
-            catch (Exception ex) when (ex is ExternalException or IOException or NotSupportedException)
-            {
-                encoded.Dispose();
-                if (encoded.LimitExceeded)
-                    throw new ScreenViewCaptureException("screenshot-too-large", "The PNG screenshot exceeds the 64 MiB transfer limit.", ex);
-                throw new ScreenViewCaptureException("screenshot-encode-failed", "Windows could not encode the PC screenshot.", ex);
-            }
-            catch
-            {
-                encoded.Dispose();
-                throw;
-            }
+            using Bitmap snapshot = CaptureDesktopBitmap(output);
+            return EncodeScreenshot(snapshot, (int)ScreenViewScreenshotLimits.MaximumEncodedBytes, cancellationToken);
         }
         catch (Exception ex) when (ex is Win32Exception or ArgumentException)
         {
             throw new ScreenViewCaptureException("screenshot-failed", "Windows could not capture the selected display.", ex);
         }
-        finally
+    }
+
+    internal static ScreenViewScreenshot EncodeScreenshot(Bitmap snapshot, int maximumEncodedBytes, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+#pragma warning disable CA2000 // Ownership is transferred through ScreenViewScreenshot on the successful return path.
+        var encoded = new BoundedScreenshotStream(maximumEncodedBytes, cancellationToken);
+#pragma warning restore CA2000
+        try
         {
-            snapshot?.Dispose();
+            snapshot.Save(encoded, ImageFormat.Png);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (encoded.LimitExceeded)
+                throw new ScreenViewCaptureException("screenshot-too-large", "The PNG screenshot exceeds the 64 MiB transfer limit.");
+            encoded.Position = 0;
+            return new ScreenViewScreenshot(encoded, encoded.Length, snapshot.Width, snapshot.Height);
+        }
+        catch (Exception ex) when (ex is ExternalException or IOException or NotSupportedException)
+        {
+            encoded.Dispose();
+            cancellationToken.ThrowIfCancellationRequested();
+            if (encoded.LimitExceeded)
+                throw new ScreenViewCaptureException("screenshot-too-large", "The PNG screenshot exceeds the 64 MiB transfer limit.", ex);
+            throw new ScreenViewCaptureException("screenshot-encode-failed", "Windows could not encode the PC screenshot.", ex);
+        }
+        catch
+        {
+            encoded.Dispose();
+            throw;
         }
     }
 
@@ -237,7 +237,7 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
 
     private static Bitmap CaptureDesktopBitmap(OutputLocation output)
     {
-        var bitmap = new Bitmap(output.Width, output.Height, PixelFormat.Format32bppArgb);
+        var bitmap = new Bitmap(output.Width, output.Height, ScreenshotPixelFormat);
         try
         {
             using Graphics graphics = Graphics.FromImage(bitmap);
@@ -1133,7 +1133,7 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
     [LibraryImport("shcore.dll")]
     private static partial int GetDpiForMonitor(nint monitor, MonitorDpiType dpiType, out uint dpiX, out uint dpiY);
 
-    internal sealed class BoundedScreenshotStream(long maximumLength, CancellationToken cancellationToken) : MemoryStream
+    internal sealed class BoundedScreenshotStream(int maximumLength, CancellationToken cancellationToken) : MemoryStream
     {
         public bool LimitExceeded { get; private set; }
 
@@ -1155,14 +1155,29 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
             base.WriteByte(value);
         }
 
+        public override void SetLength(long value)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            Reserve(value);
+            base.SetLength(value);
+        }
+
         private void EnsureCapacityFor(int count)
         {
+            ArgumentOutOfRangeException.ThrowIfNegative(count);
+            Reserve(Position + count);
+        }
+
+        private void Reserve(long length)
+        {
             cancellationToken.ThrowIfCancellationRequested();
-            if (count < 0 || Position > maximumLength - count)
+            if (length > maximumLength)
             {
                 LimitExceeded = true;
                 throw new IOException("The screenshot exceeded its encoded-size limit.");
             }
+            if (length > Capacity)
+                Capacity = (int)Math.Min(maximumLength, Math.Max(length, Math.Max(256, Capacity * 2L)));
         }
     }
 }

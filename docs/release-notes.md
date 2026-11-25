@@ -6,6 +6,21 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.5.6
+
+- View PC Screen recovers more reliably when Windows changes display modes,
+  video capture is interrupted, or Cloud Relay reconnects. Rotated displays keep
+  the picture, cursor, and phone touch input aligned.
+- Screenshots keep the live mirror running and recover from stalled requests.
+  Interrupted recordings release capture resources and keep finished recordings
+  available for Save or Share while Screen View remains open.
+- Phone Webcam switches cameras more reliably, recovers from stalled video and
+  microphone capture, and improves the stability of the Windows preview and
+  virtual camera output.
+- Keyboard and pointer input stay responsive under media load. Clipboard,
+  Custom Screens, Apps, Files, and Terminal recover more reliably when the phone
+  changes connections or a request fails.
+
 ## v1.5.5
 
 - Pairing and reconnect keep the controls unavailable until the connection is

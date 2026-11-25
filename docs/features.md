@@ -252,12 +252,13 @@ failure keeps session state without a background retry loop.
   renegotiating WebRTC, changing local mute, or interrupting video.
 - While a display is live, a camera action can copy one cursor-free frame at the
   selected display's native orientation and resolution, encode it as lossless
-  PNG, and send it through the existing one-file Save/Share flow. It requires
-  both **View PC screen** and Transfer files permission, but not Browse files. The
-  host accepts at most 33,177,600 pixels and 64 MiB of encoded PNG, holds no PC
-  temporary file or history, and keeps the live mirror running on success or
-  failure. The device keeps only the existing per-tab OPFS partial until Save,
-  Share, Discard, cancellation, navigation, disconnect, reload, or failure.
+  opaque RGB PNG, and send it through the existing one-file Save/Share flow.
+  The **View PC screen** and Transfer files permissions are sufficient. The host
+  accepts at most 33,177,600 pixels and 64 MiB of encoded PNG, holds no PC
+  temporary file or history, and keeps the live mirror running independently
+  of the screenshot copy and encode. The device keeps only the existing
+  per-tab OPFS partial until Save, Share, Discard, cancellation, navigation,
+  disconnect, reload, or failure.
   Starting a display switch or ending the live mirror cancels an unfinished
   screenshot. A screenshot already ready to save stays available in the open
   workspace while its connection and permissions remain valid. The camera waits

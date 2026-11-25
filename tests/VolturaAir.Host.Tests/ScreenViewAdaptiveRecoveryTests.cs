@@ -650,6 +650,109 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         }
     }
 
+    [Fact]
+    public async Task ScreenshotWaitsForTheActivePeerToConnect()
+    {
+        HostPermissionSet originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true, AllowFileTransfer = true });
+            var connection = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var peer = new AdaptivePeer { Connected = connection.Task };
+            await using var fixture = await WebHostFixture.StartAsync(
+                screenViewCapture: new AdaptiveCaptureSource(), screenViewPeerFactory: new AdaptivePeerFactory(peer));
+            using var key = new PairingTestKey();
+            using WebSocket control = await ConnectAsync(fixture.WebHost);
+            await PairAsync(control, fixture.Manager, key);
+            await StartAndAnswerAsync(control, key, "screen-awaiting-media");
+
+            JsonElement response = await SendUntilTypeAsync(control,
+                ScreenshotRequest(fixture.Manager, key, "screen-awaiting-media"), "file.transfer.start.result");
+
+            Assert.False(response.GetProperty("succeeded").GetBoolean());
+            Assert.Equal("screen-session-stale", response.GetProperty("code").GetString());
+        }
+        finally { AppPermissionSettings.Save(originalPermissions); }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task InFlightScreenshotRetiresWhenTheMirrorStopsOrChangesDisplay(bool stop)
+    {
+        HostPermissionSet originalPermissions = AppPermissionSettings.Load();
+        var captureStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finishCapture = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var screenshot = new MemoryStream([137, 80, 78, 71], writable: false);
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true, AllowFileTransfer = true });
+            var capture = new AdaptiveCaptureSource
+            {
+                Sources = [new("display-1", "First", 800, 600, true), new("display-2", "Second", 800, 600, false)],
+                ScreenshotOverride = (_, token) =>
+                {
+                    using var registration = token.Register(() => canceled.TrySetResult());
+                    captureStarted.TrySetResult();
+                    finishCapture.Task.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None).GetAwaiter().GetResult();
+                    return new(screenshot, screenshot.Length, 800, 600);
+                }
+            };
+            await using var fixture = await WebHostFixture.StartAsync(screenViewCapture: capture);
+            using var key = new PairingTestKey();
+            using WebSocket control = await ConnectAsync(fixture.WebHost);
+            await PairAsync(control, fixture.Manager, key);
+            await StartAndAnswerAsync(control, key, "screen-capture-inflight");
+            await capture.Captured.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await SendAsync(control, ScreenshotRequest(fixture.Manager, key, "screen-capture-inflight"));
+            try
+            {
+                await captureStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                if (stop)
+                {
+                    JsonElement stopped = await SendUntilTypeAsync(control,
+                        new { type = "screen.view.stop", operationId = "stop-during-screenshot" }, "screen.view.stop.result");
+                    Assert.True(stopped.GetProperty("succeeded").GetBoolean());
+                    await canceled.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                }
+                else
+                {
+                    foreach (string displayId in new[] { "display-2", "display-1" })
+                    {
+                        JsonElement changed = await SendUntilTypeAsync(control,
+                            new { type = "screen.view.source.set", operationId = $"switch-to-{displayId}", displayId }, "screen.view.source.result");
+                        Assert.True(changed.GetProperty("succeeded").GetBoolean());
+                    }
+                }
+            }
+            finally { finishCapture.TrySetResult(); }
+
+            JsonElement response = await ReceiveUntilTypeAsync(control, "file.transfer.start.result");
+            Assert.False(response.GetProperty("succeeded").GetBoolean());
+            Assert.Equal("screen-session-stale", response.GetProperty("code").GetString());
+            Assert.False(screenshot.CanRead);
+        }
+        finally { AppPermissionSettings.Save(originalPermissions); }
+    }
+
+    private static object ScreenshotRequest(PairingManager manager, PairingTestKey key, string screenOperationId)
+    {
+        const string displayId = "display-1";
+        string operationId = $"{screenOperationId}-still";
+        return new
+        {
+            type = "file.transfer.start",
+            operationId,
+            direction = "download",
+            source = "screen-capture",
+            screenOperationId,
+            displayId,
+            clientSignature = key.SignPayload(FileTransferNegotiation.ScreenCaptureStartTranscript(
+                "client-screen-adaptive", manager.HostIdentity.PublicKey, operationId, screenOperationId, displayId))
+        };
+    }
+
     private static async Task PairAsync(WebSocket control, PairingManager manager, PairingTestKey key)
     {
         JsonElement accepted = await SendAndReceiveAsync(control, new
@@ -691,6 +794,11 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
     private static async Task<JsonElement> SendUntilTypeAsync(WebSocket socket, object payload, string expectedType, TimeSpan? timeout = null)
     {
         await SendAsync(socket, payload);
+        return await ReceiveUntilTypeAsync(socket, expectedType, timeout);
+    }
+
+    private static async Task<JsonElement> ReceiveUntilTypeAsync(WebSocket socket, string expectedType, TimeSpan? timeout = null)
+    {
         for (int attempt = 0; attempt < 8; attempt++)
         {
             using var cancellation = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(2));
@@ -726,6 +834,7 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         public bool RecoverableFailure { get; init; } = true;
         public IReadOnlyList<ScreenViewSource> Sources { get; init; } = [new("display-1", "Display 1", 1920, 1080, true)];
         public Func<string, ScreenViewCaptureProfile, bool, CancellationToken, Task<ScreenViewEncodedFrame?>>? CaptureOverride { get; init; }
+        public Func<string, CancellationToken, ScreenViewScreenshot>? ScreenshotOverride { get; init; }
         private bool _recovering;
         public TaskCompletionSource Failed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Recovered = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -768,6 +877,8 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
             return Task.FromResult<ScreenViewEncodedFrame?>(new([0, 0, 0, 1, 0x65, 1], profile.MaxWidth, profile.MaxHeight, profile.FramesPerSecond, true));
         }
         public void EndCapture() => Ended.TrySetResult();
+        public ScreenViewScreenshot CaptureScreenshot(string sourceId, CancellationToken cancellationToken) =>
+            ScreenshotOverride?.Invoke(sourceId, cancellationToken) ?? throw new NotSupportedException();
     }
 
     private sealed class AdaptivePeerFactory(AdaptivePeer peer) : IScreenViewWebRtcPeerFactory
@@ -783,7 +894,7 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         public event EventHandler? Stopped;
         public event EventHandler? AudioStopped;
         public event EventHandler? KeyFrameRequested;
-        public Task Connected => Task.CompletedTask;
+        public Task Connected { get; init; } = Task.CompletedTask;
         public TaskCompletionSource AcceptedFrame { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource AudioUnavailable { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Disposed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

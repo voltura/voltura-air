@@ -480,7 +480,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             return new(false, "permission-denied", "Screen viewing and file transfer must both be allowed for this device.");
 
         ActiveView? active;
-        ScreenViewSource source;
+        ActiveDisplay display;
+        CancellationTokenSource captureLifetime;
         lock (_gate)
         {
             active = _active?.ClientId == clientId &&
@@ -488,17 +489,21 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                 string.Equals(_active.DisplayId, displayId, StringComparison.Ordinal)
                 ? _active
                 : null;
-            if (active is null)
+            if (active is null || active.Stop.IsCancellationRequested || !active.Peer.Connected.IsCompletedSuccessfully)
                 return new(false, "screen-session-stale", "The requested PC display is no longer the active Screen View.");
-            source = active.Source;
+            display = active.Display;
+#pragma warning disable CA2000 // The method owns the linked source through the using declaration below.
+            captureLifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, active.Stop.Token);
+#pragma warning restore CA2000
         }
 
+        using var lifetime = captureLifetime;
         ScreenViewScreenshot screenshot;
         try
         {
             screenshot = await Task.Run(
-                () => _capture.CaptureScreenshot(source.Id, cancellationToken),
-                cancellationToken).ConfigureAwait(false);
+                () => _capture.CaptureScreenshot(display.Source.Id, lifetime.Token),
+                lifetime.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -516,9 +521,11 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         bool stillAuthorized;
         lock (_gate)
         {
+            ActiveDisplay currentDisplay = active.Display;
             stillAuthorized = ReferenceEquals(_active, active) &&
-                active.OperationId == screenOperationId &&
-                string.Equals(active.DisplayId, displayId, StringComparison.Ordinal) &&
+                !lifetime.IsCancellationRequested &&
+                currentDisplay.Revision == display.Revision &&
+                currentDisplay.Source == display.Source &&
                 _statusFactory.CanViewScreen(clientId) &&
                 _statusFactory.CanTransferFiles(clientId);
         }
@@ -532,7 +539,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             true,
             "accepted",
             "Screenshot ready to transfer.",
-            CreateScreenshotFileName(source.Label, capturedAt ?? DateTimeOffset.Now),
+            CreateScreenshotFileName(display.Source.Label, capturedAt ?? DateTimeOffset.Now),
             screenshot);
     }
 

@@ -57,6 +57,45 @@ public sealed class DxgiScreenViewCaptureSourceTests
         Assert.Equal(3, stream.Length);
     }
 
+    [Fact]
+    public void ScreenshotEncodingStreamBoundsExplicitLengthAndBackingCapacity()
+    {
+        using var stream = new DxgiScreenViewCaptureSource.BoundedScreenshotStream(768, CancellationToken.None);
+        stream.Write(new byte[513]);
+        stream.Write(new byte[255]);
+
+        Assert.Equal(768, stream.Length);
+        Assert.Equal(768, stream.Capacity);
+        Assert.Throws<IOException>(() => stream.SetLength(769));
+        Assert.True(stream.LimitExceeded);
+        Assert.Equal(768, stream.Length);
+    }
+
+    [Fact]
+    public void ScreenshotEncoderPreservesOpaqueRgbPixelsAtNativeSize()
+    {
+        using var bitmap = new Bitmap(3, 2, DxgiScreenViewCaptureSource.ScreenshotPixelFormat);
+        bitmap.SetPixel(0, 0, Color.FromArgb(0, 17, 83, 139));
+        bitmap.SetPixel(2, 1, Color.FromArgb(75, 129, 211, 27));
+        using Stream content = DxgiScreenViewCaptureSource.EncodeScreenshot(bitmap, 4096, CancellationToken.None).Content;
+        using var png = new Bitmap(content);
+
+        Assert.Equal(bitmap.Size, png.Size);
+        Assert.Equal(Color.FromArgb(255, 17, 83, 139), png.GetPixel(0, 0));
+        Assert.Equal(Color.FromArgb(255, 129, 211, 27), png.GetPixel(2, 1));
+    }
+
+    [Fact]
+    public void NativeScreenshotEncoderReportsTheSizeLimit()
+    {
+        using var bitmap = new Bitmap(3, 2, DxgiScreenViewCaptureSource.ScreenshotPixelFormat);
+
+        var error = Assert.Throws<ScreenViewCaptureException>(() =>
+            DxgiScreenViewCaptureSource.EncodeScreenshot(bitmap, 16, CancellationToken.None));
+
+        Assert.Equal("screenshot-too-large", error.Code);
+    }
+
     [Theory]
     [InlineData(true, 0, 0, false)]
     [InlineData(true, 1, 0, true)]

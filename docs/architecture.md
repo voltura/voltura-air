@@ -173,9 +173,11 @@ and then across the virtual desktop, and owns held-button cleanup. The existing 
 Screen media uses H.264 and Opus RTP tracks on one sending peer. For Relay
 credential renewal, the existing coordinator and mobile workspace prepare one
 bounded replacement through signed start/answer messages. The active session ID,
-capture/encoder, quality controller and audio run survive the handover; the
-capture loop switches at a keyframe after the candidate connects. It never sends
-duplicate media, and retired native teardown is awaited outside that loop.
+capture/encoder, quality controller and audio run survive the handover. The
+capture loop switches only after the candidate accepts a keyframe for the
+current display selection. Backpressure keeps the original transport active,
+and a native send failure ends only the candidate. Each video frame is accepted
+by at most one peer, and retired native teardown is awaited outside that loop.
 Failed candidates leave the current session intact until bounded expiry recovery.
 For a Relay network change, the mobile workspace keeps the active operation
 in memory across the command-connection epoch and reuses the same renewal path.

@@ -329,7 +329,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                 active.Renewal = pending;
                 active.RequestKeyFrame();
             }
-            // The capture loop transfers the existing encoder output at a keyframe.
+            // The capture loop transfers the existing encoder output once the candidate accepts a keyframe.
             // Native teardown stays off that loop and never delays input processing.
             await pending.Handover.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
         }
@@ -342,12 +342,29 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             {
                 if (ReferenceEquals(active.Renewal, pending)) active.Renewal = null;
             }
-            // A promotion racing the timeout still owns the retired connection.
-            if (pending.Handover.Task.IsCompletedSuccessfully)
-                (await pending.Handover.Task.ConfigureAwait(false)).Dispose();
-            pending.Release();
-            RemoveAnswering(pending);
-            pending.CompleteAnswerProcessing();
+            try
+            {
+                // A promotion racing the timeout still owns the retired connection.
+                if (pending.Handover.Task.IsCompletedSuccessfully &&
+                    await pending.Handover.Task.ConfigureAwait(false) is { } retired)
+                {
+                    retired.Dispose();
+                }
+                else
+                {
+                    pending.Release();
+                }
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                _appLog.Write(new AppLogEntry("screen_view", "windows_host",
+                    Action: "renewal_cleanup_failed", Outcome: "failed", Code: ex.GetType().Name));
+            }
+            finally
+            {
+                RemoveAnswering(pending);
+                pending.CompleteAnswerProcessing();
+            }
         }
     }
 
@@ -737,6 +754,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         var cursorDelivery = new ScreenViewCursorDelivery();
         (long Started, long Revision, ScreenViewCaptureException Failure)? recovery = null;
         bool refreshRecoverySource = false;
+        bool originalNeedsKeyFrame = false;
         long lastCaptureRevision = -1;
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -790,37 +808,39 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                     cancellationToken).ConfigureAwait(false);
                 if (cancellationToken.IsCancellationRequested) return;
                 if (active.Display.Revision != selection.Revision) continue;
-                if (active.Renewal is not null && frame is { IsKeyFrame: true, Bytes.Length: > 0 })
+                RenewalFrameResult renewalResult = RenewalFrameResult.UseOriginal;
+                if (active.Renewal is { } renewal)
                 {
-                    lock (_gate)
+                    if (frame is { IsKeyFrame: true, Bytes.Length: > 0 })
                     {
-                        PendingView? renewal = active.Renewal;
-                        if (renewal is not null && ReferenceEquals(_answering, renewal) &&
-                            !renewal.StopRequested && !cancellationToken.IsCancellationRequested)
-                        {
-                            IScreenViewWebRtcPeer retired = active.ReplacePeer(renewal.Peer);
-                            renewal.DetachPeer();
-                            active.Renewal = null;
-                            renewal.Handover.TrySetResult(retired);
-                        }
+                        renewalResult = TrySendRenewalKeyFrame(active, renewal, selection.Revision, frame, cancellationToken);
                     }
+                    if (renewalResult != RenewalFrameResult.Promoted) active.RequestKeyFrame();
                 }
-                else if (active.Renewal is not null) active.RequestKeyFrame();
+                if (cancellationToken.IsCancellationRequested) return;
+                if (renewalResult == RenewalFrameResult.Abandoned)
+                {
+                    originalNeedsKeyFrame = true;
+                    continue;
+                }
+                if (active.Display.Revision != selection.Revision) continue;
                 cursorDelivery.Publish(active.Peer, displayId, frame?.Cursor);
                 if (frame is { Bytes.Length: > 0 })
                 {
-                    if (recovery is not null && !frame.IsKeyFrame)
+                    if ((recovery is not null || originalNeedsKeyFrame) && !frame.IsKeyFrame)
                     {
                         active.RequestKeyFrame();
                         continue;
                     }
                     ScreenViewDevelopmentTrace.FirstEncoded(_appLog);
                     ScreenViewDevelopmentTrace.Stage("send");
-                    bool accepted = active.Peer.TrySendH264(frame.Bytes, frame.FramesPerSecond);
+                    bool accepted = renewalResult == RenewalFrameResult.Promoted ||
+                        active.Peer.TrySendH264(frame.Bytes, frame.FramesPerSecond);
                     ScreenViewDevelopmentTrace.Sent(accepted);
                     if (accepted)
                     {
                         recovery = null;
+                        originalNeedsKeyFrame = false;
                     }
                     else
                     {
@@ -854,6 +874,52 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             }
         }
     }
+
+    private RenewalFrameResult TrySendRenewalKeyFrame(
+        ActiveView active, PendingView pending, long displayRevision, ScreenViewEncodedFrame frame, CancellationToken cancellationToken)
+    {
+        IScreenViewWebRtcPeer candidate;
+        lock (_gate)
+        {
+            if (!IsCurrentCandidate()) return RenewalFrameResult.UseOriginal;
+            candidate = pending.Peer;
+        }
+
+        // A native send cannot hold the coordinator lock used by input and control.
+        try
+        {
+            if (!candidate.TrySendH264(frame.Bytes, frame.FramesPerSecond)) return RenewalFrameResult.UseOriginal;
+        }
+        catch (Exception ex) when (ex is ScreenViewWebRtcException or ObjectDisposedException)
+        {
+            lock (_gate)
+            {
+                if (ReferenceEquals(active.Renewal, pending))
+                {
+                    active.Renewal = null;
+                    pending.Handover.TrySetResult(null);
+                }
+            }
+            return RenewalFrameResult.UseOriginal;
+        }
+
+        lock (_gate)
+        {
+            if (!IsCurrentCandidate()) return RenewalFrameResult.Abandoned;
+            IScreenViewWebRtcPeer retired = active.ReplacePeer(candidate);
+            pending.DetachPeer();
+            active.Renewal = null;
+            pending.Handover.TrySetResult(retired);
+            return RenewalFrameResult.Promoted;
+        }
+
+        bool IsCurrentCandidate() =>
+            ReferenceEquals(_active, active) && ReferenceEquals(active.Renewal, pending) &&
+            ReferenceEquals(_answering, pending) && active.Display.Revision == displayRevision &&
+            !pending.StopRequested && !cancellationToken.IsCancellationRequested;
+    }
+
+    private enum RenewalFrameResult { UseOriginal, Promoted, Abandoned }
 
     private bool CanStart(string clientId) => Volatile.Read(ref _disposed) == 0 && _statusFactory.CanViewScreen(clientId);
 
@@ -1042,7 +1108,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         public int? MaximumBitrate { get; } = maximumBitrate;
         public ActiveView? RenewalTarget { get; } = renewalTarget;
         public WebSocket? Owner { get; } = owner;
-        public TaskCompletionSource<IScreenViewWebRtcPeer> Handover { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<IScreenViewWebRtcPeer?> Handover { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public string? OfferHash { get; private set; }
         public bool StopRequested { get; set; }
         public CancellationTokenSource ExpiryCancellation { get; } = new();

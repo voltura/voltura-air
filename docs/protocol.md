@@ -759,9 +759,10 @@ already begun, the host waits for that bounded teardown before returning
 different client remains `busy` and is never displaced.
 
 Only one replacement can be pending. The host retains the original session ID,
-capture, encoder, audio run, display and quality controller, waits at most 15
-seconds after the answer for connection readiness and a keyframe, then sends
-subsequent frames only through the replacement. Native teardown runs outside
+capture, encoder, audio run, display and quality controller. It waits at most
+15 seconds after the answer for connection readiness and acceptance of a
+keyframe for the current display selection. Until then the original remains
+active. After handover all subsequent frames use the replacement. Native teardown runs outside
 the capture and command loops. Retired callbacks cannot stop the new transport.
 The browser keeps its current stream until the replacement video track receives
 media, preserving mute, fullscreen and input state. Failed preparation releases

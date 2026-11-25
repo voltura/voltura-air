@@ -75,11 +75,12 @@ internal sealed class PhoneWebcamAudioPipeline : IAsyncDisposable
     {
         if (Volatile.Read(ref _disposed) != 0) return;
         if (!RtpPacket.TryRead(packet, out _, out _, out _, out ReadOnlySpan<byte> payload) ||
-            payload.IsEmpty || payload.Length > MaximumOpusPacketBytes)
+            payload.Length > MaximumOpusPacketBytes)
         {
             if (Interlocked.Increment(ref _invalidPacketStreak) >= 50) ReportFailure();
             return;
         }
+        if (payload.IsEmpty) return;
 
         Interlocked.Exchange(ref _invalidPacketStreak, 0);
         _packets.Writer.TryWrite(payload.ToArray());

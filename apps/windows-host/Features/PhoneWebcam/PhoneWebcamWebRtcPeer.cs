@@ -7,7 +7,7 @@ namespace VolturaAir.Host.Features.PhoneWebcam;
 
 internal interface IPhoneWebcamWebRtcPeer : IAsyncDisposable
 {
-    event Action<byte[], uint>? AccessUnitReceived;
+    event Action<byte[], uint, bool>? AccessUnitReceived;
     event Action<byte[]>? OpusPacketReceived
     {
         add { }
@@ -169,7 +169,7 @@ internal sealed class PhoneWebcamWebRtcPeer : IPhoneWebcamWebRtcPeer
         }
     }
 
-    public event Action<byte[], uint>? AccessUnitReceived;
+    public event Action<byte[], uint, bool>? AccessUnitReceived;
     public event Action<byte[]>? OpusPacketReceived;
     public event EventHandler? Stopped;
     public Task TrackOpen => _trackOpen.Task;
@@ -243,22 +243,23 @@ internal sealed class PhoneWebcamWebRtcPeer : IPhoneWebcamWebRtcPeer
 
     private void ReceiveRtp(nint message, int size)
     {
-        H264DepacketizeResult result = DepacketizeVideoRtpPacket(_depacketizer, message, size);
+        H264DepacketizeResult result = DepacketizeVideoRtpPacket(_depacketizer, message, size, AccessUnitReceived);
         if (result.RequestKeyFrame) RequestKeyFrame();
-        if (result is { AccessUnit: not null, RtpTimestamp: not null })
-        {
-            AccessUnitReceived?.Invoke(result.AccessUnit, result.RtpTimestamp.Value);
-            _receiveFailureReported = false;
-        }
+        if (result.AccessUnit is not null) _receiveFailureReported = false;
     }
 
-    internal static H264DepacketizeResult DepacketizeVideoRtpPacket(H264RtpDepacketizer depacketizer, nint message, int size)
+    internal static H264DepacketizeResult DepacketizeVideoRtpPacket(
+        H264RtpDepacketizer depacketizer, nint message, int size, Action<byte[], uint, bool>? receive = null)
     {
         if (size <= 0 || size > 64 * 1024) return default;
         lock (depacketizer)
         {
             // Push copies accepted payloads into its owned access unit before this callback returns.
-            unsafe { return depacketizer.Push(new ReadOnlySpan<byte>(message.ToPointer(), size)); }
+            H264DepacketizeResult result;
+            unsafe { result = depacketizer.Push(new ReadOnlySpan<byte>(message.ToPointer(), size)); }
+            if (result is { AccessUnit: { } accessUnit, RtpTimestamp: { } timestamp })
+                receive?.Invoke(accessUnit, timestamp, result.Discontinuity);
+            return result;
         }
     }
 

@@ -2,56 +2,60 @@ using System.Buffers.Binary;
 
 namespace VolturaAir.Host.Features.PhoneWebcam;
 
-internal readonly record struct H264DepacketizeResult(byte[]? AccessUnit, bool RequestKeyFrame, uint? RtpTimestamp = null);
+internal readonly record struct H264DepacketizeResult(
+    byte[]? AccessUnit, bool RequestKeyFrame, uint? RtpTimestamp = null, bool Discontinuity = false);
 
 internal sealed class H264RtpDepacketizer : IDisposable
 {
     internal const int MaximumAccessUnitBytes = 8 * 1024 * 1024;
+    private const int MaximumLatePackets = 100;
     private readonly MemoryStream _accessUnit = new();
     private ushort? _expectedSequence;
     private uint? _timestamp;
     private bool _fragmentOpen;
     private bool _discardUntilMarker;
+    private uint? _discardTimestamp;
+    private bool _decoderDiscontinuity;
 
     internal H264DepacketizeResult Push(ReadOnlySpan<byte> packet)
     {
         if (!RtpPacket.TryRead(packet, out ushort sequence, out uint timestamp, out bool marker, out ReadOnlySpan<byte> payload))
         {
             _expectedSequence = null;
-            _discardUntilMarker = true;
             return Reject();
         }
 
-        bool loss = false;
-        if (_expectedSequence.HasValue && sequence != _expectedSequence.Value)
-        {
-            ResetAccessUnit();
-            _discardUntilMarker = true;
-        }
+        int offset = _expectedSequence is { } expected ? unchecked((short)(sequence - expected)) : 0;
+        if (offset is >= -MaximumLatePackets and < 0) return default;
         _expectedSequence = unchecked((ushort)(sequence + 1));
-        if (_discardUntilMarker)
+        if (payload.IsEmpty) return offset == 0 ? default : Reject();
+        if (offset != 0) return Reject(timestamp, marker);
+
+        // After a gap, the first packet we see may belong to an already-started frame.
+        // A subsequent timestamp change with continuous sequence numbers is a new boundary.
+        if (_discardUntilMarker && (_discardTimestamp is null || _discardTimestamp == timestamp))
         {
             if (marker) _discardUntilMarker = false;
             return new H264DepacketizeResult(null, true);
         }
-        if (_timestamp.HasValue && timestamp != _timestamp.Value && _accessUnit.Length != 0)
+        _discardUntilMarker = false;
+        bool loss = _timestamp.HasValue && timestamp != _timestamp.Value;
+        if (loss)
         {
             ResetAccessUnit();
-            loss = true;
+            _decoderDiscontinuity = true;
         }
         _timestamp = timestamp;
 
-        if (!AppendPayload(payload))
-        {
-            _discardUntilMarker = !marker;
-            return Reject();
-        }
+        if (!AppendPayload(payload)) return Reject(timestamp, marker);
         if (!marker) return new H264DepacketizeResult(null, loss);
-        if (_fragmentOpen || _accessUnit.Length == 0) return Reject();
+        if (_fragmentOpen || _accessUnit.Length == 0) return Reject(timestamp, marker);
 
         byte[] completed = _accessUnit.ToArray();
         ResetAccessUnit();
-        return new H264DepacketizeResult(completed, loss, timestamp);
+        var result = new H264DepacketizeResult(completed, loss, timestamp, _decoderDiscontinuity);
+        _decoderDiscontinuity = false;
+        return result;
     }
 
     private bool AppendPayload(ReadOnlySpan<byte> payload)
@@ -113,9 +117,12 @@ internal sealed class H264RtpDepacketizer : IDisposable
         return true;
     }
 
-    private H264DepacketizeResult Reject()
+    private H264DepacketizeResult Reject(uint? timestamp = null, bool marker = false)
     {
         ResetAccessUnit();
+        _decoderDiscontinuity = true;
+        _discardUntilMarker = !marker;
+        _discardTimestamp = timestamp;
         return new H264DepacketizeResult(null, true);
     }
 

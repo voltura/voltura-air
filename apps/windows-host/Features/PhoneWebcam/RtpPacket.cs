@@ -26,13 +26,14 @@ internal static class RtpPacket
             if (offset > packet.Length) return false;
         }
         int end = packet.Length;
-        if ((packet[0] & 0x20) != 0)
+        bool hasPadding = (packet[0] & 0x20) != 0;
+        if (hasPadding)
         {
             int padding = packet[^1];
             if (padding == 0 || padding > end - offset) return false;
             end -= padding;
         }
-        if (offset >= end) return false;
+        if (offset == end && !hasPadding) return false;
         sequence = BinaryPrimitives.ReadUInt16BigEndian(packet.Slice(2, 2));
         timestamp = BinaryPrimitives.ReadUInt32BigEndian(packet.Slice(4, 4));
         marker = (packet[1] & 0x80) != 0;

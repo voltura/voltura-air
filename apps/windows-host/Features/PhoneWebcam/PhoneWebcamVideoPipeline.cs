@@ -12,11 +12,12 @@ internal sealed class PhoneWebcamVideoPipeline : IAsyncDisposable
     private readonly Channel<EncodedAccessUnit> _accessUnits = Channel.CreateBounded<EncodedAccessUnit>(
         new BoundedChannelOptions(1)
         {
-            FullMode = BoundedChannelFullMode.Wait,
+            FullMode = BoundedChannelFullMode.DropOldest,
             SingleReader = true,
             SingleWriter = false
         });
     private readonly Action<PhoneWebcamFrame> _publish;
+    private readonly Lock _submitGate = new();
     private readonly PhoneWebcamFrameSequence _frameSequence;
     private readonly CancellationTokenSource _shutdown = new();
     private Task _worker = Task.CompletedTask;
@@ -24,7 +25,7 @@ internal sealed class PhoneWebcamVideoPipeline : IAsyncDisposable
     private byte[]? _pictureParameterSet;
     private int _lastWidth;
     private int _lastHeight;
-    private int _recoveryRequested;
+    private ulong _submittedAccessUnits;
     private bool _waitingForKeyFrame = true;
     private int _disposeState;
     private int _started;
@@ -52,15 +53,13 @@ internal sealed class PhoneWebcamVideoPipeline : IAsyncDisposable
         _worker = Task.Run(() => DecodeAsync(_shutdown.Token));
     }
 
-    internal void Submit(byte[] accessUnit, uint rtpTimestamp)
+    internal void Submit(byte[] accessUnit, uint rtpTimestamp, bool discontinuity = false)
     {
         ArgumentNullException.ThrowIfNull(accessUnit);
         if (Volatile.Read(ref _disposeState) != 0) return;
-        if (!_accessUnits.Writer.TryWrite(new EncodedAccessUnit(accessUnit, rtpTimestamp)) &&
-            Volatile.Read(ref _disposeState) == 0)
+        lock (_submitGate)
         {
-            Interlocked.Exchange(ref _recoveryRequested, 1);
-            KeyFrameRequested?.Invoke(this, EventArgs.Empty);
+            _accessUnits.Writer.TryWrite(new EncodedAccessUnit(accessUnit, rtpTimestamp, ++_submittedAccessUnits, discontinuity));
         }
     }
 
@@ -89,17 +88,16 @@ internal sealed class PhoneWebcamVideoPipeline : IAsyncDisposable
         try
         {
             using var decoder = new MediaFoundationH264Decoder();
+            ulong previousAccessUnit = 0;
             while (await _accessUnits.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                if (Interlocked.Exchange(ref _recoveryRequested, 0) != 0)
-                {
-                    RecoverDecoder(decoder);
-                    continue;
-                }
-
                 while (_accessUnits.Reader.TryRead(out EncodedAccessUnit? accessUnit))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    if (!_waitingForKeyFrame && (accessUnit.Discontinuity || accessUnit.Sequence != previousAccessUnit + 1))
+                        RecoverDecoder(decoder);
+                    previousAccessUnit = accessUnit.Sequence;
+
                     UpdateParameterSets(accessUnit.Bytes);
                     byte[] decoderInput = accessUnit.Bytes;
                     if (_waitingForKeyFrame)
@@ -148,12 +146,6 @@ internal sealed class PhoneWebcamVideoPipeline : IAsyncDisposable
                     {
                         RecoverDecoder(decoder);
                         KeyFrameRequested?.Invoke(this, EventArgs.Empty);
-                        break;
-                    }
-
-                    if (Volatile.Read(ref _recoveryRequested) != 0)
-                    {
-                        break;
                     }
                 }
             }
@@ -170,10 +162,6 @@ internal sealed class PhoneWebcamVideoPipeline : IAsyncDisposable
 
     private void RecoverDecoder(MediaFoundationH264Decoder decoder)
     {
-        while (_accessUnits.Reader.TryRead(out _))
-        {
-        }
-
         decoder.Flush();
         _waitingForKeyFrame = true;
     }
@@ -261,7 +249,7 @@ internal sealed class PhoneWebcamVideoPipeline : IAsyncDisposable
         return offset < 0 ? -1 : start + offset;
     }
 
-    private sealed record EncodedAccessUnit(byte[] Bytes, uint RtpTimestamp);
+    private sealed record EncodedAccessUnit(byte[] Bytes, uint RtpTimestamp, ulong Sequence, bool Discontinuity);
 
     private sealed class PooledFrameOwner(byte[] frame, int length) : IMemoryOwner<byte>
     {

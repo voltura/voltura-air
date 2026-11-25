@@ -535,16 +535,16 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
         {
             await PairAsync(control, fixture.Manager, key);
             await CompleteSessionAsync(control, key, "retiring-video");
-            Action<byte[], uint> receiveLate = oldPeer.CaptureReceiver();
+            Action<byte[], uint, bool> receiveLate = oldPeer.CaptureReceiver();
             byte[] frame = PhoneWebcamFeatureTests.ReadAccessUnit("chromium-bear-320x192-baseline-keyframe.h264.b64");
-            receiveLate(frame, 100);
+            receiveLate(frame, 100, false);
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             Assert.Equal(100UL, await feature.PublishedVideo.Reader.ReadAsync(deadline.Token));
 
             oldPeer.Stop();
-            receiveLate(frame, 200);
+            receiveLate(frame, 200, false);
             await CompleteSessionAsync(control, key, "replacement-video");
-            newPeer.CaptureReceiver()(frame, 300);
+            newPeer.CaptureReceiver()(frame, 300, false);
             Assert.Equal(300UL, await feature.PublishedVideo.Reader.ReadAsync(deadline.Token));
             releaseOldDispose.TrySetResult();
             JsonElement ended = await ReceiveUntilTypeAsync(control, "phone.webcam.ended");
@@ -798,8 +798,8 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
     {
         internal const string Offer = "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=rtpmap:96 H264/90000\r\n";
         internal const string Answer = "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=rtpmap:96 H264/90000\r\n";
-        public event Action<byte[], uint>? AccessUnitReceived;
-        internal Action<byte[], uint> CaptureReceiver() =>
+        public event Action<byte[], uint, bool>? AccessUnitReceived;
+        internal Action<byte[], uint, bool> CaptureReceiver() =>
             AccessUnitReceived ?? throw new InvalidOperationException("The video receiver has not been subscribed.");
         private EventHandler? _stopped;
         public event EventHandler? Stopped

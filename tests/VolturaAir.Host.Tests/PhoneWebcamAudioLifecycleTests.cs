@@ -153,6 +153,18 @@ public sealed class PhoneWebcamAudioLifecycleTests
     }
 
     [Fact]
+    public async Task PaddingProbesDoNotCountAsInvalidAudioPackets()
+    {
+        var player = new FakePlayer();
+        await using PhoneWebcamAudioPipeline pipeline = PhoneWebcamAudioPipeline.CreateForTest(player);
+        int failures = 0;
+        pipeline.Failed += (_, _) => failures++;
+        byte[] padding = [0xa0, 111, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2];
+        for (int index = 0; index < 60; index++) pipeline.Submit(padding);
+        Assert.Equal(0, failures);
+    }
+
+    [Fact]
     public async Task PipelineConstructionAwaitsTheInjectedPlayerBoundary()
     {
         var playerReady = new TaskCompletionSource<IPhoneWebcamAudioPlayer>(TaskCreationOptions.RunContinuationsAsynchronously);

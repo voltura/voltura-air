@@ -219,9 +219,14 @@ Phone webcam follows the same lazy mobile feature boundary and authenticated
 connection owner, with media direction reversed. The phone selects and sends one
 H.264 camera track; `PhoneWebcamCoordinator` owns the single pending or active
 producer, signed offer/answer expiry, permission and pairing revocation, Relay
-credential reuse, and terminal cleanup. `PhoneWebcamVideoPipeline` keeps one encoded
-access unit, preserves H.264 configuration through decoder recovery, and publishes
-one latest fixed-size NV12 frame to the feature-owned pipe.
+credential reuse, and terminal cleanup. The H.264 RTP receiver ignores recent
+duplicates and late packets. After packet loss, it drops the incomplete access
+unit and can resume at the next known frame boundary. Padding-only packets carry
+no media, and video still accounts for their sequence numbers. `PhoneWebcamVideoPipeline`
+keeps the latest pending encoded access unit. An RTP discontinuity or a dropped
+queue entry returns the decoder to keyframe recovery while preserving its H.264
+configuration. The pipeline publishes one latest fixed-size NV12 frame to the
+feature-owned pipe.
 The decoder owns and reuses its caller-provided native output sample and buffer;
 decoded published frames remain separately owned. Flush retains the scratch
 buffer, resolution changes grow it only when required, and disposal releases it.

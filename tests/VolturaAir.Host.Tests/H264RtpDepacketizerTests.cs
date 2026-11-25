@@ -39,6 +39,56 @@ public sealed class H264RtpDepacketizerTests
         Assert.Equal(new byte[] { 0, 0, 0, 1, 0x65, 1, 2, 3, 4 }, result.AccessUnit);
     }
 
+    [Theory]
+    [InlineData(10)]
+    [InlineData(ushort.MaxValue)]
+    public void DuplicateFragmentDoesNotInterruptAssembly(int firstSequence)
+    {
+        using var depacketizer = new H264RtpDepacketizer();
+        byte[] first = Packet((ushort)firstSequence, 22, false, [0x7c, 0x85, 1, 2]);
+        Assert.Null(depacketizer.Push(first).AccessUnit);
+        H264DepacketizeResult duplicate = depacketizer.Push(first);
+        Assert.Null(duplicate.AccessUnit);
+        Assert.False(duplicate.RequestKeyFrame);
+
+        ushort lastSequence = unchecked((ushort)(firstSequence + 1));
+        H264DepacketizeResult complete = depacketizer.Push(Packet(lastSequence, 22, true, [0x7c, 0x45, 3]));
+        Assert.False(complete.Discontinuity);
+        Assert.Equal(new byte[] { 0, 0, 0, 1, 0x65, 1, 2, 3 }, complete.AccessUnit);
+    }
+
+    [Fact]
+    public void MissingMarkerOnDiscardedFrameDoesNotDiscardTheNextFrame()
+    {
+        using var depacketizer = new H264RtpDepacketizer();
+        Assert.Null(depacketizer.Push(Packet(30, 40, false, [0x61, 1])).AccessUnit);
+        Assert.True(depacketizer.Push(Packet(32, 40, false, [0x61, 2])).RequestKeyFrame);
+        H264DepacketizeResult late = depacketizer.Push(Packet(31, 40, false, [0x61, 3]));
+        Assert.Null(late.AccessUnit);
+        Assert.False(late.RequestKeyFrame);
+
+        H264DepacketizeResult recovered = depacketizer.Push(Packet(33, 41, true, [0x65, 4]));
+        Assert.True(recovered.Discontinuity);
+        Assert.Equal(new byte[] { 0, 0, 0, 1, 0x65, 4 }, recovered.AccessUnit);
+        Assert.False(depacketizer.Push(Packet(34, 42, true, [0x61, 5])).Discontinuity);
+    }
+
+    [Fact]
+    public void PaddingConsumesASequenceNumberWithoutTriggeringVideoRecovery()
+    {
+        using var depacketizer = new H264RtpDepacketizer();
+        Assert.NotNull(depacketizer.Push(Packet(10, 20, true, [0x65, 1])).AccessUnit);
+        byte[] padding = Packet(11, 20, false, [0, 2]);
+        padding[0] |= 0x20;
+        H264DepacketizeResult ignored = depacketizer.Push(padding);
+        Assert.Null(ignored.AccessUnit);
+        Assert.False(ignored.RequestKeyFrame);
+
+        H264DepacketizeResult next = depacketizer.Push(Packet(12, 21, true, [0x61, 2]));
+        Assert.False(next.Discontinuity);
+        Assert.Equal(new byte[] { 0, 0, 0, 1, 0x61, 2 }, next.AccessUnit);
+    }
+
     [Fact]
     public void DropsAccessUnitOnSequenceGapOrTimestampChange()
     {
@@ -51,6 +101,7 @@ public sealed class H264RtpDepacketizerTests
         Assert.Null(depacketizer.Push(Packet(33, 41, false, [0x61, 3])).AccessUnit);
         H264DepacketizeResult changed = depacketizer.Push(Packet(34, 42, true, [0x61, 4]));
         Assert.True(changed.RequestKeyFrame);
+        Assert.True(changed.Discontinuity);
         Assert.Equal(new byte[] { 0, 0, 0, 1, 0x61, 4 }, changed.AccessUnit);
     }
 

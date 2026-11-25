@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading.Channels;
 using VolturaAir.Host.Features.PhoneWebcam;
 
 namespace VolturaAir.Host.Tests;
@@ -77,6 +78,84 @@ public sealed class PhoneWebcamVideoReceiveTests
         {
             Marshal.FreeHGlobal(packet);
         }
+    }
+
+    [Fact]
+    public void NativeReceiveForwardsTheLossToTheNextAccessUnitOnly()
+    {
+        using var depacketizer = new H264RtpDepacketizer();
+        nint packet = Marshal.AllocHGlobal(64);
+        try
+        {
+            var received = new List<bool>();
+            void Push(byte[] data)
+            {
+                Marshal.Copy(data, 0, packet, data.Length);
+                PhoneWebcamWebRtcPeer.DepacketizeVideoRtpPacket(depacketizer, packet, data.Length,
+                    (_, _, discontinuity) => received.Add(discontinuity));
+            }
+            Push(Packet(1, false, [0x7c, 0x85, 1]));
+            Push(Packet(3, true, [0x7c, 0x45, 2]));
+            Push(Packet(4, true, [0x65, 3]));
+            Push(Packet(5, true, [0x61, 4]));
+            Assert.Equal(new[] { true, false }, received);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(packet);
+        }
+    }
+
+    [Fact]
+    public async Task WebcamPipelineKeepsAQueuedKeyFrameWhenItReplacesAnOlderAccessUnit()
+    {
+        var published = new TaskCompletionSource<ulong>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var pipeline = new PhoneWebcamVideoPipeline(frame =>
+        {
+            using (frame) published.TrySetResult(frame.SourceTimestamp90Khz);
+        }, new PhoneWebcamFrameSequence());
+        pipeline.Submit(PhoneWebcamFeatureTests.ReadAccessUnit("chromium-bear-320x192-baseline-frame-1.h264.b64"), 10);
+        pipeline.Submit(PhoneWebcamFeatureTests.ReadAccessUnit("chromium-bear-320x192-baseline-keyframe.h264.b64"), 20);
+        pipeline.Start();
+        Assert.Equal(20UL, await published.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task WebcamPipelineWaitsForAKeyFrameAfterTransportLossOrQueueOverflow(bool overflow)
+    {
+        byte[] keyFrame = PhoneWebcamFeatureTests.ReadAccessUnit("chromium-bear-320x192-baseline-keyframe.h264.b64");
+        byte[] dependentFrame = PhoneWebcamFeatureTests.ReadAccessUnit("chromium-bear-320x192-baseline-frame-1.h264.b64");
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var firstPublication = new ManualResetEventSlim(false);
+        var events = Channel.CreateUnbounded<ulong>();
+        await using var pipeline = new PhoneWebcamVideoPipeline(frame =>
+        {
+            using (frame)
+            {
+                events.Writer.TryWrite(frame.SourceTimestamp90Khz);
+                if (frame.SourceTimestamp90Khz == 10) firstPublication.Wait(deadline.Token);
+            }
+        }, new PhoneWebcamFrameSequence());
+        pipeline.KeyFrameRequested += (_, _) => events.Writer.TryWrite(0);
+        pipeline.Start();
+
+        try
+        {
+            pipeline.Submit(keyFrame, 10);
+            Assert.Equal(10UL, await events.Reader.ReadAsync(deadline.Token));
+            if (overflow) pipeline.Submit(dependentFrame, 20);
+            pipeline.Submit(dependentFrame, 30, discontinuity: !overflow);
+        }
+        finally
+        {
+            firstPublication.Set();
+        }
+
+        Assert.Equal(0UL, await events.Reader.ReadAsync(deadline.Token));
+        pipeline.Submit(keyFrame, 40);
+        Assert.Equal(40UL, await events.Reader.ReadAsync(deadline.Token));
     }
 
     private static byte[] Packet(ushort sequence, bool marker, byte[] payload)

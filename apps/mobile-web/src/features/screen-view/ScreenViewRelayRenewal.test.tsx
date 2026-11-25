@@ -105,7 +105,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function openView(renewalSupported = true, connectOriginal = true) {
+async function openView(renewalSupported = true, connectOriginal = true, multiDisplay = false) {
   const host = createPairingKeyMaterial()!;
   const client = createPairingKeyMaterial()!;
   const send = vi.fn<(message: ClientMessage) => void>();
@@ -155,9 +155,17 @@ async function openView(renewalSupported = true, connectOriginal = true) {
       operationId: source.operationId,
       succeeded: true,
       message: "Ready",
-      sources: [{ id: "display-1", label: "Display", width: 1920, height: 1080, isPrimary: true }],
+      sources: [
+        { id: "display-1", label: "Display", width: 1920, height: 1080, isPrimary: true },
+        ...(multiDisplay
+          ? [{ id: "display-2", label: "Side", width: 1280, height: 720, isPrimary: false }]
+          : []),
+      ],
     }),
   );
+  if (multiDisplay) {
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+  }
   const starts = () =>
     send.mock.calls
       .map(([message]) => message)
@@ -220,6 +228,98 @@ async function advance(milliseconds: number) {
 }
 
 describe("Relay screen renewal", () => {
+  it("expires an unanswered display list when the authenticated connection changes", async () => {
+    const view = await openView(false);
+    act(() => view.setConnection("paired", 2));
+    const requests = view.send.mock.calls.map(([message]) => message).filter(
+      (message) => message.type === "screen.view.sources.get",
+    );
+    expect(requests).toHaveLength(2);
+    await advance(10_000);
+    expect(screen.getByRole("status").textContent).toContain("did not return a display list");
+    act(() => {
+      publishScreenViewResult({
+        type: "screen.view.sources.result", operationId: requests[1]!.operationId,
+        succeeded: true, message: "Late", sources: [],
+      });
+    });
+    expect(screen.getByRole("status").textContent).toContain("did not return a display list");
+  });
+
+  it("selects the current primary display if the previous display disappeared", async () => {
+    const view = await openView(false);
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    act(() => view.setConnection("paired", 2));
+    const request = view.send.mock.calls.map(([message]) => message).reverse().find(
+      (message) => message.type === "screen.view.sources.get",
+    )!;
+    act(() => {
+      publishScreenViewResult({
+        type: "screen.view.sources.result", operationId: request.operationId,
+        succeeded: true, message: "Ready", sources: [
+          { id: "display-2", label: "Side", width: 1280, height: 720, isPrimary: false },
+          { id: "display-3", label: "Current primary", width: 1920, height: 1080, isPrimary: true },
+        ],
+      });
+    });
+    expect(screen.getByRole<HTMLSelectElement>("combobox", { name: "Display" }).value).toBe("display-3");
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    expect(view.starts().at(-1)?.displayId).toBe("display-3");
+  });
+
+  it("reports a failed transport send when requesting the display list", async () => {
+    const view = await openView(false);
+    view.send.mockImplementation((message) => message.type !== "screen.view.sources.get");
+    await act(async () => {
+      view.setConnection("paired", 2);
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("status").textContent).toContain("display list request could not be sent");
+    await advance(10_000);
+    expect(screen.getByRole("status").textContent).toContain("display list request could not be sent");
+  });
+
+  it.each(["screen.view.start", "screen.view.answer"] as const)(
+    "ends local Screen View promptly if the transport refuses %s",
+    async (messageType) => {
+      const view = await openView(false);
+      fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+      view.send.mockImplementation((message) => message.type !== messageType);
+      fireEvent.click(screen.getByRole("button", { name: "Start" }));
+      if (messageType === "screen.view.answer") {
+        await view.accept();
+        expect(Peer.instances.at(-1)?.close).toHaveBeenCalledOnce();
+      }
+      expect(view.video.srcObject).toBeNull();
+      expect(screen.getByRole("status").textContent).toContain("could not be sent");
+      expect(screen.getByRole("button", { name: "Start" })).toBeTruthy();
+    },
+  );
+
+  it("keeps viewing the acknowledged display when a switch cannot be sent", async () => {
+    const view = await openView(false, true, true);
+    const selected = screen.getByRole<HTMLSelectElement>("combobox", { name: "Display" });
+    view.send.mockImplementation((message) => message.type !== "screen.view.source.set");
+    const stream = view.video.srcObject;
+    fireEvent.change(selected, { target: { value: "display-2" } });
+
+    expect(selected.value).toBe("display-1");
+    expect(selected.disabled).toBe(false);
+    expect(screen.getByRole("status").textContent).toContain("display change could not be sent");
+    await advance(10_000);
+    expect(view.video.srcObject).toBe(stream);
+    expect(view.stops()).toHaveLength(0);
+  });
+
+  it("reports an unconfirmed canceled capture immediately if the stop cannot be sent", async () => {
+    const view = await openView(true, false);
+    view.send.mockImplementation((message) => message.type !== "screen.view.stop");
+    await advance(30_000);
+
+    expect(screen.getByRole("status").textContent).toContain("Reconnect before trying again");
+    expect(view.video.srcObject).toBeNull();
+  });
+
   it("cancels an accepted initial screen offer if its browser peer never connects", async () => {
     const view = await openView(true, false);
 

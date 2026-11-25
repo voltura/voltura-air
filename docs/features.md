@@ -321,6 +321,8 @@ failure keeps session state without a background retry loop.
   frame pacing. Initial peer setup has a local deadline after the PC accepts
   the request. A transient WebRTC `disconnected` state may recover on the
   existing Screen View peer. Terminal `failed` or `closed` states stop the stream.
+  Display discovery also has a local deadline, and a failed transport send gives
+  immediate feedback. A display switch that cannot be sent keeps the current mirror.
 - Every video budget retains the same fixed 128 kbps transport allowance for
   96 kbps sound plus protocol overhead. Selecting a lower sound preset does not
   increase or otherwise change the video encoder budget. Sound quality is

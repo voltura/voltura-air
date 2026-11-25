@@ -108,6 +108,22 @@ it("sends pending direct movement before the next mouse button event", () => {
     expect.objectContaining({ type: "screen.pointer.button", action: "up", x: 0.6 }),
   ]);
 });
+
+it("does not release a remote button whose press never left this device", () => {
+  const { surface, send } = setup();
+  send.mockImplementation((message) =>
+    message.type !== "screen.pointer.button" || message.action !== "down",
+  );
+  fireEvent.mouseDown(surface, { button: 0, clientX: 20, clientY: 20 });
+  fireEvent.mouseUp(surface, { button: 0, clientX: 20, clientY: 20 });
+  fireEvent.contextMenu(surface, { button: 0, clientX: 20, clientY: 20 });
+  expect(send.mock.calls.map(([message]) => message).filter(
+    (message) => message.type === "screen.pointer.button",
+  )).toEqual([
+    expect.objectContaining({ button: "left", action: "down" }),
+    expect.objectContaining({ button: "right", action: "down" }),
+  ]);
+});
 it("leaves keyboard activation of the mouse control button with the browser", () => {
   const { send } = setup();
   const button = screen.getByRole("button", { name: "Mouse and keyboard control" });

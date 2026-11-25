@@ -5,6 +5,7 @@ import { useScreenViewFullscreen } from "./useScreenViewFullscreen";
 const originalFullscreen = Object.getOwnPropertyDescriptor(document, "fullscreenElement");
 const originalExit = Object.getOwnPropertyDescriptor(document, "exitFullscreen");
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   for (const [name, descriptor] of [
     ["fullscreenElement", originalFullscreen],
@@ -44,6 +45,12 @@ function setup() {
     ...hook,
     request,
     exit,
+    workspace,
+    setFullscreen: (element: Element | null) => {
+      fullscreen = element;
+      document.dispatchEvent(new Event("fullscreenchange"));
+    },
+    settleRequest: () => finish(),
     complete: () => {
       fullscreen = workspace;
       finish();
@@ -108,5 +115,67 @@ describe("Screen View fullscreen ownership", () => {
     view.complete();
     await entry;
     expect(view.exit).toHaveBeenCalledOnce();
+  });
+
+  it("releases a former workspace's late native entry during a replacement's fallback", async () => {
+    const view = setup();
+    let first!: Promise<void>;
+    act(() => { first = view.result.current.enterImmersive(); });
+    await act(() => view.result.current.exitImmersive());
+    view.result.current.workspaceRef.current = document.createElement("section");
+    await act(() => view.result.current.enterImmersive());
+
+    await act(async () => {
+      view.complete();
+      await first;
+    });
+
+    expect(view.exit).toHaveBeenCalledOnce();
+    expect(view.result.current.immersive).toBe(true);
+  });
+
+  it("acknowledges browser entry and exit even before the native promise settles", async () => {
+    vi.useFakeTimers();
+    const view = setup();
+    let entry!: Promise<void>;
+    act(() => { entry = view.result.current.enterImmersive(); });
+    act(() => {
+      view.setFullscreen(view.workspace);
+      view.setFullscreen(null);
+      vi.advanceTimersByTime(200);
+    });
+    await act(async () => {
+      view.settleRequest();
+      await entry;
+    });
+
+    expect(view.result.current.immersive).toBe(false);
+  });
+
+  it("ignores a delayed exit when native fullscreen already returned", async () => {
+    vi.useFakeTimers();
+    const view = setup();
+    let entry!: Promise<void>;
+    act(() => { entry = view.result.current.enterImmersive(); });
+    await act(async () => {
+      view.complete();
+      await entry;
+    });
+
+    act(() => {
+      view.setFullscreen(null);
+      vi.advanceTimersByTime(100);
+      view.setFullscreen(view.workspace);
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(view.result.current.immersive).toBe(true);
+  });
+
+  it("leaves fullscreen alone when Screen View owns no entry", async () => {
+    const view = setup();
+    act(() => view.setFullscreen(view.workspace));
+    await act(() => view.result.current.exitImmersive());
+    expect(view.exit).not.toHaveBeenCalled();
   });
 });

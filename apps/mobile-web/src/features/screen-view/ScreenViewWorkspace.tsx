@@ -87,7 +87,7 @@ interface Props {
   onBack: () => void;
   onOpenKeyboard: () => void;
   onTransferNotice?: (message: string, tone: "success" | "error" | "neutral") => void;
-  send: (message: ClientMessage) => void;
+  send: (message: ClientMessage) => boolean | void;
   state: ConnectionState;
   trackpadSettings: TrackpadSettings;
 }
@@ -112,6 +112,7 @@ const disconnectedRecoveryMs = 8_000;
 const directStartResponseTimeoutMs = 15_000;
 const relayStartResponseTimeoutMs = 25_000;
 const peerSetupTimeoutMs = 30_000;
+const sourcesResponseTimeoutMs = 10_000;
 const stopResponseTimeoutMs = 10_000;
 const unconfirmedStopMessage =
   "The PC could not confirm that screen capture stopped. Reconnect before trying again.";
@@ -189,6 +190,7 @@ export default function ScreenViewWorkspace({
     browserPreviewState ? "browser-preview-operation" : null,
   );
   const sourcesRequestRef = useRef<string | null>(null);
+  const sourcesRequestTimerRef = useRef<number | undefined>(undefined);
   const pendingSourceRef = useRef<PendingSource | null>(null);
   const pendingAnswerRef = useRef<string | null>(null);
   const pendingStopRef = useRef<string | null>(null);
@@ -322,17 +324,18 @@ export default function ScreenViewWorkspace({
     action: "down" | "up",
     point: NormalizedScreenPoint,
   ) {
-    if (selected) {
-      flushDirectMove();
-      send({
-        type: "screen.pointer.button",
-        inputContext: "screen-view",
-        displayId: selected,
-        ...point,
-        button,
-        action,
-      });
+    if (!selected) {
+      return false;
     }
+    flushDirectMove();
+    return send({
+      type: "screen.pointer.button",
+      inputContext: "screen-view",
+      displayId: selected,
+      ...point,
+      button,
+      action,
+    }) !== false;
   }
 
   function releaseDirectButtons(point = lastDirectPointRef.current) {
@@ -413,14 +416,13 @@ export default function ScreenViewWorkspace({
   function onDirectMouseDown(event: ReactMouseEvent<HTMLDivElement>) {
     const button = directMouseButton(event.button);
     const point = pointFromDirectSurface(event.clientX, event.clientY);
-    if (!button || !point) {
+    if (!directPointerActiveRef.current || !button || !point) {
       return;
     }
     event.preventDefault();
     stageRef.current?.focus({ preventScroll: true });
     lastDirectPointRef.current = point;
-    if (!heldDirectButtonsRef.current.has(button)) {
-      sendDirectButton(button, "down", point);
+    if (!heldDirectButtonsRef.current.has(button) && sendDirectButton(button, "down", point)) {
       heldDirectButtonsRef.current.add(button);
     }
   }
@@ -480,8 +482,9 @@ export default function ScreenViewWorkspace({
       return;
     }
     lastDirectPointRef.current = point;
-    sendDirectButton("right", "down", point);
-    sendDirectButton("right", "up", point);
+    if (sendDirectButton("right", "down", point)) {
+      sendDirectButton("right", "up", point);
+    }
   }
 
   const resetViewTransform = useEffectEvent(() => applyViewTransform(identityScreenViewTransform));
@@ -733,13 +736,22 @@ export default function ScreenViewWorkspace({
       setStreaming(true);
       setStatus("Preparing encrypted WebRTC mirror...");
     }
-    send({
+    const sent = send({
       type: "screen.view.start",
       operationId,
       displayId,
       clientSignature: signature,
       ...(renewalOf ? { renewalOf } : {}),
     });
+    if (sent === false) {
+      if (renewalOf) {
+        failRenewal("The screen renewal request could not be sent. Reconnect and try again.");
+      } else {
+        closeStream();
+        setStatus("The screen request could not be sent. Reconnect and try again.");
+      }
+      return;
+    }
     window.clearTimeout(startResponseTimeoutRef.current);
     startResponseTimeoutRef.current = window.setTimeout(
       () => {
@@ -768,9 +780,9 @@ export default function ScreenViewWorkspace({
     pendingStopRef.current = operationId;
     blockingStopRef.current = operationId;
     setBlockingStop(true);
-    send({ type: "screen.view.stop", operationId });
+    const sent = send({ type: "screen.view.stop", operationId });
     closeStream();
-    setStatus(message);
+    setStatus(sent === false ? unconfirmedStopMessage : message);
   }
 
   function selectSource(displayId: string) {
@@ -794,7 +806,13 @@ export default function ScreenViewWorkspace({
       setStatus("The PC did not confirm the display switch. Start screen viewing again.");
     }, 10_000);
     setStatus("Switching display...");
-    send({ type: "screen.view.source.set", operationId, displayId });
+    if (send({ type: "screen.view.source.set", operationId, displayId }) === false) {
+      window.clearTimeout(sourceResponseTimerRef.current);
+      sourceResponseTimerRef.current = undefined;
+      pendingSourceRef.current = null;
+      setSourcePending(false);
+      setStatus("The display change could not be sent. Check the connection and try again.");
+    }
   }
 
   function stop() {
@@ -1235,12 +1253,16 @@ export default function ScreenViewWorkspace({
         throw new Error("The reconnect key is unavailable.");
       }
       pendingAnswerRef.current = message.operationId;
-      send({
+      const sent = send({
         type: "screen.view.answer",
         operationId: message.operationId,
         answerSdp,
         clientSignature,
       });
+      if (sent === false) {
+        failStart("The screen answer could not be sent. Canceling the PC capture...");
+        return;
+      }
       if (!renewing) {
         scheduleCredentialRenewal(message.turnExpiresAt);
         setStatus("Starting screen video...");
@@ -1528,8 +1550,11 @@ export default function ScreenViewWorkspace({
           return;
         }
         sourcesRequestRef.current = null;
+        window.clearTimeout(sourcesRequestTimerRef.current);
         if (!message.succeeded) {
-          setStatus(message.message);
+          if (!stoppedByUserRef.current) {
+            setStatus(message.message);
+          }
           return;
         }
         if (new Set(message.sources.map((source) => source.id)).size !== message.sources.length) {
@@ -1539,7 +1564,9 @@ export default function ScreenViewWorkspace({
         setSources(message.sources);
         const preferredSource =
           message.sources.find((source) => source.isPrimary) ?? message.sources[0];
-        setSelected((current) => (current.length > 0 ? current : (preferredSource?.id ?? "")));
+        setSelected((current) =>
+          message.sources.some((source) => source.id === current) ? current : (preferredSource?.id ?? ""),
+        );
         if (browserPreviewState) {
           setStatus("Live - Encrypted WebRTC");
           return;
@@ -1638,21 +1665,43 @@ export default function ScreenViewWorkspace({
     return () => window.clearTimeout(timeout);
   }, [blockingStop]);
 
+  const requestSources = useEffectEvent(() => {
+    const operationId = createLocalId();
+    sourcesRequestRef.current = operationId;
+    const sent = send({ type: "screen.view.sources.get", operationId });
+    if (sent === false) {
+      queueMicrotask(() => {
+        if (sourcesRequestRef.current === operationId) {
+          sourcesRequestRef.current = null;
+          setStatus("The display list request could not be sent. Reconnect and try again.");
+        }
+      });
+    } else if (!browserPreviewState && sourcesRequestRef.current === operationId) {
+      sourcesRequestTimerRef.current = window.setTimeout(() => {
+        if (sourcesRequestRef.current === operationId) {
+          sourcesRequestRef.current = null;
+          if (!stoppedByUserRef.current) {
+            setStatus("The PC did not return a display list. Reopen Screen View to try again.");
+          }
+        }
+      }, sourcesResponseTimeoutMs);
+    }
+  });
+
   useEffect(() => {
     const unsubscribe = subscribeScreenViewResults(onControlResult);
     if (state === "paired" && capability.canView) {
-      const operationId = createLocalId();
-      sourcesRequestRef.current = operationId;
-      send({ type: "screen.view.sources.get", operationId });
+      requestSources();
     }
     return () => {
       sourcesRequestRef.current = null;
+      window.clearTimeout(sourcesRequestTimerRef.current);
       pendingStopRef.current = null;
       blockingStopRef.current = null;
       setBlockingStop(false);
       unsubscribe();
     };
-  }, [activePc.id, capability.canView, send, state]);
+  }, [activePc.id, browserPreviewState, capability.canView, connectionEpoch, send, state]);
 
   useEffect(() => {
     if (browserPreviewState) {
@@ -2003,6 +2052,7 @@ export default function ScreenViewWorkspace({
             autoPlay
             muted={!soundOn}
             playsInline
+            onResize={scheduleCursorPosition}
             onLoadedData={() => {
               traceScreenView("first_frame_rendered", "loadeddata");
               hasVisualFrameRef.current = true;
@@ -2017,6 +2067,7 @@ export default function ScreenViewWorkspace({
               setViewing(true);
               setPlaybackBlocked(false);
               setStatus("Live - Encrypted WebRTC");
+              scheduleCursorPosition();
             }}
           >
             <track kind="captions" label="Live PC audio has no captions" />

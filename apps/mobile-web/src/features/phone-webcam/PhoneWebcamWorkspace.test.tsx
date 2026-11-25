@@ -445,6 +445,32 @@ describe("PhoneWebcamWorkspace", () => {
     expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: "phone.webcam.answer" }));
   });
 
+  it.each(["phone.webcam.start", "phone.webcam.answer"] as const)(
+    "releases the selected camera when the transport refuses %s",
+    async (messageType) => {
+      const permission = createTrack("permission", 640, 480);
+      const first = createTrack("front", 1920, 1080);
+      const retry = createTrack("front", 1920, 1080);
+      const getUserMedia = vi.fn()
+        .mockResolvedValueOnce(createStream(permission))
+        .mockResolvedValueOnce(createStream(first))
+        .mockResolvedValueOnce(createStream(retry));
+      const { send, hostPrivateKey } = await establishStreamingSession(getUserMedia, new FakeSender());
+      fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+      send.mockImplementation((message) => message.type !== messageType);
+      fireEvent.click(screen.getByRole("button", { name: "Start" }));
+      const start = await findStart(send, 2);
+      if (messageType === "phone.webcam.answer") {
+        publishSignedOffer(start.operationId, hostPrivateKey);
+      }
+
+      const status = await screen.findByText(/could not be sent/);
+      expect(status.textContent).toContain("Reconnect and try again");
+      expect(retry.stop).toHaveBeenCalledOnce();
+      expect(screen.getByRole("button", { name: "Start" })).toBeTruthy();
+    },
+  );
+
   it("reports a bounded browser negotiation error without exposing SDP", async () => {
     class RejectingPeerConnection {
       readonly iceGatheringState: RTCIceGatheringState = "new";
@@ -2323,6 +2349,7 @@ async function establishStreamingSession(
   await screen.findByText("Streaming through Enhanced Direct");
   return {
     send,
+    hostPrivateKey: hostKey.privateKey,
     setPeerState: (state: RTCPeerConnectionState) => peers[0]?.setConnectionState(state),
   };
 }

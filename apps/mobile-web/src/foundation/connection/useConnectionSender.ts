@@ -52,10 +52,10 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
       const socket = socketRef.current;
       if (!isControllerSocketOpen(socket)) {
         reconnectRef.current?.();
-        return;
+        return false;
       }
       if (authenticatedSocketRef.current !== socket) {
-        return;
+        return false;
       }
 
       const now = Date.now();
@@ -72,7 +72,7 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
           (pendingMovementAck?.followingMovementCount ?? 0) >= maxMovementsAfterAckBarrier)
       ) {
         rescheduleHealthCheckRef.current?.();
-        return;
+        return false;
       }
 
       let sequence: number | undefined;
@@ -113,6 +113,7 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
             followingMovementCount: pendingMovementAck.followingMovementCount + 1,
           };
         }
+        return true;
       } catch {
         if (sequence !== undefined) {
           pendingInputAcksRef.current.delete(sequence);
@@ -121,6 +122,7 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
           }
         }
         reconnectRef.current?.();
+        return false;
       }
     },
     [

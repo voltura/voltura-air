@@ -23,7 +23,7 @@ interface PhoneWebcamWorkspaceProps {
   clientId: string;
   connectionEpoch: number;
   onBack: () => void;
-  send: (message: ClientMessage) => void;
+  send: (message: ClientMessage) => boolean | void;
   state: ConnectionState;
 }
 
@@ -458,7 +458,7 @@ export default function PhoneWebcamWorkspace({
             ? "Preparing encrypted webcam video and audio…"
             : "Preparing encrypted webcam video…",
       );
-      send({
+      const sent = send({
         type: "phone.webcam.start",
         operationId,
         captureWidth: width,
@@ -467,6 +467,10 @@ export default function PhoneWebcamWorkspace({
         useMicrophone: opened.useMicrophone,
         clientSignature: signature,
       });
+      if (sent === false) {
+        releaseLocal(false, "The webcam request could not be sent. Reconnect and try again.");
+        return;
+      }
       window.clearTimeout(startResponseTimerRef.current);
       startResponseTimerRef.current = window.setTimeout(() => {
         if (
@@ -816,12 +820,16 @@ export default function PhoneWebcamWorkspace({
         if (!signature) {
           throw new Error("Reconnect key unavailable.");
         }
-        send({
+        const sent = send({
           type: "phone.webcam.answer",
           operationId: message.operationId,
           answerSdp,
           clientSignature: signature,
         });
+        if (sent === false) {
+          releaseLocal(false, "The webcam answer could not be sent. Reconnect and try again.");
+          return;
+        }
         scheduleCredentialRenewal(message.turnExpiresAt);
         setStatus(
           pending.useMicrophone

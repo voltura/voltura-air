@@ -1189,6 +1189,14 @@ describe("ScreenViewWorkspace", () => {
         expect(cursor.hidden).toBe(false);
         expect(cursor.style.left).toBe("95px");
         expect(cursor.style.top).toBe("50px");
+        Object.defineProperty(video, "videoWidth", { configurable: true, value: 1280 });
+        Object.defineProperty(video, "videoHeight", { configurable: true, value: 960 });
+        fireEvent(video, new Event("resize"));
+        flushFrames();
+        const pointerSurface = document.querySelector<HTMLElement>(".screen-view-direct-pointer")!;
+        expect(pointerSurface.style.left).toBe("120px");
+        expect(pointerSurface.style.width).toBe("720px");
+        expect(cursor.style.left).toBe("226.875px");
         act(() => sendCursor(500));
         const pendingCursorFrames = [...callbacks.keys()];
         fireEvent.click(screen.getByRole("button", { name: "Stop" }));

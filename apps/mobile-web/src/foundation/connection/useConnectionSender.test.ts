@@ -40,12 +40,23 @@ describe("connection sender movement flow control", () => {
     options.supportsVolumeControlRef.current = true;
 
     act(() => {
-      hook.result.current.send({ type: "keyboard.special", key: "Enter" });
+      expect(hook.result.current.send({ type: "keyboard.special", key: "Enter" })).toBe(false);
       hook.result.current.requestAudioState();
     });
 
     expect(socket.send).not.toHaveBeenCalled();
     expect(options.pendingInputAcksRef.current.size).toBe(0);
+  });
+
+  it("reports a send failure after retiring the unsent acknowledgement", () => {
+    const { hook, options, reconnect, socket } = createSender();
+    vi.mocked(socket.send).mockImplementationOnce(() => { throw new Error("socket closed"); });
+    const message = { type: "keyboard.special", key: "Enter" } satisfies ClientMessage;
+    expect(hook.result.current.send(message)).toBe(false);
+    expect(options.pendingInputAcksRef.current.size).toBe(0);
+    expect(reconnect).toHaveBeenCalledOnce();
+    expect(hook.result.current.send(message)).toBe(true);
+    expect(options.pendingInputAcksRef.current.size).toBe(1);
   });
 
   it("includes input context only when the host advertises v1 support", () => {

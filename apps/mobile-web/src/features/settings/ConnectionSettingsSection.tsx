@@ -104,6 +104,9 @@ export function ConnectionSettingsSection({
 
   const submitManualHost = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isPairingQrReading) {
+      return;
+    }
     const validation = validateManualConnectionInput(manualHost, window.location.href);
     if (!validation.valid) {
       setManualHostError(validation.message);
@@ -170,6 +173,7 @@ export function ConnectionSettingsSection({
                   {pc.id !== activePc?.id && (
                     <button
                       type="button"
+                      disabled={isPairingQrReading}
                       onClick={() => {
                         selectPc(pc.id);
                       }}
@@ -306,7 +310,9 @@ export function ConnectionSettingsSection({
               }}
             />
           </label>
-          <button type="submit">Connect to PC</button>
+          <button type="submit" disabled={isPairingQrReading}>
+            Connect to PC
+          </button>
           {manualHostError && (
             <p id={manualHostErrorId} className="pairing-inline-error" role="alert">
               {manualHostError}

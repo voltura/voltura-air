@@ -98,6 +98,50 @@ afterEach(() => vi.useRealTimers());
 
 describe("operation response deadline ownership", () => {
   it.each([
+    ["clipboard", useClipboardCase],
+    ["text transfer", useTextCase],
+    ["URL", useUrlCase],
+  ] as const)("does not start a %s deadline for a command the socket refused", (_, useCase) => {
+    vi.useFakeTimers();
+    const send = vi.fn<(message: ClientMessage) => boolean>().mockReturnValueOnce(false);
+    const { result } = renderHook(() => useCase(send));
+
+    act(() => {
+      expect(result.current.request()).toBeNull();
+    });
+    expect(result.current.pending).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+
+    send.mockReturnValue(true);
+    act(() => {
+      expect(result.current.request()).toEqual(expect.any(String));
+    });
+    expect(result.current.pending).toBe(true);
+  });
+
+  it.each([
+    ["application launch", useLaunchCase],
+    ["Keep awake", useAwakeCase],
+    ["power", usePowerCase],
+  ] as const)("keeps %s available for retry when the socket refuses the command", (_, useCase) => {
+    vi.useFakeTimers();
+    const send = vi.fn<(message: ClientMessage) => boolean>().mockReturnValueOnce(false);
+    const { result } = renderHook(() => useCase(send));
+
+    act(() => {
+      result.current.request();
+    });
+    expect(result.current.pending).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+
+    send.mockReturnValue(true);
+    act(() => {
+      result.current.request();
+    });
+    expect(result.current.pending).toBe(true);
+  });
+
+  it.each([
     ["launch", useLaunchCase, 5_000],
     ["clipboard", useClipboardCase, 5_000],
     ["text transfer", useTextCase, 15_000],

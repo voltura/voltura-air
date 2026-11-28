@@ -71,6 +71,19 @@ describe("screen keyboard input", () => {
     });
   });
 
+  it.each([
+    ["MediaTrackNext", "MediaNextTrack"],
+    ["MediaTrackPrevious", "MediaPreviousTrack"],
+    ["AudioVolumeDown", "VolumeDown"],
+    ["AudioVolumeUp", "VolumeUp"],
+    ["AudioVolumeMute", "VolumeMute"],
+  ])("maps browser media key %s to the existing %s command", (browserKey, pcKey) => {
+    expect(screenKeyboardMessage(keyEvent(browserKey))).toEqual({
+      type: "keyboard.special",
+      key: pcKey,
+    });
+  });
+
   it("sends only supported character shortcuts and keeps punctuation typing available", () => {
     expect(screenKeyboardMessage(keyEvent("/", { ctrlKey: true }))).toEqual({
       type: "keyboard.special",

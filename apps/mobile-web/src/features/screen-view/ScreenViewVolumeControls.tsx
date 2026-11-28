@@ -6,7 +6,7 @@ interface Props {
   audioState: AudioStateMessage | null;
   enabled: boolean;
   visible: boolean;
-  send: (message: ClientMessage) => void;
+  send: (message: ClientMessage) => boolean | void;
 }
 
 export function ScreenViewVolumeControls({ audioState, enabled, visible, send }: Props) {
@@ -32,7 +32,9 @@ export function ScreenViewVolumeControls({ audioState, enabled, visible, send }:
       return;
     }
     pendingVolumes.current.push(volume);
-    send({ type: "audio.volume.set", inputContext: "media-controls", volume });
+    if (send({ type: "audio.volume.set", inputContext: "media-controls", volume }) === false) {
+      pendingVolumes.current.pop();
+    }
   };
   const stopGesture = (event: TouchEvent<HTMLButtonElement>) => event.stopPropagation();
 

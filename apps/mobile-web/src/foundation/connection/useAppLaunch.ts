@@ -10,7 +10,7 @@ const resultVisibilityMs = 4000;
 export function useAppLaunch(
   state: ConnectionState,
   connectionEpoch: number,
-  send: (payload: ClientMessage) => void,
+  send: (payload: ClientMessage) => boolean | void,
 ) {
   const [pendingOperation, setPendingOperation] = useState<{
     actionId: string;
@@ -72,11 +72,13 @@ export function useAppLaunch(
       return;
     }
 
-    const operationId = createLocalId();
-    pendingRef.current = { actionId, operationId };
-    setPendingOperation({ actionId, operationId });
+    const pending = { actionId, operationId: createLocalId() };
+    if (send({ type: "app.launch", ...pending }) === false) {
+      return;
+    }
+    pendingRef.current = pending;
+    setPendingOperation(pending);
     setAppLaunchResult(null);
-    send({ type: "app.launch", actionId, operationId });
   };
 
   const completeAppLaunch = (result: AppLaunchResultMessage) => {

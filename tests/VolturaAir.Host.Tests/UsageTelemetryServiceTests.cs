@@ -172,14 +172,21 @@ public sealed class UsageTelemetryServiceTests
             second.RootElement.GetProperty("batchId").GetString());
     }
 
-    [Fact]
-    public async Task DisableCancelsInflightDeliveryDiscardsStateAndRotatesIdentity()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DisableCancelsInflightDeliveryDiscardsStateAndRotatesIdentity(bool callerCancelsDuringDisable)
     {
         var requestStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var disableCancellation = new CancellationTokenSource();
         var handler = new RecordingHandler(async (_, cancellationToken) =>
         {
             requestStarted.TrySetResult();
-            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            try { await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken); }
+            finally
+            {
+                if (callerCancelsDuringDisable) disableCancellation.Cancel();
+            }
             return Accepted();
         });
         var settings = new FakeSettings(new(
@@ -196,13 +203,14 @@ public sealed class UsageTelemetryServiceTests
         Assert.True(service.SealNowForTesting());
         await requestStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        var disabled = await service.SetEnabledAsync(false).WaitAsync(TimeSpan.FromSeconds(5));
+        var disabled = await service.SetEnabledAsync(false, disableCancellation.Token).WaitAsync(TimeSpan.FromSeconds(5));
         service.RecordFeature(UsageFeature.Files);
 
         Assert.False(disabled.EffectiveEnabled);
         Assert.True(disabled.Saved);
         Assert.False(service.IsEnabled);
         Assert.False(service.SealNowForTesting());
+        Assert.Equal(UsageStatisticsConsent.Denied, settings.State.Consent);
         Assert.Null(settings.State.InstallationId);
         Assert.Equal(default, session.ReadStateForTesting());
 
@@ -244,6 +252,14 @@ public sealed class UsageTelemetryServiceTests
         Assert.False(service.IsEnabled);
         Assert.Equal(UsageStatisticsConsent.Denied, settings.State.Consent);
         Assert.Equal(InstallationId, settings.State.InstallationId);
+
+        var retry = await service.SetEnabledAsync(false);
+        Assert.True(retry.Saved);
+        Assert.True(retry.IdentityRemoved);
+        Assert.False(service.IsEnabled);
+        Assert.Equal(UsageStatisticsRuntimeState.Off, service.State);
+        Assert.Equal(1, settings.DenyCalls);
+        Assert.Equal(1, settings.DeleteStaleCalls);
     }
 
     [Fact]

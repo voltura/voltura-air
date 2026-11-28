@@ -44,7 +44,11 @@ function renderMenu(
   canModify = true,
   overrides: Partial<ComponentProps<typeof FileTransferMenu>> = {},
 ) {
-  return render(
+  return render(fileTransferMenu({ canModify, ...overrides }));
+}
+
+function fileTransferMenu(overrides: Partial<ComponentProps<typeof FileTransferMenu>> = {}) {
+  return (
     <FileTransferMenu
       activePc={{
         customName: false,
@@ -54,13 +58,13 @@ function renderMenu(
         hostIdentityPublicKey: "A".repeat(87),
         transportMode: "secure-direct",
       }}
-      canModify={canModify}
+      canModify
       clientId="client"
       enabled
       send={vi.fn()}
       target={target}
       {...overrides}
-    />,
+    />
   );
 }
 
@@ -109,6 +113,34 @@ describe("FileTransferMenu", () => {
       expect(notice).toHaveBeenCalledWith(expect.stringContaining("changed"), "error");
     },
   );
+
+  it("closes an open menu when the active panel changes", () => {
+    const view = renderMenu();
+    fireEvent.click(screen.getByRole("button", { name: "Transfer" }));
+    expect(screen.getByRole("menu", { name: "Transfer files" })).toBeTruthy();
+
+    view.rerender(fileTransferMenu({ target: { ...target, panel: "right" } }));
+
+    expect(screen.queryByRole("menu", { name: "Transfer files" })).toBeNull();
+  });
+
+  it("rejects an old picker even after the original panel becomes active again", () => {
+    const notice = vi.fn();
+    const view = renderMenu(true, { onTransferNotice: notice });
+    fireEvent.click(screen.getByRole("button", { name: "Transfer" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Choose file from this device" }));
+    view.rerender(
+      fileTransferMenu({ target: { ...target, panel: "right" }, onTransferNotice: notice }),
+    );
+    view.rerender(fileTransferMenu({ onTransferNotice: notice }));
+
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [new File(["data"], "file.txt")] },
+    });
+
+    expect(transferMock.startUpload).not.toHaveBeenCalled();
+    expect(notice).toHaveBeenCalledWith(expect.stringContaining("changed"), "error");
+  });
   it("dismisses the transfer menu with Escape and returns trigger focus", () => {
     renderMenu();
     const trigger = screen.getByRole("button", { name: "Transfer" });
@@ -172,6 +204,8 @@ describe("FileTransferMenu", () => {
     expect(input?.value).toBe("");
     expect(transferMock.startUpload).toHaveBeenCalledExactlyOnceWith(target, photo);
 
+    fireEvent.click(screen.getByRole("button", { name: "Transfer" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Take photo" }));
     fireEvent.change(input!, { target: { files: [photo] } });
     expect(transferMock.startUpload).toHaveBeenCalledTimes(2);
   });

@@ -3,7 +3,7 @@ using System.Threading.Channels;
 
 namespace VolturaAir.Host;
 
-internal sealed class TerminalSession(string id, string clientId, ITerminalProcess process) : IAsyncDisposable
+internal sealed class TerminalSession : IAsyncDisposable
 {
     internal readonly Lock Gate = new();
     internal readonly LinkedList<TerminalOutputChunk> Output = [];
@@ -24,9 +24,6 @@ internal sealed class TerminalSession(string id, string clientId, ITerminalProce
     internal WebSocket? ControlSocket;
     internal string? OfferOperationId;
     internal string? OfferHash;
-    internal int OfferColumns;
-    internal int OfferRows;
-    internal long OfferAcknowledgedOffset;
     internal long NextOutputOffset;
     internal long AcknowledgedOutputOffset;
     internal long SentOutputOffset;
@@ -37,33 +34,81 @@ internal sealed class TerminalSession(string id, string clientId, ITerminalProce
     internal Task? OutputTask;
     internal Task? InputTask;
 
-    internal string Id { get; } = id;
-    internal string ClientId { get; } = clientId;
-    internal ITerminalProcess Process { get; } = process;
+    internal TerminalSession(string id, string clientId, ITerminalProcess process)
+    {
+        Id = id;
+        ClientId = clientId;
+        Process = process;
+        LifetimeToken = Lifetime.Token;
+    }
+
+    internal string Id { get; }
+    internal string ClientId { get; }
+    internal ITerminalProcess Process { get; }
+    internal CancellationToken LifetimeToken { get; }
+
+    internal TerminalPeerRetirement TakePeerLocked()
+    {
+        var retired = new TerminalPeerRetirement(Peer, PeerLifetime, OfferLifetime);
+        Peer = null;
+        PeerLifetime = null;
+        OfferLifetime = null;
+        Attached = false;
+        return retired;
+    }
+
+    internal void ReleaseNegotiation()
+    {
+        lock (Gate)
+        {
+            if (Volatile.Read(ref DisposeStarted) == 0) Negotiation.Release();
+        }
+    }
 
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref DisposeStarted, 1) != 0) return;
+        TerminalPeerRetirement retired;
+        CancellationTokenSource? reconnect;
+        lock (Gate)
+        {
+            retired = TakePeerLocked();
+            reconnect = ReconnectLifetime;
+            ReconnectLifetime = null;
+        }
         await Lifetime.CancelAsync().ConfigureAwait(false);
-        if (PeerLifetime is not null) await PeerLifetime.CancelAsync().ConfigureAwait(false);
-        if (OfferLifetime is not null) await OfferLifetime.CancelAsync().ConfigureAwait(false);
-        if (ReconnectLifetime is not null) await ReconnectLifetime.CancelAsync().ConfigureAwait(false);
+        reconnect?.Dispose();
         Input.Writer.TryComplete();
         Process.Terminate();
-        ITerminalWebRtcPeer? peer;
-        lock (Gate) { peer = Peer; Peer = null; }
-        if (peer is not null) await peer.DisposeAsync().ConfigureAwait(false);
+        await retired.DisposeAsync().ConfigureAwait(false);
         await Process.DisposeAsync().ConfigureAwait(false);
         Task[] workers = [OutputTask ?? Task.CompletedTask, InputTask ?? Task.CompletedTask];
         try { await Task.WhenAll(workers).ConfigureAwait(false); }
         catch (Exception exception) when (exception is OperationCanceledException or IOException or ObjectDisposedException) { }
         Lifetime.Dispose();
-        PeerLifetime?.Dispose();
-        OfferLifetime?.Dispose();
-        ReconnectLifetime?.Dispose();
         OutputChanged.Dispose();
         OutputSpace.Dispose();
         Negotiation.Dispose();
+    }
+}
+
+internal readonly record struct TerminalPeerRetirement(
+    ITerminalWebRtcPeer? Peer,
+    CancellationTokenSource? Lifetime,
+    CancellationTokenSource? OfferLifetime)
+{
+    internal async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (Lifetime is not null) await Lifetime.CancelAsync().ConfigureAwait(false);
+            if (Peer is not null) await Peer.DisposeAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            OfferLifetime?.Dispose();
+            Lifetime?.Dispose();
+        }
     }
 }
 

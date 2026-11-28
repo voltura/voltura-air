@@ -265,6 +265,13 @@ function reconnectAndRevoke(pc: PcProfile, clientId: string, deviceName: string)
       } else if (response?.type === "pair.rejected") {
         finish(false);
       } else if (response?.type === "pair.accepted") {
+        if (
+          pc.transportMode !== "relay" &&
+          !isExpectedHostIdentity(response, pc.hostIdentityFingerprint)
+        ) {
+          finish(false);
+          return;
+        }
         void requestDisconnect();
       }
     }

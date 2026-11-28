@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { readLocalStorage, writeLocalStorage } from "../platform/browserStorage";
 
 const automaticAttemptKey = "voltura-air.storageProtection.autoAttempted.v1";
+const startupCheckTimeoutMs = 5_000;
 
 export type StorageProtectionState =
   | "checking"
@@ -79,11 +80,18 @@ export function usePersistentStorage() {
   useEffect(() => {
     mounted.current = true;
     let cancelled = false;
+    let startupTimeout: ReturnType<typeof setTimeout> | undefined;
     if (supportsPersistentStorage()) {
+      startupTimeout = setTimeout(() => {
+        cancelled = true;
+        if (!requested.current) {
+          setStorageProtection("failed");
+        }
+      }, startupCheckTimeoutMs);
       // Reuse the check across React's effect replay before any automatic request.
       initialCheck.current ??= Promise.resolve().then(() => navigator.storage.persisted());
-      void initialCheck.current.then(
-        async (persistent) => {
+      void initialCheck.current
+        .then(async (persistent) => {
           if (!cancelled && !requested.current) {
             if (persistent) {
               setStorageProtection("enabled");
@@ -104,16 +112,17 @@ export function usePersistentStorage() {
               }
             }
           }
-        },
-        () => {
+        })
+        .catch(() => {
           if (!cancelled && !requested.current) {
             setStorageProtection("failed");
           }
-        },
-      );
+        })
+        .finally(() => clearTimeout(startupTimeout));
     }
     return () => {
       cancelled = true;
+      clearTimeout(startupTimeout);
       mounted.current = false;
     };
   }, [requestProtection]);

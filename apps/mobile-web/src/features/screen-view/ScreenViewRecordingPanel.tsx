@@ -16,9 +16,11 @@ export function ScreenViewRecordingPanel({ presentation, onDiscard, onSave }: Pr
     return null;
   }
   const elapsed = formatDuration(presentation.elapsedMs);
+  const recordingLabel =
+    presentation.message || (presentation.includesSound ? "Video with sound" : "Video only");
   const detail =
     presentation.phase === "recording"
-      ? `${presentation.includesSound ? "Video with sound" : "Video only"} · ${elapsed} / 5:00`
+      ? `${recordingLabel} · ${elapsed} / 5:00`
       : presentation.message;
 
   return (

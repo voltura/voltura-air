@@ -249,7 +249,9 @@ public sealed class WebHostScreenViewTests : WebHostServiceTestBase
         try
         {
             AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true, AllowRemoteInput = true });
-            await using var fixture = await WebHostFixture.StartAsync(screenViewCapture: new FakeScreenViewCaptureSource());
+            var capture = new FakeScreenViewCaptureSource();
+            var audio = new DeferredAudioCleanup();
+            await using var fixture = await WebHostFixture.StartAsync(screenViewCapture: capture, screenViewAudioCaptureFactory: audio);
             using var reconnectKey = new PairingTestKey();
             using WebSocket control = await ConnectAsync(fixture.WebHost);
             await PairAsync(control, fixture.Manager, reconnectKey);
@@ -270,6 +272,7 @@ public sealed class WebHostScreenViewTests : WebHostServiceTestBase
                 clientSignature = reconnectKey.SignPayload(transcript)
             }, "screen.view.answer.result");
             Assert.True(answered.GetProperty("succeeded").GetBoolean());
+            await capture.Captured.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
             JsonElement moveAck = await SendUntilTypeAsync(control, new
             {
@@ -304,8 +307,29 @@ public sealed class WebHostScreenViewTests : WebHostServiceTestBase
                 button = "left",
                 action = "down"
             }, "input.ack");
-            _ = await SendUntilTypeAsync(control, new { type = "screen.view.stop", operationId = "screen-direct-stop" }, "screen.view.stop.result");
-            Assert.Contains("ReleaseMouseButtons", fixture.InputInjector.Events);
+            try
+            {
+                _ = await SendUntilTypeAsync(control, new { type = "screen.view.stop", operationId = "screen-direct-stop" }, "screen.view.stop.result");
+                await audio.Disposing.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.Contains("ReleaseMouseButtons", fixture.InputInjector.Events);
+
+                JsonElement stopped = await SendUntilTypeAsync(control, new
+                {
+                    type = "screen.pointer.button",
+                    seq = 44,
+                    displayId,
+                    x = 0.5,
+                    y = 0.5,
+                    button = "right",
+                    action = "down"
+                }, "input.error");
+                Assert.Equal("VAIR-SCREEN-NOT-VIEWING", stopped.GetProperty("code").GetString());
+                Assert.DoesNotContain(fixture.InputInjector.Events, entry => entry.EndsWith(":right:down", StringComparison.Ordinal));
+            }
+            finally
+            {
+                audio.FinishDisposing.TrySetResult();
+            }
 
             JsonElement finalStatus = await SendUntilTypeAsync(control, new { type = "status.get" }, "status");
             Assert.True(finalStatus.GetProperty("connected").GetBoolean());
@@ -509,6 +533,26 @@ public sealed class WebHostScreenViewTests : WebHostServiceTestBase
     }
 
     private static string HashSdp(string sdp) => ScreenViewHostIdentity.Base64Url(SHA256.HashData(Encoding.UTF8.GetBytes(sdp)));
+
+    private sealed class DeferredAudioCleanup : IScreenViewSystemAudioCaptureFactory, IScreenViewSystemAudioCapture
+    {
+        public TaskCompletionSource Disposing { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource FinishDisposing { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public IScreenViewSystemAudioCapture Create() => this;
+
+        public Task RunAsync(
+            Func<ScreenViewEncodedAudioFrame, bool> send,
+            Action<ScreenViewAudioAvailability> reportAvailability,
+            Func<ScreenViewSoundQuality> getSoundQuality,
+            CancellationToken cancellationToken) => Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+
+        public async ValueTask DisposeAsync()
+        {
+            Disposing.TrySetResult();
+            await FinishDisposing.Task.ConfigureAwait(false);
+        }
+    }
 
     private sealed class FakeScreenViewCaptureSource : IScreenViewCaptureSource
     {

@@ -330,13 +330,14 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
         }
     }
 
-    protected sealed class FakeClipboardTextReader(ClipboardTextReadResult result) : IClipboardTextReader
+    protected sealed class FakeClipboardTextReader(ClipboardTextReadResult result, Action? onRead = null) : IClipboardTextReader
     {
         public int ReadCount { get; private set; }
 
         public ClipboardTextReadResult ReadText()
         {
             ReadCount++;
+            onRead?.Invoke();
             return result;
         }
     }

@@ -11,6 +11,30 @@ import {
 describe("usePresentationControl", () => {
   afterEach(() => vi.useRealTimers());
 
+  it("unblocks slide commands immediately when the control request cannot be sent", () => {
+    const send = vi.fn().mockReturnValueOnce(false);
+    const { result } = renderHook(() => usePresentationControl("paired", 1, send));
+    let operationId: string | null = null;
+
+    act(() => {
+      operationId = result.current.requestPresentationCommand("google-slides", "next");
+    });
+
+    expect(operationId).toBeNull();
+    expect(result.current.pendingPresentationCommand).toBeNull();
+    expect(result.current.presentationResult).toEqual(
+      expect.objectContaining({
+        succeeded: false,
+        message: "Could not send the presentation command. Reconnect and try again.",
+      }),
+    );
+    act(() => {
+      operationId = result.current.requestPresentationCommand("google-slides", "next");
+    });
+    expect(operationId).toBeTypeOf("string");
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
   it("allows only one command in flight and completes only its matching result", () => {
     const send = vi.fn();
     const { result } = renderHook(() => usePresentationControl("paired", 1, send));

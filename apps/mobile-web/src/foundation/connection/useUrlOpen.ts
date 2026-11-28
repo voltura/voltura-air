@@ -14,7 +14,7 @@ const resultVisibilityMs = 8000;
 export function useUrlOpen(
   state: ConnectionState,
   connectionEpoch: number,
-  send: (payload: ClientMessage) => void,
+  send: (payload: ClientMessage) => boolean | void,
 ) {
   const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
   const pendingUrlOpen = pendingOperationId !== null;
@@ -77,10 +77,12 @@ export function useUrlOpen(
     }
 
     const operationId = createLocalId();
+    if (send({ type: "url.open", operationId, url }) === false) {
+      return null;
+    }
     pendingOperationRef.current = operationId;
     setPendingOperationId(operationId);
     setUrlOpenResult(null);
-    send({ type: "url.open", operationId, url });
     return operationId;
   };
 

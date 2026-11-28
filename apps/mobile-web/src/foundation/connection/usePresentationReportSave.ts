@@ -18,7 +18,7 @@ interface PendingPresentationReportSave {
 export function usePresentationReportSave(
   state: ConnectionState,
   connectionEpoch: number,
-  send: (payload: ClientMessage) => void,
+  send: (payload: ClientMessage) => boolean | void,
 ) {
   const [pendingPresentationReportSave, setPendingPresentationReportSave] =
     useState<PendingPresentationReportSave | null>(null);
@@ -81,11 +81,25 @@ export function usePresentationReportSave(
       operationId: existingIdentity?.operationId ?? createLocalId(),
       reportId: payload.reportId,
     };
+    const sent = send({
+      type: "presentation.report.save",
+      operationId: pending.operationId,
+      ...payload,
+    });
+    if (sent === false) {
+      setPresentationReportSaveResult({
+        type: "presentation.report.save.result",
+        ...pending,
+        succeeded: false,
+        code: "VAIR-PRESENTATION-SAVE-SEND-FAILED",
+        message: "The report could not be sent to the PC. Reconnect and try again.",
+      });
+      return null;
+    }
     retryIdentityRef.current = pending;
     pendingRef.current = pending;
     setPendingPresentationReportSave(pending);
     setPresentationReportSaveResult(null);
-    send({ type: "presentation.report.save", operationId: pending.operationId, ...payload });
     return pending.operationId;
   };
 

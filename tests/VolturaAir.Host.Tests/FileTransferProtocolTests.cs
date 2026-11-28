@@ -161,6 +161,66 @@ public sealed class FileTransferProtocolTests
     }
 
     [Fact]
+    public async Task CancellationBeforeEmptyTransferSendsNoAcknowledgement()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await using var source = new FileTransferDownloadSource("empty.txt", 0, new MemoryStream());
+        await using var peer = new PumpPeer(0);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => FileTransferDataPump.SendAsync(
+            source, 0, peer, () => { }, (_, _, _) => Task.CompletedTask, cancellation.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => FileTransferDataPump.ReceiveAsync(
+            Stream.Null, 0, peer, _ => { }, () => { }, (_, _, _) => Task.CompletedTask, cancellation.Token));
+
+        Assert.Empty(peer.Sent);
+    }
+
+    [Fact]
+    public async Task FinalValidatedAcknowledgementCommitsWithoutCancelableProgress()
+    {
+        using var cancellation = new CancellationTokenSource();
+        await using var source = new FileTransferDownloadSource("one.bin", 1, new MemoryStream([42]));
+        await using var peer = new PumpPeer(1, afterRead: cancellation.Cancel);
+
+        await FileTransferDataPump.SendAsync(source, 1, peer, () => { },
+            (_, _, token) => Task.FromCanceled(token), cancellation.Token);
+
+        Assert.True(cancellation.IsCancellationRequested);
+        Assert.Single(peer.Sent);
+    }
+
+    [Fact]
+    public async Task CancellationDuringDownloadReadDoesNotSendTheReturnedBytes()
+    {
+        using var cancellation = new CancellationTokenSource();
+        await using var source = new FileTransferDownloadSource("one.bin", 1, new CancelOnReadStream(cancellation.Cancel));
+        await using var peer = new PumpPeer(1);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => FileTransferDataPump.SendAsync(
+            source, 1, peer, () => { }, (_, _, _) => Task.CompletedTask, cancellation.Token));
+
+        Assert.Empty(peer.Sent);
+    }
+
+    [Fact]
+    public async Task CancellationDuringUploadFlushDoesNotReportOrAcknowledgeProgress()
+    {
+        using var cancellation = new CancellationTokenSource();
+        await using var destination = new CancelOnFlushStream(cancellation.Cancel);
+        await using var peer = new PumpPeer(1);
+        peer.Receive(FileTransferProtocol.CreateData(0, [42]));
+        List<long> committed = [];
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => FileTransferDataPump.ReceiveAsync(
+            destination, 1, peer, committed.Add, () => { }, (_, _, _) => Task.CompletedTask, cancellation.Token));
+
+        Assert.Equal(1, destination.Length);
+        Assert.Empty(committed);
+        Assert.Empty(peer.Sent);
+    }
+
+    [Fact]
     public async Task DownloadHonorsBackpressureAndTheOneMegabyteUnacknowledgedWindow()
     {
         var path = Path.GetTempFileName();
@@ -238,12 +298,94 @@ public sealed class FileTransferProtocolTests
     }
 
     [Fact]
+    public async Task DownloadStaysOwnedUntilNativeCleanupReleasesTheTransferSlot()
+    {
+        using var socket = new PassiveWebSocket();
+        using var transport = new WebSocketTransport();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var peer = new TrackingDisposePeer(async () =>
+        {
+            entered.TrySetResult();
+            await release.Task.ConfigureAwait(false);
+        });
+        bool removed = false;
+        await using var runner = new FileTransferRunner(
+            null!, null!, transport, false, _ => Task.FromResult<RelayTurnConfiguration?>(null),
+            new SinglePeerFactory(peer), _ => removed = true);
+        Assert.True(runner.TryAcquireSlot());
+        var sourceStream = new MemoryStream([42]);
+        var transfer = new FileTransferSession("transfer", "client", "request", socket, "download", "file.txt", 1)
+        {
+            Peer = peer,
+            SlotHeld = true,
+            DownloadSource = new FileTransferDownloadSource("file.txt", 1, sourceStream)
+        };
+        transfer.Cancellation.Cancel();
+        Task run = runner.RunDownloadAsync(transfer);
+        transfer.RunTask = run;
+
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(removed);
+            Assert.False(runner.TryAcquireSlot());
+
+            release.TrySetResult();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(removed);
+            Assert.False(sourceStream.CanRead);
+            Assert.True(runner.TryAcquireSlot());
+            runner.ReleaseSlot();
+        }
+        finally
+        {
+            release.TrySetResult();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
+    [Fact]
+    public async Task RetiredControlSocketEndsDownloadWithoutWaitingForAnAnswer()
+    {
+        using var pairingStore = new TempPairingStore();
+        using var identity = ScreenViewHostIdentity.CreateEphemeral();
+        var pairing = new PairingManager(pairingStore.Store, identity);
+        using var socket = new PassiveWebSocket();
+        using var transport = new WebSocketTransport();
+        await using var peer = new TrackingDisposePeer();
+        await using var runner = new FileTransferRunner(
+            null!, pairing, transport, false, _ => Task.FromResult<RelayTurnConfiguration?>(null),
+            new SinglePeerFactory(peer), _ => { });
+        var source = new MemoryStream([42]);
+        var transfer = new FileTransferSession("transfer", "client", "request", socket, "download", "file.txt", 1)
+        {
+            DownloadSource = new FileTransferDownloadSource("file.txt", 1, source)
+        };
+        transfer.StartPublished.SetResult();
+        Task run = runner.RunDownloadAsync(transfer);
+        try
+        {
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal("connection-lost", transfer.FailureCode);
+            Assert.True(peer.Disposed);
+            Assert.False(source.CanRead);
+        }
+        finally
+        {
+            runner.Cancel(transfer, "canceled", "File transfer canceled.");
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
+    [Fact]
     public async Task UploadWrapsControlSocketFailureAndShutdownAlwaysDisposesFaultedTransfers()
     {
         var root = Path.Combine(Path.GetTempPath(), "VolturaAir.Tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         using var pairingStore = new TempPairingStore();
-        var pairing = new PairingManager(pairingStore.Store);
+        using var identity = ScreenViewHostIdentity.CreateEphemeral();
+        var pairing = new PairingManager(pairingStore.Store, identity);
         await using var files = new FileManagerService(initialLeftPath: root, initialRightPath: root);
         using var transport = new WebSocketTransport();
         using var socket = new ThrowingSendWebSocket(static () => new WebSocketException());
@@ -264,7 +406,6 @@ public sealed class FileTransferProtocolTests
         };
         await runner.ShutdownAsync([faulted]);
         Assert.Equal(1, Volatile.Read(ref faulted.DisposeStarted));
-        pairing.DisposeHostIdentity();
         Directory.Delete(root, recursive: true);
     }
 
@@ -276,7 +417,8 @@ public sealed class FileTransferProtocolTests
         var sourcePath = Path.Combine(root, "source.txt");
         await File.WriteAllTextAsync(sourcePath, "source");
         using var pairingStore = new TempPairingStore();
-        var pairing = new PairingManager(pairingStore.Store);
+        using var identity = ScreenViewHostIdentity.CreateEphemeral();
+        var pairing = new PairingManager(pairingStore.Store, identity);
         await using var files = new FileManagerService(initialLeftPath: root, initialRightPath: root);
         using var transport = new WebSocketTransport();
         using var socket = new ThrowingSendWebSocket(static () => new InvalidOperationException("The WebSocket is closed."));
@@ -314,7 +456,6 @@ public sealed class FileTransferProtocolTests
         await runner.ShutdownAsync([late]);
         await Assert.ThrowsAsync<OperationCanceledException>(() => runner.ReceiveUploadAsync(
             late, Stream.Null, _ => { }, CancellationToken.None));
-        pairing.DisposeHostIdentity();
         Directory.Delete(root, recursive: true);
     }
 
@@ -324,7 +465,8 @@ public sealed class FileTransferProtocolTests
         var root = Path.Combine(Path.GetTempPath(), "VolturaAir.Tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         using var pairingStore = new TempPairingStore();
-        var pairing = new PairingManager(pairingStore.Store);
+        using var identity = ScreenViewHostIdentity.CreateEphemeral();
+        var pairing = new PairingManager(pairingStore.Store, identity);
         await using var files = new FileManagerService(initialLeftPath: root, initialRightPath: root);
         using var transport = new WebSocketTransport();
         using var socket = new PassiveWebSocket();
@@ -351,11 +493,11 @@ public sealed class FileTransferProtocolTests
             pairing, transport, _ => Task.CompletedTask, CancellationToken.None));
         Assert.True(trackingPeer.Disposed);
         late.Cancellation.Dispose();
-        pairing.DisposeHostIdentity();
         Directory.Delete(root, recursive: true);
     }
 
-    private sealed class PumpPeer(long declaredSize, bool rejectFirstSend = false, bool duplicateAcknowledgement = false) : IFileTransferWebRtcPeer
+    private sealed class PumpPeer(long declaredSize, bool rejectFirstSend = false, bool duplicateAcknowledgement = false,
+        Action? afterRead = null) : IFileTransferWebRtcPeer
     {
         private readonly Channel<byte[]> _messages = Channel.CreateUnbounded<byte[]>();
         private bool _rejectNext = rejectFirstSend;
@@ -365,7 +507,8 @@ public sealed class FileTransferProtocolTests
         public bool RejectedSendWasRetried { get; private set; }
         public int RecordsBeforeFirstAcknowledgement { get; private set; }
         public Task Opened => Task.CompletedTask;
-        public ChannelReader<byte[]> Messages => _messages.Reader;
+        public ChannelReader<byte[]> Messages => afterRead is null ? _messages.Reader : new CallbackReader(_messages.Reader, afterRead);
+        public void Receive(byte[] record) => Assert.True(_messages.Writer.TryWrite(record));
         public Task<string> CreateOfferAsync(CancellationToken cancellationToken) => Task.FromResult("offer");
         public void ApplyAnswer(string answerSdp) { }
         public bool TrySend(byte[] record)
@@ -400,6 +543,38 @@ public sealed class FileTransferProtocolTests
         {
             _messages.Writer.TryComplete();
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class CallbackReader(ChannelReader<byte[]> reader, Action afterRead) : ChannelReader<byte[]>
+    {
+        public override bool TryRead(out byte[] item) => reader.TryRead(out item!);
+        public override ValueTask<bool> WaitToReadAsync(CancellationToken cancellationToken = default) => reader.WaitToReadAsync(cancellationToken);
+
+        public override async ValueTask<byte[]> ReadAsync(CancellationToken cancellationToken = default)
+        {
+            byte[] record = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            afterRead();
+            return record;
+        }
+    }
+
+    private sealed class CancelOnReadStream(Action cancel) : MemoryStream([42])
+    {
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            int count = await base.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+            cancel();
+            return count;
+        }
+    }
+
+    private sealed class CancelOnFlushStream(Action cancel) : MemoryStream
+    {
+        public override Task FlushAsync(CancellationToken cancellationToken)
+        {
+            cancel();
+            return Task.CompletedTask;
         }
     }
 
@@ -442,7 +617,7 @@ public sealed class FileTransferProtocolTests
         public ValueTask DisposeAsync() => ValueTask.FromException(new IOException("Injected peer dispose failure."));
     }
 
-    private sealed class TrackingDisposePeer : IFileTransferWebRtcPeer
+    private sealed class TrackingDisposePeer(Func<Task>? dispose = null) : IFileTransferWebRtcPeer
     {
         private readonly Channel<byte[]> _messages = Channel.CreateUnbounded<byte[]>();
         public bool Disposed { get; private set; }
@@ -451,7 +626,11 @@ public sealed class FileTransferProtocolTests
         public Task<string> CreateOfferAsync(CancellationToken cancellationToken) => Task.FromResult("offer");
         public void ApplyAnswer(string answerSdp) { }
         public bool TrySend(byte[] record) => true;
-        public ValueTask DisposeAsync() { Disposed = true; return ValueTask.CompletedTask; }
+        public async ValueTask DisposeAsync()
+        {
+            if (dispose is not null) await dispose().ConfigureAwait(false);
+            Disposed = true;
+        }
     }
 
     private sealed class SinglePeerFactory(IFileTransferWebRtcPeer peer) : IFileTransferWebRtcPeerFactory

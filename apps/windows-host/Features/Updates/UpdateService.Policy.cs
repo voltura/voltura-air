@@ -15,10 +15,16 @@ internal sealed class UpdateNotificationEventArgs(UpdateNotificationKind kind, s
     internal string? Version { get; } = version;
 }
 
-internal sealed record DeferredCandidate(Version Version, JsonElement Assets);
+internal sealed record DeferredCandidate(Version Version, JsonElement Assets)
+{
+    internal CancellationToken AutomaticLifetime { get; init; }
+}
 
 internal static class UpdatePolicy
 {
+    private const string ReleaseUrl = "https://api.github.com/repos/voltura/voltura-air/releases/latest";
+    private const long MaxMetadataBytes = 256 * 1024;
+
     internal static UpdateStartupOutcome GetStartupOutcome(string[] args) =>
         args.Contains("--updated", StringComparer.OrdinalIgnoreCase)
             ? UpdateStartupOutcome.Updated
@@ -190,16 +196,38 @@ internal static class UpdatePolicy
         return root.ValueKind == JsonValueKind.Object &&
             root.TryGetProperty("prerelease", out var prerelease) && prerelease.ValueKind == JsonValueKind.False &&
             root.TryGetProperty("draft", out var draft) && draft.ValueKind == JsonValueKind.False &&
-            root.TryGetProperty("tag_name", out var tag) &&
+            root.TryGetProperty("tag_name", out var tag) && tag.ValueKind == JsonValueKind.String &&
             TryParseVersion(tag.GetString(), requireVPrefix: true, out version) &&
             root.TryGetProperty("assets", out assets) && assets.ValueKind == JsonValueKind.Array;
+    }
+
+    internal static async Task<DeferredCandidate?> ReadLatestReleaseAsync(
+        System.Net.Http.HttpClient client,
+        CancellationToken cancellationToken)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(client.Timeout);
+        using var response = await client.GetAsync(
+            ReleaseUrl,
+            System.Net.Http.HttpCompletionOption.ResponseHeadersRead,
+            deadline.Token).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode) return null;
+
+        await using var stream = await response.Content.ReadAsStreamAsync(deadline.Token).ConfigureAwait(false);
+        var metadata = await UpdatePackageStager.ReadCappedAsync(stream, MaxMetadataBytes, deadline.Token).ConfigureAwait(false);
+        using var document = JsonDocument.Parse(metadata);
+        return TryReadLatestRelease(document.RootElement, out var version, out var assets)
+            ? new DeferredCandidate(version, assets.Clone())
+            : null;
     }
 
     private static bool TryReadManifestVersion(byte[] manifest, out Version version)
     {
         version = new();
         using var document = JsonDocument.Parse(manifest);
-        return document.RootElement.TryGetProperty("version", out var element) &&
+        var root = document.RootElement;
+        return root.ValueKind == JsonValueKind.Object &&
+            root.TryGetProperty("version", out var element) && element.ValueKind == JsonValueKind.String &&
             TryParseVersion(element.GetString(), requireVPrefix: false, out version);
     }
 

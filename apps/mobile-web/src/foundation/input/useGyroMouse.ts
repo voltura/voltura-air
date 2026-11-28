@@ -10,6 +10,7 @@ import {
 
 interface UseGyroMouseOptions {
   activationRequest?: GyroActivationRequest | null;
+  onActivationConsumed?: (requestId: number) => void;
   connected: boolean;
   enabledSurface: boolean;
   onMove: (dx: number, dy: number) => void;
@@ -23,6 +24,7 @@ const motionSilenceTimeoutMs = 1800;
 
 export function useGyroMouse({
   activationRequest,
+  onActivationConsumed,
   connected,
   enabledSurface,
   onMove,
@@ -64,39 +66,45 @@ export function useGyroMouse({
   }, []);
 
   const finishPermission = useCallback(
-    async (permission: Promise<boolean>) => {
+    (permission: Promise<boolean>) => {
       const attempt = ++permissionAttemptRef.current;
-      const granted = await permission.catch(() => false);
-      if (attempt !== permissionAttemptRef.current) {
-        return;
-      }
-      if (!granted) {
-        setMotionAllowed(false);
-        const initial = getGyroInitialAvailability();
-        setAvailability(initial === "ready" ? "denied" : initial);
+      return permission.catch(() => false).then((granted) => {
+        if (attempt !== permissionAttemptRef.current) {
+          return;
+        }
+        if (!granted) {
+          setMotionAllowed(false);
+          const initial = getGyroInitialAvailability();
+          setAvailability(initial === "ready" ? "denied" : initial);
+          setSelected(true);
+          return;
+        }
+        processorRef.current.resetAll();
+        setMotionAllowed(true);
+        setAvailability("ready");
+        setListenerGeneration((current) => current + 1);
         setSelected(true);
-        return;
-      }
-      processorRef.current.resetAll();
-      setMotionAllowed(true);
-      setAvailability("ready");
-      setListenerGeneration((current) => current + 1);
-      setSelected(true);
+      });
     },
     [setSelected],
   );
 
   const enableFromUserGesture = useCallback(() => {
-    void finishPermission(requestGyroPermission());
-  }, [finishPermission]);
+    if (connected && enabledSurface && document.visibilityState !== "hidden") {
+      void finishPermission(requestGyroPermission());
+    }
+  }, [connected, enabledSurface, finishPermission]);
 
   useEffect(() => {
     if (!activationRequest || activationRequest.id === lastActivationIdRef.current) {
       return;
     }
     lastActivationIdRef.current = activationRequest.id;
-    void finishPermission(activationRequest.permission);
-  }, [activationRequest, finishPermission]);
+    onActivationConsumed?.(activationRequest.id);
+    if (connected && enabledSurface && document.visibilityState !== "hidden") {
+      void finishPermission(activationRequest.permission);
+    }
+  }, [activationRequest, connected, enabledSurface, finishPermission, onActivationConsumed]);
 
   useEffect(() => {
     if (!selected || !motionAllowed || !connected || !enabledSurface) {

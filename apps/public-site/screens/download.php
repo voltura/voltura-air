@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/lib.php';
+// Streaming a package must not hold the browser's catalog session lock.
+session_write_close();
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') { http_response_code(405); exit('GET required.'); }
 $stmt = air_screen_db()->prepare("SELECT id, name, storage_basename FROM air_screen_packages WHERE id = :id AND status = 'approved'");
 $stmt->execute(['id' => (string)($_GET['id'] ?? '')]);

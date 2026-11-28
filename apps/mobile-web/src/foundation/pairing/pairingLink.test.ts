@@ -144,6 +144,10 @@ describe("parsePairingLink", () => {
     [`http://user:password@pc.local:51395/pair?t=${pairToken}&v=${version}`, "credentials"],
     [`http://pc.local:51395/pair?t=${pairToken}&v=${version}#fragment`, "a fragment"],
     [
+      `http://pc.local:51395/pair?t=${pairToken}&v=${version}&refresh=123`,
+      "the internal fresh-load marker",
+    ],
+    [
       `http://phone.local:5173/pair?t=${pairToken}&v=${version}&h=${encodeURIComponent("http://pc.local:51395/path")}`,
       "a host-hint path",
     ],

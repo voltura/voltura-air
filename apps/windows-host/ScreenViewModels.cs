@@ -56,7 +56,13 @@ internal sealed record ScreenViewScreenshotResult(
     string Code,
     string Message,
     string? FileName = null,
-    ScreenViewScreenshot? Screenshot = null);
+    ScreenViewScreenshot? Screenshot = null,
+    ScreenViewCaptureLifetime CaptureLifetime = default);
+
+internal readonly record struct ScreenViewCaptureLifetime(CancellationToken View, CancellationToken Display)
+{
+    public bool IsCancellationRequested => View.IsCancellationRequested || Display.IsCancellationRequested;
+}
 
 internal sealed record ScreenPointerDispatchResult(bool Succeeded, string Code, string Message);
 

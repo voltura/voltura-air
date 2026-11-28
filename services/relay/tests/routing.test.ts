@@ -60,6 +60,17 @@ describe("relay route identity", () => {
     expect(accepted.kind).toBe("accepted");
   });
 
+  it("returns a rejection for an unreadable host public key", async () => {
+    const routeId = "A".repeat(22);
+    const publicKey = encodeBase64Url(new Uint8Array(65));
+    await expect(
+      processHostAuthentication(
+        routeId,
+        JSON.stringify({ type: "relay.host.hello", routeId, publicKey }),
+      ),
+    ).resolves.toEqual({ kind: "rejected" });
+  });
+
   it("lets only a current, open, unexpired host candidate claim the route", () => {
     expect(canClaimHostCandidate(true, true, 11_000, 1_000)).toBe(true);
     expect(canClaimHostCandidate(false, true, 11_000, 1_000)).toBe(false);

@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { JSDOM } from "jsdom";
 import { officialScreens } from "../../scripts/custom-screens/catalog.mjs";
 import { stableJson } from "../../scripts/custom-screens/builders/validation.mjs";
 
@@ -46,6 +47,24 @@ test("catalog downloads stay inside configured package storage and count complet
   assert.ok(endpoint.indexOf("fpassthru") < endpoint.indexOf("downloads = downloads + 1"));
   assert.match(endpoint, /download_package/u);
   assert.match(endpoint, /air_screen_scoped_bucket_key\('download-package'/u);
+});
+
+test("the stateless catalog download releases the browser session lock", () => {
+  const endpoint = fileURLToPath(
+    new URL("../../apps/public-site/screens/download.php", import.meta.url),
+  )
+    .replaceAll("\\", "/")
+    .replaceAll("'", "\\'");
+  const result = spawnSync(
+    "php",
+    [
+      "-r",
+      `register_shutdown_function(static function () { echo session_status() === PHP_SESSION_ACTIVE ? ' session-active' : ' session-closed'; }); $_SERVER['REQUEST_METHOD'] = 'HEAD'; require '${endpoint}';`,
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, "GET required. session-closed");
 });
 
 test("local site development is isolated from production configuration", () => {
@@ -102,10 +121,16 @@ test("upload commit ambiguity is owned by a durable content cleanup job", () => 
   const upload = read("apps/public-site/screens/upload.php");
   const validation = read("apps/public-site/screens/lib.php");
   assert.match(upload, /air_screen_enqueue_cleanup\(\$database, \$basename, \$sha256\)/u);
-  assert.ok(upload.indexOf("air_screen_enqueue_cleanup") < upload.indexOf("fopen($path, 'x+b')"));
+  assert.ok(
+    upload.indexOf("air_screen_enqueue_cleanup") < upload.indexOf("air_screen_write_content_file"),
+  );
+  assert.match(upload, /air_screen_try_acquire_package_storage_lock\(\$database, 5\)/u);
   assert.match(upload, /DELETE FROM air_screen_cleanup_jobs/u);
   assert.doesNotMatch(upload, /unlink\(/u);
   assert.match(validation, /function air_screen_drain_cleanup_jobs/u);
+  assert.match(validation, /air_screen_try_acquire_package_storage_lock\(\$database, 0\)/u);
+  assert.match(validation, /fopen\(\$partialPath, 'x\+b'\)/u);
+  assert.match(validation, /rename\(\$partialPath, \$path\)/u);
   assert.match(validation, /hash_mismatch/u);
   assert.match(validation, /referenced/u);
   assert.match(validation, /count\(\$screen\['assignedClientIds'\]\) !== 0/u);
@@ -199,6 +224,8 @@ test("administrators can permanently delete a listed screen after confirmation",
   assert.match(endpoint, /air_screen_require_csrf\(\)/u);
   assert.match(endpoint, /status = 'approved'/u);
   assert.match(endpoint, /beginTransaction\(\)/u);
+  assert.match(endpoint, /SELECT storage_basename FROM air_screen_packages .* FOR UPDATE/u);
+  assert.ok(endpoint.indexOf("beginTransaction()") < endpoint.indexOf("SELECT storage_basename"));
   assert.match(endpoint, /DELETE FROM air_screen_reports/u);
   assert.match(endpoint, /DELETE FROM air_screen_ratings/u);
   assert.match(endpoint, /DELETE FROM air_screen_packages/u);
@@ -267,7 +294,7 @@ test("screen submission tags use an accessible removable pill editor", () => {
   assert.match(layout, /src="tag-editor\.js" defer/u);
   assert.match(script, /event\.key === ["'] ["']/u);
   assert.match(script, /event\.key === ["'],["']/u);
-  assert.match(script, /addEventListener\(["']blur["'], commit\)/u);
+  assert.match(script, /addEventListener\(["']focusout["']/u);
   assert.match(script, /Remove tag \$\{tag\}/u);
   assert.doesNotMatch(script, /remove\.textContent/u);
   assert.doesNotMatch(script, /remove\.title/u);
@@ -284,6 +311,42 @@ test("screen submission tags use an accessible removable pill editor", () => {
   assert.match(styles, /width: 0\.625rem/u);
   assert.match(styles, /translate\(-50%, -50%\) rotate\(45deg\)/u);
 });
+
+test("tag editing preserves IME actions and pill removal while input is pending", async (t) => {
+  const dom = new JSDOM(
+    `<form><span data-tag-editor><span data-tag-pills></span><input data-tag-input>
+      <input type="hidden" data-tags-value value="media"></span><button type="submit">Save</button></form>`,
+    { runScripts: "outside-only" },
+  );
+  t.after(() => dom.window.close());
+  const { document, KeyboardEvent } = dom.window;
+  dom.window.eval(read("apps/public-site/screens/tag-editor.js"));
+  await new Promise((resolve) =>
+    document.addEventListener("DOMContentLoaded", resolve, { once: true }),
+  );
+  const input = document.querySelector("[data-tag-input]");
+  const tags = document.querySelector("[data-tags-value]");
+  input.focus();
+  input.value = "画面";
+
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    const space = new KeyboardEvent("keydown", { key: " ", cancelable: true, ...composition });
+    assert.equal(input.dispatchEvent(space), true);
+    assert.equal(input.value, "画面");
+    assert.equal(tags.value, "media");
+  }
+
+  const remove = document.querySelector('[aria-label="Remove tag media"]');
+  remove.focus();
+  assert.equal(document.activeElement, remove);
+  remove.click();
+  assert.equal(tags.value, "");
+  assert.equal(document.activeElement, input);
+  assert.equal(input.value, "画面");
+  document.querySelector('button[type="submit"]').focus();
+  assert.equal(tags.value, "画面");
+});
+
 test("published screen details render tags as safe static pills", () => {
   const view = read("apps/public-site/screens/view.php");
   const library = read("apps/public-site/screens/lib.php");
@@ -546,8 +609,8 @@ test("admins can atomically bulk-import the generated official screen bundle", (
   assert.match(importer, /air_screen_require_exact_keys\(\$metadata/u);
   assert.doesNotMatch(importer, /researchReferences|unifiedremote/iu);
   assert.match(importer, /beginTransaction\(\)/u);
-  assert.match(importer, /GET_LOCK\('voltura_air_official_import', 30\)/u);
-  assert.match(importer, /RELEASE_LOCK\('voltura_air_official_import'\)/u);
+  assert.match(importer, /air_screen_try_acquire_package_storage_lock\(\$db, 30\)/u);
+  assert.match(importer, /air_screen_release_advisory_lock\(\$db, \$storageLock\)/u);
   assert.match(importer, /ON DUPLICATE KEY UPDATE/u);
   assert.doesNotMatch(importer, /downloads\s*=/u, "updates preserve download counters");
   assert.match(importer, /\$db->commit\(\)/u);
@@ -563,16 +626,13 @@ test("admins can atomically bulk-import the generated official screen bundle", (
   );
   assert.match(
     importer,
-    /air_screen_write_content_file\(\$item\['finalPath'\], \$item\['json'\]\)/u,
+    /air_screen_write_content_file\(\$path, \$item\['json'\], \$item\['hash'\]\)/u,
   );
   assert.ok(
-    importer.indexOf("air_screen_official_import_failure('stage_write')") <
-      importer.indexOf("SELECT GET_LOCK('voltura_air_official_import', 30)"),
+    importer.indexOf("air_screen_try_acquire_package_storage_lock") <
+      importer.indexOf("air_screen_enqueue_cleanup"),
   );
-  assert.match(
-    importer,
-    /hash_equals\(\$item\['hash'\], \(string\)hash_file\('sha256', \$item\['finalPath'\]\)\)/u,
-  );
+  assert.match(library, /hash_equals\(\$sha256, \$existingHash\)/u);
   assert.match(importer, /air_screen_official_import_failure\('db_committed'\)/u);
   assert.match(importer, /VOLTURA_AIR_OFFICIAL_IMPORT_FAIL/u);
   assert.match(schema, /official_source VARCHAR\(64\) NULL/u);
@@ -588,7 +648,7 @@ test("admins can atomically bulk-import the generated official screen bundle", (
 
 test("the PHP package boundary executes the current semantic contract", () => {
   const source = officialScreens[0].screen;
-  const run = (screen) => {
+  const runPackage = (packageValue) => {
     const library = fileURLToPath(
       new URL("../../apps/public-site/screens/lib.php", import.meta.url),
     )
@@ -600,15 +660,52 @@ test("the PHP package boundary executes the current semantic contract", () => {
         "-d",
         "display_errors=1",
         "-r",
-        `require '${library}'; try { air_screen_validate_package(file_get_contents('php://stdin')); echo 'accepted'; } catch (Throwable $error) { fwrite(STDERR, $error->getMessage()); exit(2); }`,
+        `require '${library}'; try { $package = air_screen_validate_package(file_get_contents('php://stdin')); echo json_encode($package, JSON_THROW_ON_ERROR); } catch (Throwable $error) { fwrite(STDERR, $error->getMessage()); exit(2); }`,
       ],
       {
         encoding: "utf8",
-        input: stableJson({ packageVersion: 1, format: "voltura-air.custom-screen", screen }),
+        input: stableJson(packageValue),
       },
     );
   };
-  assert.equal(run(source).status, 0);
+  const run = (screen) =>
+    runPackage({ packageVersion: 1, format: "voltura-air.custom-screen", screen });
+  const accepted = run(source);
+  assert.equal(accepted.status, 0, accepted.stderr);
+  assert.deepEqual(JSON.parse(accepted.stdout), {
+    packageVersion: 1,
+    format: "voltura-air.custom-screen",
+    screen: source,
+  });
+  for (const value of ["screen", 1, true, null]) {
+    const rejected = runPackage(value);
+    assert.equal(rejected.status, 2);
+    assert.match(rejected.stderr, /Choose a \.volturascreen package\./u);
+  }
+  const invalidContainers = [
+    (screen) => {
+      screen.assignedClientIds = {};
+    },
+    (screen) => {
+      screen.sections = { first: screen.sections[0] };
+    },
+    (screen) => {
+      screen.sections = { 0: screen.sections[0] };
+    },
+    (screen) => {
+      screen.sections[0].buttons = { first: screen.sections[0].buttons[0] };
+    },
+    (screen) => {
+      const button = screen.sections[0].buttons[0];
+      button.presentation = "label";
+      button.action = { kind: "shortcut", key: "Enter", modifiers: {} };
+    },
+  ];
+  for (const malformed of invalidContainers) {
+    const invalid = structuredClone(source);
+    malformed(invalid);
+    assert.equal(run(invalid).status, 2, "JSON objects are invalid in list fields");
+  }
   const library = fileURLToPath(new URL("../../apps/public-site/screens/lib.php", import.meta.url))
     .replaceAll("\\", "/")
     .replaceAll("'", "\\'");
@@ -732,6 +829,24 @@ test("the PHP package boundary executes the current semantic contract", () => {
     const invalid = structuredClone(source);
     mutate(invalid);
     assert.equal(run(invalid).status, 2);
+  }
+});
+
+test("catalog form metadata uses character limits consistent with the browser", () => {
+  const fields = [
+    ["upload", "description", 1000],
+    ["upload", "tags", 500],
+    ["edit", "description", 1000],
+    ["edit", "tags", 500],
+    ["admin", "feedback", 1000],
+    ["register", "name", 80],
+    ["report", "reason", 1000],
+  ];
+  for (const [page, field, maximum] of fields) {
+    assert.match(
+      read(`apps/public-site/screens/${page}.php`),
+      new RegExp(`!air_screen_fits_text_limit\\(\\$${field}, ${maximum}\\)`, "u"),
+    );
   }
 });
 

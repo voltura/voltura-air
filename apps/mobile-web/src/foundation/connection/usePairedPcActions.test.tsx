@@ -8,6 +8,7 @@ vi.mock("./relayPairingRevocation", () => ({ revokePcPairing: revocation }));
 import { readLocalStorage, writeLocalStorage } from "../platform/browserStorage";
 afterEach(() => vi.restoreAllMocks());
 const key = "voltura-air.reconnect-key.client-a.pc";
+const savedPc = { customName: false, id: "pc", name: "PC", url: "https://pc.invalid" };
 const settings = [
   appSettingsKey("client-a", "pc"),
   remoteSettingsKey("client-a", "pc"),
@@ -21,11 +22,14 @@ beforeEach(() => {
 function setup(overrides: Partial<Parameters<typeof usePairedPcActions>[0]> = {}) {
   const props: Parameters<typeof usePairedPcActions>[0] = {
     activePcId: null,
+    authenticatedSocketRef: { current: null },
     clearRuntimeState: vi.fn(),
     clientId: "client-a",
+    connectionPc: null,
     deviceNameRef: { current: "Phone" },
-    pairedPcs: [{ customName: false, id: "pc", name: "PC", url: "https://pc.invalid" }],
+    pairedPcs: [savedPc],
     relayEncryptedSendRef: { current: null },
+    retireConnectionRef: { current: null },
     screenshotMode: false,
     send: vi.fn(),
     setActivePcId: vi.fn(),
@@ -67,6 +71,41 @@ it("retains settings and pairing after revocation throws", async () => {
   expect(localStorage.getItem(key)).not.toBeNull();
   expect(hook.props.setPairedPcs).not.toHaveBeenCalled();
 });
+
+it.each(["authenticated", "pending-same-pc", "pending-other-pc", "same-id-candidate"] as const)(
+  "routes Forget over the current socket only for its authenticated owner (%s)",
+  async (scenario) => {
+    revocation.mockResolvedValue(false);
+    const socket = Object.assign(new EventTarget(), { close: vi.fn() }) as unknown as WebSocket;
+    const relaySend = vi.fn<() => Promise<void>>();
+    const connectionPc =
+      scenario === "pending-other-pc"
+        ? { ...savedPc, id: "other", url: "https://other.invalid" }
+        : scenario === "same-id-candidate"
+          ? { ...savedPc }
+          : savedPc;
+    const hook = setup({
+      activePcId: savedPc.id,
+      authenticatedSocketRef: { current: scenario === "pending-same-pc" ? null : socket },
+      connectionPc,
+      relayEncryptedSendRef: { current: relaySend },
+      socketRef: { current: socket },
+    });
+    await act(async () => {
+      hook.result.current.forgetPc(savedPc.id);
+      await Promise.resolve();
+    });
+    expect(revocation).toHaveBeenCalledExactlyOnceWith(
+      savedPc,
+      "client-a",
+      "Phone",
+      scenario === "authenticated" ? socket : null,
+      scenario === "authenticated" ? relaySend : null,
+    );
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(hook.props.setPairedPcs).not.toHaveBeenCalled();
+  },
+);
 it("does not let an old Forget completion remove a replacement pairing", async () => {
   let finish!: (value: boolean) => void;
   revocation.mockImplementation(
@@ -121,7 +160,12 @@ it("does not close a replacement active socket when old revocation completes", a
   const oldSocket = Object.assign(new EventTarget(), { close: vi.fn() }) as unknown as WebSocket;
   const nextSocket = Object.assign(new EventTarget(), { close: vi.fn() }) as unknown as WebSocket;
   const socketRef = { current: oldSocket };
-  const hook = setup({ activePcId: "pc", socketRef });
+  const hook = setup({
+    activePcId: savedPc.id,
+    authenticatedSocketRef: { current: oldSocket },
+    connectionPc: savedPc,
+    socketRef,
+  });
   act(() => hook.result.current.forgetPc("pc"));
   socketRef.current = nextSocket;
   await act(async () => {
@@ -130,6 +174,29 @@ it("does not close a replacement active socket when old revocation completes", a
   });
   expect(nextSocket.close).not.toHaveBeenCalled();
   expect(hook.props.setState).not.toHaveBeenCalled();
+  expect(hook.props.setActivePcId).not.toHaveBeenCalled();
+});
+
+it("does not retire a newer transport setup with no socket when offline revocation completes", async () => {
+  let finish!: (value: boolean) => void;
+  revocation.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const nextSetup = vi.fn();
+  const retireConnectionRef = { current: vi.fn() };
+  const hook = setup({ activePcId: savedPc.id, connectionPc: savedPc, retireConnectionRef });
+  act(() => hook.result.current.forgetPc(savedPc.id));
+  retireConnectionRef.current = nextSetup;
+  await act(async () => {
+    finish(true);
+    await Promise.resolve();
+  });
+
+  expect(nextSetup).not.toHaveBeenCalled();
+  expect(hook.props.setPendingManualPc).not.toHaveBeenCalled();
   expect(hook.props.setActivePcId).not.toHaveBeenCalled();
 });
 it.each([key, ...settings])(

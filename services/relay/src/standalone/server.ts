@@ -61,14 +61,17 @@ const turnUrls = (process.env.TURN_URLS ?? "")
 validateOptionalTurnPublicIp(process.env.TURN_PUBLIC_IP);
 const usedTurnNonces = new Map<string, number>();
 const server = createServer(async (request, response) => {
-  if (request.method === "GET" && request.url === "/v1/health") {
+  const url = URL.parse(request.url ?? "/", "http://relay.local");
+  if (!url) {
+    response.writeHead(400).end();
+    return;
+  }
+  if (request.method === "GET" && url.pathname === "/v1/health") {
     response.writeHead(200, { "Content-Type": "application/json" });
     response.end(JSON.stringify({ service: "standalone", protocol: 1, status: "ok" }));
     return;
   }
-  const turnMatch = /^\/v1\/turn\/([A-Za-z0-9_-]{22})$/u.exec(
-    new URL(request.url ?? "/", "http://relay.local").pathname,
-  );
+  const turnMatch = /^\/v1\/turn\/([A-Za-z0-9_-]{22})$/u.exec(url.pathname);
   if (request.method === "POST" && turnMatch) {
     await issueTurn(request, response, turnMatch[1]!);
     return;
@@ -76,10 +79,23 @@ const server = createServer(async (request, response) => {
   response.writeHead(404).end();
 });
 const sockets = new WebSocketServer({ noServer: true, maxPayload: maximumRelayPayloadBytes + 18 });
+const awaitingPong = new WeakSet<WebSocket>();
+const heartbeat = setInterval(() => {
+  for (const socket of sockets.clients) {
+    if (socket.readyState !== NodeWebSocket.OPEN) continue;
+    if (awaitingPong.has(socket)) {
+      socket.terminate();
+      continue;
+    }
+    awaitingPong.add(socket);
+    socket.ping();
+  }
+}, 30_000).unref();
 
 server.on("upgrade", (request, socket, head) => {
   void handleUpgrade(request, socket, head).catch(() => socket.destroy());
 });
+server.on("close", () => clearInterval(heartbeat));
 
 async function handleUpgrade(
   request: import("node:http").IncomingMessage,
@@ -114,16 +130,16 @@ async function handleUpgrade(
     socket.destroy();
     return;
   }
-  if (role === "device" && !room.host?.authenticated) {
+  if (role === "device" && !activeHost(room)) {
     socket.destroy();
     return;
   }
-  rooms.set(routeId, room);
   const sourceKey = role === "device" ? await deriveRelaySourceKey(routeId, source) : undefined;
   const pendingDevices = role === "device" ? pendingDeviceCount(room) : 0;
   if (
     role === "device" &&
-    (!room.host?.authenticated ||
+    (rooms.get(routeId) !== room ||
+      !activeHost(room) ||
       room.devices.size - pendingDevices >= maximumDevicesPerRoom ||
       room.devices.size >= maximumDevicesPerRoom + maximumPendingDevicesPerRoom ||
       pendingDevices >= maximumPendingDevicesPerRoom ||
@@ -132,9 +148,10 @@ async function handleUpgrade(
     socket.destroy();
     return;
   }
-  sockets.handleUpgrade(request, socket, head, (webSocket) =>
-    attach(webSocket, role, routeId, room, source, sourceKey),
-  );
+  sockets.handleUpgrade(request, socket, head, (webSocket) => {
+    if (role === "host") rooms.set(routeId, room);
+    attach(webSocket, role, routeId, room, source, sourceKey);
+  });
 }
 
 server.listen(port, "0.0.0.0", () =>
@@ -149,6 +166,8 @@ function attach(
   source: string,
   sourceKey?: Uint8Array,
 ): void {
+  socket.on("error", () => socket.terminate());
+  socket.on("pong", () => awaitingPong.delete(socket));
   if (role === "host") {
     const host: HostState = {
       socket,
@@ -163,12 +182,14 @@ function attach(
     }, hostAuthenticationTimeoutMs);
     host.authenticationTimer.unref();
     socket.on("message", (data, binary) => {
+      if (socket.readyState !== NodeWebSocket.OPEN) return;
       if (!host.authenticated) {
         void authenticateHost(data, binary, routeId, host, room).catch(() =>
           socket.close(relayClose.unauthorized, "Host authentication failed"),
         );
         return;
       }
+      if (room.host !== host) return;
       const bytes = toBytes(data);
       const rate = consumeRelayRate(host.rate, "host", bytes.length);
       host.rate = rate.state;
@@ -199,7 +220,7 @@ function attach(
           device.socket.close(1000, "Host closed session");
         } else if (envelope.kind === relayEnvelopeKind.text) {
           try {
-            sendBoundedText(
+            sendBounded(
               device.socket,
               new TextDecoder("utf-8", { fatal: true }).decode(envelope.payload),
             );
@@ -226,34 +247,44 @@ function attach(
   if (!sourceKey || sourceKey.length !== 16)
     return socket.close(relayClose.invalid, "Relay source identity unavailable");
   const sessionId = crypto.getRandomValues(new Uint8Array(16));
+  const sessionKey = key(sessionId);
   const device: DeviceState = { socket, sessionId, sourceKey, authenticated: false };
-  room.devices.set(key(sessionId), device);
-  sendBounded(room.host!.socket, encodeEnvelope(sessionId, sourceKey, relayEnvelopeKind.connected));
+  room.devices.set(sessionKey, device);
   socket.on("message", (data, binary) => {
+    if (socket.readyState !== NodeWebSocket.OPEN || room.devices.get(sessionKey) !== device) return;
     const payload = toBytes(data);
     if (payload.length > maximumRelayPayloadBytes)
       return socket.close(relayClose.tooLarge, "Message is too large");
     const rate = consumeRelayRate(device.rate, "device", payload.length);
     device.rate = rate.state;
     if (!rate.allowed) return socket.close(relayClose.overloaded, "Relay rate limit exceeded");
-    if (room.host?.authenticated)
-      sendBounded(
-        room.host.socket,
-        encodeEnvelope(
-          sessionId,
-          payload,
-          binary ? relayEnvelopeKind.binary : relayEnvelopeKind.text,
-        ),
-      );
+    const host = activeHost(room);
+    if (!host) return socket.close(relayClose.unavailable, "Host unavailable");
+    sendBounded(
+      host.socket,
+      encodeEnvelope(
+        sessionId,
+        payload,
+        binary ? relayEnvelopeKind.binary : relayEnvelopeKind.text,
+      ),
+    );
   });
   socket.on("close", () => {
-    room.devices.delete(key(sessionId));
-    if (room.host?.authenticated)
+    if (room.devices.get(sessionKey) !== device) return;
+    room.devices.delete(sessionKey);
+    const host = activeHost(room);
+    if (host)
       sendBounded(
-        room.host.socket,
+        host.socket,
         encodeEnvelope(sessionId, new Uint8Array(), relayEnvelopeKind.disconnected),
       );
   });
+  const host = activeHost(room);
+  if (
+    !host ||
+    !sendBounded(host.socket, encodeEnvelope(sessionId, sourceKey, relayEnvelopeKind.connected))
+  )
+    socket.close(relayClose.unavailable, "Host unavailable");
 }
 
 async function authenticateHost(
@@ -303,6 +334,11 @@ async function authenticateHost(
   host.socket.send(result.response);
 }
 
+function activeHost(room: RoomState | undefined): HostState | undefined {
+  const host = room?.host;
+  return host?.authenticated && host.socket.readyState === NodeWebSocket.OPEN ? host : undefined;
+}
+
 function canUseHostCandidate(room: RoomState, host: HostState): boolean {
   return canClaimHostCandidate(
     room.pendingHosts.has(host),
@@ -328,7 +364,13 @@ function pendingHostCount(room: RoomState, source?: string): number {
 }
 
 function removeEmptyRoom(routeId: string, room: RoomState): void {
-  if (!room.host && room.pendingHosts.size === 0 && room.devices.size === 0) rooms.delete(routeId);
+  if (
+    rooms.get(routeId) === room &&
+    !room.host &&
+    room.pendingHosts.size === 0 &&
+    room.devices.size === 0
+  )
+    rooms.delete(routeId);
 }
 
 function toBytes(data: RawData): Uint8Array {
@@ -344,8 +386,8 @@ async function issueTurn(
   response: import("node:http").ServerResponse,
   routeId: string,
 ): Promise<void> {
-  const host = rooms.get(routeId)?.host;
-  if (!host?.authenticated || !host.publicKey || !turnSharedSecret || turnUrls.length === 0)
+  const host = activeHost(rooms.get(routeId));
+  if (!host?.publicKey || !turnSharedSecret || turnUrls.length === 0)
     return json(response, 503, { code: "turn-unavailable" });
   let payload: unknown;
   try {
@@ -382,13 +424,19 @@ async function issueTurn(
       ? `voltura-air-relay-turn-v2\n${routeId}\n${payload.timestamp}\n${payload.nonce}\n${purpose}`
       : `voltura-air-relay-turn-v1\n${routeId}\n${payload.timestamp}\n${payload.nonce}`,
   );
-  if (!(await verifySignature(host.publicKey, transcript, payload.signature, routeId)))
+  if (
+    !(await verifySignature(host.publicKey, transcript, payload.signature, routeId)) ||
+    usedTurnNonces.has(replayKey)
+  )
     return json(response, 401, { code: "unauthorized" });
+  if (activeHost(rooms.get(routeId)) !== host)
+    return json(response, 503, { code: "turn-unavailable" });
   usedTurnNonces.set(replayKey, now);
-  const expiresAt = new Date(
-    now + (purpose === "file-transfer" || purpose === "terminal" ? 60 : 15) * 60_000,
-  );
-  const username = `${Math.floor(expiresAt.getTime() / 1000)}:${routeId}`;
+  const credentialTtlSeconds =
+    (purpose === "file-transfer" || purpose === "terminal" ? 60 : 15) * 60;
+  const expirySeconds = Math.floor(now / 1000) + credentialTtlSeconds;
+  const expiresAt = new Date(expirySeconds * 1000);
+  const username = `${expirySeconds}:${routeId}`;
   // Coturn's shared-secret TURN REST credentials require this exact HMAC-SHA1 derivation.
   // This is protocol interoperability, not a general-purpose hash or signature choice.
   // codeql[js/weak-cryptographic-algorithm]
@@ -411,7 +459,7 @@ async function readBody(request: import("node:http").IncomingMessage): Promise<s
   for await (const chunk of request) {
     const bytes = Buffer.from(chunk);
     length += bytes.length;
-    if (length > 4096) throw new Error("Request too large.");
+    if (length > maximumControlMessageBytes) throw new Error("Request too large.");
     chunks.push(bytes);
   }
   return Buffer.concat(chunks).toString("utf8");
@@ -428,19 +476,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isTurnUrl(value: string): boolean {
   return /^turns?:[^\s,]{1,500}$/u.test(value);
 }
-function sendBounded(socket: WebSocket, value: Uint8Array): boolean {
-  if (socket.bufferedAmount + value.byteLength > maximumBufferedBytes) {
+function sendBounded(socket: WebSocket, value: Uint8Array | string): boolean {
+  if (socket.readyState !== NodeWebSocket.OPEN) return false;
+  const binary = typeof value !== "string";
+  const byteLength = binary ? value.byteLength : Buffer.byteLength(value, "utf8");
+  if (socket.bufferedAmount + byteLength > maximumBufferedBytes) {
     socket.close(relayClose.overloaded, "Relay backpressure limit exceeded");
     return false;
   }
-  socket.send(value, { binary: true });
-  return true;
-}
-function sendBoundedText(socket: WebSocket, value: string): boolean {
-  if (socket.bufferedAmount + Buffer.byteLength(value, "utf8") > maximumBufferedBytes) {
-    socket.close(relayClose.overloaded, "Relay backpressure limit exceeded");
+  try {
+    socket.send(value, { binary });
+  } catch {
+    socket.terminate();
     return false;
   }
-  socket.send(value);
   return true;
 }

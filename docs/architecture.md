@@ -170,6 +170,8 @@ browser-local; `ScreenViewCoordinator` authorizes the active viewer/display,
 maps normalized positions inside the selected monitor's Windows desktop bounds
 and then across the virtual desktop, and owns held-button cleanup. The existing input dispatcher and
 `SendInputInjector` perform guarded atomic absolute position/action batches.
+Mobile drops queued pointer movement and scrolling when the authenticated control
+session changes.
 Screen media uses H.264 and Opus RTP tracks on one sending peer. For Relay
 credential renewal, the existing coordinator and mobile workspace prepare one
 bounded replacement through signed start/answer messages. The active session ID,
@@ -185,11 +187,14 @@ Pending and active host sessions carry command-socket ownership; a validated
 replacement transfers ownership before negotiation, while disconnect cleanup is
 owner-specific. This prevents a late disconnect from the old Relay socket from
 canceling the new peer without weakening single-viewer arbitration.
+Stopping a pending offer cancels its work and keeps the peer owned until native
+offer preparation has finished using it. An in-progress native answer retains
+the same responsibility for peer cleanup even when shutdown reaches its wait limit.
 `ScreenViewCoordinator`
 owns one session-scoped WASAPI loopback/Concentus pipeline for the current default
 multimedia output, follows endpoint changes through notifications, and isolates
-audio failure from video. `AppScreenViewSettings` owns the separate exact-shape
-global sound preset; the pairing record owns its optional per-device override.
+audio startup and failure from video. `AppScreenViewSettings` owns the separate
+exact-shape global sound preset; the pairing record owns its optional per-device override.
 The coordinator resolves override then global default into one lock-free cached
 active-session value. The existing encoder reads it between audio frames and
 updates Opus bitrate/channel mode in place, without capture restart, a new peer,
@@ -249,10 +254,10 @@ and unlocks the buffer even when validation fails. The native reader contains no
 network or credential logic. The Windows page consumes the
 registered virtual camera like any other application and never becomes a second
 media broker. Switching phone cameras replaces the sender track on the active peer;
-it does not replace the peer or command connection. A phone-webcam stop releases
-only feature-owned camera/media resources. Native cleanup runs outside the
-authenticated command receive loop, and neither stop nor camera switching closes or
-marks the paired device connection unavailable.
+it does not replace the peer or command connection. Phone-webcam negotiation and
+cleanup run outside the authenticated command receive loop. Webcam removal and
+host shutdown wait for any already-retiring webcam media resources. Neither
+stop nor camera switching closes or marks the paired device connection unavailable.
 The pipe carries capacity-one frame or clear records. The host detects an idle
 reader's disconnect and gives each record write up to two seconds before retiring
 the connection. Only the current producer can
@@ -274,9 +279,15 @@ covers partials left behind when the browser exits or cleanup fails.
 
 `TerminalCoordinator` owns the single host-wide terminal lifecycle, paired-device ownership, signed setup/re-attachment, exact acknowledged output buffer, reconnect deadline, and permission/revocation response. `ConPtyTerminalProcessFactory` creates Windows PowerShell suspended, attaches it to ConPTY and a kill-on-close Job Object, then resumes it; failure before ownership transfer terminates the suspended process. `TerminalWebRtcPeer` owns the dedicated `voltura-terminal` DataChannel and direct or relay-only ICE. Bounded queues and pipe backpressure isolate terminal traffic from `WebSocketSessionHandler`. The mobile `features/terminal` chunk owns xterm.js, the peer, rendered-offset acknowledgement, mobile keys, resize, and in-memory-only terminal state; App keeps that chunk mounted after first entry so ordinary in-app navigation does not stop the session.
 
+Host Terminal re-attachment commits the signed output boundary with the new
+command socket. Only the current peer can commit an answer, input, or
+acknowledgement. Timeout and disconnect handlers check the owner they observed.
+
 `AiAssistantSessionManager` owns the one host-wide exclusive Assistant lease,
 app-server lifetime, persistent transcript, and turn state shared by the WPF
-screen and one paired device. `AiAssistantPageController` is the local adapter;
+screen and one paired device. An opening attempt owns its client through
+lease admission or cleanup, and shutdown waits for that work.
+`AiAssistantPageController` is the local adapter;
 `AiAssistantCoordinator` remains the authenticated mobile adapter and owns its
 cancellable pending-open state, operation replay window, and ordered bounded
 output. `CodexAppServerClient` owns persistent
@@ -333,10 +344,11 @@ no bridge or TURN service.
 The shared web-client ICE helper waits for gathering completion before signing
 the one-shot answer. If a browser leaves gathering in progress at the 10-second
 deadline, Relay can use the nonempty relay-only SDP available then; a pause
-between candidate events is not completion. Direct requires completion. Changing
-source or ending capture disposes the encoder and duplication session;
-a new source begins with a keyframe. Frame-rate changes reset encoder pacing
-and retain GPU conversion resources when the output dimensions are unchanged.
+between candidate events is not completion. Direct requires completion. The
+capture loop disposes the previous encoder and duplication session after each
+source switch or capture stop. The new source begins with a keyframe. Frame-rate
+changes reset encoder pacing and retain GPU conversion resources when the
+output dimensions are unchanged.
 
 Display-mode changes can invalidate DXGI duplication. The capture source releases
 the invalid native session and identifies recoverable device/display errors. The

@@ -67,7 +67,7 @@ interface PresentationModeProps {
     target: PresentationTarget,
     action: PresentationAction,
     options?: boolean | PresentationCommandOptions,
-  ) => void;
+  ) => string | null | void;
   onSessionCommand?: (
     action: PresentationSessionAction,
     options?: { enabled?: boolean; runtimePresentationId?: string },
@@ -371,21 +371,19 @@ export function PresentationMode({
             ...(typeof options === "boolean" ? { enabled: options } : options),
           }
         : options;
-    if (runtimeOptions === undefined) {
-      onCommand(target, action);
-    } else {
-      onCommand(target, action, runtimeOptions);
-    }
+    const operationId =
+      runtimeOptions === undefined
+        ? onCommand(target, action)
+        : onCommand(target, action, runtimeOptions);
+    return operationId !== null;
   };
   const previousSlide = () => {
-    request("previous");
-    if (!usesAuthoritativePowerPointSession) {
+    if (request("previous") && !usesAuthoritativePowerPointSession) {
       timer.changeSlide("previous", target);
     }
   };
   const nextSlide = () => {
-    request("next");
-    if (!usesAuthoritativePowerPointSession) {
+    if (request("next") && !usesAuthoritativePowerPointSession) {
       timer.changeSlide("next", target);
     }
   };
@@ -394,8 +392,7 @@ export function PresentationMode({
       onPowerPointLaunch?.(selectedSavedPowerPoint.presentationId);
       return;
     }
-    request("start");
-    if (!usesAuthoritativePowerPointSession) {
+    if (request("start") && !usesAuthoritativePowerPointSession) {
       timer.startSlideshow(target);
     }
   };
@@ -424,16 +421,17 @@ export function PresentationMode({
     });
   };
   const activateLaserPointer = () => {
+    if (!request("pointer", !laserPointerActive)) {
+      return;
+    }
     laserPointerRequestedRef.current = !laserPointerActive;
-    request("pointer", !laserPointerActive);
     if (!laserPointerActive) {
       setIsTimerExpanded(false);
       setIsTrackpadExpanded(true);
     }
   };
   const endSlideshow = () => {
-    request("end");
-    if (!usesAuthoritativePowerPointSession && timer.sessionStartedAt !== null) {
+    if (request("end") && !usesAuthoritativePowerPointSession && timer.sessionStartedAt !== null) {
       timer.requestEnd();
     }
   };
@@ -451,8 +449,9 @@ export function PresentationMode({
       return;
     }
 
-    request("goto", { slideNumber });
-    setIsNavigationOpen(false);
+    if (request("goto", { slideNumber })) {
+      setIsNavigationOpen(false);
+    }
   };
   const toggleNavigation = () => {
     setIsNavigationOpen((current) => {

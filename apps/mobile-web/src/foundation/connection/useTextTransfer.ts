@@ -16,7 +16,7 @@ const resultVisibilityMs = 5000;
 export function useTextTransfer(
   state: ConnectionState,
   connectionEpoch: number,
-  send: (payload: ClientMessage) => void,
+  send: (payload: ClientMessage) => boolean | void,
 ) {
   const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
   const pendingTextTransfer = pendingOperationId !== null;
@@ -79,10 +79,12 @@ export function useTextTransfer(
     }
 
     const operationId = createLocalId();
+    if (send({ type: "text.send", operationId, text, sendEnter }) === false) {
+      return null;
+    }
     pendingOperationRef.current = operationId;
     setPendingOperationId(operationId);
     setTextTransferResult(null);
-    send({ type: "text.send", operationId, text, sendEnter });
     return operationId;
   };
 

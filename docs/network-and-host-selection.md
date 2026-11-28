@@ -62,7 +62,11 @@ query, or fragment. Pairing links follow [protocol](protocol.md). Invalid input
 stays editable and changes no active/saved profile.
 
 A valid host is saved only after acceptance. A pairing link opens device-name
-confirmation and keeps its token semantics. **Forget** removes a saved profile.
+confirmation and keeps its token semantics. Manually entering an existing PC
+address reconnects using its saved identity and key. **Forget** removes a saved
+profile after the host confirms removal. It reuses the authenticated connection
+for that profile when available. Otherwise it reconnects to the saved PC
+independently and checks any saved Direct identity before requesting removal.
 Missing input acknowledgements or health failure enters unavailable/retrying.
 While the mobile app is visible, quiet Relay sessions send a health check every
 20 seconds to keep the separate phone-to-cloud socket active. Direct sessions

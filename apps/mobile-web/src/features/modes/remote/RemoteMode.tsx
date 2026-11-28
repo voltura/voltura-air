@@ -29,7 +29,7 @@ interface RemoteModeProps {
   remoteSettings: RemoteSettings;
   onPointerButtonClick: (button: "left" | "right") => void;
   onPointerMove: (dx: number, dy: number) => void;
-  onPowerAction: (action: SystemPowerAction) => void;
+  onPowerAction: (action: SystemPowerAction) => boolean | void;
   onAppLaunch: (actionId: string) => void;
   onUrlOpen: (url: string) => string | null;
   pendingUrlOpen: boolean;

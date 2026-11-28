@@ -17,21 +17,20 @@ try {
 }
 
 try {
-$statement = $database->prepare("SELECT storage_basename FROM air_screen_packages WHERE id = :id AND status = 'approved'");
-$statement->execute(['id' => $id]);
-$item = $statement->fetch();
-if (!$item) {
-    air_screen_release_advisory_lock($database, $lockName);
-    $lockName = null;
-    http_response_code(404);
-    exit('Screen not found.');
-}
-
-$basename = air_screen_storage_basename((string)$item['storage_basename']);
-$sha256 = substr($basename, 0, 64);
-
-try {
     $database->beginTransaction();
+    $statement = $database->prepare("SELECT storage_basename FROM air_screen_packages WHERE id = :id AND status = 'approved' FOR UPDATE");
+    $statement->execute(['id' => $id]);
+    $item = $statement->fetch();
+    if (!$item) {
+        $database->rollBack();
+        air_screen_release_advisory_lock($database, $lockName);
+        $lockName = null;
+        http_response_code(404);
+        exit('Screen not found.');
+    }
+
+    $basename = air_screen_storage_basename((string)$item['storage_basename']);
+    $sha256 = substr($basename, 0, 64);
     $database->prepare('DELETE FROM air_screen_reports WHERE package_id = :id')->execute(['id' => $id]);
     $database->prepare('DELETE FROM air_screen_ratings WHERE package_id = :id')->execute(['id' => $id]);
     $delete = $database->prepare("DELETE FROM air_screen_packages WHERE id = :id AND status = 'approved'");
@@ -46,14 +45,12 @@ try {
         $database->rollBack();
     }
     throw $error;
-}
-
-air_screen_drain_cleanup_jobs();
-air_screen_release_advisory_lock($database, $lockName);
-$lockName = null;
-air_screen_redirect('./?deleted=1');
 } finally {
     if ($lockName !== null) {
         air_screen_release_advisory_lock($database, $lockName);
     }
 }
+
+try { air_screen_drain_cleanup_jobs(); }
+catch (Throwable $error) { error_log('Custom-screen deletion cleanup drain failed: ' . $error::class); }
+air_screen_redirect('./?deleted=1');

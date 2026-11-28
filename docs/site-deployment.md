@@ -79,9 +79,13 @@ password can clear a targeted account bucket when the source itself is allowed.
 A fixed 100,000-operation daily gate is consumed before attacker-keyed rate rows,
 and login password checks have a separate 10,000-attempt daily ceiling. Report
 mail capacity is consumed only after the screen, reporter, and duplicate checks.
-Catalog package files are
-content-addressed. Upload/delete/import transactions enqueue exact-basename and
-SHA-256 cleanup jobs; ordinary mutations drain a bounded number. Schedule or run
+Catalog package files are content-addressed. Upload and official import hold the
+same database advisory lock as file cleanup. They commit an exact-basename and
+SHA-256 cleanup job before writing its staging file, flush it before renaming,
+and transfer ownership to the catalog row when it commits. A failed mutation
+leaves the job responsible for staged or unreferenced files. Deletion enqueues a
+job with the row removal. Ordinary mutations drain a bounded number of jobs when
+the storage lock is available. Schedule or run
 `php apps/public-site/screens/maintenance.php` for larger idempotent drains. The
 same bounded maintenance obtains a five-minute lease during public rate-controlled
 traffic. It expires report rows after 180 days, expired verification tokens after

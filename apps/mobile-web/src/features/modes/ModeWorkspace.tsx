@@ -74,6 +74,7 @@ interface ModeWorkspaceProps {
   connection: ConnectionContract;
   connectionEpoch: number;
   gyroActivationRequest: GyroActivationRequest | null;
+  onGyroActivationConsumed: (requestId: number) => void;
   keyboardSettings: KeyboardSettings;
   onClearAfterSendingChange: (value: boolean) => void;
   onGyroSelectedChange: (selected: boolean) => void;
@@ -97,6 +98,7 @@ export function ModeWorkspace({
   connection,
   connectionEpoch,
   gyroActivationRequest,
+  onGyroActivationConsumed,
   keyboardSettings,
   onClearAfterSendingChange,
   onGyroSelectedChange,
@@ -150,12 +152,14 @@ export function ModeWorkspace({
   } = usePointerInput({
     inputContext,
     send: connection.send,
+    sessionKey: connectionEpoch,
     state: connection.state,
     trackpadSettings,
     twoFingerMode: effectiveTrackpadTwoFingerMode,
   });
   const gyro = useGyroMouse({
     activationRequest: gyroActivationRequest,
+    onActivationConsumed: onGyroActivationConsumed,
     connected: connection.state === "paired",
     enabledSurface: tab === "trackpad" || (tab === "presentation" && isPresentationTrackpadOpen),
     onMove: (dx, dy) => {

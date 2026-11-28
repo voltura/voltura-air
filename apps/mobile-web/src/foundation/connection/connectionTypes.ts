@@ -1,3 +1,5 @@
+import type { PcProfile } from "./pcProfiles";
+
 export type ConnectionState =
   | "connecting"
   | "paired"
@@ -9,6 +11,7 @@ export type ConnectionState =
 export interface ConnectionError {
   code: string;
   message: string;
+  transportMode?: PcProfile["transportMode"];
 }
 
 export interface PairingAttempt {

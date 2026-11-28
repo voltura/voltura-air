@@ -7,7 +7,7 @@ const AIR_SCREEN_OFFICIAL_MAX_BUNDLE_BYTES = 128 * 1024 * 1024;
 
 $oldPaths = [];
 $db = air_screen_db();
-$lockAcquired = false;
+$storageLock = null;
 try {
     if (($_POST['smoke_confirmed'] ?? '') !== '1') {
         throw new InvalidArgumentException('Confirm the current Windows 11 smoke-test matrix before publishing official screens.');
@@ -112,28 +112,20 @@ try {
         throw new InvalidArgumentException('The bundle contains files not declared by catalog.json.');
     }
 
+    $storageLock = air_screen_try_acquire_package_storage_lock($db, 30)
+        ?? throw new RuntimeException('The catalog is busy. Try again.');
     foreach ($validated as &$item) {
         $item['hash'] = hash('sha256', $item['json']);
         $item['basename'] = $item['hash'] . '.volturascreen';
-        $item['finalPath'] = air_screen_package_path($item['basename']);
-        if (is_file($item['finalPath'])) {
-            $existingHash = hash_file('sha256', $item['finalPath']);
-            if (!is_string($existingHash) || !hash_equals($item['hash'], $existingHash)) {
-                throw new RuntimeException('An official package content address is occupied by different bytes.');
-            }
-            continue;
-        }
+        $path = air_screen_package_path($item['basename']);
         $db->beginTransaction();
         air_screen_enqueue_cleanup($db, $item['basename'], $item['hash']);
+        air_screen_package_storage_failure('journal_commit');
         $db->commit();
-        air_screen_write_content_file($item['finalPath'], $item['json']);
+        air_screen_write_content_file($path, $item['json'], $item['hash']);
         air_screen_official_import_failure('stage_write');
     }
     unset($item);
-
-    $lockStatement = $db->query("SELECT GET_LOCK('voltura_air_official_import', 30)");
-    $lockAcquired = (int)$lockStatement->fetchColumn() === 1;
-    if (!$lockAcquired) { throw new RuntimeException('Another official import is still running.'); }
 
     $existingStatement = $db->query("SELECT id, official_id, storage_basename FROM air_screen_packages WHERE official_source = 'voltura' AND official_id IS NOT NULL");
     $existing = [];
@@ -143,12 +135,6 @@ try {
         $existingBasename = isset($existing[$item['officialId']])
             ? (string)$existing[$item['officialId']]['storage_basename']
             : null;
-        if (is_file($item['finalPath'])) {
-            if (!hash_equals($item['hash'], (string)hash_file('sha256', $item['finalPath'])))
-                throw new RuntimeException('An official package content address is occupied by different bytes.');
-        } else {
-            throw new RuntimeException('A staged official package is missing.');
-        }
         if ($existingBasename !== null && $existingBasename !== $item['basename']) {
             $oldPaths[$existingBasename] = substr($existingBasename, 0, 64);
         }
@@ -177,35 +163,31 @@ try {
     $db->commit();
     air_screen_official_import_failure('db_committed');
 
-    air_screen_drain_cleanup_jobs();
-    $db->query("SELECT RELEASE_LOCK('voltura_air_official_import')");
-    $lockAcquired = false;
+    air_screen_release_advisory_lock($db, $storageLock);
+    $storageLock = null;
+    try { air_screen_drain_cleanup_jobs(); }
+    catch (Throwable $cleanupException) { error_log('Voltura Air official import cleanup drain failed: ' . $cleanupException::class); }
     air_screen_redirect('admin.php?officialImported=' . count($validated));
 } catch (Throwable $exception) {
     if ($db->inTransaction()) {
         try {
-            $db->rollBack();
             air_screen_official_import_failure('db_rollback');
+            $db->rollBack();
         } catch (Throwable $rollbackException) {
-            error_log('Voltura Air official import rollback failed: ' . $rollbackException->getMessage());
+            error_log('Voltura Air official import rollback failed: ' . $rollbackException::class);
         }
     }
-    try {
-        air_screen_drain_cleanup_jobs(100);
-        air_screen_drain_cleanup_jobs(100);
-    }
-    catch (Throwable $cleanupException) { error_log('Voltura Air official import cleanup drain failed: ' . $cleanupException::class); }
-    if ($lockAcquired) {
-        try { $db->query("SELECT RELEASE_LOCK('voltura_air_official_import')"); $lockAcquired = false; }
-        catch (Throwable $lockException) { error_log('Voltura Air official import lock release failed: ' . $lockException->getMessage()); }
+    if ($storageLock !== null && !$db->inTransaction()) {
+        air_screen_release_advisory_lock($db, $storageLock);
+        try {
+            air_screen_drain_cleanup_jobs(100);
+            air_screen_drain_cleanup_jobs(100);
+        } catch (Throwable $cleanupException) {
+            error_log('Voltura Air official import cleanup drain failed: ' . $cleanupException::class);
+        }
     }
     http_response_code(400);
     air_screen_layout('Official import failed', '<p class="catalog-moderation-error" role="alert">' . air_screen_h($exception->getMessage()) . '</p><p><a href="admin.php">Return to moderation</a></p>');
-} finally {
-    if ($lockAcquired) {
-        try { $db->query("SELECT RELEASE_LOCK('voltura_air_official_import')"); }
-        catch (Throwable $lockException) { error_log('Voltura Air official import lock release failed: ' . $lockException->getMessage()); }
-    }
 }
 
 function air_screen_official_import_failure(string $boundary): void
@@ -216,18 +198,6 @@ function air_screen_official_import_failure(string $boundary): void
     }
 }
 
-function air_screen_write_content_file(string $path, string $contents): void
-{
-    $stream = fopen($path, 'x+b');
-    if ($stream === false) throw new RuntimeException('An official package could not be staged.');
-    try {
-        if (fwrite($stream, $contents) !== strlen($contents) || !fflush($stream) || (function_exists('fsync') && !fsync($stream))) {
-            throw new RuntimeException('An official package could not be staged.');
-        }
-    } finally {
-        fclose($stream);
-    }
-}
 
 function air_screen_official_string_list(mixed $value, int $maximumCount, int $maximumLength): bool
 {

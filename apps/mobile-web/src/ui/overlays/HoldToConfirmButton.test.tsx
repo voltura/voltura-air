@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HoldToConfirmButton } from "./HoldToConfirmButton";
 
@@ -26,10 +26,82 @@ describe("HoldToConfirmButton", () => {
     const confirm = vi.fn();
     render(<HoldToConfirmButton disabled={false} label="action" onConfirm={confirm} />);
     const button = screen.getByRole("button");
+    vi.spyOn(button, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 100, 40));
     fireEvent.pointerDown(button, { button: 0, pointerId: 1 });
     fireEvent.pointerUp(button, { pointerId: 2 });
     vi.advanceTimersByTime(1600);
     expect(confirm).toHaveBeenCalledOnce();
+  });
+
+  it("cancels a captured hold that moves outside the button and allows a fresh hold", () => {
+    const confirm = vi.fn();
+    render(<HoldToConfirmButton disabled={false} label="action" onConfirm={confirm} />);
+    const button = screen.getByRole("button");
+    const releasePointerCapture = vi.fn();
+    Object.assign(button, {
+      setPointerCapture: vi.fn(),
+      hasPointerCapture: () => true,
+      releasePointerCapture,
+      getBoundingClientRect: () => new DOMRect(10, 10, 90, 40),
+    });
+    fireEvent.pointerDown(button, { button: 0, pointerId: 1, clientX: 20, clientY: 20 });
+    act(() => {
+      vi.advanceTimersByTime(800);
+    });
+    fireEvent.pointerMove(button, { pointerId: 1, clientX: 110, clientY: 20 });
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(releasePointerCapture).toHaveBeenCalledExactlyOnceWith(1);
+
+    fireEvent.pointerDown(button, { button: 0, pointerId: 2, clientX: 20, clientY: 20 });
+    fireEvent.pointerMove(button, { pointerId: 2, clientX: 90, clientY: 20 });
+    act(() => {
+      vi.advanceTimersByTime(1600);
+    });
+    expect(confirm).toHaveBeenCalledOnce();
+  });
+
+  it("cancels a stationary pointer hold when the button moves away", async () => {
+    const confirm = vi.fn();
+    render(<HoldToConfirmButton disabled={false} label="action" onConfirm={confirm} />);
+    const button = screen.getByRole("button");
+    let bounds = new DOMRect(10, 10, 90, 40);
+    vi.spyOn(button, "getBoundingClientRect").mockImplementation(() => bounds);
+    fireEvent.pointerDown(button, { button: 0, pointerId: 1, clientX: 20, clientY: 20 });
+    await act(() => vi.advanceTimersByTime(800));
+
+    bounds = new DOMRect(100, 100, 90, 40);
+    await act(() => vi.advanceTimersByTime(100));
+    bounds = new DOMRect(10, 10, 90, 40);
+    await act(() => vi.advanceTimersByTime(800));
+    expect(confirm).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(button, { button: 0, pointerId: 2, clientX: 20, clientY: 20 });
+    await act(() => vi.advanceTimersByTime(1600));
+    expect(confirm).toHaveBeenCalledOnce();
+  });
+
+  it("retires a hold during unmount before passive effects run", () => {
+    const confirm = vi.fn();
+    const view = render(
+      <HoldToConfirmButton
+        disabled={false}
+        label="action"
+        onConfirm={confirm}
+        ref={(button) => {
+          if (!button) {
+            vi.advanceTimersByTime(1600);
+          }
+        }}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole("button"), { key: "Enter" });
+    view.unmount();
+
+    expect(confirm).not.toHaveBeenCalled();
   });
   it("does not cancel an Enter hold when an unrelated key is released", () => {
     const confirm = vi.fn();
@@ -43,6 +115,7 @@ describe("HoldToConfirmButton", () => {
     const confirm = vi.fn();
     render(<HoldToConfirmButton disabled={false} label="action" onConfirm={confirm} />);
     const button = screen.getByRole("button");
+    vi.spyOn(button, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 100, 40));
     button.setPointerCapture = () => {
       throw new DOMException("Retired", "NotFoundError");
     };

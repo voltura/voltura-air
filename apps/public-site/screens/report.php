@@ -5,7 +5,8 @@ air_screen_require_csrf();
 $id = (string)($_POST['id'] ?? '');
 $email = strtolower(trim((string)($_POST['email'] ?? '')));
 $reason = trim((string)($_POST['reason'] ?? ''));
-if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $id === '' || $reason === '' || strlen($reason) > 1000) { http_response_code(400); exit('Invalid report.'); }
+if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $id === '' || $reason === '' ||
+    !air_screen_fits_text_limit($reason, 1000)) { http_response_code(400); exit('Invalid report.'); }
 $database = air_screen_db();
 $sourceAllowed = air_screen_rate_consume('report_source', air_screen_source_bucket_key(), 20, 3600);
 if (!$sourceAllowed) { http_response_code(429); exit('Report limit reached.'); }

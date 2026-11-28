@@ -109,3 +109,13 @@ test("public route is self-contained, indexable and linked from the site", () =>
     );
   }
 });
+
+test("feature guide actions announce feedback within the open modal", () => {
+  const directory = new URL("../../apps/public-site/feature-explorer/", import.meta.url);
+  const html = readFileSync(new URL("index.html", directory), "utf8");
+  const app = readFileSync(new URL("app.mjs", directory), "utf8");
+  const dialog = html.match(/<dialog id="feature-dialog"[^>]*>([\s\S]*?)<\/dialog>/u)?.[1];
+  assert.match(dialog, /id="feature-toast" role="status" aria-live="polite"/u);
+  assert.match(app, /\$\("#feature-dialog"\)\.open \? \$\("#feature-toast"\) : \$\("#toast"\)/u);
+  assert.match(app, /container\.querySelector\("\.copy-fallback"\)\?\.remove\(\);\s*try /u);
+});

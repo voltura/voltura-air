@@ -138,7 +138,10 @@ test("usage statistics dashboard reuses administrator and CSRF ownership without
   assert.match(page, /air_screen_require_csrf\(\)/u);
   assert.match(page, /Active installations/u);
   assert.match(page, /Versions in use/u);
-  assert.match(page, /<details class="telemetry-maintenance">/u);
+  assert.match(page, /\$open = \$_SERVER\['REQUEST_METHOD'\] === 'POST' \? ' open' : ''/u);
+  assert.match(page, /<details class="telemetry-maintenance"' \. \$open/u);
+  assert.match(page, /\$selectedAction = \$request\['action'\] \?\? 'retention'/u);
+  assert.match(page, /\$cutoff = air_screen_h\(\$request\['cutoff'\] \?\? gmdate\('Y-m-d'\)\)/u);
   assert.match(page, /<summary>Data cleanup<\/summary>/u);
   assert.match(page, /id="telemetry-cleanup"/u);
   assert.equal((page.match(/action="#telemetry-cleanup"/gu) ?? []).length, 2);

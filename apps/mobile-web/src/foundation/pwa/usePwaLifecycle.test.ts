@@ -5,7 +5,8 @@ import type { PcProfile } from "../connection/pcProfiles";
 import { refreshWithFreshAppUrl, type FreshAppRefreshResult } from "./freshAppRefresh";
 import { shouldRefreshWebClient, usePwaLifecycle } from "./usePwaLifecycle";
 
-vi.mock("./freshAppRefresh", () => ({
+vi.mock(import("./freshAppRefresh"), async (importOriginal) => ({
+  ...(await importOriginal()),
   refreshWithFreshAppUrl: vi.fn(),
 }));
 
@@ -160,6 +161,33 @@ describe("PWA web build refresh", () => {
     renderHook(() => usePwaLifecycle(createOptions({ webClientBuildId: "build-b" }, relayPc)));
 
     expect(refreshWithFreshAppUrl).not.toHaveBeenCalled();
+  });
+
+  it("does not auto-refresh the same host build again when session storage is unavailable", async () => {
+    const previousUrl = window.location.href;
+    const storage = vi.spyOn(window, "sessionStorage", "get").mockImplementation(() => {
+      throw new Error("Storage unavailable");
+    });
+    window.history.replaceState(null, "", "/?refresh=host%3Abuild-b");
+    vi.mocked(refreshWithFreshAppUrl).mockResolvedValue(successfulRefresh);
+
+    try {
+      const view = renderHook(({ options }) => usePwaLifecycle(options), {
+        initialProps: { options: createOptions() },
+      });
+      expect(refreshWithFreshAppUrl).not.toHaveBeenCalled();
+
+      view.rerender({ options: createOptions({ webClientBuildId: "build-c" }) });
+      expect(refreshWithFreshAppUrl).toHaveBeenCalledExactlyOnceWith(
+        undefined,
+        expect.any(Function),
+        "host:build-c",
+      );
+      await act(() => Promise.resolve());
+    } finally {
+      storage.mockRestore();
+      window.history.replaceState(null, "", previousUrl);
+    }
   });
 
   it("commits the automatic guard at navigation and suppresses a later duplicate", async () => {

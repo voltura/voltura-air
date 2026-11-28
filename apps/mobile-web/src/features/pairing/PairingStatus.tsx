@@ -106,15 +106,15 @@ interface PairingStatusProps {
   heading?: string | undefined;
   message: string;
   onDeviceNameChange?: ((deviceName: string) => void) | undefined;
-  onManualHostSubmit?: (target: ManualConnectionTarget) => void;
+  onManualHostSubmit?: ((target: ManualConnectionTarget) => void) | undefined;
   onPrimaryAction: () => void;
   onSecondaryAction?: (() => void) | undefined;
   primaryLabel?: string | undefined;
-  primaryActionPending?: boolean;
   pcName?: string;
+  readingQr?: "primary" | "secondary" | undefined;
   savedPcOptions?: SavedPcReconnectOption[] | undefined;
+  scanFeedback?: string | null | undefined;
   secondaryLabel?: string | undefined;
-  secondaryActionDisabled?: boolean;
   selectedSavedPcId?: string | undefined;
   transportMode?: "relay" | "secure-direct" | undefined;
   usesLivePairingQr?: boolean;
@@ -135,11 +135,11 @@ export function PairingStatus({
   onPrimaryAction,
   onSecondaryAction,
   primaryLabel,
-  primaryActionPending = false,
   pcName,
+  readingQr,
   savedPcOptions,
+  scanFeedback,
   secondaryLabel,
-  secondaryActionDisabled = false,
   selectedSavedPcId,
   transportMode,
   usesLivePairingQr = false,
@@ -170,12 +170,12 @@ export function PairingStatus({
       return;
     }
 
-    if (connectionProgress !== undefined) {
+    if (connectionProgress !== undefined || readingQr !== undefined) {
       sectionRef.current?.focus();
     } else {
       primaryActionRef.current?.focus();
     }
-  }, [connectionProgress, isBlocking]);
+  }, [connectionProgress, isBlocking, readingQr]);
 
   useEffect(() => {
     if (!copyToast) {
@@ -270,7 +270,10 @@ export function PairingStatus({
     connectionProgress === "connected"
       ? "Connection restored. Returning to your previous screen."
       : "Checking whether Voltura Air is available.";
-  const primaryActionDisabled = primaryActionPending;
+  const primaryActionPending = readingQr === "primary";
+  const secondaryActionPending = readingQr === "secondary";
+  const isReadingQr = readingQr !== undefined;
+  const showManualHost = onManualHostSubmit !== undefined || feedback.showRecoveryActions;
   const primaryActionLabel = primaryActionPending
     ? "Reading QR code…"
     : (primaryLabel ?? feedback.primaryLabel);
@@ -363,10 +366,10 @@ export function PairingStatus({
                 className="pairing-action-primary"
                 type="button"
                 aria-busy={primaryActionPending || undefined}
-                aria-disabled={primaryActionDisabled || undefined}
-                disabled={primaryActionDisabled}
+                aria-disabled={isReadingQr || undefined}
+                disabled={isReadingQr}
                 onClick={() => {
-                  if (!primaryActionDisabled) {
+                  if (!isReadingQr) {
                     onPrimaryAction();
                   }
                 }}
@@ -385,30 +388,42 @@ export function PairingStatus({
               </button>
             )}
             {!connectionProgress &&
-              (onSecondaryAction !== undefined || feedback.showRecoveryActions) && (
+              (onSecondaryAction !== undefined || showManualHost) && (
                 <div className="pairing-secondary-actions">
                   {onSecondaryAction && (
                     <button
                       className="pairing-action-secondary"
                       type="button"
-                      disabled={secondaryActionDisabled}
+                      aria-busy={secondaryActionPending || undefined}
+                      disabled={isReadingQr}
                       onClick={onSecondaryAction}
                     >
-                      <Camera aria-hidden="true" />
-                      <span>{secondaryLabel ?? "Take photo of new QR code"}</span>
+                      {secondaryActionPending ? (
+                        <LoaderCircle className="pairing-progress-icon" aria-hidden="true" />
+                      ) : (
+                        <Camera aria-hidden="true" />
+                      )}
+                      <span>
+                        {secondaryActionPending
+                          ? "Reading QR code…"
+                          : (secondaryLabel ?? "Take photo of new QR code")}
+                      </span>
+                    </button>
+                  )}
+                  {showManualHost && (
+                    <button
+                      type="button"
+                      aria-haspopup="dialog"
+                      disabled={isReadingQr}
+                      onClick={() => {
+                        setIsManualHostDialogOpen(true);
+                      }}
+                    >
+                      <span>Enter host manually</span>
                     </button>
                   )}
                   {feedback.showRecoveryActions && (
                     <>
-                      <button
-                        type="button"
-                        aria-haspopup="dialog"
-                        onClick={() => {
-                          setIsManualHostDialogOpen(true);
-                        }}
-                      >
-                        <span>Enter host manually</span>
-                      </button>
                       <button
                         type="button"
                         aria-haspopup="dialog"
@@ -432,6 +447,11 @@ export function PairingStatus({
               )}
           </div>
 
+          {!connectionProgress && !isReadingQr && scanFeedback && (
+            <p className="pairing-inline-status" role="status">
+              {scanFeedback}
+            </p>
+          )}
           {copyStatus && <p className="pairing-inline-status">{copyStatus}</p>}
           {manualDiagnostics && (
             <textarea

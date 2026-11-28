@@ -10,8 +10,10 @@ internal sealed class ActivitySimulationService : IActivitySimulationService
     private readonly Action<bool> _save;
     private readonly IAppLogWriter _appLog;
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
+    private readonly TimeSpan _loopStopTimeout;
     private CancellationTokenSource? _loopCancellation;
     private Task? _loopTask;
+    private Task _retiringLoop = Task.CompletedTask;
     private bool _enabled;
     private int _failureStreak;
     private int _disposeState;
@@ -21,13 +23,15 @@ internal sealed class ActivitySimulationService : IActivitySimulationService
         bool enabled,
         Action<bool>? save = null,
         IAppLogWriter? appLog = null,
-        Func<TimeSpan, CancellationToken, Task>? delay = null)
+        Func<TimeSpan, CancellationToken, Task>? delay = null,
+        TimeSpan? loopStopTimeout = null)
     {
         _pulseSender = pulseSender;
         _enabled = enabled;
         _save = save ?? AppActivitySimulationSettings.Save;
         _appLog = appLog ?? NullAppLog.Instance;
         _delay = delay ?? Task.Delay;
+        _loopStopTimeout = loopStopTimeout ?? ShutdownTimeout;
 
         if (enabled)
         {
@@ -54,6 +58,10 @@ internal sealed class ActivitySimulationService : IActivitySimulationService
         bool enabled,
         CancellationToken cancellationToken = default)
     {
+        if (Volatile.Read(ref _disposeState) != 0)
+        {
+            return new(false, "Simulated activity is shutting down.");
+        }
         try
         {
             await _updates.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -62,8 +70,13 @@ internal sealed class ActivitySimulationService : IActivitySimulationService
         {
             return new(false, "The simulated-activity change was cancelled.");
         }
+        catch (ObjectDisposedException)
+        {
+            return new(false, "Simulated activity is shutting down.");
+        }
 
         var publishStateChanged = false;
+        Task? retiring = null;
         ActivitySimulationOperationResult result;
         try
         {
@@ -74,6 +87,10 @@ internal sealed class ActivitySimulationService : IActivitySimulationService
             else if (Enabled == enabled)
             {
                 result = ActivitySimulationOperationResult.Success;
+            }
+            else if (enabled && !_retiringLoop.IsCompleted)
+            {
+                result = new(false, "The previous simulated-activity pulse is still finishing. Try again.");
             }
             else
             {
@@ -107,8 +124,8 @@ internal sealed class ActivitySimulationService : IActivitySimulationService
                 }
                 else
                 {
-                    await StopLoopAsync(stoppedCancellation, stoppedLoop).ConfigureAwait(false);
                     Interlocked.Exchange(ref _failureStreak, 0);
+                    _retiringLoop = retiring = StopLoopAsync(stoppedCancellation, stoppedLoop);
                 }
 
                 publishStateChanged = true;
@@ -122,6 +139,10 @@ internal sealed class ActivitySimulationService : IActivitySimulationService
 
         if (publishStateChanged)
         {
+            if (retiring is not null)
+            {
+                await WaitForLoopStopAsync(retiring, "disable_timeout").ConfigureAwait(false);
+            }
             ActivitySimulationNotifications.PublishStateChanged(this, StateChanged, _appLog);
         }
 
@@ -136,10 +157,11 @@ internal sealed class ActivitySimulationService : IActivitySimulationService
         }
 
         await _updates.WaitAsync().ConfigureAwait(false);
-        Task? loop;
-        CancellationTokenSource? cancellation;
+        Task stopping;
         try
         {
+            Task? loop;
+            CancellationTokenSource? cancellation;
             lock (_gate)
             {
                 _enabled = false;
@@ -148,37 +170,19 @@ internal sealed class ActivitySimulationService : IActivitySimulationService
                 _loopTask = null;
                 _loopCancellation = null;
             }
+            stopping = Task.WhenAll(_retiringLoop, StopLoopAsync(cancellation, loop));
         }
         finally
         {
             _updates.Release();
         }
 
-        if (loop is null)
-        {
-            cancellation?.Dispose();
-            _updates.Dispose();
-            return;
-        }
-
-        if (cancellation is not null)
-        {
-            await cancellation.CancelAsync().ConfigureAwait(false);
-        }
         try
         {
-            await loop.WaitAsync(ShutdownTimeout).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (TimeoutException)
-        {
-            WriteLog("shutdown_timeout", "The simulated-activity loop did not stop before the shutdown deadline.");
+            await WaitForLoopStopAsync(stopping, "shutdown_timeout").ConfigureAwait(false);
         }
         finally
         {
-            cancellation?.Dispose();
             _updates.Dispose();
         }
     }
@@ -202,7 +206,7 @@ internal sealed class ActivitySimulationService : IActivitySimulationService
             {
                 await _delay(PulseInterval, cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
-                TrySendPulse();
+                TrySendPulse(cancellationToken);
                 if (!Enabled || cancellationToken.IsCancellationRequested)
                 {
                     return;
@@ -214,11 +218,12 @@ internal sealed class ActivitySimulationService : IActivitySimulationService
         }
     }
 
-    private void TrySendPulse()
+    private void TrySendPulse(CancellationToken cancellationToken)
     {
         try
         {
-            if (_pulseSender.TrySendActivityPulse() == ActivityPulseDispatchResult.Busy)
+            if (_pulseSender.TrySendActivityPulse() == ActivityPulseDispatchResult.Busy ||
+                cancellationToken.IsCancellationRequested || !Enabled)
             {
                 return;
             }
@@ -230,7 +235,8 @@ internal sealed class ActivitySimulationService : IActivitySimulationService
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            if (Interlocked.CompareExchange(ref _failureStreak, 1, 0) != 0)
+            if (cancellationToken.IsCancellationRequested || !Enabled ||
+                Interlocked.CompareExchange(ref _failureStreak, 1, 0) != 0)
             {
                 return;
             }
@@ -247,19 +253,10 @@ internal sealed class ActivitySimulationService : IActivitySimulationService
 
     private static async Task StopLoopAsync(CancellationTokenSource? cancellation, Task? loop)
     {
-        if (loop is null)
-        {
-            cancellation?.Dispose();
-            return;
-        }
-
-        if (cancellation is not null)
-        {
-            await cancellation.CancelAsync().ConfigureAwait(false);
-        }
         try
         {
-            await loop.ConfigureAwait(false);
+            if (cancellation is not null) await cancellation.CancelAsync().ConfigureAwait(false);
+            if (loop is not null) await loop.ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -267,6 +264,18 @@ internal sealed class ActivitySimulationService : IActivitySimulationService
         finally
         {
             cancellation?.Dispose();
+        }
+    }
+
+    private async Task WaitForLoopStopAsync(Task stopping, string timeoutOutcome)
+    {
+        try
+        {
+            await stopping.WaitAsync(_loopStopTimeout).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            WriteLog(timeoutOutcome, "A simulated-activity pulse is still finishing in Windows.");
         }
     }
 

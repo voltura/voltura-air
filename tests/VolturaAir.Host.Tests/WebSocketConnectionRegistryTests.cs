@@ -53,8 +53,10 @@ public sealed class WebSocketConnectionRegistryTests
         Assert.Equal(0, registry.SendGateCount);
     }
 
-    [Fact]
-    public async Task UnregisterDefersSendGateDisposalUntilActiveSendCompletes()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RetirementLetsTheActiveWriteFinishAndRejectsQueuedWrites(bool revoke)
     {
         using var registry = new WebSocketConnectionRegistry();
         using var socket = new ClientWebSocket();
@@ -72,9 +74,18 @@ public sealed class WebSocketConnectionRegistryTests
             CancellationToken.None);
 
         await sendStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        registry.Unregister("client", socket);
+        var queuedWriteStarted = false;
+        var queued = registry.TrySendAsync(socket, () =>
+        {
+            queuedWriteStarted = true;
+            return Task.CompletedTask;
+        }, CancellationToken.None);
+        if (revoke) Assert.Same(socket, Assert.Single(registry.TakeRevoked("client")));
+        else registry.Unregister("client", socket);
         releaseSend.SetResult();
         Assert.True(await sendTask.WaitAsync(TimeSpan.FromSeconds(3)));
+        Assert.False(await queued.WaitAsync(TimeSpan.FromSeconds(3)));
+        Assert.False(queuedWriteStarted);
 
         Assert.Equal(0, registry.ActiveSocketCount);
         Assert.Equal(0, registry.SendGateCount);

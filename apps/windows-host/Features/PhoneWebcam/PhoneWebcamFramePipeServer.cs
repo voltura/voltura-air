@@ -211,6 +211,7 @@ internal sealed class PhoneWebcamFramePipeServer : IAsyncDisposable
     private readonly TimeSpan _writeTimeout;
     private readonly IDisposable _tokenAccessLease;
     private readonly Lock _disposeGate = new();
+    private Exception? _failure;
     private Task? _disposal;
 
     internal PhoneWebcamFramePipeServer(Func<NamedPipeServerStream>? createPipe = null)
@@ -242,6 +243,8 @@ internal sealed class PhoneWebcamFramePipeServer : IAsyncDisposable
     }
 
     internal event Action<PhoneWebcamFramePipeServer, Exception>? Failed;
+
+    internal Exception? Failure => Volatile.Read(ref _failure);
 
     internal void Publish(PhoneWebcamFrame frame)
     {
@@ -332,6 +335,7 @@ internal sealed class PhoneWebcamFramePipeServer : IAsyncDisposable
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
+            Volatile.Write(ref _failure, exception);
             Failed?.Invoke(this, exception);
         }
         finally

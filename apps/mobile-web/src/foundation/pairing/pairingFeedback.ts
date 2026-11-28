@@ -1,3 +1,5 @@
+import { sanitizeUrl } from "../diagnostics/mobileDiagnostics";
+
 export type PairingFailureReason =
   | "qr-unreadable"
   | "qr-not-pairing-link"
@@ -188,7 +190,7 @@ export function buildPairingDiagnostics(
     transportMode: transportMode ?? "direct",
     diagnosticCode: diagnosticCode ?? feedback.diagnosticCode ?? null,
     message: message.trim(),
-    pageUrl: safeLocationHref(),
+    pageUrl: sanitizeUrl(safeLocationHref()),
     platform: navigator.userAgent,
     displayMode: getDisplayMode(),
     timestamp: new Date().toISOString(),

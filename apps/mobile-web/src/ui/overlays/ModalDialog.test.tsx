@@ -149,6 +149,32 @@ describe("ModalDialog", () => {
     fireEvent.click(dialog, { clientX: 20, clientY: 20 });
     expect(close).toHaveBeenCalledOnce();
   });
+
+  it("keeps an inside press protected through a rerender while using the latest close callback", () => {
+    const originalClose = vi.fn();
+    const latestClose = vi.fn();
+    const content = <button type="button">Keep open</button>;
+    const view = render(
+      <ModalDialog dismissLabel="Done" isOpen onClose={originalClose} title="Information">
+        {content}
+      </ModalDialog>,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Information" });
+    vi.spyOn(dialog, "getBoundingClientRect").mockReturnValue(new DOMRect(100, 100, 400, 400));
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Keep open" }));
+    view.rerender(
+      <ModalDialog dismissLabel="Done" isOpen onClose={latestClose} title="Information">
+        {content}
+      </ModalDialog>,
+    );
+
+    fireEvent.click(dialog, { clientX: 20, clientY: 20 });
+    expect(latestClose).not.toHaveBeenCalled();
+    fireEvent.pointerDown(dialog, { clientX: 20, clientY: 20 });
+    fireEvent.click(dialog, { clientX: 20, clientY: 20 });
+    expect(latestClose).toHaveBeenCalledOnce();
+    expect(originalClose).not.toHaveBeenCalled();
+  });
   it("focuses the dialog surface by default without visually focusing its close control", () => {
     render(
       <ModalDialog dismissLabel="Done" isOpen onClose={() => undefined} title="Information">

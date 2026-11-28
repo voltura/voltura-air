@@ -139,6 +139,26 @@ describe("keep-alive dictation", () => {
     expect(JSON.stringify(getSpeechDiagnostics())).not.toContain("private");
   });
 
+  it("delivers new speech when the recognizer reuses a withdrawn interim index", () => {
+    installMockSpeechRecognition();
+    const onText = vi.fn();
+    render(<DictationHarness onText={onText} />);
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    const native = MockSpeechRecognition.instances[0]!;
+    const first = final("first");
+    act(() => native.onresult?.({ resultIndex: 0, results: [first] }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    const withdrawn = Object.assign([{ transcript: "paused" }], { isFinal: false });
+    act(() => native.onresult?.({ resultIndex: 1, results: [first, withdrawn] }));
+    act(() => native.onresult?.({ resultIndex: 1, results: [first] }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    act(() => native.onresult?.({ resultIndex: 1, results: [first, final("resumed")] }));
+
+    expect(onText.mock.calls).toEqual([["first "], ["resumed "]]);
+  });
+
   it.each(["disable", "hide", "unmount"])(
     "detaches delivery without killing capture on %s",
     (action) => {
@@ -218,7 +238,12 @@ describe("keep-alive dictation", () => {
     render(<DictationHarness />);
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
     act(() => {
-      vi.advanceTimersByTime(16999);
+      vi.advanceTimersByTime(15000);
+      MockSpeechRecognition.instances[0]!.onaudiostart?.();
+    });
+    expect(screen.getByRole("button", { name: "Starting" })).toBeTruthy();
+    act(() => {
+      vi.advanceTimersByTime(1999);
     });
     expect(getActiveSpeechSession()).not.toBeNull();
     act(() => {

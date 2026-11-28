@@ -36,6 +36,7 @@ internal sealed class FileTransferSession(
     public string FileName { get; } = fileName;
     public long DeclaredSize { get; } = declaredSize;
     public FileTransferSourceKind SourceKind { get; } = sourceKind;
+    public ScreenViewCaptureLifetime ScreenCaptureLifetime { get; init; }
     public CancellationTokenSource Cancellation => _cancellation.Source;
     public CancellationToken CancellationToken => _cancellation.Token;
     public TaskCompletionSource StartPublished { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -21,6 +21,7 @@ function createOptions() {
     initialPairing: null,
     message: "PC is currently not available. Retrying...",
     pairWithToken: vi.fn(),
+    requestConnectionChange: (action: () => void) => action(),
     setIsSettingsOpen: vi.fn(),
     state: "unavailable" as const,
   };
@@ -374,6 +375,50 @@ describe("usePairingController", () => {
     expect(options.beginNewPairing).not.toHaveBeenCalled();
   });
 
+  it("shows the scan result when a connection retry reports a new failure during decoding", async () => {
+    const decoding = deferred<string>();
+    vi.mocked(decodePairingQrImage).mockReturnValue(decoding.promise);
+    const options = createOptions();
+    const { result, rerender } = renderHook((props) => usePairingController(props), {
+      initialProps: options,
+    });
+    let scan!: Promise<void>;
+    act(() => {
+      scan = result.current.onPairingQrSelected(qrSelection());
+    });
+    rerender({ ...options, message: "The PC closed the controller connection." });
+
+    await act(async () => {
+      decoding.resolve("https://example.com/some-other-code");
+      await scan;
+    });
+
+    expect(result.current.pairingScanFeedback).toBe(
+      "No Voltura Air pairing link found in that QR code.",
+    );
+    expect(result.current.isPairingQrReading).toBe(false);
+  });
+
+  it("discards a late photo result after the owning connection has been disconnected", async () => {
+    const decoding = deferred<string>();
+    vi.mocked(decodePairingQrImage).mockReturnValue(decoding.promise);
+    const options = createOptions();
+    const { result } = renderHook(() => usePairingController(options));
+    let scan!: Promise<void>;
+    act(() => {
+      scan = result.current.onPairingQrSelected(qrSelection());
+    });
+    act(() => { result.current.cancelPairingScan(); });
+    await act(async () => {
+      decoding.resolve(pairingUrl(pairToken, "http://pc.local:51395"));
+      await scan;
+    });
+
+    expect(result.current.pendingPairing).toBeNull();
+    expect(result.current.isPairingQrReading).toBe(false);
+    expect(options.beginNewPairing).not.toHaveBeenCalled();
+  });
+
   it("routes a manually entered pairing link through pairing confirmation", () => {
     const options = createOptions();
     const { result } = renderHook(() => usePairingController(options));
@@ -396,6 +441,54 @@ describe("usePairingController", () => {
     expect(result.current.pairingScanMessage).toBe(
       "Confirm the device name shown on the PC, or change it before pairing.",
     );
+  });
+
+  it("waits for permission to change PC before retaining a new pairing link", () => {
+    let approve: (() => void) | undefined;
+    const options = {
+      ...createOptions(),
+      requestConnectionChange: (action: () => void) => {
+        approve = action;
+      },
+    };
+    const { result } = renderHook(() => usePairingController(options));
+    const pcUrl = "http://another.local:51395";
+
+    act(() => result.current.connectManualHost({ kind: "pairing", pairToken, pcUrl }));
+
+    expect(result.current.pendingPairing).toBeNull();
+    expect(options.beginNewPairing).not.toHaveBeenCalled();
+    expect(options.setIsSettingsOpen).not.toHaveBeenCalled();
+
+    act(() => approve?.());
+
+    expect(result.current.pendingPairing).toEqual({ pairToken, pcUrl });
+    expect(options.beginNewPairing).toHaveBeenCalledOnce();
+  });
+
+  it("does not authorize an older connection choice when its callback resolves after replacement", () => {
+    const approvals: (() => void)[] = [];
+    const options = {
+      ...createOptions(),
+      requestConnectionChange: (action: () => void) => {
+        approvals.push(action);
+      },
+    };
+    const { result } = renderHook(() => usePairingController(options));
+    const pcUrl = "http://another.local:51395";
+
+    act(() => {
+      result.current.connectManualHost({ kind: "pairing", pairToken, pcUrl });
+      result.current.connectManualHost({ kind: "host", pcUrl });
+    });
+    act(() => {
+      approvals[0]?.();
+      approvals[1]?.();
+    });
+
+    expect(result.current.pendingPairing).toBeNull();
+    expect(options.beginNewPairing).not.toHaveBeenCalled();
+    expect(options.connectManualPc).toHaveBeenCalledExactlyOnceWith(pcUrl);
   });
 
   it("routes a validated manual host through connection recovery", () => {

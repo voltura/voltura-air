@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { brotliCompressSync, constants, gzipSync } from "node:zlib";
-import { defineConfig, type HtmlTagDescriptor, type Plugin } from "vite";
+import { defineConfig, normalizePath, type HtmlTagDescriptor, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 
 const packageJson = JSON.parse(
@@ -62,11 +62,60 @@ export default defineConfig({
   plugins: [
     react(),
     appleStartupImages(appBase),
+    offlineShellWorker(),
     webBuildIdFile(webBuildId, buildOutputDirectory),
     hostedManifest(appBase, buildOutputDirectory),
     compressedJavaScriptAssets(buildOutputDirectory),
   ],
 });
+
+function offlineShellWorker(): Plugin {
+  // The shell can load these on startup even before the user opens a tool.
+  const startupModules = new Set(
+    [
+      "./src/features/introduction/Introduction.tsx",
+      "./src/foundation/settings/accentColor.ts",
+      "./src/foundation/settings/accentPalette.ts",
+    ].map((file) => normalizePath(fileURLToPath(new URL(file, import.meta.url)))),
+  );
+  return {
+    name: "offline-shell-worker",
+    apply: "build",
+    generateBundle(_options, bundle) {
+      const bootAssets = new Set<string>();
+      const include = (fileName: string) => {
+        const output = bundle[fileName];
+        if (!output || bootAssets.has(fileName)) {
+          return;
+        }
+        bootAssets.add(fileName);
+        if (output.type === "chunk") {
+          output.imports.forEach(include);
+          output.viteMetadata?.importedCss.forEach(include);
+        }
+      };
+      for (const output of Object.values(bundle)) {
+        if (
+          output.type === "chunk" &&
+          (output.isEntry || output.moduleIds.some((id) => startupModules.has(id)))
+        ) {
+          include(output.fileName);
+        }
+      }
+
+      const worker = readFileSync(new URL("./public/sw.js", import.meta.url), "utf8");
+      const placeholder = "/* offline shell assets */ []";
+      if (!bootAssets.size || !worker.includes(placeholder)) {
+        throw new Error("The mobile service worker could not include the app shell assets.");
+      }
+      this.emitFile({
+        type: "asset",
+        fileName: "sw.js",
+        source: worker.replace(placeholder, JSON.stringify([...bootAssets].sort())),
+      });
+    },
+  };
+}
 
 function appleStartupImages(base: string): Plugin {
   return {

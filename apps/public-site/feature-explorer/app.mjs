@@ -48,7 +48,8 @@ function profileLabel() {
       : "Custom";
 }
 function notify(message) {
-  const t = $("#toast");
+  const t = $("#feature-dialog").open ? $("#feature-toast") : $("#toast");
+  $(".toast.show")?.classList.remove("show");
   t.textContent = message;
   t.classList.add("show");
   clearTimeout(toastTimer);
@@ -171,7 +172,7 @@ function renderDetail() {
     steps = setupSteps(f, state);
   const notices = [...r.blockers.map((b) => b.text), ...r.checks];
   $("#feature-detail").innerHTML =
-    `<div class="detail-title-row"><span class="feature-icon">${icon(f.icon)}</span><h2 id="feature-title" tabindex="-1">${f.title}</h2></div><div class="detail-context"><span>${devices[state.device].label}</span><span>${modes[state.mode].label}</span><span>${profileLabel()}</span></div><p class="lead">${f.summary}</p><div class="status-notice ${r.status}-notice"><strong>${icon(r.status === "available" ? "check" : "info")}${r.label}${r.status === "available" ? " with this setup" : ""}</strong>${notices.length ? notices.map((n) => `<p>${esc(n)}</p>`).join("") : "<p>Supported by the documented product rules with the selected access profile.</p>"}${r.blockers.length ? `<div class="notice-actions">${r.blockers.some((b) => b.code === "https") ? '<button class="primary-button" data-fix="https">Use Enhanced Direct</button>' : ""}${r.blockers.some((b) => b.code === "device") ? '<button class="primary-button" data-fix="device">Explore with iPhone</button>' : ""}${r.blockers.some((b) => ["profile", "permission"].includes(b.code)) ? '<button class="primary-button" data-fix="profile">Explore with My device</button>' : ""}</div>` : ""}</div><section class="detail-section"><h3>${icon("check-check")} What you can do</h3>${listHtml(f.capabilities)}</section><section class="detail-section"><h3>${icon("shield-check")} Permissions on the PC</h3>${permissionRows(f)}<p class="permission-help">Change access in Windows host → Devices → this device. The explorer does not change these settings.</p></section><section class="detail-section"><h3>${icon("info")} Before you use it</h3>${listHtml([...f.limits, ...(relayLimit(f) ? [relayLimit(f)] : [])], "minus")}</section><section class="setup-section"><div class="setup-heading"><h3>Your setup path</h3><button class="subtle-button" id="copy-guide">${icon("copy")} Copy guide</button></div>${r.blockers.length ? '<p class="permission-help">Resolve the requirements above to use this feature. The steps below describe the currently selected connection.</p>' : ""}<ol class="setup-steps">${steps.map((s, i) => `<li class="setup-step"><span class="setup-step-num">${i + 1}</span><div><strong>${s.title}</strong><p>${esc(s.text)}</p></div></li>`).join("")}</ol><div class="guide-actions"><a class="primary-button" href="${SOURCE.base}/releases/latest" target="_blank" rel="noopener noreferrer">Get Voltura Air for Windows ${icon("arrow-up-right")}</a><a class="secondary-button" href="${SOURCE.base}/blob/${SOURCE.sha}/README.md#connect" target="_blank" rel="noopener noreferrer">Connection guide ${icon("arrow-up-right")}</a></div></section><details class="technical-details"><summary>Device & connection notes</summary><p>${devices[state.device].note}</p><p>${modes[state.mode].note}</p><p>Pairings are remembered until removed or browser data is cleared. Changing between the local HTTP controller and the hosted HTTPS controller uses separate browser storage; pair again if prompted. If an identity check asks for fresh pairing, scan a new QR from your PC.</p><p>This guide follows repository main at ${SOURCE.sha.slice(0, 7)}, checked ${SOURCE.date}. Installed release builds may differ. Browser-specific features are checked by the actual controller, not by your selection here.</p></details><div class="detail-source"><a href="${SOURCE.base}/blob/${SOURCE.sha}/docs/features.md#${f.source}" target="_blank" rel="noopener noreferrer">Read feature documentation ${icon("arrow-up-right")}</a><span>Source: 95d1816</span></div>`;
+    `<div class="detail-title-row"><span class="feature-icon">${icon(f.icon)}</span><h2 id="feature-title" tabindex="-1">${f.title}</h2></div><div class="detail-context"><span>${devices[state.device].label}</span><span>${modes[state.mode].label}</span><span>${profileLabel()}</span></div><p class="lead">${f.summary}</p><div class="status-notice ${r.status}-notice"><strong>${icon(r.status === "available" ? "check" : "info")}${r.label}${r.status === "available" ? " with this setup" : ""}</strong>${notices.length ? notices.map((n) => `<p>${esc(n)}</p>`).join("") : "<p>Supported by the documented product rules with the selected access profile.</p>"}${r.blockers.length ? `<div class="notice-actions">${r.blockers.some((b) => b.code === "https") ? '<button class="primary-button" data-fix="https">Use Enhanced Direct</button>' : ""}${r.blockers.some((b) => b.code === "device") ? '<button class="primary-button" data-fix="device">Explore with iPhone</button>' : ""}${r.blockers.some((b) => ["profile", "permission"].includes(b.code)) ? '<button class="primary-button" data-fix="profile">Explore with My device</button>' : ""}</div>` : ""}</div><section class="detail-section"><h3>${icon("check-check")} What you can do</h3>${listHtml(f.capabilities)}</section><section class="detail-section"><h3>${icon("shield-check")} Permissions on the PC</h3>${permissionRows(f)}<p class="permission-help">Change access in Windows host → Devices → this device. The explorer does not change these settings.</p></section><section class="detail-section"><h3>${icon("info")} Before you use it</h3>${listHtml([...f.limits, ...(relayLimit(f) ? [relayLimit(f)] : [])], "minus")}</section><section class="setup-section"><div class="setup-heading"><h3>Your setup path</h3><button class="subtle-button" id="copy-guide">${icon("copy")} Copy guide</button></div>${r.blockers.length ? '<p class="permission-help">Resolve the requirements above to use this feature. The steps below describe the currently selected connection.</p>' : ""}<ol class="setup-steps">${steps.map((s, i) => `<li class="setup-step"><span class="setup-step-num">${i + 1}</span><div><strong>${s.title}</strong><p>${esc(s.text)}</p></div></li>`).join("")}</ol><div class="guide-actions"><a class="primary-button" href="${SOURCE.base}/releases/latest" target="_blank" rel="noopener noreferrer">Get Voltura Air for Windows ${icon("arrow-up-right")}</a><a class="secondary-button" href="${SOURCE.base}/blob/${SOURCE.sha}/README.md#connect" target="_blank" rel="noopener noreferrer">Connection guide ${icon("arrow-up-right")}</a></div></section><details class="technical-details"><summary>Device & connection notes</summary><p>${devices[state.device].note}</p><p>${modes[state.mode].note}</p><p>Pairings are remembered until removed or browser data is cleared. Changing between the local HTTP controller and the hosted HTTPS controller uses separate browser storage; pair again if prompted. If an identity check asks for fresh pairing, scan a new QR from your PC.</p><p>This guide follows repository main at ${SOURCE.sha.slice(0, 7)}, checked ${SOURCE.date}. Installed release builds may differ. Browser-specific features are checked by the actual controller, not by your selection here.</p></details><div class="detail-source"><a href="${SOURCE.base}/blob/${SOURCE.sha}/docs/features.md#${f.source}" target="_blank" rel="noopener noreferrer">Read feature documentation ${icon("arrow-up-right")}</a><span>Source: ${SOURCE.sha.slice(0, 7)}</span></div>`;
 }
 function openFeature(id) {
   if (!features.some((f) => f.id === id)) return;
@@ -216,11 +217,11 @@ function renderComparison() {
     )}</tbody></table></div><p class="comparison-note">All three routes require a running Windows 11 host and pairing. Enhanced Direct still needs LAN reachability. For Relay, check the PC’s Connection page for current service-wide media usage. Nothing switches automatically if a route fails.</p>`;
 }
 async function copy(text, container) {
+  container.querySelector(".copy-fallback")?.remove();
   try {
     await navigator.clipboard.writeText(text);
     notify("Copied to clipboard");
   } catch {
-    container.querySelector(".copy-fallback")?.remove();
     const box = document.createElement("textarea");
     box.className = "copy-fallback";
     box.setAttribute("aria-label", "Copy this text");
@@ -229,7 +230,7 @@ async function copy(text, container) {
     container.append(box);
     box.focus();
     box.select();
-    notify("Select and copy the text shown below.");
+    notify("Select and copy the text.");
   }
 }
 function guideText() {
@@ -340,6 +341,9 @@ $("#feature-dialog").addEventListener("cancel", () => {
   setUrl();
 });
 $("#feature-dialog").addEventListener("close", () => {
+  const toast = $("#feature-toast");
+  toast.classList.remove("show");
+  toast.textContent = "";
   if (selected) {
     selected = null;
     setUrl();

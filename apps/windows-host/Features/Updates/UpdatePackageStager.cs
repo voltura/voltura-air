@@ -21,7 +21,8 @@ internal sealed class UpdatePackageStager(
     PairingManager pairingManager,
     string installerName,
     Func<byte[], byte[], bool> verifyManifest,
-    string pendingDirectory)
+    string pendingDirectory,
+    Func<string, IEnumerable<string>>? enumeratePendingFiles = null)
 {
     internal const long MaxManifestBytes = 16 * 1024;
     internal const long MaxSignatureBytes = 4 * 1024;
@@ -66,9 +67,11 @@ internal sealed class UpdatePackageStager(
         }
         catch (OperationCanceledException)
         {
-            return new(pairingManager.HasActiveController ? UpdateStageStatus.Deferred : UpdateStageStatus.Cancelled);
+            return new(pairingManager.HasActiveController ? UpdateStageStatus.Deferred
+                : cancellationToken.IsCancellationRequested ? UpdateStageStatus.Cancelled
+                : UpdateStageStatus.Failed);
         }
-        catch (Exception ex) when (ex is IOException or JsonException or CryptographicException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or IOException or JsonException or CryptographicException or UnauthorizedAccessException)
         {
             return new(UpdateStageStatus.Failed);
         }
@@ -113,17 +116,17 @@ internal sealed class UpdatePackageStager(
         using var document = JsonDocument.Parse(manifest);
         var root = document.RootElement;
         if (root.ValueKind != JsonValueKind.Object ||
-            !root.TryGetProperty("schema", out var schema) ||
+            !root.TryGetProperty("schema", out var schema) || schema.ValueKind != JsonValueKind.Number ||
             !schema.TryGetInt32(out var schemaValue) ||
             schemaValue != 1 ||
-            !root.TryGetProperty("version", out var versionElement) ||
-            versionElement.GetString() != expectedVersion.ToString(3) ||
+            !root.TryGetProperty("version", out var versionElement) || versionElement.ValueKind != JsonValueKind.String ||
+            !versionElement.ValueEquals(expectedVersion.ToString(3)) ||
             !root.TryGetProperty("assets", out var manifestAssets) ||
             manifestAssets.ValueKind != JsonValueKind.Array ||
             !TryFindSingleAsset(manifestAssets.EnumerateArray(), selectedInstallerName, out var selected) ||
-            !selected.TryGetProperty("size", out var sizeElement) ||
+            !selected.TryGetProperty("size", out var sizeElement) || sizeElement.ValueKind != JsonValueKind.Number ||
             !sizeElement.TryGetInt64(out var size) ||
-            !selected.TryGetProperty("sha256", out var hashElement))
+            !selected.TryGetProperty("sha256", out var hashElement) || hashElement.ValueKind != JsonValueKind.String)
         {
             return false;
         }
@@ -158,7 +161,8 @@ internal sealed class UpdatePackageStager(
         package = null!;
         using var document = JsonDocument.Parse(manifest);
         var root = document.RootElement;
-        if (!root.TryGetProperty("version", out var versionElement) ||
+        if (root.ValueKind != JsonValueKind.Object ||
+            !root.TryGetProperty("version", out var versionElement) || versionElement.ValueKind != JsonValueKind.String ||
             !UpdatePolicy.TryParseVersion(versionElement.GetString(), requireVPrefix: false, out var version))
         {
             return false;
@@ -193,19 +197,21 @@ internal sealed class UpdatePackageStager(
             await File.WriteAllBytesAsync(signaturePath, signature, cancellationToken).ConfigureAwait(false);
             await File.WriteAllBytesAsync(pendingManifest, manifest, cancellationToken).ConfigureAwait(false);
             File.Move(pendingManifest, Path.Combine(safePending, "manifest.json"), overwrite: true);
-            CleanupSupersededFiles(safePending, package);
-            return new(UpdateStageStatus.Ready, package);
         }
         catch (OperationCanceledException)
         {
             CleanupFailedCandidate(partial, installer, signaturePath, pendingManifest);
-            return new(pairingManager.HasActiveController ? UpdateStageStatus.Deferred : UpdateStageStatus.Cancelled);
+            throw;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or IOException or UnauthorizedAccessException)
         {
             CleanupFailedCandidate(partial, installer, signaturePath, pendingManifest);
             return new(UpdateStageStatus.Failed);
         }
+
+        // The published manifest owns this version. Superseded files retire after the commit.
+        TryCleanupSupersededFiles(safePending, package);
+        return new(UpdateStageStatus.Ready, package);
     }
 
     private async Task DownloadInstallerAsync(
@@ -214,7 +220,10 @@ internal sealed class UpdatePackageStager(
         string partial,
         CancellationToken cancellationToken)
     {
-        await using var source = await OpenAssetAsync(installerUrl, cancellationToken).ConfigureAwait(false);
+        using var inactivity = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        inactivity.CancelAfter(client.Timeout);
+        await using var source = await OpenAssetAsync(installerUrl, inactivity.Token).ConfigureAwait(false);
+        inactivity.CancelAfter(Timeout.InfiniteTimeSpan);
         await using var destination = new FileStream(
             partial,
             FileMode.Create,
@@ -225,9 +234,12 @@ internal sealed class UpdatePackageStager(
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         var buffer = new byte[65536];
         long received = 0;
-        int read;
-        while ((read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+        while (true)
         {
+            inactivity.CancelAfter(client.Timeout);
+            var read = await source.ReadAsync(buffer, inactivity.Token).ConfigureAwait(false);
+            inactivity.CancelAfter(Timeout.InfiniteTimeSpan);
+            if (read == 0) break;
             if (pairingManager.HasActiveController) throw new OperationCanceledException(cancellationToken);
             received += read;
             if (received > package.Size) throw new IOException("Update package exceeds signed size.");
@@ -244,8 +256,10 @@ internal sealed class UpdatePackageStager(
 
     private async Task<byte[]> DownloadSmallAsync(string? url, long cap, CancellationToken cancellationToken)
     {
-        await using var stream = await OpenAssetAsync(url, cancellationToken).ConfigureAwait(false);
-        return await ReadCappedAsync(stream, cap, cancellationToken).ConfigureAwait(false);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(client.Timeout);
+        await using var stream = await OpenAssetAsync(url, deadline.Token).ConfigureAwait(false);
+        return await ReadCappedAsync(stream, cap, deadline.Token).ConfigureAwait(false);
     }
 
     internal static async Task<byte[]> ReadCappedAsync(Stream stream, long cap, CancellationToken cancellationToken)
@@ -312,7 +326,8 @@ internal sealed class UpdatePackageStager(
         var matches = assets.Where(item =>
             item.ValueKind == JsonValueKind.Object &&
             item.TryGetProperty("name", out var itemName) &&
-            itemName.GetString() == name).Take(2).ToArray();
+            itemName.ValueKind == JsonValueKind.String &&
+            itemName.ValueEquals(name)).Take(2).ToArray();
         asset = matches.Length == 1 ? matches[0] : default;
         return matches.Length == 1;
     }
@@ -320,8 +335,8 @@ internal sealed class UpdatePackageStager(
     private static bool TryReadReleaseAsset(JsonElement element, bool requireSize, out ReleaseAsset asset)
     {
         asset = default;
-        if (!element.TryGetProperty("name", out var nameElement) ||
-            !element.TryGetProperty("browser_download_url", out var urlElement))
+        if (!element.TryGetProperty("name", out var nameElement) || nameElement.ValueKind != JsonValueKind.String ||
+            !element.TryGetProperty("browser_download_url", out var urlElement) || urlElement.ValueKind != JsonValueKind.String)
         {
             return false;
         }
@@ -329,14 +344,18 @@ internal sealed class UpdatePackageStager(
         var name = nameElement.GetString();
         var url = urlElement.GetString();
         long size = 0;
-        if (requireSize && (!element.TryGetProperty("size", out var sizeElement) || !sizeElement.TryGetInt64(out size)))
+        if (requireSize && (!element.TryGetProperty("size", out var sizeElement) ||
+            sizeElement.ValueKind != JsonValueKind.Number || !sizeElement.TryGetInt64(out size)))
         {
             return false;
         }
 
-        var digest = element.TryGetProperty("digest", out var digestElement) && digestElement.ValueKind != JsonValueKind.Null
-            ? digestElement.GetString()
-            : null;
+        string? digest = null;
+        if (element.TryGetProperty("digest", out var digestElement) && digestElement.ValueKind != JsonValueKind.Null)
+        {
+            if (digestElement.ValueKind != JsonValueKind.String) return false;
+            digest = digestElement.GetString();
+        }
         asset = new(url, name ?? string.Empty, size, digest);
         return !string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(url);
     }
@@ -345,7 +364,8 @@ internal sealed class UpdatePackageStager(
     {
         if (!root.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array ||
             !TryFindSingleAsset(assets.EnumerateArray(), selectedInstallerName, out var selected) ||
-            !selected.TryGetProperty("size", out var size) || !size.TryGetInt64(out var value))
+            !selected.TryGetProperty("size", out var size) || size.ValueKind != JsonValueKind.Number ||
+            !size.TryGetInt64(out var value))
         {
             return 0;
         }
@@ -361,7 +381,7 @@ internal sealed class UpdatePackageStager(
         foreach (var path in paths) TryDeleteOwned(path);
     }
 
-    private void CleanupSupersededFiles(string safePending, UpdateReadyPackage package)
+    private void TryCleanupSupersededFiles(string safePending, UpdateReadyPackage package)
     {
         var keep = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -369,15 +389,20 @@ internal sealed class UpdatePackageStager(
             Path.Combine(safePending, package.InstallerName),
             Path.Combine(safePending, package.SignatureName)
         };
-        foreach (var path in Directory.EnumerateFiles(safePending))
+        try
         {
-            var name = Path.GetFileName(path);
-            var updaterOwned = name.EndsWith(".partial", StringComparison.OrdinalIgnoreCase) ||
-                name == "manifest.json.pending" ||
-                name.StartsWith("VolturaAir-Setup-", StringComparison.OrdinalIgnoreCase) ||
-                name.StartsWith("VolturaAir-Update-", StringComparison.OrdinalIgnoreCase);
-            if (updaterOwned && !keep.Contains(path)) TryDeleteOwned(path);
+            var paths = enumeratePendingFiles?.Invoke(safePending) ?? Directory.EnumerateFiles(safePending);
+            foreach (var path in paths)
+            {
+                var name = Path.GetFileName(path);
+                var updaterOwned = name.EndsWith(".partial", StringComparison.OrdinalIgnoreCase) ||
+                    name == "manifest.json.pending" ||
+                    name.StartsWith("VolturaAir-Setup-", StringComparison.OrdinalIgnoreCase) ||
+                    name.StartsWith("VolturaAir-Update-", StringComparison.OrdinalIgnoreCase);
+                if (updaterOwned && !keep.Contains(path)) TryDeleteOwned(path);
+            }
         }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
 
     private void TryDeleteOwned(string path)

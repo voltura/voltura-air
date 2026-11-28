@@ -110,6 +110,7 @@ export function CustomScreenWorkspace({
   } | null>(null);
   const { cancel, emit, onTouchCancel, onTouchEnd, onTouchMove, onTouchStart } = usePointerInput({
     send,
+    sessionKey: connectionEpoch,
     state,
     trackpadSettings,
     inputContext: "custom-screens",

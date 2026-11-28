@@ -8,6 +8,9 @@ if (getenv('VOLTURA_AIR_SITE_DEV') !== '1' || !$configPath || !is_file($configPa
     exit(2);
 }
 require $root . '/apps/public-site/screens/lib.php';
+require __DIR__ . '/site-catalog-storage-integration-support.php';
+
+runPackageStorageWorker($root, $argv);
 
 $database = air_screen_db();
 $eligibleQueries = [
@@ -49,6 +52,10 @@ try {
         'name' => 'Catalog maintenance owner',
     ]);
     $ownerId = (int)$database->lastInsertId();
+    assertRejectedSubmissionHistory($database, $ownerId, $token);
+    assertCatalogSearchTreatsPunctuationAsLiteral($database, $ownerId, $token);
+    assertUnreadableUploadReleasesResources($database, $ownerId, $token);
+    assertPackageStorageOwnership($database, $ownerId, $token);
 
     $pendingInsert = $database->prepare(
         "INSERT INTO air_screen_users (email, password_hash, display_name, created_at) "
@@ -140,6 +147,107 @@ function fixtureCount(PDO $database, string $table, string $column, string $valu
     $statement = $database->prepare("SELECT COUNT(*) FROM {$table} WHERE {$column} = :value");
     $statement->execute(['value' => $value]);
     return (int)$statement->fetchColumn();
+}
+
+function assertRejectedSubmissionHistory(PDO $database, int $ownerId, string $token): void
+{
+    $database->beginTransaction();
+    try {
+        $insert = $database->prepare(
+            'INSERT INTO air_screen_packages (id, owner_id, name, description, tags, package_version, screen_json, '
+            . 'storage_basename, status, screen_id, created_at) VALUES '
+            . "(:id, :owner, :name, '', '', 1, '{}', :basename, :status, :screen_id, :created_at)");
+        for ($position = 0; $position < 22; $position++) {
+            $rejected = $position < 2;
+            $insert->execute([
+                'id' => air_screen_uuid(),
+                'owner' => $ownerId,
+                'name' => $rejected ? 'Earlier rejected screen' : 'Recent screen',
+                'basename' => str_repeat('a', 64) . '.volturascreen',
+                'status' => $rejected ? 'rejected' : 'pending',
+                'screen_id' => 'history.' . $token . '.' . $position,
+                'created_at' => $rejected ? '2000-01-01 00:00:00' : '2000-01-02 00:00:00',
+            ]);
+        }
+
+        $_SESSION['air_screen_user'] = ['id' => $ownerId];
+        try {
+            $body = renderCatalogPage('upload.php');
+        } finally {
+            unset($_SESSION['air_screen_user']);
+        }
+        assertTrue(!str_contains($body, 'Earlier rejected screen'), 'History did not keep the recent-row limit.');
+        assertTrue(str_contains($body, 'Remove 2 rejected submissions?'), 'Earlier rejected submissions were missing from the removal count.');
+    } finally {
+        $database->rollBack();
+    }
+}
+
+function assertCatalogSearchTreatsPunctuationAsLiteral(PDO $database, int $ownerId, string $token): void
+{
+    $database->beginTransaction();
+    try {
+        $insert = $database->prepare(
+            'INSERT INTO air_screen_packages (id, owner_id, name, description, tags, package_version, screen_json, '
+            . 'storage_basename, status, screen_id) VALUES '
+            . "(:id, :owner, :name, '', '', 1, '{}', :basename, 'approved', :screen_id)");
+        $exactId = air_screen_uuid();
+        $nearId = air_screen_uuid();
+        $query = $token . '%_!';
+        foreach ([$exactId => $query, $nearId => $token . 'two!'] as $id => $name) {
+            $insert->execute([
+                'id' => $id,
+                'owner' => $ownerId,
+                'name' => $name,
+                'basename' => str_repeat('a', 64) . '.volturascreen',
+                'screen_id' => 'search.' . $id,
+            ]);
+        }
+
+        $body = renderCatalogPage('index.php', ['q' => $query]);
+        assertTrue(str_contains($body, 'view.php?id=' . $exactId), 'The search missed the literal punctuation.');
+        assertTrue(!str_contains($body, 'view.php?id=' . $nearId), 'The search interpreted punctuation as wildcards.');
+    } finally {
+        $database->rollBack();
+    }
+}
+
+function assertUnreadableUploadReleasesResources(PDO $database, int $ownerId, string $token): void
+{
+    $missingPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'air-upload-missing-' . $token;
+    assertTrue(!file_exists($missingPath), 'The missing-upload fixture already exists.');
+    $_SESSION['air_screen_user'] = ['id' => $ownerId];
+    $_POST = ['csrf' => air_screen_csrf()];
+    $_FILES = ['package' => ['error' => UPLOAD_ERR_OK, 'size' => 32, 'tmp_name' => $missingPath]];
+    try {
+        $body = renderCatalogPage('upload.php', method: 'POST');
+    } finally {
+        unset($_SESSION['air_screen_user']);
+        $_POST = [];
+        $_FILES = [];
+    }
+    assertTrue(str_contains($body, 'The uploaded package could not be read.'), 'The upload lost its readable failure message.');
+    assertTrue(!$database->inTransaction(), 'The failed upload left a database transaction active.');
+    $lock = $database->prepare('SELECT IS_FREE_LOCK(:name)');
+    foreach (['upload' => 'service', 'upload_user' => (string)$ownerId] as $scope => $key) {
+        $lock->execute(['name' => 'voltura_air_' . $scope . '_' . substr(hash('sha256', $key), 0, 32)]);
+        assertSame(1, (int)$lock->fetchColumn(), 'The failed upload retained its ' . $scope . ' lock.');
+    }
+}
+
+function renderCatalogPage(string $page, array $query = [], string $method = 'GET'): string
+{
+    $_SERVER['REQUEST_METHOD'] = $method;
+    $_GET = $query;
+    ob_start();
+    try {
+        require dirname(__DIR__) . '/apps/public-site/screens/' . $page;
+        return (string)ob_get_contents();
+    } finally {
+        ob_end_clean();
+        $_GET = [];
+        unset($_SERVER['REQUEST_METHOD']);
+    }
 }
 
 function assertSame(mixed $expected, mixed $actual, string $message): void

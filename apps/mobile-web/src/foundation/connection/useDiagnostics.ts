@@ -15,7 +15,7 @@ export interface DiagnosticsFailure {
 export function useDiagnostics(
   state: ConnectionState,
   connectionEpoch: number,
-  send: (payload: ClientMessage) => void,
+  send: (payload: ClientMessage) => boolean | void,
 ) {
   const [snapshotState, setSnapshotState] = useState<{
     epoch: number;
@@ -64,11 +64,13 @@ export function useDiagnostics(
     }
 
     const operationId = createLocalId();
+    if (send({ type: "diagnostics.get", operationId }) === false) {
+      return null;
+    }
     const pending = { epoch: connectionEpoch, operationId };
     pendingOperationRef.current = pending;
     setPendingState(pending);
     setFailureState(null);
-    send({ type: "diagnostics.get", operationId });
     return operationId;
   }, [connectionEpoch, send, state]);
 

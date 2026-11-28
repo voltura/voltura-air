@@ -292,6 +292,26 @@ public sealed class PhoneWebcamFeatureTests
     }
 
     [Fact]
+    public async Task FramePipeFailureBeforeSubscriptionDisablesTheFeature()
+    {
+        string pipeName = $"voltura-air-webcam-test-{Guid.NewGuid():N}";
+        await using var feature = new PhoneWebcamFeature(
+            new SuccessfulInstallSetup(),
+            () => new PhoneWebcamFramePipeServer(() =>
+            {
+                var pipe = new NamedPipeServerStream(
+                    pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+                pipe.Dispose();
+                return pipe;
+            }));
+
+        PhoneWebcamFeatureStatus status = await feature.EnableAsync();
+
+        Assert.True(status.HasError);
+        Assert.False(status.IsInstalled);
+    }
+
+    [Fact]
     public async Task RuntimePipeFailureStopsTheProducerAndRetiresTheFeature()
     {
         string pipeName = $"voltura-air-webcam-test-{Guid.NewGuid():N}";

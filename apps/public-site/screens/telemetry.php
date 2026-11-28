@@ -140,7 +140,8 @@ if ($dashboard === null) {
     $body .= telemetry_dashboard_html($dashboard);
 }
 if ($database instanceof PDO) {
-    $body .= '<details class="telemetry-maintenance"><summary>Data cleanup</summary><div class="telemetry-maintenance-content">'
+    $open = $_SERVER['REQUEST_METHOD'] === 'POST' ? ' open' : '';
+    $body .= '<details class="telemetry-maintenance"' . $open . '><summary>Data cleanup</summary><div class="telemetry-maintenance-content">'
         . telemetry_cleanup_html($preview, $cleanupRequest, $cleanupResult, $cleanupToken) . '</div></details>';
 } else {
     $body .= '<p class="catalog-empty">Telemetry cleanup is unavailable until the database connection is healthy.</p>';
@@ -216,13 +217,15 @@ function telemetry_dashboard_html(array $dashboard): string
 function telemetry_cleanup_html(?array $preview, ?array $request, ?array $result, ?string $cleanupToken): string
 {
     $csrf = air_screen_h(air_screen_csrf());
-    $today = gmdate('Y-m-d');
+    $selectedAction = $request['action'] ?? 'retention';
+    $checked = static fn(string $action): string => $action === $selectedAction ? ' checked' : '';
+    $cutoff = air_screen_h($request['cutoff'] ?? gmdate('Y-m-d'));
     $html = '<section id="telemetry-cleanup" class="telemetry-section telemetry-cleanup"><h2>Telemetry cleanup</h2>'
         . '<form method="post" action="#telemetry-cleanup" data-loading-label="Preparing cleanup preview"><input type="hidden" name="csrf" value="' . $csrf . '"><input type="hidden" name="cleanup_stage" value="preview">'
-        . '<fieldset><legend>What to delete</legend><label class="telemetry-cleanup-choice"><input type="radio" name="cleanup_action" value="retention" checked><span>Usage statistics older than 180 days; upload safeguards older than 24 hours</span></label>'
-        . '<label class="telemetry-cleanup-choice"><input type="radio" name="cleanup_action" value="before"><span>Data before a date</span></label>'
-        . '<label class="telemetry-cleanup-date">Delete data before (YYYY-MM-DD)<input type="text" name="cleanup_cutoff" value="' . $today . '" placeholder="YYYY-MM-DD" pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}" maxlength="10" inputmode="numeric" autocomplete="off" spellcheck="false"></label>'
-        . '<label class="telemetry-cleanup-choice"><input type="radio" name="cleanup_action" value="all"><span>All data</span></label></fieldset>'
+        . '<fieldset><legend>What to delete</legend><label class="telemetry-cleanup-choice"><input type="radio" name="cleanup_action" value="retention"' . $checked('retention') . '><span>Usage statistics older than 180 days; upload safeguards older than 24 hours</span></label>'
+        . '<label class="telemetry-cleanup-choice"><input type="radio" name="cleanup_action" value="before"' . $checked('before') . '><span>Data before a date</span></label>'
+        . '<label class="telemetry-cleanup-date">Delete data before (YYYY-MM-DD)<input type="text" name="cleanup_cutoff" value="' . $cutoff . '" placeholder="YYYY-MM-DD" pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}" maxlength="10" inputmode="numeric" autocomplete="off" spellcheck="false"></label>'
+        . '<label class="telemetry-cleanup-choice"><input type="radio" name="cleanup_action" value="all"' . $checked('all') . '><span>All data</span></label></fieldset>'
         . '<button type="submit">Preview</button><span class="telemetry-submit-status" data-submit-status role="status" hidden></span></form>';
 
     $state = $result['remaining'] ?? $preview;

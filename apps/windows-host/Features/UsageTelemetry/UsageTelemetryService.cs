@@ -232,8 +232,14 @@ internal sealed class UsageTelemetryService : IUsageTelemetryRecorder, IUsageSta
                 return new UsageStatisticsTransitionResult(true, true, true);
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
+            var cleanupOnly = State == UsageStatisticsRuntimeState.OffIdentityCleanupPending;
             await StopWorkerAsync(flushOnShutdown: false).ConfigureAwait(false);
-            var denied = await Task.Run(_settings.DenyAndDeleteIdentity, cancellationToken).ConfigureAwait(false);
+            // Disabling is effective locally now. Finish persisting the choice even if the caller leaves.
+            var denied = cleanupOnly
+                ? new UsageStatisticsSettingsResult(true, IdentityRemoved:
+                    await Task.Run(_settings.DeleteStaleIdentity, CancellationToken.None).ConfigureAwait(false))
+                : await Task.Run(_settings.DenyAndDeleteIdentity, CancellationToken.None).ConfigureAwait(false);
             SetState(!denied.Succeeded
                 ? UsageStatisticsRuntimeState.OffChoiceNotSaved
                 : denied.IdentityRemoved

@@ -1053,6 +1053,27 @@ describe("PresentationMode", () => {
     expect(screen.queryByText("Timer ready.")).toBeNull();
   });
 
+  it("keeps local timing unchanged when a slide or end shortcut could not be sent", () => {
+    const onCommand = vi
+      .fn()
+      .mockReturnValueOnce(null)
+      .mockReturnValueOnce("next")
+      .mockReturnValueOnce(null);
+    render(<PresentationMode {...defaultProps} onCommand={onCommand} />);
+    fireEvent.click(screen.getByRole("button", { name: "Change presentation mode (PowerPoint)" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Google Slides" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("button", { name: "Start" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "End slideshow" }));
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("uses feature-detected vibration with visible milestone alternatives", async () => {
     vi.useFakeTimers();
     const vibrate = vi.fn(() => true);

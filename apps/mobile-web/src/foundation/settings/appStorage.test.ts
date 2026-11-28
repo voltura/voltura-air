@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultAppSettings } from "./appSettings";
 import {
   appSettingsKey,
@@ -33,6 +33,7 @@ function createStorage(): Storage {
 beforeEach(() => {
   vi.stubGlobal("localStorage", createStorage());
 });
+afterEach(() => vi.unstubAllGlobals());
 
 describe("appStorage", () => {
   it("defaults the live keyboard to enabled and preserves an explicit preference", () => {
@@ -75,6 +76,7 @@ describe("appStorage", () => {
 
   it("continues with in-memory preferences when browser storage throws", () => {
     expect(loadThemeMode()).toBe("system");
+    const workingStorage = localStorage;
     vi.stubGlobal("localStorage", {
       get length(): number {
         throw new DOMException("Blocked", "SecurityError");
@@ -95,7 +97,13 @@ describe("appStorage", () => {
         throw new DOMException("Blocked", "SecurityError");
       },
     } satisfies Storage);
-    saveThemeMode("dark");
-    expect(loadThemeMode()).toBe("dark");
+    try {
+      saveThemeMode("dark");
+      expect(loadThemeMode()).toBe("dark");
+    } finally {
+      vi.stubGlobal("localStorage", workingStorage);
+      // Replacing the browser double does not clear the module's fallback storage.
+      saveThemeMode("system");
+    }
   });
 });

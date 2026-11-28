@@ -133,6 +133,23 @@ function pairedPc<T extends { id: string; url: string }>(profile: T) {
   };
 }
 
+function authenticateSavedDirectSocket(socket: MockWebSocket) {
+  socket.readyState = MockWebSocket.OPEN;
+  dispatchSocketEvent(socket, "open");
+  dispatchSocketEvent(socket, "message", {
+    data: JSON.stringify({ type: "pair.challenge", clientId: "client-a", challenge: "test" }),
+  });
+  dispatchSocketEvent(socket, "message", {
+    data: JSON.stringify({
+      type: "pair.accepted",
+      clientId: "client-a",
+      pcName: "PC A",
+      paired: true,
+      hostIdentity: testHostIdentity,
+    }),
+  });
+}
+
 function base64Url(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) {
@@ -228,6 +245,54 @@ describe("useVolturaAirConnection", () => {
     expect(refreshed.result.current.activePc).toBeNull();
   });
 
+  it.each(["", "&h=51395"])(
+    "does not activate or save an unconfirmed Direct QR host after refreshing %s",
+    (hostHint) => {
+      window.history.pushState(null, "", `/pair?t=${"a".repeat(32)}&v=1.5.7${hostHint}`);
+      const first = renderHook(() => useVolturaAirConnection());
+      expect(first.result.current.pairedPcs).toEqual([]);
+      expect(new URL(window.location.href).searchParams.has("t")).toBe(false);
+      first.unmount();
+
+      const refreshed = renderHook(() => useVolturaAirConnection());
+      expect(refreshed.result.current.pairedPcs).toEqual([]);
+      expect(refreshed.result.current.activePc).toBeNull();
+      expect(MockWebSocket.instances).toHaveLength(0);
+    },
+  );
+
+  it("restores the last accepted PC when a different Direct QR is refreshed before confirmation", () => {
+    const pc = pairedPc(createPcProfile("http://pc.local:51395"));
+    localStorage.setItem("voltura-air.clientId", "client-a");
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+    localStorage.setItem("voltura-air.activePcId", pc.id);
+    storeReconnectKey("client-a", pc.id);
+    window.history.pushState(null, "", `/pair?t=${"a".repeat(32)}&v=1.5.7&h=51395`);
+
+    const first = renderHook(() => useVolturaAirConnection());
+    expect(first.result.current.activePc).toBeNull();
+    first.unmount();
+
+    const refreshed = renderHook(() => useVolturaAirConnection());
+    expect(refreshed.result.current.pairedPcs).toEqual([pc]);
+    expect(refreshed.result.current.activePc).toEqual(pc);
+    expect(getSocket(0).url).toBe("ws://pc.local:51395/ws");
+  });
+
+  it("keeps Direct device-name confirmation after a fresh app reload with the original token", () => {
+    const pairToken = "a".repeat(32);
+    window.history.pushState(null, "", `/pair?t=${pairToken}&v=1.5.7&h=51395&refresh=123`);
+
+    const { result } = renderHook(() => useVolturaAirConnection());
+
+    expect(result.current.initialPairing).toEqual({
+      pairToken,
+      pcUrl: "http://localhost:51395",
+    });
+    expect(new URL(window.location.href).searchParams.has("t")).toBe(false);
+    expect(MockWebSocket.instances).toHaveLength(0);
+  });
+
   it("clears a failed candidate token before reconnecting the saved PC", async () => {
     const pcUrl = "http://pc.local:51395";
     const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
@@ -281,6 +346,103 @@ describe("useVolturaAirConnection", () => {
     });
 
     expect(connectSecureDirect).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not restart or discard a pending Secure Direct pairing when input is attempted", async () => {
+    vi.useFakeTimers();
+    try {
+      const route = "r".repeat(22);
+      vi.mocked(connectSecureDirect).mockReturnValue(new Promise(() => undefined));
+      const { result, unmount } = renderHook(() => useVolturaAirConnection());
+      act(() => result.current.pairWithToken("a".repeat(32), `https://voltura.se/s/${route}`));
+
+      act(() => {
+        expect(result.current.send({ type: "pointer.move", dx: 1, dy: 1 })).toBe(false);
+      });
+      await act(() => vi.advanceTimersByTimeAsync(1200));
+
+      expect(connectSecureDirect).toHaveBeenCalledTimes(1);
+      expect(result.current.state).toBe("connecting");
+      expect(result.current.lastConnectionError).toBeNull();
+      unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not discard a pairing while its WebSocket is still opening", () => {
+    const { result } = renderHook(() => useVolturaAirConnection());
+    act(() => result.current.pairWithToken("a".repeat(32), "http://pc.local:51395"));
+    const socket = getSocket(0);
+    expect(socket.readyState).toBe(MockWebSocket.CONNECTING);
+
+    act(() => {
+      expect(result.current.send({ type: "pointer.move", dx: 1, dy: 1 })).toBe(false);
+    });
+
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(result.current.state).toBe("connecting");
+    expect(result.current.lastConnectionError).toBeNull();
+  });
+
+  it("cancels superseded Secure Direct setup and cleans up a late channel", async () => {
+    const route = "r".repeat(22);
+    const nextUrl = "http://next.local:51395";
+    let finishSetup!: (result: Awaited<ReturnType<typeof connectSecureDirect>>) => void;
+    vi.mocked(connectSecureDirect).mockReturnValue(
+      new Promise((resolve) => {
+        finishSetup = resolve;
+      }),
+    );
+    const { result } = renderHook(() => useVolturaAirConnection());
+    act(() => result.current.pairWithToken("a".repeat(32), `https://voltura.se/s/${route}`));
+
+    const setupSignal = vi.mocked(connectSecureDirect).mock.calls[0]?.[1];
+    expect(setupSignal?.aborted).toBe(false);
+    act(() => {
+      result.current.addManualPc(nextUrl);
+      expect(setupSignal?.aborted).toBe(true);
+    });
+
+    const lateChannel = new MockControllerDataChannel();
+    const cleanup = vi.fn();
+    await act(async () => {
+      finishSetup({ channel: lateChannel as unknown as RTCDataChannel, cleanup });
+      await Promise.resolve();
+    });
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(lateChannel.send).not.toHaveBeenCalled();
+    expect(getSocket(0).url).toBe("ws://next.local:51395/ws");
+  });
+
+  it("preserves the last connection failure while the next automatic retry is in flight", async () => {
+    vi.useFakeTimers();
+    try {
+      const pc = pairedPc(createPcProfile(`https://voltura.se/s/${"r".repeat(22)}`));
+      localStorage.setItem("voltura-air.clientId", "client-a");
+      localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+      localStorage.setItem("voltura-air.activePcId", pc.id);
+      storeReconnectKey("client-a", pc.id);
+      vi.mocked(connectSecureDirect)
+        .mockRejectedValueOnce(new Error("Connection setup failed"))
+        .mockReturnValue(new Promise(() => undefined));
+
+      const { result, unmount } = renderHook(() => useVolturaAirConnection());
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      expect(result.current.state).toBe("unavailable");
+      const error = result.current.lastConnectionError;
+      expect(error?.code).toBe("VAIR-PAIR-SECURE-DIRECT");
+
+      await act(() => vi.advanceTimersByTimeAsync(1200));
+
+      expect(connectSecureDirect).toHaveBeenCalledTimes(2);
+      expect(result.current.state).toBe("unavailable");
+      expect(result.current.lastConnectionError).toEqual(error);
+      expect(result.current.message).toBe(error?.message);
+      unmount();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("starts the Secure Direct pairing handshake once when an already-open channel emits a late open event", async () => {
@@ -688,6 +850,22 @@ describe("useVolturaAirConnection", () => {
     });
   });
 
+  it("keeps the active connection when a stale saved-PC choice no longer exists", () => {
+    const pc = pairedPc(createPcProfile("http://pc.local:51395"));
+    localStorage.setItem("voltura-air.clientId", "client-a");
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+    localStorage.setItem("voltura-air.activePcId", pc.id);
+    storeReconnectKey("client-a", pc.id);
+    const { result } = renderHook(() => useVolturaAirConnection());
+    const socket = getSocket(0);
+
+    act(() => result.current.selectPc("http://forgotten.local:51395"));
+
+    expect(result.current.activePc).toEqual(pc);
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(localStorage.getItem("voltura-air.activePcId")).toBe(pc.id);
+  });
+
   it("clears a rejected reconnect key and returns to pairing instead of staying rejected", async () => {
     const pcUrl = "http://pc.local:51395";
     const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
@@ -873,6 +1051,53 @@ describe("useVolturaAirConnection", () => {
     expect(localStorage.getItem(`voltura-air.reconnect-key.client-a.${pc.id}`)).not.toBeNull();
   });
 
+  it("does not save a pending pairing whose acceptance arrives after a new target is chosen", () => {
+    const oldUrl = "http://old.local:51395";
+    const nextUrl = "http://next.local:51395";
+    const token = "a".repeat(32);
+    const { result } = renderHook(() => useVolturaAirConnection());
+    act(() => result.current.pairWithToken(token, oldUrl));
+    const oldSocket = getSocket(0);
+    oldSocket.readyState = MockWebSocket.OPEN;
+    dispatchSocketEvent(oldSocket, "open");
+    const hello = JSON.parse(String(oldSocket.send.mock.calls[0]?.[0])) as {
+      clientId: string;
+      clientNonce: string;
+      reconnectPublicKey: string;
+    };
+    const serverNonce = "B".repeat(43);
+    dispatchSocketEvent(oldSocket, "message", {
+      data: JSON.stringify({
+        type: "pair.bootstrap.challenge",
+        clientId: hello.clientId,
+        clientNonce: hello.clientNonce,
+        serverNonce,
+        hostIdentity: testHostIdentity,
+        proof: createTestHostProof(token, hello, serverNonce),
+      }),
+    });
+
+    act(() => {
+      result.current.addManualPc(nextUrl);
+      oldSocket.dispatch("message", {
+        data: JSON.stringify({
+          type: "pair.accepted",
+          clientId: hello.clientId,
+          pcName: "Old PC",
+          paired: true,
+          hostIdentity: testHostIdentity,
+        }),
+      });
+    });
+
+    expect(result.current.pairedPcs).toEqual([]);
+    expect(result.current.activePc).toBeNull();
+    expect(
+      localStorage.getItem(`voltura-air.reconnect-key.${hello.clientId}.${oldUrl}`),
+    ).toBeNull();
+    expect(getSocket(1).url).toBe("ws://next.local:51395/ws");
+  });
+
   it("discards an unreachable manual address without changing the saved PC", async () => {
     const pcUrl = "http://pc.local:51395";
     const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
@@ -912,6 +1137,72 @@ describe("useVolturaAirConnection", () => {
     expect(localStorage.getItem("voltura-air.activePcId")).toBe(pc.id);
     expect(localStorage.getItem(`voltura-air.reconnect-key.client-a.${pc.id}`)).not.toBeNull();
     expect(localStorage.getItem("voltura-air.reconnect-key.client-a.http://jjjjjjjj")).toBeNull();
+  });
+
+  it("uses the saved identity and key when entering a saved PC address manually", () => {
+    const activePc = pairedPc(createPcProfile("http://pc.local:51395"));
+    const savedPc = pairedPc({
+      ...createPcProfile("http://other.local:51395"),
+      customName: true,
+      name: "Saved editing PC",
+    });
+    localStorage.setItem("voltura-air.clientId", "client-a");
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([activePc, savedPc]));
+    localStorage.setItem("voltura-air.activePcId", activePc.id);
+    const reconnectKey = storeReconnectKey("client-a", savedPc.id);
+    const { result } = renderHook(() => useVolturaAirConnection());
+
+    act(() => result.current.addManualPc(savedPc.url));
+    const socket = getSocket(1);
+    expect(socket.url).toBe("ws://other.local:51395/ws");
+    expect(result.current.activePc).toEqual(activePc);
+    expect(localStorage.getItem("voltura-air.activePcId")).toBe(activePc.id);
+
+    socket.readyState = MockWebSocket.OPEN;
+    dispatchSocketEvent(socket, "open");
+    expect(socket.send).toHaveBeenCalledWith(expect.stringContaining('"type":"pair.hello"'));
+    dispatchSocketEvent(socket, "message", {
+      data: JSON.stringify({ type: "pair.challenge", clientId: "client-a", challenge: "test" }),
+    });
+    expect(socket.send).toHaveBeenCalledWith(expect.stringContaining('"type":"pair.proof"'));
+    dispatchSocketEvent(socket, "message", {
+      data: JSON.stringify({
+        type: "pair.accepted",
+        clientId: "client-a",
+        pcName: "Host name",
+        paired: true,
+        hostIdentity: testHostIdentity,
+      }),
+    });
+
+    expect(result.current.state).toBe("paired");
+    expect(result.current.activePc).toEqual(savedPc);
+    expect(localStorage.getItem("voltura-air.activePcId")).toBe(savedPc.id);
+    expect(localStorage.getItem(`voltura-air.reconnect-key.client-a.${savedPc.id}`)).toBe(
+      reconnectKey,
+    );
+  });
+
+  it("keeps reconnecting when the active PC address is entered manually and the host is offline", async () => {
+    const pc = pairedPc(createPcProfile("http://pc.local:51395"));
+    localStorage.setItem("voltura-air.clientId", "client-a");
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+    localStorage.setItem("voltura-air.activePcId", pc.id);
+    storeReconnectKey("client-a", pc.id);
+    vi.useFakeTimers();
+    try {
+      const { result, unmount } = renderHook(() => useVolturaAirConnection());
+      act(() => result.current.addManualPc(pc.url));
+      dispatchSocketEvent(getSocket(1), "error");
+      expect(result.current.state).toBe("unavailable");
+
+      await act(() => vi.advanceTimersByTimeAsync(1200));
+      expect(getSocket(2).url).toBe("ws://pc.local:51395/ws");
+      expect(result.current.activePc).toEqual(pc);
+      unmount();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("stores a token pairing reconnect key only after the host accepts it", async () => {
@@ -1375,6 +1666,80 @@ describe("useVolturaAirConnection", () => {
     );
   });
 
+  it("ignores a feature protocol load failure from a socket that already closed", async () => {
+    const pc = pairedPc(createPcProfile("http://pc.local:51395"));
+    localStorage.setItem("voltura-air.clientId", "client-a");
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+    localStorage.setItem("voltura-air.activePcId", pc.id);
+    storeReconnectKey("client-a", pc.id);
+    const loadProtocol = vi.fn(() => {
+      throw new Error("Test protocol import failed");
+    });
+    vi.doMock("./terminalServerProtocol", loadProtocol);
+    try {
+      const { result } = renderHook(() => useVolturaAirConnection());
+      const socket = getSocket(0);
+      socket.readyState = MockWebSocket.OPEN;
+      dispatchSocketEvent(socket, "open");
+      dispatchSocketEvent(socket, "message", {
+        data: JSON.stringify({
+          type: "pair.accepted",
+          clientId: "client-a",
+          pcName: "PC",
+          paired: true,
+          hostIdentity: testHostIdentity,
+        }),
+      });
+
+      act(() => {
+        socket.dispatch("message", {
+          data: JSON.stringify({
+            type: "terminal.status",
+            terminalId: "0123456789abcdef0123456789abcdef",
+            state: "detached",
+            acknowledgedOffset: 42,
+          }),
+        });
+        socket.readyState = MockWebSocket.CLOSED;
+        socket.dispatch("close");
+      });
+      await act(async () => {
+        await vi.dynamicImportSettled();
+      });
+
+      expect(loadProtocol).toHaveBeenCalledOnce();
+      expect(result.current.lastConnectionError?.code).toBe("VAIR-PAIR-SOCKET-CLOSED");
+    } finally {
+      vi.doUnmock("./terminalServerProtocol");
+    }
+  });
+
+  it("releases the startup timer as soon as a saved-PC reconnect is rejected", () => {
+    const pc = pairedPc(createPcProfile("http://pc.local:51395"));
+    localStorage.setItem("voltura-air.clientId", "client-a");
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+    localStorage.setItem("voltura-air.activePcId", pc.id);
+    storeReconnectKey("client-a", pc.id);
+    vi.useFakeTimers();
+    try {
+      const { result, unmount } = renderHook(() => useVolturaAirConnection());
+      const socket = getSocket(0);
+      socket.readyState = MockWebSocket.OPEN;
+      dispatchSocketEvent(socket, "open");
+      expect(vi.getTimerCount()).toBe(1);
+
+      dispatchSocketEvent(socket, "message", {
+        data: JSON.stringify({ type: "pair.rejected", reason: "rate-limited" }),
+      });
+
+      expect(result.current.state).toBe("rejected");
+      expect(vi.getTimerCount()).toBe(0);
+      unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps relay retries behind the stable unavailable state", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
@@ -1542,12 +1907,12 @@ describe("useVolturaAirConnection", () => {
   });
 
   it("forgets the active PC while retaining another saved profile", async () => {
-    const active = {
+    const active = pairedPc({
       customName: false,
       id: "http://pc-a.local:51395",
       name: "PC A",
       url: "http://pc-a.local:51395",
-    };
+    });
     const inactive = {
       customName: false,
       id: "http://pc-b.local:51395",
@@ -1564,7 +1929,8 @@ describe("useVolturaAirConnection", () => {
       expect(MockWebSocket.instances).toHaveLength(1);
     });
     const socket = getSocket(0);
-    socket.readyState = MockWebSocket.OPEN;
+    authenticateSavedDirectSocket(socket);
+    expect(result.current.state).toBe("paired");
 
     act(() => {
       result.current.forgetPc(active.id);
@@ -1587,12 +1953,12 @@ describe("useVolturaAirConnection", () => {
   });
 
   it("forgets the only active PC and leaves a clean pairing state", async () => {
-    const active = {
+    const active = pairedPc({
       customName: false,
       id: "http://pc-a.local:51395",
       name: "PC A",
       url: "http://pc-a.local:51395",
-    };
+    });
     localStorage.setItem("voltura-air.clientId", "client-a");
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([active]));
     localStorage.setItem("voltura-air.activePcId", active.id);
@@ -1602,7 +1968,8 @@ describe("useVolturaAirConnection", () => {
       expect(MockWebSocket.instances).toHaveLength(1);
     });
     const socket = getSocket(0);
-    socket.readyState = MockWebSocket.OPEN;
+    authenticateSavedDirectSocket(socket);
+    expect(result.current.state).toBe("paired");
 
     act(() => {
       result.current.forgetPc(active.id);
@@ -1619,6 +1986,39 @@ describe("useVolturaAirConnection", () => {
     expect(result.current.hostStatus).toBeNull();
     expect(localStorage.getItem("voltura-air.activePcId")).toBeNull();
     expect(socket.close).toHaveBeenCalled();
+  });
+
+  it("forgets a saved PC using its own reconnect while a different pairing is in flight", async () => {
+    const active = pairedPc(createPcProfile("http://pc-a.local:51395"));
+    const pendingUrl = "http://pc-b.local:51395";
+    localStorage.setItem("voltura-air.clientId", "client-a");
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([active]));
+    localStorage.setItem("voltura-air.activePcId", active.id);
+    storeReconnectKey("client-a", active.id);
+    const { result } = renderHook(() => useVolturaAirConnection());
+
+    act(() => result.current.pairWithToken("a".repeat(32), pendingUrl));
+    const candidateSocket = getSocket(1);
+    candidateSocket.readyState = MockWebSocket.OPEN;
+    dispatchSocketEvent(candidateSocket, "open");
+    expect(result.current.activePc).toEqual(active);
+
+    act(() => result.current.forgetPc(active.id));
+
+    const disconnect = JSON.stringify({ type: "pair.disconnect" });
+    expect(candidateSocket.send).not.toHaveBeenCalledWith(disconnect);
+    const revocationSocket = getSocket(2);
+    expect(revocationSocket.url).toBe("ws://pc-a.local:51395/ws");
+    authenticateSavedDirectSocket(revocationSocket);
+    expect(revocationSocket.send).toHaveBeenCalledWith(disconnect);
+    dispatchSocketEvent(revocationSocket, "close", { code: 1000, reason: "Host closed session" });
+
+    await waitFor(() => expect(result.current.pairedPcs).toEqual([]));
+    expect(result.current.state).toBe("connecting");
+    expect(candidateSocket.close).not.toHaveBeenCalled();
+    expect(candidateSocket.send).not.toHaveBeenCalledWith(disconnect);
+    expect(localStorage.getItem("voltura-air.activePcId")).toBeNull();
+    expect(localStorage.getItem(`voltura-air.reconnect-key.client-a.${active.id}`)).toBeNull();
   });
 
   it("ignores the old socket closing after a new QR pairing begins", async () => {

@@ -85,6 +85,7 @@ export function useVolturaAirConnection() {
   const lastMovementAckAtRef = useRef(0);
   const reconnectRef = useRef<(() => void) | null>(null);
   const rescheduleHealthCheckRef = useRef<(() => void) | null>(null);
+  const retireConnectionRef = useRef<(() => void) | null>(null);
   const relayEncryptedSendRef = useRef<RelayEncryptedSend | null>(null);
 
   useEffect(() => {
@@ -281,6 +282,7 @@ export function useVolturaAirConnection() {
     reconnectRef,
     relayEncryptedSendRef,
     rescheduleHealthCheckRef,
+    retireConnectionRef,
     screenshotMode,
     setActivePcId,
     setAudioStateFromSocket: setAudioState,
@@ -348,11 +350,14 @@ export function useVolturaAirConnection() {
     setHostPointerSpeed,
   } = usePairedPcActions({
     activePcId,
+    authenticatedSocketRef,
     clearRuntimeState,
     clientId,
+    connectionPc,
     deviceNameRef,
     pairedPcs,
     relayEncryptedSendRef,
+    retireConnectionRef,
     screenshotMode,
     send,
     setActivePcId,
@@ -369,6 +374,7 @@ export function useVolturaAirConnection() {
   });
 
   return {
+    initialPairing,
     state,
     connectionEpoch,
     message: displayMessage,

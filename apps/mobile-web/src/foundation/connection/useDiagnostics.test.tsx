@@ -57,6 +57,23 @@ describe("useDiagnostics", () => {
     expect(setIntervalSpy).not.toHaveBeenCalled();
   });
 
+  it("allows another diagnostics request if the socket refused the first one", () => {
+    vi.useFakeTimers();
+    const send = vi.fn<() => boolean>().mockReturnValueOnce(false).mockReturnValueOnce(true);
+    const { result } = renderHook(() => useDiagnostics("paired", 1, send));
+
+    act(() => {
+      expect(result.current.requestDiagnostics()).toBeNull();
+    });
+    expect(result.current.pending).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+
+    act(() => {
+      expect(result.current.requestDiagnostics()).toEqual(expect.any(String));
+    });
+    expect(result.current.pending).toBe(true);
+  });
+
   it("expires a lost reply, permits retry, and ignores the late response", () => {
     vi.useFakeTimers();
     const send = vi.fn();

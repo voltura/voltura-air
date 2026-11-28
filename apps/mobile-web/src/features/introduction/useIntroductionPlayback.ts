@@ -101,8 +101,11 @@ export function useIntroductionPlayback({
       expectedScrollTop = scroller?.scrollTop ?? 0;
       const shellCard = card?.parentElement;
       const targetRect = first.getBoundingClientRect();
-      if (!drawerStage && shellCard && targetRect.top > window.innerHeight / 2) {
-        shellCard.style.bottom = `${Math.max(12, window.innerHeight - targetRect.top + 12)}px`;
+      if (!drawerStage && shellCard) {
+        shellCard.style.bottom =
+          targetRect.top > window.innerHeight / 2
+            ? `${Math.max(12, window.innerHeight - targetRect.top + 12)}px`
+            : "";
       }
       setPositionedStep(step);
     };

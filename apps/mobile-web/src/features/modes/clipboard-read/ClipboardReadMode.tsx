@@ -1,5 +1,5 @@
 import { ClipboardPaste, Copy, Scissors } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import "./clipboard-read.css";
 import {
   canCopyTextToClipboard,
@@ -62,7 +62,7 @@ export function ClipboardReadMode({
   const mountedRef = useRef(true);
   const selectionGenerationRef = useRef(0);
   const cancelDeviceCopyRef = useRef(onCancelGetTextForDevice);
-  useEffect(() => {
+  useLayoutEffect(() => {
     cancelDeviceCopyRef.current = onCancelGetTextForDevice;
   }, [onCancelGetTextForDevice]);
   useEffect(() => {
@@ -75,7 +75,7 @@ export function ClipboardReadMode({
 
   const isErrorDialogOpen = result !== null && !result.succeeded && result !== dismissedErrorResult;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
@@ -83,7 +83,7 @@ export function ClipboardReadMode({
       selectionGenerationRef.current += 1;
       cancelDeviceCopyRef.current();
     };
-  }, []);
+  }, [clientId, isAllowed]);
 
   const closeErrorDialog = () => {
     setDismissedErrorResult(result);
@@ -96,6 +96,7 @@ export function ClipboardReadMode({
       return;
     }
 
+    selectionGenerationRef.current += 1;
     textArea.focus({ preventScroll: true });
     textArea.select();
     setTextSelection({ start: 0, end: text.length, sourceText: text });
@@ -117,6 +118,7 @@ export function ClipboardReadMode({
   };
 
   const clearAllText = () => {
+    selectionGenerationRef.current += 1;
     setTextSelection(null);
     onTextChange("");
   };
@@ -127,6 +129,7 @@ export function ClipboardReadMode({
     }
 
     const selectionStart = textSelection.start;
+    selectionGenerationRef.current += 1;
     onTextChange(text.slice(0, selectionStart) + text.slice(textSelection.end));
     setTextSelection(null);
     window.requestAnimationFrame(() => {

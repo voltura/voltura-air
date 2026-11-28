@@ -105,6 +105,27 @@ describe("usePresentationReportSave", () => {
     expect(send).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps the report available to retry when the first save could not be sent", () => {
+    vi.useFakeTimers();
+    const send = vi.fn<() => boolean>().mockReturnValueOnce(false).mockReturnValueOnce(true);
+    const { result } = renderHook(() => usePresentationReportSave("paired", 1, send));
+
+    act(() => {
+      expect(result.current.requestPresentationReportSave(payload)).toBeNull();
+    });
+    expect(result.current.pendingPresentationReportSave).toBeNull();
+    expect(result.current.presentationReportSaveResult?.code).toBe(
+      "VAIR-PRESENTATION-SAVE-SEND-FAILED",
+    );
+    expect(vi.getTimerCount()).toBe(0);
+
+    act(() => {
+      expect(result.current.requestPresentationReportSave(payload)).toEqual(expect.any(String));
+    });
+    expect(result.current.pendingPresentationReportSave?.reportId).toBe(payload.reportId);
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
   it("freezes the pending identity for retry when the connection is lost", () => {
     const send = vi.fn();
     const { result, rerender } = renderHook(({ state }) => usePresentationReportSave(state, 1, send), {

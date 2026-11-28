@@ -298,7 +298,9 @@ internal sealed class PhoneWebcamFeature : IPhoneWebcamFeature, IAsyncDisposable
         {
             PhoneWebcamFramePipeServer pipe = _createPipe();
             pipe.Failed += OnPipeFailed;
-            _pipe = pipe;
+            Volatile.Write(ref _pipe, pipe);
+            if (pipe.Failure is { } failure)
+                OnPipeFailed(pipe, failure);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {

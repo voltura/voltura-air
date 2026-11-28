@@ -60,6 +60,10 @@ internal sealed class AiAssistantSessionManager : IAsyncDisposable
         TaskCompletionSource opening;
         lock (_gate)
         {
+            if (Volatile.Read(ref _disposed) != 0)
+            {
+                return AiAssistantSessionOpenResult.Failed("closed", "The AI Assistant is unavailable.");
+            }
             if (_active is not null || _openingOwner is not null || _retiring)
             {
                 return AiAssistantSessionOpenResult.Failed(
@@ -70,13 +74,13 @@ internal sealed class AiAssistantSessionManager : IAsyncDisposable
             opening = new(TaskCreationOptions.RunContinuationsAsynchronously);
             _openingCompletion = opening;
         }
-        StateChanged?.Invoke(this, EventArgs.Empty);
-
         IAiAssistantClient? client = null;
+        AiAssistantSessionLease? unpublishedLease = null;
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
         CancellationToken token = linked.Token;
         try
         {
+            StateChanged?.Invoke(this, EventArgs.Empty);
             client = await _clientFactory.ConnectAsync(token).ConfigureAwait(false);
             CodexThreadSummary? thread = await client.FindAssistantAsync(token).ConfigureAwait(false);
             CodexThreadDetail snapshot;
@@ -91,8 +95,8 @@ internal sealed class AiAssistantSessionManager : IAsyncDisposable
                 snapshot = await client.ReadThreadAsync(thread.Id, token).ConfigureAwait(false);
             }
             token.ThrowIfCancellationRequested();
-#pragma warning disable CA2000 // Ownership transfers to the manager before the lease is published.
-            var lease = new AiAssistantSessionLease(this, owner, client, thread.Id);
+#pragma warning disable CA2000 // The unpublished owner retires the lease if manager admission fails.
+            var lease = unpublishedLease = new AiAssistantSessionLease(this, owner, client, thread.Id);
 #pragma warning restore CA2000
             client = null;
             lock (_gate)
@@ -103,6 +107,7 @@ internal sealed class AiAssistantSessionManager : IAsyncDisposable
                 }
                 _openingOwner = null;
                 _active = lease;
+                unpublishedLease = null;
             }
             StateChanged?.Invoke(this, EventArgs.Empty);
             return new AiAssistantSessionOpenResult(lease, snapshot, null, null);
@@ -119,22 +124,32 @@ internal sealed class AiAssistantSessionManager : IAsyncDisposable
         }
         finally
         {
-            if (client is not null)
+            try
             {
-                await client.DisposeAsync().ConfigureAwait(false);
-            }
-            bool changed = false;
-            lock (_gate)
-            {
-                if (ReferenceEquals(_openingOwner, owner))
+                if (unpublishedLease is not null)
                 {
-                    _openingOwner = null;
-                    changed = true;
+                    await unpublishedLease.DisposeClientAsync().ConfigureAwait(false);
                 }
-                if (ReferenceEquals(_openingCompletion, opening)) _openingCompletion = null;
+                else if (client is not null)
+                {
+                    await client.DisposeAsync().ConfigureAwait(false);
+                }
             }
-            opening.TrySetResult();
-            if (changed) StateChanged?.Invoke(this, EventArgs.Empty);
+            finally
+            {
+                bool changed = false;
+                lock (_gate)
+                {
+                    if (ReferenceEquals(_openingOwner, owner))
+                    {
+                        _openingOwner = null;
+                        changed = true;
+                    }
+                    if (ReferenceEquals(_openingCompletion, opening)) _openingCompletion = null;
+                }
+                opening.TrySetResult();
+                if (changed) StateChanged?.Invoke(this, EventArgs.Empty);
+            }
         }
     }
 

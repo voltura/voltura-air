@@ -16,7 +16,7 @@ export function useCustomScreens(
   state: ConnectionState,
   connectionEpoch: number,
   catalogRevision: string | undefined,
-  send: (payload: ClientMessage) => void,
+  send: (payload: ClientMessage) => boolean | void,
 ) {
   const [definitionState, setDefinitionState] = useState<{
     catalogRevision: string | undefined;
@@ -84,9 +84,24 @@ export function useCustomScreens(
       }
 
       const operationId = createLocalId();
+      window.clearTimeout(getTimeoutRef.current);
+      if (send({ type: "custom.screen.get", operationId, screenId }) === false) {
+        pendingGetRef.current = null;
+        setGetResultState({
+          catalogRevision,
+          connectionEpoch,
+          value: {
+            type: "custom.screen.get.result",
+            operationId,
+            succeeded: false,
+            code: "VAIR-CUSTOM-SCREEN-SEND-FAILED",
+            message: "Could not request the custom screen. Reopen it to try again.",
+          },
+        });
+        return;
+      }
       pendingGetRef.current = { catalogRevision, connectionEpoch, operationId, screenId };
       setGetResultState(null);
-      window.clearTimeout(getTimeoutRef.current);
       getTimeoutRef.current = window.setTimeout(() => {
         if (pendingGetRef.current?.operationId !== operationId) {
           return;
@@ -105,7 +120,6 @@ export function useCustomScreens(
           },
         });
       }, 15_000);
-      send({ type: "custom.screen.get", operationId, screenId });
     },
     [catalogRevision, connectionEpoch, send, state],
   );
@@ -215,6 +229,31 @@ export function useCustomScreens(
       }
 
       const operationId = createLocalId();
+      const sent = send({
+        type: "custom.screen.invoke",
+        operationId,
+        screenId,
+        screenRevision,
+        buttonId,
+        ...(enabled === undefined ? {} : { enabled }),
+      });
+      if (sent === false) {
+        if (!suppressResult) {
+          setInvokeResultState({
+            connectionEpoch,
+            value: {
+              type: "custom.screen.invoke.result",
+              operationId,
+              screenId,
+              buttonId,
+              succeeded: false,
+              code: "VAIR-CUSTOM-SCREEN-INVOKE-SEND-FAILED",
+              message: "Could not send the custom screen action. Try again.",
+            },
+          });
+        }
+        return;
+      }
       const timeout = window.setTimeout(() => {
         completeCustomScreenInvoke({
           type: "custom.screen.invoke.result",
@@ -240,14 +279,6 @@ export function useCustomScreens(
           buttonId,
         ),
       }));
-      send({
-        type: "custom.screen.invoke",
-        operationId,
-        screenId,
-        screenRevision,
-        buttonId,
-        ...(enabled === undefined ? {} : { enabled }),
-      });
     },
     [completeCustomScreenInvoke, connectionEpoch, send, state],
   );

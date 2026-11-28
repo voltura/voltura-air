@@ -6,6 +6,7 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
 {
     private readonly Lock _gate = new();
     private readonly Dictionary<WebSocket, PendingStart> _pendingStarts = [];
+    private readonly Dictionary<WebSocket, Task> _pendingAnswers = [];
     private readonly Dictionary<WebSocket, Task> _pendingStops = [];
     private readonly PhoneWebcamCoordinator _coordinator;
     private readonly WebSocketTransport _transport;
@@ -175,7 +176,7 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
         await SendStartResultAsync(socket, operationId, result, cancellationToken).ConfigureAwait(false);
     }
 
-    internal async Task AnswerAsync(
+    internal Task AnswerAsync(
         WebSocket socket,
         string clientId,
         string operationId,
@@ -183,24 +184,82 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
         string clientSignature,
         CancellationToken cancellationToken)
     {
-        PhoneWebcamOperationResult result = await _coordinator.CompleteAnswerAsync(
-            socket,
-            clientId,
-            operationId,
-            answerSdp,
-            clientSignature).ConfigureAwait(false);
-        if (!result.Succeeded)
+        Task? answer = null;
+        lock (_gate)
         {
-            _appLog.Write(new AppLogEntry("phone_webcam", "windows_host", Action: "answer_failed", Outcome: "failed", Code: result.Code));
+            if (Volatile.Read(ref _disposed) != 0)
+            {
+                return Task.CompletedTask;
+            }
+
+            if (_pendingAnswers.GetValueOrDefault(socket)?.IsCompleted is not false)
+            {
+                answer = RunAnswerAsync(socket, clientId, operationId, answerSdp, clientSignature,
+                    _pendingStops.GetValueOrDefault(socket), cancellationToken);
+                _pendingAnswers[socket] = answer;
+            }
         }
-        await _transport.SendAsync(socket, new
+
+        if (answer is null)
+        {
+            return SendAnswerResultAsync(socket, operationId,
+                new(false, "offer-expired", "The Phone webcam offer is already being answered."), cancellationToken);
+        }
+
+        ForgetCompletedWork(socket, answer, _pendingAnswers);
+        return Task.CompletedTask;
+    }
+
+    private async Task RunAnswerAsync(
+        WebSocket socket,
+        string clientId,
+        string operationId,
+        string answerSdp,
+        string clientSignature,
+        Task? precedingStop,
+        CancellationToken cancellationToken)
+    {
+        await Task.Yield();
+        try
+        {
+            if (precedingStop is not null)
+                await precedingStop.WaitAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            PhoneWebcamOperationResult result = await _coordinator.CompleteAnswerAsync(
+                socket, clientId, operationId, answerSdp, clientSignature).ConfigureAwait(false);
+            await SendAnswerResultAsync(socket, operationId, result, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is OperationCanceledException or WebSocketException or ObjectDisposedException)
+        {
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            try
+            {
+                await SendAnswerResultAsync(socket, operationId,
+                    new(false, "webrtc-unavailable", "The PC could not answer the Phone webcam connection."),
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception sendException) when (sendException is OperationCanceledException or WebSocketException or ObjectDisposedException)
+            {
+            }
+        }
+    }
+
+    private Task SendAnswerResultAsync(WebSocket socket, string operationId,
+        PhoneWebcamOperationResult result, CancellationToken cancellationToken)
+    {
+        if (!result.Succeeded)
+            _appLog.Write(new AppLogEntry("phone_webcam", "windows_host", Action: "answer_failed", Outcome: "failed", Code: result.Code));
+        return _transport.SendAsync(socket, new
         {
             type = "phone.webcam.answer.result",
             operationId,
             succeeded = result.Succeeded,
             code = result.Code,
             message = result.Message
-        }, cancellationToken).ConfigureAwait(false);
+        }, cancellationToken);
     }
 
     internal Task StopAsync(
@@ -219,26 +278,31 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
 
             PendingStart? pending = _pendingStarts.GetValueOrDefault(socket);
             _pendingStarts.Remove(socket);
-            stop = RunStopAsync(socket, clientId, operationId, pending,
+            stop = RunStopAsync(socket, clientId, operationId, pending, _pendingAnswers.GetValueOrDefault(socket),
                 _pendingStops.GetValueOrDefault(socket), cancellationToken);
             _pendingStops[socket] = stop;
         }
 
-        _ = stop.ContinueWith(
+        ForgetCompletedWork(socket, stop, _pendingStops);
+        return Task.CompletedTask;
+    }
+
+    private void ForgetCompletedWork(WebSocket socket, Task work, Dictionary<WebSocket, Task> pendingWork)
+    {
+        _ = work.ContinueWith(
             completed =>
             {
                 lock (_gate)
                 {
-                    if (ReferenceEquals(_pendingStops.GetValueOrDefault(socket), completed))
+                    if (ReferenceEquals(pendingWork.GetValueOrDefault(socket), completed))
                     {
-                        _pendingStops.Remove(socket);
+                        pendingWork.Remove(socket);
                     }
                 }
             },
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
-        return Task.CompletedTask;
     }
 
     private async Task RunStopAsync(
@@ -246,6 +310,7 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
         string clientId,
         string operationId,
         PendingStart? pending,
+        Task? precedingAnswer,
         Task? precedingStop,
         CancellationToken cancellationToken)
     {
@@ -263,6 +328,8 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
             }
 
             await _coordinator.StopAsync(clientId, owner: socket).ConfigureAwait(false);
+            if (precedingAnswer is not null)
+                await precedingAnswer.ConfigureAwait(false);
             await SendStopResultAsync(socket, operationId, true, "stopped", "Phone webcam stopped.", cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is OperationCanceledException or WebSocketException or ObjectDisposedException)
@@ -300,10 +367,12 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
     {
         PendingStart? pending;
         Task? stop;
+        Task? answer;
         lock (_gate)
         {
             pending = _pendingStarts.GetValueOrDefault(socket);
             stop = _pendingStops.GetValueOrDefault(socket);
+            answer = _pendingAnswers.GetValueOrDefault(socket);
         }
         pending?.Cancel();
         if (pending is not null)
@@ -316,6 +385,8 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
         }
 
         await _coordinator.StopAsync(clientId, "connection-lost", socket).ConfigureAwait(false);
+        if (answer is not null)
+            await answer.ConfigureAwait(false);
     }
 
     private Task SendStartResultAsync(
@@ -395,10 +466,12 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
 
         PendingStart[] pending;
         Task[] stops;
+        Task[] answers;
         lock (_gate)
         {
             pending = [.. _pendingStarts.Values];
             stops = [.. _pendingStops.Values];
+            answers = [.. _pendingAnswers.Values];
         }
 
         foreach (PendingStart item in pending)
@@ -406,9 +479,9 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
             item.Cancel();
         }
 
-        await Task.WhenAll(pending.Select(item => item.Task).Concat(stops)).ConfigureAwait(false);
         _coordinator.Ended -= OnEnded;
-        await _coordinator.DisposeAsync().ConfigureAwait(false);
+        Task sessions = _coordinator.DisposeAsync().AsTask();
+        await Task.WhenAll(pending.Select(item => item.Task).Concat(stops).Concat(answers).Append(sessions)).ConfigureAwait(false);
     }
 
     private sealed class PendingStart(CancellationTokenSource cancellation) : IDisposable

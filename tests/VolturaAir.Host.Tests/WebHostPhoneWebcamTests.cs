@@ -148,8 +148,9 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
             var failedPeer = new FakePhoneWebcamPeer(
                 stopWhenSubscribed: !stoppedBeforeSubscription, transportStopped: stoppedBeforeSubscription);
             var replacementPeer = new FakePhoneWebcamPeer();
+            await using var feature = CreateInstalledFeature();
             await using var fixture = await WebHostFixture.StartAsync(
-                phoneWebcamFeature: new InstalledPhoneWebcamFeature(),
+                phoneWebcamFeature: feature,
                 phoneWebcamPeerFactory: new QueuePhoneWebcamPeerFactory(failedPeer, replacementPeer));
             using var reconnectKey = new PairingTestKey();
             using WebSocket control = await ConnectAsync(fixture.WebHost);
@@ -157,6 +158,7 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
 
             const string operationId = "webcam-startup-failure";
             JsonElement start = await StartAsync(control, reconnectKey, operationId);
+            Assert.Equal("connecting", feature.Activity.State);
             string offerHash = HashSdp(start.GetProperty("offerSdp").GetString()!);
             JsonElement answer = await SendUntilTypeAsync(control, new
             {
@@ -170,6 +172,7 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
             Assert.False(answer.GetProperty("succeeded").GetBoolean());
             Assert.Equal("offer-expired", answer.GetProperty("code").GetString());
             Assert.True(failedPeer.Disposed);
+            Assert.Equal("idle", feature.Activity.State);
             Assert.True((await StartAsync(control, reconnectKey, "webcam-after-startup-failure"))
                 .GetProperty("succeeded").GetBoolean());
         }
@@ -307,8 +310,9 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
         AppPermissionSettings.Save(AppPermissionSettings.Load() with { AllowPhoneWebcam = true });
         var first = new FakePhoneWebcamPeer();
         var replacement = new FakePhoneWebcamPeer();
+        await using var feature = CreateInstalledFeature();
         await using var fixture = await WebHostFixture.StartAsync(
-            phoneWebcamFeature: new InstalledPhoneWebcamFeature(),
+            phoneWebcamFeature: feature,
             phoneWebcamPeerFactory: new QueuePhoneWebcamPeerFactory(first, replacement));
         using var key = new PairingTestKey();
         using WebSocket control = await ConnectAsync(fixture.WebHost);
@@ -320,6 +324,7 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
             Assert.False(failed.GetProperty("succeeded").GetBoolean());
             Assert.Equal("webrtc-unavailable", failed.GetProperty("code").GetString());
             Assert.True(first.Disposed);
+            Assert.Equal("idle", feature.Activity.State);
         }
         finally
         {
@@ -493,8 +498,9 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
         {
             AppPermissionSettings.Save(originalPermissions with { AllowPhoneWebcam = true });
             var peer = new FakePhoneWebcamPeer();
+            await using var feature = CreateInstalledFeature();
             await using var fixture = await WebHostFixture.StartAsync(
-                phoneWebcamFeature: new InstalledPhoneWebcamFeature(),
+                phoneWebcamFeature: feature,
                 phoneWebcamPeerFactory: new FakePhoneWebcamPeerFactory(peer));
             using var reconnectKey = new PairingTestKey();
             using WebSocket control = await ConnectAsync(fixture.WebHost);
@@ -502,6 +508,7 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
             const string operationId = "webcam-invalid-answer-proof";
             JsonElement started = await StartAsync(control, reconnectKey, operationId);
             Assert.True(started.GetProperty("succeeded").GetBoolean());
+            Assert.Equal("connecting", feature.Activity.State);
 
             JsonElement answer = await SendUntilTypeAsync(control, new
             {
@@ -514,6 +521,7 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
             Assert.False(answer.GetProperty("succeeded").GetBoolean());
             Assert.Equal("invalid-proof", answer.GetProperty("code").GetString());
             Assert.True(peer.Disposed);
+            Assert.Equal("idle", feature.Activity.State);
         }
         finally
         {
@@ -595,24 +603,28 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
             const string operationId = "webcam-answer-race";
             JsonElement start = await StartAsync(control, reconnectKey, operationId);
             string offerHash = HashSdp(start.GetProperty("offerSdp").GetString()!);
-            Task<JsonElement> answerTask = SendUntilTypeAsync(control, new
+            await SendAsync(control, new
             {
                 type = "phone.webcam.answer",
                 operationId,
                 answerSdp = FakePhoneWebcamPeer.Answer,
                 clientSignature = reconnectKey.SignPayload(PhoneWebcamCoordinator.AnswerTranscript(
                     "client-webcam", operationId, offerHash, HashSdp(FakePhoneWebcamPeer.Answer)))
-            }, "phone.webcam.answer.result");
+            });
             Assert.True(applyEntered.Wait(TimeSpan.FromSeconds(2)));
 
+            JsonElement status = await SendUntilTypeAsync(control, new { type = "status.get" }, "status");
+            Assert.True(status.GetProperty("connected").GetBoolean());
             fixture.Manager.SetDevicePermission("client-webcam", DevicePermissionKind.PhoneWebcam, false);
-            await Task.Delay(100);
+            Task secondStop = fixture.WebHost.StopPhoneWebcamFromHostAsync("client-webcam");
+            Assert.False(secondStop.IsCompleted);
             Assert.False(peer.Disposed);
             continueApply.Set();
 
-            JsonElement answer = await answerTask;
+            JsonElement answer = await ReceiveUntilTypeAsync(control, "phone.webcam.answer.result");
             Assert.False(answer.GetProperty("succeeded").GetBoolean());
-            await WaitUntilAsync(() => peer.Disposed);
+            await secondStop.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(peer.Disposed);
         }
         finally
         {
@@ -760,6 +772,61 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
         {
             setup.CompleteRemove();
             AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StopAllWaitsForPeerAlreadyRetiring(bool active)
+    {
+        AppPermissionSettings.Save(AppPermissionSettings.Load() with { AllowPhoneWebcam = true });
+        using var store = new TempPairingStore();
+        using var identity = ScreenViewHostIdentity.CreateEphemeral();
+        var manager = new PairingManager(store.Store, identity);
+        using var key = new PairingTestKey();
+        const string clientId = "client-webcam";
+        const string operationId = "retiring-webcam";
+        Assert.True(manager.AcceptPairing(clientId, "Test phone", manager.CreatePairingToken(),
+            reconnectPublicKey: key.PublicKey).Accepted);
+        var feature = new InstalledPhoneWebcamFeature();
+        var status = new HostStatusPayloadFactory(manager, null!, null!, null!, null!, null!, null!, null!,
+            null!, null!, null!, null!, null!, null!, null!, getPhoneWebcamStatus: () => feature.Status);
+        var disposalEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseDispose = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var peer = new FakePhoneWebcamPeer(dispose: async () =>
+        {
+            disposalEntered.TrySetResult();
+            await releaseDispose.Task;
+        });
+        await using var coordinator = new PhoneWebcamCoordinator(manager, status, feature, new FakePhoneWebcamPeerFactory(peer));
+        var owner = new object();
+        string signature = key.SignPayload(PhoneWebcamCoordinator.StartTranscript(clientId, operationId, 1920, 1080, 30, false));
+        PhoneWebcamStartResult offer = await coordinator.StartAsync(owner, clientId, operationId, 1920, 1080, 30, false,
+            signature, null, CancellationToken.None);
+        Assert.True(offer.Succeeded);
+        if (active)
+        {
+            signature = key.SignPayload(PhoneWebcamCoordinator.AnswerTranscript(clientId, operationId,
+                HashSdp(offer.OfferSdp!), HashSdp(FakePhoneWebcamPeer.Answer)));
+            Assert.True((await coordinator.CompleteAnswerAsync(owner, clientId, operationId, FakePhoneWebcamPeer.Answer, signature)).Succeeded);
+        }
+
+        try
+        {
+            Task firstStop = coordinator.StopAsync(clientId);
+            await disposalEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            Task stopAll = coordinator.StopAllAsync("host-stopped");
+            Assert.False(stopAll.IsCompleted);
+
+            releaseDispose.TrySetResult();
+            await Task.WhenAll(firstStop, stopAll).WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(peer.Disposed);
+        }
+        finally
+        {
+            releaseDispose.TrySetResult();
         }
     }
 

@@ -44,6 +44,102 @@ public sealed class AwakeServiceTests
         Assert.Equal(AwakeExecutionState.Continuous, bridge.States[^1]);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RejectedExpirationRetriesOnlyForItsCommittedSetting(bool replaceSetting)
+    {
+        var bridge = new RecordingBridge();
+        var clock = new ManualAwakeClock();
+        await using var service = new AwakeService(
+            bridge,
+            new AwakeState(AwakeMode.Off, false, 60, null),
+            _ => { },
+            clock: clock);
+        Assert.True((await service.SetTimedAsync(TimeSpan.FromMinutes(1))).Succeeded);
+        var first = clock.Latest;
+        var deadline = service.State.ExpiresAt;
+
+        bridge.Succeeds = false;
+        clock.Advance(TimeSpan.FromMinutes(1));
+        first.InvokeCallback();
+        await WaitForAsync(() => !ReferenceEquals(first, clock.Latest));
+        Assert.Equal(AwakeMode.Timed, service.State.Mode);
+        var retry = clock.Latest;
+        Assert.InRange(retry.Due, TimeSpan.FromMilliseconds(100), TimeSpan.FromSeconds(10));
+
+        bridge.Succeeds = true;
+        if (replaceSetting)
+        {
+            Assert.True((await service.SetKeepScreenOnAsync(true)).Succeeded);
+            Assert.Equal(deadline, service.State.ExpiresAt);
+            Assert.True(retry.Disposed);
+            retry.InvokeCallback();
+            Assert.True((await service.SetKeepScreenOnAsync(true)).Succeeded);
+            Assert.Equal(AwakeMode.Timed, service.State.Mode);
+        }
+
+        clock.Advance(retry.Due);
+        clock.Latest.InvokeCallback();
+        await WaitForAsync(() => service.State.Mode == AwakeMode.Off);
+        Assert.Equal(replaceSetting, service.State.KeepScreenOn);
+        Assert.Equal(AwakeExecutionState.Continuous, bridge.States[^1]);
+    }
+
+    [Fact]
+    public async Task OneYearTimerRearmsUntilTheRealDeadline()
+    {
+        var bridge = new RecordingBridge();
+        var clock = new ManualAwakeClock();
+        await using var service = new AwakeService(
+            bridge,
+            new AwakeState(AwakeMode.Off, false, 60, null),
+            _ => { },
+            clock: clock);
+        var interval = TimeSpan.FromDays(365);
+        var expectedDeadline = clock.GetUtcNow() + interval;
+
+        Assert.True((await service.SetTimedAsync(interval).WaitAsync(TimeSpan.FromSeconds(2))).Succeeded);
+        Assert.Equal(expectedDeadline, service.State.ExpiresAt);
+        var first = clock.Latest;
+        Assert.InRange(first.Due, TimeSpan.FromDays(1), TimeSpan.FromDays(49));
+
+        clock.Advance(TimeSpan.FromDays(100));
+        first.InvokeCallback();
+        Assert.Equal(AwakeMode.Timed, service.State.Mode);
+        Assert.True(first.Disposed);
+        Assert.NotSame(first, clock.Latest);
+
+        clock.Advance(TimeSpan.FromDays(265));
+        clock.Latest.InvokeCallback();
+        await WaitForAsync(() => service.State.Mode == AwakeMode.Off);
+        Assert.Equal(AwakeExecutionState.Continuous, bridge.States[^1]);
+    }
+
+    [Fact]
+    public async Task CallbackAlreadyQueuedFromAnOldTimerCannotTurnOffNewSetting()
+    {
+        var clock = new ManualAwakeClock();
+        await using var service = new AwakeService(
+            new RecordingBridge(),
+            new AwakeState(AwakeMode.Off, false, 60, null),
+            _ => { },
+            clock: clock);
+        Assert.True((await service.SetTimedAsync(TimeSpan.FromMinutes(1))).Succeeded);
+        var retiring = clock.Latest;
+
+        Assert.True((await service.SetTimedAsync(TimeSpan.FromHours(1))).Succeeded);
+        var currentDeadline = service.State.ExpiresAt;
+        clock.Advance(TimeSpan.FromMinutes(1));
+        Assert.True(retiring.Disposed);
+        retiring.InvokeCallback();
+        Assert.True((await service.SetKeepScreenOnAsync(true)).Succeeded);
+
+        Assert.Equal(AwakeMode.Timed, service.State.Mode);
+        Assert.Equal(currentDeadline, service.State.ExpiresAt);
+        Assert.True(service.State.KeepScreenOn);
+    }
+
     [Fact]
     public async Task NativeFailureDoesNotPublishRequestedState()
     {
@@ -70,6 +166,20 @@ public sealed class AwakeServiceTests
 
         Assert.Equal(AwakeMode.Off, service.State.Mode);
         Assert.Empty(bridge.States);
+    }
+
+    [Fact]
+    public async Task PersistedLongDeadlineStartsWithTheSameExpiration()
+    {
+        var deadline = DateTimeOffset.UtcNow.AddMonths(6);
+        await using var service = new AwakeService(
+            new RecordingBridge(),
+            new AwakeState(AwakeMode.Expiration, false, 60, deadline),
+            _ => { });
+
+        Assert.Equal(AwakeMode.Expiration, service.State.Mode);
+        Assert.Equal(deadline, service.State.ExpiresAt);
+        Assert.True((await service.SetOffAsync()).Succeeded);
     }
 
     [Fact]
@@ -228,6 +338,38 @@ public sealed class AwakeServiceTests
         while (!condition())
         {
             await Task.Delay(20, timeout.Token);
+        }
+    }
+
+    private sealed class ManualAwakeClock : TimeProvider
+    {
+        private readonly ConcurrentQueue<ScheduledExpiration> _timers = new();
+        private long _ticks = new DateTime(2026, 11, 28, 12, 0, 0, DateTimeKind.Utc).Ticks;
+
+        public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+
+        public override DateTimeOffset GetUtcNow() => new(Interlocked.Read(ref _ticks), TimeSpan.Zero);
+
+        internal ScheduledExpiration Latest => _timers.Last();
+
+        internal void Advance(TimeSpan duration) => Interlocked.Add(ref _ticks, duration.Ticks);
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            Assert.Equal(Timeout.InfiniteTimeSpan, period);
+            var timer = new ScheduledExpiration(callback, state, dueTime);
+            _timers.Enqueue(timer);
+            return timer;
+        }
+
+        internal sealed class ScheduledExpiration(TimerCallback callback, object? state, TimeSpan due) : ITimer
+        {
+            internal TimeSpan Due { get; } = due;
+            internal bool Disposed { get; private set; }
+            internal void InvokeCallback() => callback(state);
+            public bool Change(TimeSpan dueTime, TimeSpan period) => throw new NotSupportedException();
+            public void Dispose() => Disposed = true;
+            public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
         }
     }
 

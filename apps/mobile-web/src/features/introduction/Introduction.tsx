@@ -98,13 +98,16 @@ export function Introduction(props: IntroductionProps) {
       return;
     }
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let down = false;
+    let awaitingFocus = false;
+    const heldPointers = new Set<number>();
     const schedule = () => {
       clearTimeout(timer);
+      if (awaitingFocus || heldPointers.size > 0 || document.visibilityState === "hidden") {
+        return;
+      }
       timer = setTimeout(() => {
         const active = document.activeElement;
         if (
-          !down &&
           document.visibilityState !== "hidden" &&
           !document.querySelector(":active:not(html):not(body)") &&
           !document.querySelector("dialog[open], [role=dialog], [data-introduction-controls]") &&
@@ -116,12 +119,31 @@ export function Introduction(props: IntroductionProps) {
         }
       }, 800);
     };
-    const pointerDown = () => {
-      down = true;
+    const pointerDown = (event: PointerEvent) => {
+      heldPointers.add(event.pointerId);
       clearTimeout(timer);
     };
-    const pointerUp = () => {
-      down = false;
+    const pointerUp = (event: PointerEvent) => {
+      heldPointers.delete(event.pointerId);
+      schedule();
+    };
+    const resetPointers = () => {
+      heldPointers.clear();
+      clearTimeout(timer);
+    };
+    const visibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        resetPointers();
+      } else {
+        schedule();
+      }
+    };
+    const loseFocus = () => {
+      awaitingFocus = true;
+      resetPointers();
+    };
+    const regainFocus = () => {
+      awaitingFocus = false;
       schedule();
     };
     const observer = new MutationObserver(schedule);
@@ -135,7 +157,11 @@ export function Introduction(props: IntroductionProps) {
     document.addEventListener("pointerup", pointerUp, true);
     document.addEventListener("pointercancel", pointerUp, true);
     document.addEventListener("keydown", schedule, true);
-    document.addEventListener("visibilitychange", schedule);
+    document.addEventListener("visibilitychange", visibilityChange);
+    window.addEventListener("blur", loseFocus);
+    window.addEventListener("focus", regainFocus);
+    window.addEventListener("pagehide", resetPointers);
+    window.addEventListener("pageshow", regainFocus);
     schedule();
     return () => {
       clearTimeout(timer);
@@ -144,7 +170,11 @@ export function Introduction(props: IntroductionProps) {
       document.removeEventListener("pointerup", pointerUp, true);
       document.removeEventListener("pointercancel", pointerUp, true);
       document.removeEventListener("keydown", schedule, true);
-      document.removeEventListener("visibilitychange", schedule);
+      document.removeEventListener("visibilitychange", visibilityChange);
+      window.removeEventListener("blur", loseFocus);
+      window.removeEventListener("focus", regainFocus);
+      window.removeEventListener("pagehide", resetPointers);
+      window.removeEventListener("pageshow", regainFocus);
     };
   }, [suppressed, props.connected, props.busy, props.drawerOpen, tour]);
 

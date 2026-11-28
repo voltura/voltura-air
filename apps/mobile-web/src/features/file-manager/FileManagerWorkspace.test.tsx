@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { publishFileManagerResult } from "../../foundation/connection/fileManagerResultBus";
 import type {
@@ -8,6 +8,18 @@ import type {
   FileManagerPanelPage,
 } from "../../foundation/protocol/messages";
 import FileManagerWorkspace from "./FileManagerWorkspace";
+
+vi.mock("./FileTransferMenu", () => ({
+  FileTransferMenu: ({
+    onUploadCompleted,
+  }: {
+    onUploadCompleted: (panel: "left", name: string) => void;
+  }) => (
+    <button type="button" onClick={() => onUploadCompleted("left", "file-201.txt")}>
+      Complete test upload
+    </button>
+  ),
+}));
 
 const entries = (start: number, count: number): FileManagerEntry[] =>
   Array.from({ length: count }, (_, offset) => ({
@@ -36,6 +48,25 @@ const page = (
   entries: pageEntries,
   continuation,
 });
+
+function stubFilesWidth(initialWidth: number) {
+  const width = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(initialWidth);
+  let notifyResize!: () => void;
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      constructor(callback: ResizeObserverCallback) {
+        notifyResize = () => callback([], this as unknown as ResizeObserver);
+      }
+      observe = vi.fn();
+      disconnect = vi.fn();
+    },
+  );
+  return (nextWidth: number) => {
+    width.mockReturnValue(nextWidth);
+    act(() => notifyResize());
+  };
+}
 
 describe("FileManagerWorkspace pagination and selection", () => {
   beforeEach(() => {
@@ -205,49 +236,208 @@ describe("FileManagerWorkspace pagination and selection", () => {
     expect(screen.getByRole("button", { name: "Retry loading more" })).toBeTruthy();
   });
 
-  it("does not apply an old continuation timeout to a newly refreshed folder", () => {
+  it.each(["timeout", "success", "failure"])(
+    "ignores an old continuation %s after refresh",
+    (outcome) => {
+      vi.useFakeTimers();
+      const sent: ClientMessage[] = [];
+      renderWorkspace(sent);
+      const request = sent.find((message) => message.type === "file.session.open")!;
+      act(() =>
+        publishFileManagerResult({
+          type: "file.session.open.result",
+          operationId: request.operationId!,
+          succeeded: true,
+          message: "Opened",
+          session: {
+            sessionId: "session-a",
+            drives: [],
+            shortcuts: [],
+            left: page("left", entries(0, 100), "more"),
+            right: page("right", [], null),
+          },
+        }),
+      );
+      fireEvent.scroll(document.querySelector(".file-panel:first-child .file-list")!, {
+        target: { scrollTop: 4300 },
+      });
+      const continuation = sent.find((message) => message.type === "file.page.get")!;
+      fireEvent.click(screen.getByRole("button", { name: "Refresh left panel" }));
+      const refresh = sent.find((message) => message.type === "file.refresh")!;
+      act(() =>
+        publishFileManagerResult({
+          type: "file.refresh.result",
+          operationId: refresh.operationId!,
+          succeeded: true,
+          message: "Refreshed",
+          page: { ...page("left", entries(200, 1), null), revision: "new" },
+        }),
+      );
+      if (outcome === "timeout") {
+        act(() => {
+          vi.advanceTimersByTime(15_000);
+        });
+      } else {
+        act(() =>
+          publishFileManagerResult({
+            type: "file.page.get.result",
+            operationId: continuation.operationId,
+            succeeded: outcome === "success",
+            message: "Old continuation",
+            page: outcome === "success" ? page("left", entries(100, 1), null) : null,
+            ...(outcome === "failure" ? { code: "stale-panel" } : {}),
+          }),
+        );
+      }
+      fireEvent.scroll(document.querySelector(".file-panel:first-child .file-list")!, {
+        target: { scrollTop: 0 },
+      });
+      expect(screen.getByRole("button", { name: "file-200.txt" })).toBeTruthy();
+      expect(screen.getByText("Refreshed")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Retry loading more" })).toBeNull();
+      expect(sent.filter((message) => message.type === "file.refresh")).toHaveLength(1);
+    },
+  );
+
+  it("routes the toolbar to the visible left panel after resizing from two panels to one", () => {
+    const resize = stubFilesWidth(640);
+    const sent: ClientMessage[] = [];
+    renderWorkspace(sent);
+    openSession(sent, entries(0, 1), entries(10, 1));
+    fireEvent.click(screen.getByRole("button", { name: "file-0.txt" }));
+    fireEvent.click(screen.getByRole("button", { name: "file-10.txt" }));
+    expect(screen.getByRole("region", { name: "right file panel" }).className).toContain("active");
+
+    resize(639);
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+
+    expect(screen.getByRole("region", { name: "left file panel" }).className).toContain("active");
+    expect(sent.at(-1)).toEqual(
+      expect.objectContaining({
+        type: "file.clipboard.set",
+        panel: "left",
+        revision: "left-revision",
+        entryIds: ["entry-0"],
+      }),
+    );
+  });
+
+  it.each(["Delete", "Rename"])(
+    "dismisses a right-panel %s confirmation when its panel becomes hidden",
+    (action) => {
+      const resize = stubFilesWidth(640);
+      const sent: ClientMessage[] = [];
+      renderWorkspace(sent);
+      openSession(sent, entries(0, 1), entries(10, 1));
+      fireEvent.click(screen.getByRole("button", { name: "file-10.txt" }));
+      fireEvent.click(screen.getByRole("button", { name: action }));
+      expect(screen.getByRole("dialog")).toBeTruthy();
+
+      resize(639);
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(sent.some((message) => message.type === "file.job.create")).toBe(false);
+
+      // A fresh confirmation can still act on the visible folder.
+      fireEvent.click(screen.getByRole("button", { name: "file-0.txt" }));
+      fireEvent.click(screen.getByRole("button", { name: action }));
+      const dialog = screen.getByRole("dialog");
+      if (action === "Rename") {
+        fireEvent.change(within(dialog).getByRole("textbox", { name: "New name" }), {
+          target: { value: "renamed.txt" },
+        });
+      }
+      fireEvent.click(
+        within(dialog).getByRole("button", {
+          name: action === "Delete" ? "Move to Recycle Bin" : "Rename",
+        }),
+      );
+
+      expect(sent.at(-1)).toEqual(
+        expect.objectContaining({
+          type: "file.job.create",
+          operation: action.toLowerCase(),
+          panel: "left",
+          revision: "left-revision",
+          entryIds: ["entry-0"],
+        }),
+      );
+    },
+  );
+
+  it.each(["shrink", "blur", "pagehide"])(
+    "cancels a held right-panel Properties gesture on %s",
+    (boundary) => {
+      vi.useFakeTimers();
+      const resize = stubFilesWidth(640);
+      const sent: ClientMessage[] = [];
+      renderWorkspace(sent);
+      openSession(sent, [], entries(10, 1));
+      fireEvent.pointerDown(screen.getByRole("button", { name: "file-10.txt" }), {
+        pointerId: 1,
+        pointerType: "touch",
+      });
+
+      if (boundary === "shrink") {
+        resize(639);
+      } else {
+        fireEvent(window, new Event(boundary));
+      }
+      act(() => {
+        vi.advanceTimersByTime(550);
+      });
+
+      expect(sent.some((message) => message.type === "file.properties.get")).toBe(false);
+    },
+  );
+
+  it("does not swallow the first tap after a previous Properties hold released outside the list", () => {
     vi.useFakeTimers();
     const sent: ClientMessage[] = [];
     renderWorkspace(sent);
-    const request = sent.find((message) => message.type === "file.session.open")!;
-    act(() =>
-      publishFileManagerResult({
-        type: "file.session.open.result",
-        operationId: request.operationId!,
-        succeeded: true,
-        message: "Opened",
-        session: {
-          sessionId: "session-a",
-          drives: [],
-          shortcuts: [],
-          left: page("left", entries(0, 100), "more"),
-          right: page("right", [], null),
-        },
-      }),
-    );
-    fireEvent.scroll(document.querySelector(".file-panel:first-child .file-list")!, {
-      target: { scrollTop: 4300 },
+    openSession(sent, entries(0, 2), []);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "file-0.txt" }), {
+      pointerId: 1,
+      pointerType: "touch",
     });
-    expect(sent.some((message) => message.type === "file.page.get")).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(550);
+    });
+    expect(sent.some((message) => message.type === "file.properties.get")).toBe(true);
+    fireEvent.pointerUp(document.body, { pointerId: 1 });
+
+    const next = screen.getByRole("button", { name: "file-1.txt" });
+    fireEvent.pointerDown(next, { pointerId: 2, pointerType: "touch" });
+    fireEvent.pointerUp(next, { pointerId: 2, pointerType: "touch" });
+    fireEvent.click(next);
+
+    expect(
+      screen.getByRole<HTMLInputElement>("checkbox", { name: "Select file-1.txt" }).checked,
+    ).toBe(true);
+  });
+
+  it("rejects a Delete confirmation if refresh replaced the selected revision", () => {
+    const sent: ClientMessage[] = [];
+    renderWorkspace(sent);
+    openSession(sent, entries(0, 1), []);
+    fireEvent.click(screen.getByRole("button", { name: "file-0.txt" }));
     fireEvent.click(screen.getByRole("button", { name: "Refresh left panel" }));
     const refresh = sent.find((message) => message.type === "file.refresh")!;
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    const dialog = screen.getByRole("dialog");
+
     act(() =>
       publishFileManagerResult({
         type: "file.refresh.result",
-        operationId: refresh.operationId!,
+        operationId: refresh.operationId,
         succeeded: true,
         message: "Refreshed",
-        page: { ...page("left", entries(200, 1), null), revision: "new" },
+        page: { ...page("left", entries(1, 1), null), revision: "new" },
       }),
     );
-    act(() => {
-      vi.advanceTimersByTime(15_000);
-    });
-    fireEvent.scroll(document.querySelector(".file-panel:first-child .file-list")!, {
-      target: { scrollTop: 0 },
-    });
-    expect(screen.getByRole("button", { name: "file-200.txt" })).toBeTruthy();
-    expect(screen.queryByText("The PC did not respond. Retry this folder.")).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Move to Recycle Bin" }));
+
+    expect(sent.some((message) => message.type === "file.job.create")).toBe(false);
+    expect(screen.getByRole("alert").textContent).toContain("Select the item again.");
   });
 
   it("uses row taps for one-file selection while checkboxes retain multi-select", () => {
@@ -263,6 +453,76 @@ describe("FileManagerWorkspace pagination and selection", () => {
     ).toBe(false);
     expect(
       (screen.getByRole("checkbox", { name: "Select file-1.txt" }) as HTMLInputElement).checked,
+    ).toBe(true);
+  });
+
+  it("applies the host's new folder revision even when a newer selection cancels upload auto-selection", () => {
+    const sent: ClientMessage[] = [];
+    renderWorkspace(sent, undefined, true);
+    openSession(sent, entries(0, 1), []);
+    fireEvent.click(screen.getByRole("button", { name: "Complete test upload" }));
+    const refresh = sent.find((message) => message.type === "file.refresh")!;
+    fireEvent.click(screen.getByRole("button", { name: "file-0.txt" }));
+
+    act(() =>
+      publishFileManagerResult({
+        type: "file.refresh.result",
+        operationId: refresh.operationId,
+        succeeded: true,
+        message: "Upload folder refreshed.",
+        page: { ...page("left", entries(200, 2), null), revision: "upload-revision" },
+      }),
+    );
+
+    expect(screen.queryByRole("button", { name: "file-0.txt" })).toBeNull();
+    expect(
+      screen.getByRole<HTMLInputElement>("checkbox", { name: "Select file-201.txt" }).checked,
+    ).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "file-200.txt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    expect(sent.at(-1)).toEqual(
+      expect.objectContaining({
+        type: "file.clipboard.set",
+        panel: "left",
+        revision: "upload-revision",
+        entryIds: ["entry-200"],
+      }),
+    );
+  });
+
+  it("does not request the same continuation again while upload auto-selection is paging", () => {
+    const sent: ClientMessage[] = [];
+    renderWorkspace(sent, undefined, true);
+    openSession(sent, entries(0, 1), []);
+    fireEvent.click(screen.getByRole("button", { name: "Complete test upload" }));
+    const refresh = sent.find((message) => message.type === "file.refresh")!;
+    act(() =>
+      publishFileManagerResult({
+        type: "file.refresh.result",
+        operationId: refresh.operationId,
+        succeeded: true,
+        message: "Upload folder refreshed.",
+        page: { ...page("left", entries(0, 100), "upload-next"), revision: "upload-revision" },
+      }),
+    );
+    const next = sent.find((message) => message.type === "file.page.get")!;
+
+    const list = document.querySelector(".file-panel:first-child .file-list")!;
+    fireEvent.scroll(list, { target: { scrollTop: 4300 } });
+    expect(sent.filter((message) => message.type === "file.page.get")).toHaveLength(1);
+    act(() =>
+      publishFileManagerResult({
+        type: "file.page.get.result",
+        operationId: next.operationId,
+        succeeded: true,
+        message: "Loaded more.",
+        page: { ...page("left", entries(201, 1), null), revision: "upload-revision" },
+      }),
+    );
+
+    expect(screen.queryByText("Loading more…")).toBeNull();
+    expect(
+      screen.getByRole<HTMLInputElement>("checkbox", { name: "Select file-201.txt" }).checked,
     ).toBe(true);
   });
 
@@ -567,6 +827,85 @@ describe("FileManagerWorkspace pagination and selection", () => {
     ).toBe(true);
   });
 
+  it("keeps the terminal result when a failure arrives before the queue acknowledgement", () => {
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(800);
+    const sent: ClientMessage[] = [];
+    renderWorkspace(sent);
+    openSession(sent, entries(0, 1), []);
+    fireEvent.click(screen.getByRole("button", { name: "file-0.txt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    const request = sent.find((message) => message.type === "file.job.create")!;
+
+    act(() =>
+      publishFileManagerResult({
+        type: "file.jobs.status",
+        jobs: [job("job-failed", "copy", "failed")],
+      }),
+    );
+    act(() =>
+      publishFileManagerResult({
+        type: "file.job.create.result",
+        operationId: request.operationId,
+        succeeded: true,
+        message: "Queued.",
+        job: job("job-failed", "copy", "running"),
+      }),
+    );
+
+    expect(screen.getByRole("alert").textContent).toContain("Copy failed.");
+    expect(screen.queryByText("Queued.")).toBeNull();
+  });
+
+  it("ignores a queue acknowledgement belonging to another Files view", () => {
+    const sent: ClientMessage[] = [];
+    renderWorkspace(sent);
+    openSession(sent, [], []);
+
+    act(() =>
+      publishFileManagerResult({
+        type: "file.job.create.result",
+        operationId: "old-operation",
+        succeeded: true,
+        message: "Old queue acknowledgement.",
+        job: job("old-job", "copy", "running"),
+      }),
+    );
+
+    expect(screen.getByText("Files ready.")).toBeTruthy();
+    expect(screen.queryByText("Old queue acknowledgement.")).toBeNull();
+  });
+
+  it("keeps a newer source selection when a prior copy finishes", () => {
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(800);
+    const sent: ClientMessage[] = [];
+    renderWorkspace(sent);
+    openSession(sent, entries(0, 2), []);
+    fireEvent.click(screen.getByRole("button", { name: "file-0.txt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    const request = sent.find((message) => message.type === "file.job.create")!;
+
+    act(() =>
+      publishFileManagerResult({
+        type: "file.job.create.result",
+        operationId: request.operationId,
+        succeeded: true,
+        message: "Queued.",
+        job: job("job-complete", "copy", "running"),
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "file-1.txt" }));
+    act(() =>
+      publishFileManagerResult({
+        type: "file.jobs.status",
+        jobs: [job("job-complete", "copy", "completed")],
+      }),
+    );
+
+    expect(
+      screen.getByRole<HTMLInputElement>("checkbox", { name: "Select file-1.txt" }).checked,
+    ).toBe(true);
+  });
+
   it("keeps terminal operation history reachable and dismissible", () => {
     const sent: ClientMessage[] = [];
     renderWorkspace(sent);
@@ -609,12 +948,19 @@ describe("FileManagerWorkspace pagination and selection", () => {
   });
 });
 
-function renderWorkspace(sent: ClientMessage[], onMirrorView = vi.fn()) {
+function renderWorkspace(sent: ClientMessage[], onMirrorView = vi.fn(), canTransfer = false) {
   return render(
     <FileManagerWorkspace
+      {...(canTransfer
+        ? {
+            activePc: { id: "pc", customName: false, name: "PC", url: "https://pc.test" },
+            clientId: "fixture-client",
+          }
+        : {})}
       capability={{
         canBrowse: true,
         canModify: true,
+        canTransfer,
         hidesProtectedSystemItems: true,
         maxPageSize: 100,
       }}

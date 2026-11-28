@@ -3,24 +3,31 @@ import { describe, expect, it, vi } from "vitest";
 import { ScreenViewRecordingPanel } from "./ScreenViewRecordingPanel";
 
 describe("ScreenViewRecordingPanel", () => {
-  it("shows the bounded elapsed time and whether sound is included", () => {
-    render(
-      <ScreenViewRecordingPanel
-        presentation={{
-          phase: "recording",
-          fileName: "Voltura Air - Screen recording.mp4",
-          message: "Recording…",
-          elapsedMs: 72_900,
-          includesSound: true,
-        }}
-        onDiscard={vi.fn()}
-        onSave={vi.fn()}
-      />,
-    );
+  it.each([
+    ["Video with sound", "", 72_900, "1:12"],
+    ["PC sound interrupted", "PC sound interrupted", 72_900, "1:12"],
+    ["Preparing recording…", "Preparing recording…", 0, "0:00"],
+  ] as const)(
+    "shows the recording status and elapsed time for %s",
+    (label, message, elapsedMs, elapsed) => {
+      render(
+        <ScreenViewRecordingPanel
+          presentation={{
+            phase: "recording",
+            fileName: "Voltura Air - Screen recording.mp4",
+            message,
+            elapsedMs,
+            includesSound: true,
+          }}
+          onDiscard={vi.fn()}
+          onSave={vi.fn()}
+        />,
+      );
 
-    expect(screen.getByText("Video with sound · 1:12 / 5:00")).toBeTruthy();
-    expect(screen.getByRole("progressbar").getAttribute("max")).toBe("300000");
-  });
+      expect(screen.getByText(`${label} · ${elapsed} / 5:00`)).toBeTruthy();
+      expect(screen.getByRole("progressbar").getAttribute("max")).toBe("300000");
+    },
+  );
 
   it("offers only Save/Share and Discard after finalization", () => {
     const onDiscard = vi.fn();

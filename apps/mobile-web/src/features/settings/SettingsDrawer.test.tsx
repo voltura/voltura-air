@@ -478,6 +478,52 @@ describe("SettingsDrawer", () => {
     );
   });
 
+  it("blocks other connection attempts while reading a pairing photo", () => {
+    const savedPc = {
+      customName: false,
+      id: "http://pc.local:51395",
+      name: "Saved PC",
+      url: "http://pc.local:51395",
+    };
+    const selectPc = vi.fn();
+    const onManualHostSubmit = vi.fn();
+    const view = render(
+      <SettingsDrawer
+        {...baseProps}
+        activePc={null}
+        isPairingQrReading
+        pairedPcs={[savedPc]}
+        selectPc={selectPc}
+        onManualHostSubmit={onManualHostSubmit}
+      />,
+    );
+    fireEvent.click(screen.getByText("Connection"));
+    const savedConnect = screen.getByRole<HTMLButtonElement>("button", { name: "Connect" });
+    const manualConnect = screen.getByRole<HTMLButtonElement>("button", { name: "Connect to PC" });
+    expect(savedConnect.disabled).toBe(true);
+    expect(manualConnect.disabled).toBe(true);
+    fireEvent.click(savedConnect);
+    fireEvent.change(screen.getByRole("textbox", { name: "Host or pairing link" }), {
+      target: { value: savedPc.url },
+    });
+    fireEvent.submit(manualConnect.form!);
+    expect(selectPc).not.toHaveBeenCalled();
+    expect(onManualHostSubmit).not.toHaveBeenCalled();
+
+    view.rerender(
+      <SettingsDrawer
+        {...baseProps}
+        activePc={null}
+        isPairingQrReading={false}
+        pairedPcs={[savedPc]}
+        selectPc={selectPc}
+        onManualHostSubmit={onManualHostSubmit}
+      />,
+    );
+    expect(savedConnect.disabled).toBe(false);
+    expect(manualConnect.disabled).toBe(false);
+  });
+
   it("updates grouped helper visibility settings", () => {
     const updateRemoteSetting = vi.fn();
     render(<SettingsDrawer {...baseProps} updateRemoteSetting={updateRemoteSetting} />);

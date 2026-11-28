@@ -9,6 +9,8 @@ public sealed class AwakeService : IAwakeService
     private const int RequestQueueCapacity = 8;
     private static readonly TimeSpan DefaultOperationTimeout = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan MaximumTimerDelay = TimeSpan.FromDays(30);
+    private static readonly TimeSpan ExpirationRetryDelay = TimeSpan.FromSeconds(2);
     private readonly Lock _gate = new();
     private readonly IAwakeExecutionStateBridge _bridge;
     private readonly Action<AwakeState> _save;
@@ -17,11 +19,13 @@ public sealed class AwakeService : IAwakeService
     private readonly BlockingCollection<AwakeExecutionRequest> _requests = new(RequestQueueCapacity);
     [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "The background execution thread disposes cancellation state after a bounded DisposeAsync may return while an uninterruptible native call is still running.")]
     private readonly CancellationTokenSource _shutdownCancellation = new();
+    private readonly CancellationToken _shutdownToken;
     private readonly TaskCompletionSource _workerCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Thread _executionThread;
     private readonly TimeSpan _operationTimeout;
     private readonly TimeSpan _shutdownTimeout;
-    private System.Threading.Timer? _expirationTimer;
+    private readonly TimeProvider _clock;
+    private ITimer? _expirationTimer;
     private AwakeState _state;
     private bool _unavailable;
     private int _disposeState;
@@ -32,14 +36,17 @@ public sealed class AwakeService : IAwakeService
         Action<AwakeState>? save = null,
         IAppLogWriter? appLog = null,
         TimeSpan? operationTimeout = null,
-        TimeSpan? shutdownTimeout = null)
+        TimeSpan? shutdownTimeout = null,
+        TimeProvider? clock = null)
     {
         _bridge = bridge;
         _save = save ?? AppAwakeSettings.Save;
         _appLog = appLog ?? NullAppLog.Instance;
         _operationTimeout = operationTimeout ?? DefaultOperationTimeout;
         _shutdownTimeout = shutdownTimeout ?? ShutdownTimeout;
-        _state = NormalizeInitialState(initialState);
+        _clock = clock ?? TimeProvider.System;
+        _shutdownToken = _shutdownCancellation.Token;
+        _state = NormalizeInitialState(initialState, _clock.GetUtcNow());
         _executionThread = new Thread(ProcessRequests)
         {
             IsBackground = true,
@@ -88,7 +95,7 @@ public sealed class AwakeService : IAwakeService
     }
 
     public Task<AwakeOperationResult> SetExpirationAsync(DateTimeOffset expiresAt, CancellationToken cancellationToken = default) =>
-        expiresAt <= DateTimeOffset.Now
+        expiresAt <= _clock.GetUtcNow()
             ? Task.FromResult(Failed(AwakeOperationFailure.InvalidRequest, "Choose a future date and time."))
             : SubmitAsync(AwakeMutation.Expiration(expiresAt), cancellationToken);
 
@@ -184,7 +191,7 @@ public sealed class AwakeService : IAwakeService
 
     private async Task<AwakeOperationResult> AwaitRequestAsync(AwakeExecutionRequest request, CancellationToken cancellationToken)
     {
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdownCancellation.Token);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdownToken);
         try
         {
             return await request.Completion.Task.WaitAsync(_operationTimeout, cancellation.Token).ConfigureAwait(false);
@@ -237,7 +244,7 @@ public sealed class AwakeService : IAwakeService
         }
 
         var currentState = State;
-        var nextState = request.Mutation.Apply(currentState);
+        var nextState = request.Mutation.Apply(currentState, _clock.GetLocalNow());
         if (!request.Mutation.ForceApply && nextState == currentState)
         {
             if (request.TryClaimCompletion())
@@ -353,47 +360,47 @@ public sealed class AwakeService : IAwakeService
         }
     }
 
-    private void ReplaceExpirationTimer(AwakeState? state)
+    private void ReplaceExpirationTimer(AwakeState? expected, TimeSpan minimumDelay = default)
     {
-        System.Threading.Timer? previous;
+        ITimer? previous;
         lock (_gate)
         {
+            if (expected is not null && (Volatile.Read(ref _disposeState) != 0 || !ReferenceEquals(_state, expected))) return;
             previous = _expirationTimer;
-            _expirationTimer = null;
+            _expirationTimer = expected is { Mode: AwakeMode.Timed or AwakeMode.Expiration, ExpiresAt: { } deadline }
+                ? ScheduleExpiration(expected, deadline, minimumDelay)
+                : null;
         }
-
         previous?.Dispose();
-        if (state is not { Mode: AwakeMode.Timed or AwakeMode.Expiration, ExpiresAt: { } expiresAt } ||
-            Volatile.Read(ref _disposeState) != 0)
-        {
-            return;
-        }
-
-        var due = expiresAt - DateTimeOffset.Now;
-        System.Threading.Timer? timer = new(OnExpiration, null, due > TimeSpan.Zero ? due : TimeSpan.Zero, Timeout.InfiniteTimeSpan);
-        lock (_gate)
-        {
-            if (Volatile.Read(ref _disposeState) == 0 && _state == state)
-            {
-                _expirationTimer = timer;
-                timer = null;
-            }
-        }
-
-        timer?.Dispose();
     }
 
-    private void OnExpiration(object? state) => _ = CompleteExpirationAsync();
+    private ITimer ScheduleExpiration(AwakeState expected, DateTimeOffset deadline, TimeSpan minimumDelay)
+    {
+        // System timers cannot represent an entire year in one delay.
+        var due = TimeSpan.FromTicks(Math.Clamp((deadline - _clock.GetUtcNow()).Ticks, minimumDelay.Ticks, MaximumTimerDelay.Ticks));
+        return _clock.CreateTimer(ignored => _ = CompleteExpirationAsync(expected, deadline), null, due, Timeout.InfiniteTimeSpan);
+    }
 
-    private async Task CompleteExpirationAsync()
+    private async Task CompleteExpirationAsync(AwakeState expected, DateTimeOffset deadline)
     {
         try
         {
-            var result = await SetOffAsync().ConfigureAwait(false);
-            if (!result.Succeeded && result.Failure is not AwakeOperationFailure.ShuttingDown)
+            if (!ReferenceEquals(State, expected)) return;
+            if (deadline <= _clock.GetUtcNow())
             {
-                LogState(State, "expiration_failed", result.Error);
+                var result = await SubmitAsync(AwakeMutation.ExpireIfDue(expected), CancellationToken.None).ConfigureAwait(false);
+                if (!result.Succeeded)
+                {
+                    if (result.Failure is not AwakeOperationFailure.ShuttingDown && ReferenceEquals(State, expected))
+                    {
+                        LogState(expected, "expiration_failed", result.Error);
+                        if (result.Failure is AwakeOperationFailure.Busy or AwakeOperationFailure.TimedOut or AwakeOperationFailure.Rejected)
+                            ReplaceExpirationTimer(expected, ExpirationRetryDelay);
+                    }
+                    return;
+                }
             }
+            ReplaceExpirationTimer(expected);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -437,11 +444,11 @@ public sealed class AwakeService : IAwakeService
         }
     }
 
-    private static AwakeState NormalizeInitialState(AwakeState state)
+    private static AwakeState NormalizeInitialState(AwakeState state, DateTimeOffset now)
     {
         var interval = AppAwakeSettings.NormalizeIntervalMinutes(state.IntervalMinutes);
         return state.Mode is AwakeMode.Timed or AwakeMode.Expiration &&
-            (state.ExpiresAt is null || state.ExpiresAt <= DateTimeOffset.Now)
+            (state.ExpiresAt is null || state.ExpiresAt <= now)
             ? state with { Mode = AwakeMode.Off, IntervalMinutes = interval, ExpiresAt = null }
             : state with { IntervalMinutes = interval };
     }

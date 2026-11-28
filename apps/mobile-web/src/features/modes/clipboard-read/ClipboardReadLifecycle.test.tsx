@@ -3,6 +3,7 @@ import { beforeEach, it, vi, expect } from "vitest";
 import { copyTextToClipboard } from "../../../foundation/diagnostics/mobileDiagnostics";
 import type { ClipboardGetResultMessage } from "../../../foundation/protocol/messages";
 import { ClipboardReadMode } from "./ClipboardReadMode";
+const deviceClipboardWrite = vi.hoisted(() => vi.fn());
 vi.mock("../../../foundation/diagnostics/mobileDiagnostics", () => ({
   canCopyTextToClipboard: () => true,
   copyTextToClipboard: vi.fn(),
@@ -11,7 +12,10 @@ vi.mock("../../../foundation/platform/deviceClipboard", () => ({
   canWriteDeferredTextToDeviceClipboard: () => true,
   writeDeferredTextToDeviceClipboard: (value: Promise<Blob>) =>
     value.then(
-      () => ({ status: "copied" }),
+      (blob) => {
+        deviceClipboardWrite(blob);
+        return { status: "copied" };
+      },
       () => ({ status: "failed" }),
     ),
 }));
@@ -24,7 +28,7 @@ const successfulDeviceRead = (): Promise<ClipboardGetResultMessage> =>
     text: "Fresh PC text",
   });
 beforeEach(() => vi.clearAllMocks());
-it.each(["unmount", "selection", "text"])(
+it.each(["unmount", "selection", "Select All", "text"])(
   "does not restore stale selected-copy UI after %s",
   async (reason) => {
     let complete!: (value: "copied") => void;
@@ -56,6 +60,8 @@ it.each(["unmount", "selection", "text"])(
       view.unmount();
     } else if (reason === "text") {
       view.rerender(<ClipboardReadMode {...props} text="New" />);
+    } else if (reason === "Select All") {
+      fireEvent.click(screen.getByRole("button", { name: "Select All" }));
     } else {
       input.setSelectionRange(9, 13);
       fireEvent.select(input);
@@ -66,6 +72,8 @@ it.each(["unmount", "selection", "text"])(
     expect(feedback).not.toHaveBeenCalled();
     if (reason === "selection") {
       expect(input.selectionStart).toBe(9);
+    } else if (reason === "Select All") {
+      expect(input.selectionEnd).toBe("Original text".length);
     }
   },
 );
@@ -112,3 +120,48 @@ it("keeps a pending direct device copy through a callback identity change", asyn
   view.unmount();
   expect(replacementCancel).toHaveBeenCalledOnce();
 });
+
+it.each(["identity", "permission"])(
+  "cancels the pending direct write when %s changes",
+  async (reason) => {
+    let complete!: (value: ClipboardGetResultMessage) => void;
+    const pending = new Promise<ClipboardGetResultMessage>((resolve) => {
+      complete = resolve;
+    });
+    const cancel = vi.fn();
+    const feedback = vi.fn();
+    const props = {
+      clientId: "client",
+      permission: true,
+      pending: false,
+      result: null,
+      text: "",
+      onCancelGetTextForDevice: cancel,
+      onCopyFeedback: feedback,
+      onGetText: vi.fn(),
+      onGetTextForDevice: () => pending,
+      onLoadSnippet: vi.fn(),
+      onTextChange: vi.fn(),
+    };
+    const view = render(<ClipboardReadMode {...props} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Get PC clipboard text into this device's clipboard" }),
+    );
+    view.rerender(
+      <ClipboardReadMode
+        {...props}
+        clientId={reason === "identity" ? "new-client" : props.clientId}
+        permission={reason !== "permission"}
+      />,
+    );
+    const ready = await successfulDeviceRead();
+    await act(async () => {
+      complete(ready);
+      await pending;
+    });
+
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(deviceClipboardWrite).not.toHaveBeenCalled();
+    expect(feedback).not.toHaveBeenCalled();
+  },
+);

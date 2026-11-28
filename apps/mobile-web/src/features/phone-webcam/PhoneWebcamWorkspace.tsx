@@ -73,6 +73,7 @@ const stableConnectionMs = 15_000;
 const cameraPauseNoticeMs = 2_000;
 const previewFrameDeadlineMs = 2_500;
 const previewCheckIntervalMs = 5_000;
+const pcMicrophoneStopped = "The PC microphone output stopped. Restoring video…";
 const recoverableEndReasons = new Set([
   "connection-lost",
   "transport-lost",
@@ -152,8 +153,9 @@ export default function PhoneWebcamWorkspace({
   const [microphoneActive, setMicrophoneActive] = useState(false);
   const [microphoneMuted, setMicrophoneMuted] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
+  const preferredCameraAvailable = cameras.some(({ deviceId }) => deviceId === cameraPreferenceId);
   const selectedCameraId =
-    phase === "idle" && !cameras.some(({ deviceId }) => deviceId === cameraPreferenceId)
+    phase === "idle" && !preferredCameraAvailable
       ? preferredCameraId(cameras)
       : cameraPreferenceId;
   const [isCameraViewExpanded, setIsCameraViewExpanded] = useState(false);
@@ -166,6 +168,7 @@ export default function PhoneWebcamWorkspace({
   const permissionGenerationRef = useRef(0);
   const permissionCaptureRef = useRef<AbortController | null>(null);
   const permissionStreamRef = useRef<MediaStream | null>(null);
+  const refreshCameraChoicesRef = useRef<(() => void) | null>(null);
   const microphoneRequestGenerationRef = useRef(0);
   const microphoneCaptureRef = useRef<AbortController | null>(null);
   const microphoneAvailableRef = useRef(capability.microphoneAvailable);
@@ -325,7 +328,12 @@ export default function PhoneWebcamWorkspace({
 
   const recoverSession = useCallback((notifyHost: boolean, message: string) => {
     const videoTrack = streamRef.current?.getVideoTracks()[0];
-    if (videoTrack?.muted && !isEndedTrack(videoTrack) && document.visibilityState === "visible") {
+    if (
+      videoTrack?.muted &&
+      !isEndedTrack(videoTrack) &&
+      !pageHiddenRef.current &&
+      document.visibilityState === "visible"
+    ) {
       releaseRef.current(notifyHost, "The browser paused your camera. Tap Start to resume.");
       return;
     }
@@ -588,8 +596,10 @@ export default function PhoneWebcamWorkspace({
         .catch(() => undefined)
         .finally(() => window.clearTimeout(deadline));
     };
+    refreshCameraChoicesRef.current = updateChoices;
     devices.addEventListener("devicechange", updateChoices);
     return () => {
+      refreshCameraChoicesRef.current = null;
       refresh?.abort();
       devices.removeEventListener("devicechange", updateChoices);
     };
@@ -731,6 +741,10 @@ export default function PhoneWebcamWorkspace({
         !selectedCameraId ||
         !activePc.hostIdentityPublicKey
       ) {
+        return;
+      }
+      if (recovering && !preferredCameraAvailable) {
+        releaseLocal(false, "The selected camera is unavailable. Choose a camera, then tap Start.");
         return;
       }
       if (typeof RTCPeerConnection === "undefined") {
@@ -880,6 +894,7 @@ export default function PhoneWebcamWorkspace({
       microphonePermissionGranted,
       openSelectedCamera,
       phase,
+      preferredCameraAvailable,
       recoverSession,
       recoverWithoutMicrophone,
       requestPreviewPlayback,
@@ -1347,16 +1362,25 @@ export default function PhoneWebcamWorkspace({
       }
       if (message.type === "phone.webcam.ended") {
         if (message.operationId !== operationIdRef.current) {
-          if (
-            recoveryVetoReasons.has(message.reason) &&
-            recoveringOperationIdsRef.current.has(message.operationId)
-          ) {
+          if (!recoveringOperationIdsRef.current.has(message.operationId)) {
+            return;
+          }
+          if (recoveryVetoReasons.has(message.reason)) {
             releaseLocal(true, message.message);
+          } else if (
+            message.reason === "audio-failed" &&
+            useMicrophone &&
+            !recoverVideoOnlyRef.current &&
+            (resumeRef.current ||
+              (recoveryAttemptRef.current > 0 && peerRef.current?.connectionState !== "connected"))
+          ) {
+            // Peer loss can reach the phone before the host reports why it ended.
+            recoverWithoutMicrophone(true, pcMicrophoneStopped);
           }
           return;
         }
         if (message.reason === "audio-failed") {
-          recoverWithoutMicrophone(false, "The PC microphone output stopped. Restoring video…");
+          recoverWithoutMicrophone(false, pcMicrophoneStopped);
         } else if (recoverableEndReasons.has(message.reason)) {
           recoverSession(false, message.message);
         } else {
@@ -1364,7 +1388,7 @@ export default function PhoneWebcamWorkspace({
         }
       }
     },
-    [acceptOffer, recoverSession, recoverWithoutMicrophone, releaseLocal],
+    [acceptOffer, recoverSession, recoverWithoutMicrophone, releaseLocal, useMicrophone],
   );
 
   useEffect(() => subscribePhoneWebcamResults(handleResult), [handleResult]);
@@ -1683,6 +1707,7 @@ export default function PhoneWebcamWorkspace({
       if (document.visibilityState === "hidden") {
         pauseForBackground();
       } else {
+        refreshCameraChoicesRef.current?.();
         scheduleResume();
       }
     };
@@ -1828,14 +1853,16 @@ export default function PhoneWebcamWorkspace({
     releaseLocal(true, "Ready to start.");
   };
 
-  const canStart =
+  const canConfigureCapture =
     supportedTransport &&
+    capability.canUse &&
+    capabilityConfirmed &&
+    state === "paired";
+  const canStart =
+    canConfigureCapture &&
     permissionGranted &&
     !microphonePermissionLoading &&
     selectedCameraId &&
-    capability.canUse &&
-    capabilityConfirmed &&
-    state === "paired" &&
     phase === "idle";
   const cameraAccessReady = permissionGranted && cameras.length > 0;
   const visibleStatus = cameraPaused
@@ -1937,13 +1964,7 @@ export default function PhoneWebcamWorkspace({
           <button
             type="button"
             className="primary-button"
-            disabled={
-              permissionLoading ||
-              !supportedTransport ||
-              !capability.canUse ||
-              !capabilityConfirmed ||
-              state !== "paired"
-            }
+            disabled={permissionLoading || !canConfigureCapture}
             onClick={() => {
               void loadCameras();
             }}
@@ -1969,9 +1990,9 @@ export default function PhoneWebcamWorkspace({
             </select>
           </label>
         )}
-        {cameraAccessReady && (capability.microphoneAvailable || microphoneActive) && (
+        {((cameraAccessReady && capability.microphoneAvailable) || microphoneActive) && (
           <div className="phone-webcam-microphone">
-            {capability.microphoneAvailable && (
+            {cameraAccessReady && capability.microphoneAvailable && (
               <label>
                 <input
                   type="checkbox"
@@ -1979,8 +2000,7 @@ export default function PhoneWebcamWorkspace({
                   disabled={
                     phase !== "idle" ||
                     microphonePermissionLoading ||
-                    !capabilityConfirmed ||
-                    state !== "paired"
+                    !canConfigureCapture
                   }
                   onChange={(event) => {
                     void requestMicrophone(event.target.checked);

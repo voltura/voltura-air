@@ -35,6 +35,28 @@ public sealed class UpdatePackageStagerTests
             out _));
     }
 
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("{\"version\":100}")]
+    [InlineData("{\"version\":\"1.0.10\",\"schema\":\"1\",\"assets\":[{\"name\":\"VolturaAir-Setup-1.0.10-win-x64.exe\",\"size\":1}]}")]
+    [InlineData("{\"version\":\"1.0.10\",\"schema\":1,\"assets\":[{\"name\":\"VolturaAir-Setup-1.0.10-win-x64.exe\",\"size\":\"1\"}]}")]
+    [InlineData("{\"version\":\"1.0.10\",\"schema\":1,\"assets\":[{\"name\":1}]}")]
+    [InlineData("{\"version\":\"1.0.10\",\"schema\":1,\"assets\":[{\"name\":\"VolturaAir-Setup-1.0.10-win-x64.exe\",\"size\":1,\"sha256\":42}]}")]
+    public void RestoreRejectsMalformedManifestWithoutThrowing(string manifest)
+    {
+        using var directory = new UpdateTemporaryDirectory();
+        var pending = Path.Combine(directory.Path, "pending");
+        var release = UpdateTestSupport.CreateRelease("1.0.10");
+        UpdateTestSupport.WriteReadyPackage(pending, release);
+        File.WriteAllText(Path.Combine(pending, "manifest.json"), manifest);
+
+        Assert.False(UpdatePolicy.TryRestoreReadyPackage(
+            pending,
+            _ => release.InstallerName,
+            static (_, _) => true,
+            out _));
+    }
+
     [Fact]
     public async Task SuccessfulReplacementRemovesSupersededUpdaterFiles()
     {
@@ -67,16 +89,20 @@ public sealed class UpdatePackageStagerTests
         Assert.True(File.Exists(Path.Combine(pending, "VolturaAir-Update-1.0.11.sig")));
     }
 
-    [Fact]
-    public async Task PublishFailureLeavesExistingReadySetUntouchedAndRemovesCandidate()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PublishFailureLeavesExistingReadySetUntouchedAndRemovesCandidate(bool failCommit)
     {
         using var directory = new UpdateTemporaryDirectory();
         using var store = new TempPairingStore();
         var pending = Path.Combine(directory.Path, "pending");
         var old = UpdateTestSupport.CreateRelease("1.0.10");
         UpdateTestSupport.WriteReadyPackage(pending, old);
-        var oldManifest = File.ReadAllBytes(Path.Combine(pending, "manifest.json"));
-        Directory.CreateDirectory(Path.Combine(pending, "manifest.json.pending"));
+        var manifestPath = Path.Combine(pending, "manifest.json");
+        var oldManifest = File.ReadAllBytes(manifestPath);
+        using var lockedManifest = failCommit ? File.Open(manifestPath, FileMode.Open, FileAccess.Read, FileShare.Read) : null;
+        if (!failCommit) Directory.CreateDirectory(Path.Combine(pending, "manifest.json.pending"));
         var candidate = UpdateTestSupport.CreateRelease("1.0.11");
         using var handler = new UpdateHttpHandler(candidate);
         using var client = new System.Net.Http.HttpClient(handler);
@@ -93,11 +119,38 @@ public sealed class UpdatePackageStagerTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal(UpdateStageStatus.Failed, result.Status);
-        Assert.Equal(oldManifest, File.ReadAllBytes(Path.Combine(pending, "manifest.json")));
+        Assert.Equal(oldManifest, File.ReadAllBytes(manifestPath));
         Assert.True(File.Exists(Path.Combine(pending, old.InstallerName)));
         Assert.True(File.Exists(Path.Combine(pending, "VolturaAir-Update-1.0.10.sig")));
         Assert.False(File.Exists(Path.Combine(pending, candidate.InstallerName)));
         Assert.False(File.Exists(Path.Combine(pending, "VolturaAir-Update-1.0.11.sig")));
+    }
+
+    [Fact]
+    public async Task CleanupFailureAfterCommitLeavesTheNewPackageReady()
+    {
+        using var directory = new UpdateTemporaryDirectory();
+        using var store = new TempPairingStore();
+        var pending = Path.Combine(directory.Path, "pending");
+        var old = UpdateTestSupport.CreateRelease("1.0.10");
+        UpdateTestSupport.WriteReadyPackage(pending, old);
+        var candidate = UpdateTestSupport.CreateRelease("1.0.11");
+        using var handler = new UpdateHttpHandler(candidate);
+        using var client = new System.Net.Http.HttpClient(handler);
+        var stager = new UpdatePackageStager(
+            client, new PairingManager(store.Store), candidate.InstallerName, static (_, _) => true, pending,
+            enumeratePendingFiles: _ => throw new UnauthorizedAccessException("Cannot enumerate old update files."));
+
+        var result = await stager.StageAsync(
+            UpdateTestSupport.GetAssets(candidate), new Version(1, 0, 11), TestContext.Current.CancellationToken);
+
+        Assert.Equal(UpdateStageStatus.Ready, result.Status);
+        Assert.NotNull(result.ReadyPackage);
+        var applyPath = await UpdatePolicy.ValidateReadyForApplyAsync(
+            pending, result.ReadyPackage, _ => candidate.InstallerName, static (_, _) => true,
+            TestContext.Current.CancellationToken);
+        Assert.Equal(Path.Combine(pending, candidate.InstallerName), applyPath);
+        Assert.True(File.Exists(Path.Combine(pending, old.InstallerName)));
     }
 
     [Theory]

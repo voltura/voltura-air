@@ -1,6 +1,6 @@
 import {
   forwardRef,
-  useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -12,6 +12,18 @@ import "./hold-to-confirm.css";
 const holdDurationMs = 1600;
 const holdTickMs = 40;
 
+interface HeldPointer {
+  id: number;
+  target: HTMLButtonElement;
+  x: number;
+  y: number;
+}
+
+function isPointerInside({ target, x, y }: HeldPointer) {
+  const { left, top, right, bottom } = target.getBoundingClientRect();
+  return right > left && bottom > top && x >= left && x <= right && y >= top && y <= bottom;
+}
+
 export const HoldToConfirmButton = forwardRef<
   HTMLButtonElement,
   { disabled: boolean; label: string; onConfirm: () => void }
@@ -21,14 +33,15 @@ export const HoldToConfirmButton = forwardRef<
   const timeoutRef = useRef<number | null>(null);
   const startedAtRef = useRef(0);
   const completedRef = useRef(false);
-  const pointerRef = useRef<number | null>(null);
+  const pointerRef = useRef<HeldPointer | null>(null);
   const keyRef = useRef<string | null>(null);
   const confirmRef = useRef(onConfirm);
-  useEffect(() => {
+  useLayoutEffect(() => {
     confirmRef.current = onConfirm;
   }, [onConfirm]);
 
   const clearHold = (reset = true) => {
+    const pointer = pointerRef.current;
     pointerRef.current = null;
     keyRef.current = null;
     if (intervalRef.current !== null) {
@@ -39,12 +52,19 @@ export const HoldToConfirmButton = forwardRef<
       window.clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
+    if (pointer?.target.hasPointerCapture?.(pointer.id)) {
+      try {
+        pointer.target.releasePointerCapture?.(pointer.id);
+      } catch {
+        // Capture may already have ended with the pointer.
+      }
+    }
     if (reset && !completedRef.current) {
       setProgress(0);
     }
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const cancelOnWindowBlur = () => {
       clearHold();
     };
@@ -64,7 +84,7 @@ export const HoldToConfirmButton = forwardRef<
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     clearHold();
     if (disabled) {
       return;
@@ -73,16 +93,29 @@ export const HoldToConfirmButton = forwardRef<
     setProgress(0);
   }, [disabled, label]);
 
-  const beginHold = () => {
+  const beginHold = (target: HTMLButtonElement) => {
     if (disabled || timeoutRef.current !== null || completedRef.current) {
       return;
     }
+    const remainsValid = () =>
+      target.isConnected &&
+      !target.disabled &&
+      document.visibilityState !== "hidden" &&
+      (pointerRef.current === null || isPointerInside(pointerRef.current));
     startedAtRef.current = performance.now();
     setProgress(0.01);
     intervalRef.current = window.setInterval(() => {
+      if (!remainsValid()) {
+        clearHold();
+        return;
+      }
       setProgress(Math.min(1, (performance.now() - startedAtRef.current) / holdDurationMs));
     }, holdTickMs);
     timeoutRef.current = window.setTimeout(() => {
+      if (!remainsValid()) {
+        clearHold();
+        return;
+      }
       completedRef.current = true;
       setProgress(1);
       clearHold(false);
@@ -91,7 +124,7 @@ export const HoldToConfirmButton = forwardRef<
   };
 
   const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
-    if (event.button !== 0 || timeoutRef.current !== null || completedRef.current) {
+    if (disabled || event.button !== 0 || timeoutRef.current !== null || completedRef.current) {
       return;
     }
     event.preventDefault();
@@ -100,8 +133,26 @@ export const HoldToConfirmButton = forwardRef<
     } catch {
       /* Capture is optional; leaving the button cancels. */
     }
-    pointerRef.current = event.pointerId;
-    beginHold();
+    pointerRef.current = {
+      id: event.pointerId,
+      target: event.currentTarget,
+      x: event.clientX,
+      y: event.clientY,
+    };
+    beginHold(event.currentTarget);
+  };
+
+  const onPointerMove = (event: PointerEvent<HTMLButtonElement>) => {
+    const pointer = pointerRef.current;
+    if (pointer?.id !== event.pointerId) {
+      return;
+    }
+    // Captured moves still target the button when the pointer is outside it.
+    pointer.x = event.clientX;
+    pointer.y = event.clientY;
+    if (!isPointerInside(pointer)) {
+      clearHold();
+    }
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
@@ -111,7 +162,7 @@ export const HoldToConfirmButton = forwardRef<
         return;
       }
       keyRef.current = event.key;
-      beginHold();
+      beginHold(event.currentTarget);
     }
   };
 
@@ -119,7 +170,7 @@ export const HoldToConfirmButton = forwardRef<
     clearHold();
   };
   const finishPointer = (event: PointerEvent<HTMLButtonElement>) => {
-    if (pointerRef.current === null || pointerRef.current === event.pointerId) {
+    if (pointerRef.current === null || pointerRef.current.id === event.pointerId) {
       clearHold();
     }
   };
@@ -147,6 +198,7 @@ export const HoldToConfirmButton = forwardRef<
       onLostPointerCapture={finishPointer}
       onPointerDown={onPointerDown}
       onPointerLeave={finishPointer}
+      onPointerMove={onPointerMove}
       onPointerUp={finishPointer}
     >
       <span>

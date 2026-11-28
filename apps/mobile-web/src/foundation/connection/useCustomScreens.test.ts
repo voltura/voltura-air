@@ -16,6 +16,27 @@ function definition(id: string, revision: string): CustomScreenDefinition {
 describe("useCustomScreens", () => {
   afterEach(() => vi.useRealTimers());
 
+  it("reports a refused definition and button send immediately without starting deadlines", () => {
+    vi.useFakeTimers();
+    const send = vi.fn(() => false);
+    const { result } = renderHook(() => useCustomScreens("paired", 4, "catalog.current", send));
+    act(() => {
+      result.current.requestCustomScreen("screen.one");
+      result.current.invokeCustomScreenButton("screen.one", "rev", "button.one");
+    });
+
+    expect(result.current.customScreenGetResult).toMatchObject({
+      succeeded: false,
+      code: "VAIR-CUSTOM-SCREEN-SEND-FAILED",
+    });
+    expect(result.current.customScreenInvokeResult).toMatchObject({
+      succeeded: false,
+      code: "VAIR-CUSTOM-SCREEN-INVOKE-SEND-FAILED",
+    });
+    expect(result.current.pendingCustomScreenButtonIds.size).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("ends a lost definition load with retry guidance and ignores its late reply", () => {
     vi.useFakeTimers();
     const send = vi.fn();

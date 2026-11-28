@@ -54,6 +54,12 @@ function air_screen_db(): PDO
 
 function air_screen_acquire_advisory_lock(PDO $database, string $scope, string $key, int $timeoutSeconds = 5): string
 {
+    return air_screen_try_acquire_advisory_lock($database, $scope, $key, $timeoutSeconds)
+        ?? throw new RuntimeException('The catalog is busy. Try again.');
+}
+
+function air_screen_try_acquire_advisory_lock(PDO $database, string $scope, string $key, int $timeoutSeconds): ?string
+{
     if (!preg_match('/^[a-z_]{1,20}$/D', $scope) || $key === '' || $timeoutSeconds < 0 || $timeoutSeconds > 30) {
         throw new InvalidArgumentException('Invalid catalog lock request.');
     }
@@ -62,10 +68,7 @@ function air_screen_acquire_advisory_lock(PDO $database, string $scope, string $
     $statement->bindValue('name', $name, PDO::PARAM_STR);
     $statement->bindValue('timeout', $timeoutSeconds, PDO::PARAM_INT);
     $statement->execute();
-    if ((int)$statement->fetchColumn() !== 1) {
-        throw new RuntimeException('The catalog is busy. Try again.');
-    }
-    return $name;
+    return (int)$statement->fetchColumn() === 1 ? $name : null;
 }
 
 function air_screen_release_advisory_lock(PDO $database, string $name): void
@@ -147,6 +150,57 @@ function air_screen_package_path(string $basename): string
     return air_screen_storage_path() . DIRECTORY_SEPARATOR . air_screen_storage_basename($basename);
 }
 
+function air_screen_try_acquire_package_storage_lock(PDO $database, int $timeoutSeconds): ?string
+{
+    return air_screen_try_acquire_advisory_lock($database, 'package_storage', 'catalog', $timeoutSeconds);
+}
+
+// The caller owns the storage lock and a committed cleanup job until the row takes ownership.
+function air_screen_write_content_file(string $path, string $contents, string $sha256): void
+{
+    $partialPath = $path . '.part';
+    clearstatcache(true, $partialPath);
+    if (is_file($partialPath) && !unlink($partialPath)) {
+        throw new RuntimeException('The package could not be stored.');
+    }
+    clearstatcache(true, $path);
+    if (is_file($path)) {
+        $existingHash = hash_file('sha256', $path);
+        if (!is_string($existingHash) || !hash_equals($sha256, $existingHash)) {
+            throw new RuntimeException('The package storage hash is already occupied.');
+        }
+        return;
+    }
+
+    $stream = fopen($partialPath, 'x+b');
+    if ($stream === false) {
+        throw new RuntimeException('The package could not be stored.');
+    }
+    try {
+        if (fwrite($stream, $contents) !== strlen($contents)) {
+            throw new RuntimeException('The package could not be stored.');
+        }
+        air_screen_package_storage_failure('stage_write');
+        if (!fflush($stream) || !fsync($stream)) {
+            throw new RuntimeException('The package could not be stored.');
+        }
+    } finally {
+        fclose($stream);
+    }
+    air_screen_package_storage_failure('install_rename');
+    if (!rename($partialPath, $path)) {
+        throw new RuntimeException('The package could not be stored.');
+    }
+}
+
+function air_screen_package_storage_failure(string $boundary): void
+{
+    $failures = array_filter(array_map('trim', explode(',', (string)getenv('VOLTURA_AIR_PACKAGE_STORAGE_FAIL'))));
+    if (getenv('VOLTURA_AIR_SITE_DEV') === '1' && in_array($boundary, $failures, true)) {
+        throw new RuntimeException('Injected package storage failure at ' . $boundary . '.');
+    }
+}
+
 function air_screen_enqueue_cleanup(PDO $database, string $basename, string $sha256): void
 {
     air_screen_storage_basename($basename);
@@ -163,41 +217,58 @@ function air_screen_drain_cleanup_jobs(int $limit = 3): int
 {
     $limit = max(1, min(100, $limit));
     $database = air_screen_db();
-    $jobs = $database->query(
-        'SELECT storage_basename, expected_sha256, attempts FROM air_screen_cleanup_jobs '
-        . 'WHERE retry_at <= CURRENT_TIMESTAMP ORDER BY retry_at LIMIT ' . $limit)->fetchAll();
-    $completed = 0;
-    foreach ($jobs as $job) {
-        $basename = (string)$job['storage_basename'];
-        try {
-            $references = $database->prepare('SELECT COUNT(*) FROM air_screen_packages WHERE storage_basename = :basename');
-            $references->execute(['basename' => $basename]);
-            if ((int)$references->fetchColumn() !== 0) {
-                throw new RuntimeException('referenced');
-            }
-            $path = air_screen_package_path($basename);
-            if (is_file($path)) {
-                $actual = hash_file('sha256', $path);
-                if (!is_string($actual) || !hash_equals((string)$job['expected_sha256'], $actual)) {
-                    throw new RuntimeException('hash_mismatch');
-                }
-                if (!unlink($path)) throw new RuntimeException('delete_failed');
-            }
-            $delete = $database->prepare('DELETE FROM air_screen_cleanup_jobs WHERE storage_basename = :basename AND expected_sha256 = :hash');
-            $delete->execute(['basename' => $basename, 'hash' => $job['expected_sha256']]);
-            $completed++;
-        } catch (Throwable $error) {
-            $code = in_array($error->getMessage(), ['referenced', 'hash_mismatch', 'delete_failed'], true)
-                ? $error->getMessage() : 'storage_error';
-            $attempts = min(20, (int)$job['attempts'] + 1);
-            $delay = min(86400, 60 * (2 ** min(10, $attempts - 1)));
-            $update = $database->prepare(
-                'UPDATE air_screen_cleanup_jobs SET attempts = :attempts, last_error_code = :code, '
-                . 'retry_at = TIMESTAMPADD(SECOND, ' . $delay . ', CURRENT_TIMESTAMP) WHERE storage_basename = :basename');
-            $update->execute(['attempts' => $attempts, 'code' => $code, 'basename' => $basename]);
-        }
+    if ($database->inTransaction()) {
+        return 0;
     }
-    return $completed;
+    $lock = air_screen_try_acquire_package_storage_lock($database, 0);
+    if ($lock === null) {
+        return 0;
+    }
+    try {
+        $jobs = $database->query(
+            'SELECT storage_basename, expected_sha256, attempts FROM air_screen_cleanup_jobs '
+            . 'WHERE retry_at <= CURRENT_TIMESTAMP ORDER BY retry_at LIMIT ' . $limit)->fetchAll();
+        $completed = 0;
+        foreach ($jobs as $job) {
+            $basename = (string)$job['storage_basename'];
+            try {
+                $path = air_screen_package_path($basename);
+                $partialPath = $path . '.part';
+                clearstatcache(true, $partialPath);
+                if (is_file($partialPath) && !unlink($partialPath)) {
+                    throw new RuntimeException('delete_failed');
+                }
+                $references = $database->prepare('SELECT COUNT(*) FROM air_screen_packages WHERE storage_basename = :basename');
+                $references->execute(['basename' => $basename]);
+                if ((int)$references->fetchColumn() !== 0) {
+                    throw new RuntimeException('referenced');
+                }
+                clearstatcache(true, $path);
+                if (is_file($path)) {
+                    $actual = hash_file('sha256', $path);
+                    if (!is_string($actual) || !hash_equals((string)$job['expected_sha256'], $actual)) {
+                        throw new RuntimeException('hash_mismatch');
+                    }
+                    if (!unlink($path)) throw new RuntimeException('delete_failed');
+                }
+                $delete = $database->prepare('DELETE FROM air_screen_cleanup_jobs WHERE storage_basename = :basename AND expected_sha256 = :hash');
+                $delete->execute(['basename' => $basename, 'hash' => $job['expected_sha256']]);
+                $completed++;
+            } catch (Throwable $error) {
+                $code = in_array($error->getMessage(), ['referenced', 'hash_mismatch', 'delete_failed'], true)
+                    ? $error->getMessage() : 'storage_error';
+                $attempts = min(20, (int)$job['attempts'] + 1);
+                $delay = min(86400, 60 * (2 ** min(10, $attempts - 1)));
+                $update = $database->prepare(
+                    'UPDATE air_screen_cleanup_jobs SET attempts = :attempts, last_error_code = :code, '
+                    . 'retry_at = TIMESTAMPADD(SECOND, ' . $delay . ', CURRENT_TIMESTAMP) WHERE storage_basename = :basename');
+                $update->execute(['attempts' => $attempts, 'code' => $code, 'basename' => $basename]);
+            }
+        }
+        return $completed;
+    } finally {
+        air_screen_release_advisory_lock($database, $lock);
+    }
 }
 
 function air_screen_rate_consume(
@@ -764,16 +835,22 @@ function air_screen_validate_package(string $json): array
         throw new InvalidArgumentException('The package is empty or too large.');
     }
     try {
-        $package = json_decode($json, true, 32, JSON_THROW_ON_ERROR);
+        $document = json_decode($json, false, 32, JSON_THROW_ON_ERROR);
     } catch (JsonException) {
         throw new InvalidArgumentException('The package is not valid JSON.');
     }
+    if (!($document instanceof stdClass)) {
+        throw new InvalidArgumentException('Choose a .volturascreen package.');
+    }
+    $package = (array)$document;
     air_screen_require_exact_keys($package, ['packageVersion', 'format', 'screen'], ['packageVersion', 'format', 'screen']);
     if ($package['packageVersion'] !== 1 || $package['format'] !== 'voltura-air.custom-screen') {
         throw new InvalidArgumentException('The package version or format is unsupported.');
     }
-    $screen = $package['screen'];
-    if (!is_array($screen)) { throw new InvalidArgumentException('The package does not contain a valid screen.'); }
+    if (!($package['screen'] instanceof stdClass)) {
+        throw new InvalidArgumentException('The package does not contain a valid screen.');
+    }
+    $screen = (array)$package['screen'];
     air_screen_require_exact_keys($screen, ['id', 'name', 'revision', 'assignedClientIds', 'orientationLayoutsEnabled', 'showNavigationHeader', 'sections'], ['id', 'name', 'revision', 'assignedClientIds', 'orientationLayoutsEnabled', 'showNavigationHeader', 'sections']);
     if (!air_screen_valid_id($screen['id'] ?? null) ||
         !air_screen_valid_text($screen['name'] ?? null, 24) ||
@@ -784,33 +861,37 @@ function air_screen_validate_package(string $json): array
         throw new InvalidArgumentException('The package does not contain a valid screen.');
     }
     $sections = $screen['sections'];
-    if (!is_array($sections) || count($sections) > 64) {
+    if (!is_array($sections)) {
+        throw new InvalidArgumentException('The package contains an invalid panel list.');
+    }
+    if (count($sections) > 64) {
         throw new InvalidArgumentException('The package contains too many panels.');
     }
     $buttons = 0;
     $sectionIds = [];
     $buttonIds = [];
-    foreach ($sections as $section) {
-        if (is_array($section)) {
-            air_screen_require_exact_keys($section, ['id', 'name', 'showHeader', 'widthColumns', 'heightMode', 'fillWeight', 'rowLimit', 'portrait', 'landscape', 'buttons', 'kind', 'trackpadLeftClick', 'trackpadRightClick', 'trackpadButtonSide', 'initiallyExpanded', 'trackpadFullscreenControl', 'trackpadGyroControl', 'buttonAlignment'], ['id', 'name', 'showHeader', 'widthColumns', 'heightMode', 'fillWeight', 'rowLimit', 'buttons', 'kind', 'trackpadLeftClick', 'trackpadRightClick', 'trackpadButtonSide', 'initiallyExpanded', 'trackpadFullscreenControl', 'buttonAlignment']);
-        }
-        $sectionButtons = is_array($section) ? ($section['buttons'] ?? null) : null;
-        if (!is_array($section) || !is_array($sectionButtons)) {
+    foreach ($sections as $sectionIndex => $sectionObject) {
+        if (!($sectionObject instanceof stdClass) || !is_array($sectionObject->buttons ?? null)) {
             throw new InvalidArgumentException('The package contains an invalid panel.');
         }
+        $section = air_screen_package_layout_arrays((array)$sectionObject);
+        air_screen_require_exact_keys($section, ['id', 'name', 'showHeader', 'widthColumns', 'heightMode', 'fillWeight', 'rowLimit', 'portrait', 'landscape', 'buttons', 'kind', 'trackpadLeftClick', 'trackpadRightClick', 'trackpadButtonSide', 'initiallyExpanded', 'trackpadFullscreenControl', 'trackpadGyroControl', 'buttonAlignment'], ['id', 'name', 'showHeader', 'widthColumns', 'heightMode', 'fillWeight', 'rowLimit', 'buttons', 'kind', 'trackpadLeftClick', 'trackpadRightClick', 'trackpadButtonSide', 'initiallyExpanded', 'trackpadFullscreenControl', 'buttonAlignment']);
         if (!air_screen_validate_section($section)) {
             throw new InvalidArgumentException('The package contains an invalid panel.');
         }
         if (isset($sectionIds[$section['id']])) { throw new InvalidArgumentException('The package contains duplicate panel IDs.'); }
         $sectionIds[$section['id']] = true;
-        $buttons += count($sectionButtons);
-        foreach ($sectionButtons as $button) {
-            if (is_array($button)) {
-                air_screen_require_exact_keys($button, ['id', 'name', 'label', 'icon', 'presentation', 'size', 'repeat', 'portrait', 'landscape', 'action', 'row'], ['id', 'name', 'label', 'icon', 'presentation', 'size', 'repeat', 'action', 'row']);
+        $buttons += count($section['buttons']);
+        foreach ($section['buttons'] as $buttonIndex => $buttonObject) {
+            if (!($buttonObject instanceof stdClass) || !(($buttonObject->action ?? null) instanceof stdClass)) {
+                throw new InvalidArgumentException('The package contains an invalid button or action.');
             }
-            $action = is_array($button) ? ($button['action'] ?? null) : null;
-            $kind = is_array($action) ? ($action['kind'] ?? null) : null;
-            if (!is_array($button) || !is_array($action) || !in_array($kind, ['text', 'shortcut', 'builtIn', 'urlOpen', 'knownApp', 'hostAction', 'laserPointer'], true)) {
+            $button = air_screen_package_layout_arrays((array)$buttonObject);
+            air_screen_require_exact_keys($button, ['id', 'name', 'label', 'icon', 'presentation', 'size', 'repeat', 'portrait', 'landscape', 'action', 'row'], ['id', 'name', 'label', 'icon', 'presentation', 'size', 'repeat', 'action', 'row']);
+            $action = (array)$button['action'];
+            $button['action'] = $action;
+            $kind = $action['kind'] ?? null;
+            if (!in_array($kind, ['text', 'shortcut', 'builtIn', 'urlOpen', 'knownApp', 'hostAction', 'laserPointer'], true)) {
                 throw new InvalidArgumentException('The package contains an unsupported action.');
             }
             if (!air_screen_validate_button($button, $section)) {
@@ -830,7 +911,9 @@ function air_screen_validate_package(string $json): array
             if (!air_screen_validate_action($action)) {
                 throw new InvalidArgumentException('The package contains an invalid action.');
             }
+            $section['buttons'][$buttonIndex] = $button;
         }
+        $screen['sections'][$sectionIndex] = $section;
     }
     if ($buttons > 256) {
         throw new InvalidArgumentException('The package contains too many buttons.');
@@ -840,6 +923,19 @@ function air_screen_validate_package(string $json): array
         'format' => 'voltura-air.custom-screen',
         'screen' => $screen,
     ];
+}
+
+function air_screen_package_layout_arrays(array $record): array
+{
+    foreach (['portrait', 'landscape'] as $orientation) {
+        $layout = $record[$orientation] ?? null;
+        if ($layout === null) { continue; }
+        if (!($layout instanceof stdClass)) {
+            throw new InvalidArgumentException('The package contains an invalid layout.');
+        }
+        $record[$orientation] = (array)$layout;
+    }
+    return $record;
 }
 
 function air_screen_validate_section(array $section): bool
@@ -913,6 +1009,7 @@ function air_screen_validate_action(array $action): bool
     if ($kind === 'shortcut') {
         $modifiers = $action['modifiers'];
         return air_screen_valid_shortcut_key($action['key']) && is_array($modifiers) && count($modifiers) <= 5 &&
+            array_all($modifiers, static fn(mixed $modifier): bool => is_string($modifier)) &&
             count(array_unique($modifiers, SORT_STRING)) === count($modifiers) &&
             array_diff($modifiers, ['Control', 'Shift', 'Alt', 'AltGr', 'Win']) === [];
     }
@@ -952,7 +1049,7 @@ function air_screen_fits_text_limit(string $value, int $maximumLength): bool
 {
     if (strlen($value) <= $maximumLength) { return true; }
 
-    // The Windows exporter counts UTF-16 code units. Supplementary characters take two.
+    // HTML maxlength and the Windows exporter count UTF-16 code units.
     $characters = preg_match_all('/./us', $value);
     $supplementary = preg_match_all('/[\x{10000}-\x{10FFFF}]/u', $value);
     return $characters !== false && $supplementary !== false && $characters + $supplementary <= $maximumLength;

@@ -994,13 +994,34 @@ describe("useScreenViewRecording", () => {
     act(() => source.audio.clones[0]!.end());
 
     expect(result.current.presentation.phase).toBe("recording");
-    expect(result.current.presentation.message).toContain("without further PC sound");
+    expect(result.current.presentation.message).toBe("PC sound interrupted");
     expect(notice).toHaveBeenCalledWith(
       expect.stringContaining("without further PC sound"),
       "neutral",
     );
     await act(() => result.current.discard());
     unmount();
+  });
+
+  it("keeps finalization status when PC sound is lost after Stop", async () => {
+    const notice = vi.fn();
+    const source = sourceStream(true);
+    const { result } = renderHook(() => useScreenViewRecording(notice));
+    await act(() => result.current.start(source.stream, true));
+    const recorder = FakeMediaRecorder.instances.at(-1)!;
+    recorder.stop.mockImplementationOnce(() => {
+      recorder.state = "inactive";
+    });
+
+    act(() => {
+      result.current.stop();
+      source.audio.clones[0]!.end();
+      result.current.reportAudioUnavailable();
+    });
+
+    expect(result.current.presentation).toMatchObject({ phase: "finalizing", message: "Finalizing…" });
+    expect(notice).not.toHaveBeenCalled();
+    await act(() => result.current.discard());
   });
 
   it("keeps a completed file ready when native sharing is canceled", async () => {

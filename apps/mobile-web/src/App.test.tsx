@@ -88,6 +88,7 @@ function readStoredStringProperty(key: string, property: string): string[] {
 
 function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnection>> = {}) {
   vi.mocked(useVolturaAirConnection).mockReturnValue({
+    initialPairing: null,
     state: "paired",
     connectionEpoch: 1,
     message: "Connected to Very Long Living Room Editing Workstation",
@@ -323,6 +324,73 @@ describe("App header and mode navigation", () => {
     expect(screen.getByRole("dialog", { name: "Secure Direct unavailable" })).not.toBeNull();
   });
 
+  it("offers QR and manual recovery after an unavailable first pairing", () => {
+    const message = "Secure Direct could not establish a private LAN connection to this PC.";
+    mockConnection({
+      activePc: null,
+      state: "unavailable",
+      message,
+      lastConnectionError: {
+        code: "VAIR-PAIR-SECURE-DIRECT",
+        message,
+        transportMode: "secure-direct",
+      },
+    });
+
+    render(<App />);
+
+    const dialog = screen.getByRole("dialog", { name: "Secure Direct unavailable" });
+    expect(within(dialog).getByRole("button", { name: "Take photo of new QR code" })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "Enter host manually" })).toBeTruthy();
+    expect(within(dialog).queryByRole("button", { name: "Try reconnect" })).toBeNull();
+  });
+
+  it("uses startup pairing supplied by the connection owner for device-name confirmation", () => {
+    const pairWithToken = vi.fn();
+    const pairToken = "a".repeat(32);
+    const pcUrl = `https://voltura.se/s/${"r".repeat(22)}`;
+    mockConnection({
+      activePc: null,
+      initialPairing: { pairToken, pcUrl },
+      pairWithToken,
+      state: "needs-pairing",
+    });
+
+    render(<App />);
+
+    const dialog = screen.getByRole("dialog", { name: "Confirm this device" });
+    expect(pairWithToken).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Pair" }));
+    expect(pairWithToken).toHaveBeenCalledExactlyOnceWith(pairToken, pcUrl, "Phone");
+  });
+
+  it("lets a new device paste a pairing link before any connection attempt", () => {
+    const pairWithToken = vi.fn();
+    const pairToken = "a".repeat(32);
+    const pcUrl = "http://pc.local:51395";
+    mockConnection({
+      activePc: null,
+      message: "Scan the PC pairing QR to pair this app.",
+      pairWithToken,
+      state: "needs-pairing",
+    });
+
+    render(<App />);
+
+    const pairing = screen.getByRole("dialog", { name: "Pair this app" });
+    fireEvent.click(within(pairing).getByRole("button", { name: "Enter host manually" }));
+    const manualHost = screen.getByRole("dialog", { name: "Enter host manually" });
+    fireEvent.change(within(manualHost).getByRole("textbox", { name: "Host or pairing link" }), {
+      target: { value: `${pcUrl}/pair?t=${pairToken}&v=1.5.7` },
+    });
+    fireEvent.click(within(manualHost).getByRole("button", { name: "Connect" }));
+
+    expect(pairWithToken).not.toHaveBeenCalled();
+    const confirmation = screen.getByRole("dialog", { name: "Confirm this device" });
+    fireEvent.click(within(confirmation).getByRole("button", { name: "Pair" }));
+    expect(pairWithToken).toHaveBeenCalledExactlyOnceWith(pairToken, pcUrl, "Phone");
+  });
+
   it("uses the effective device control-depth preference on the app shell and bottom navigation frame", () => {
     mockConnection({ hostStatus: { controlDepth: false } });
     const view = render(<App />);
@@ -452,6 +520,41 @@ describe("App header and mode navigation", () => {
     expect(screen.getByRole("heading", { name: "Presentation" })).toBeTruthy();
     expect(requestPresentationCommand).toHaveBeenCalledExactlyOnceWith("powerpoint", "next");
     expect(screen.getAllByRole("button", { name: "Trackpad" })).not.toHaveLength(0);
+  });
+
+  it("throws away a pairing link when the user keeps their Presentation connection", () => {
+    const beginNewPairing = vi.fn();
+    mockConnection({ beginNewPairing });
+    const view = render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    let menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+    fireEvent.click(within(menu).getByRole("button", { name: "Presentation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+    fireEvent.click(within(menu).getByText("Connection", { exact: true }));
+    const manualInput = within(menu).getByRole("textbox", { name: "Host or pairing link" });
+    const pairToken = "a".repeat(32);
+    fireEvent.change(manualInput, {
+      target: { value: `http://other.local:51395/pair?t=${pairToken}&v=1.5.7` },
+    });
+    fireEvent.click(within(menu).getByRole("button", { name: "Connect to PC" }));
+    const confirmation = screen.getByRole("dialog", { name: "Change PC during presentation?" });
+    fireEvent.click(within(confirmation).getByRole("button", { name: "Keep current connection" }));
+
+    expect(beginNewPairing).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+    mockConnection({
+      activePc: null,
+      beginNewPairing,
+      state: "needs-pairing",
+      message: "Scan the PC pairing QR to pair this app.",
+    });
+    view.rerender(<App />);
+    expect(screen.queryByRole("dialog", { name: "Confirm this device" })).toBeNull();
   });
 
   it("hides Presentation entry points when the host does not advertise the capability", () => {
@@ -585,7 +688,10 @@ describe("App header and mode navigation", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     expect(screen.getByRole("heading", { name: "Menu" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
+      await vi.dynamicImportSettled();
+    });
 
     expect(await screen.findByRole("heading", { name: "Send text to PC" })).toBeTruthy();
     expect(screen.getAllByRole("button", { name: "Presentation" })).toHaveLength(2);
@@ -616,7 +722,10 @@ describe("App header and mode navigation", () => {
       render(<AppWithUnavailableEditor />, { onCaughtError });
 
       fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
-      fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
+        await vi.dynamicImportSettled();
+      });
 
       const error = await screen.findByRole("alert");
       expect(onCaughtError).toHaveBeenCalledOnce();
@@ -1301,6 +1410,37 @@ describe("App header and mode navigation", () => {
         "true",
       );
     });
+  });
+
+  it("does not replay a pending Gyro request after a different workspace closes", async () => {
+    let grantMotion!: (result: "granted") => void;
+    const motionPermission = new Promise<"granted">((resolve) => {
+      grantMotion = resolve;
+    });
+    vi.stubGlobal("isSecureContext", true);
+    vi.stubGlobal("DeviceMotionEvent", { requestPermission: () => motionPermission });
+    vi.stubGlobal("DeviceOrientationEvent", { requestPermission: () => Promise.resolve("granted") });
+    mockConnection({
+      appsCapability: { enabled: true, permissionGranted: true, canUse: true, previewAvailable: false },
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    let menu = screen.getByRole("dialog", { name: "Menu" });
+    fireEvent.click(within(menu).getByRole("button", { name: "Gyro mouse" }));
+    expect(screen.getByRole("button", { name: "Gyro" }).getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    menu = screen.getByRole("dialog", { name: "Menu" });
+    fireEvent.click(within(menu).getByRole("button", { name: "Apps" }));
+    const closeApps = await screen.findByRole("button", { name: "Back from Apps" });
+    await act(async () => {
+      grantMotion("granted");
+      await motionPermission;
+    });
+    await act(() => fireEvent.click(closeApps));
+
+    expect(screen.getByRole("button", { name: "Gyro" }).getAttribute("aria-pressed")).toBe("false");
   });
 
   it("navigates from Screen to a custom screen selected in the Settings drawer", async () => {

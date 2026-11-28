@@ -109,7 +109,7 @@ public sealed partial class HostUiLayoutTests
     }
 
     [Fact]
-    public void UsageStatisticsShowsStartupIdentityCleanupFailure()
+    public void UsageStatisticsRetriesIdentityCleanupWithoutEnabling()
     {
         if (ShouldSkipNativeUiLayoutTests())
         {
@@ -126,9 +126,19 @@ public sealed partial class HostUiLayoutTests
             var view = new UsageStatisticsController(control).CreateView();
 
             Assert.Equal("Off", view.StateText.Text);
+            Assert.Equal("Retry cleanup", view.ChangeStateButton.Content);
             Assert.Equal(Visibility.Visible, view.TransitionStatusText.Visibility);
             Assert.Contains("old local ID could not be removed", view.TransitionStatusText.Text, StringComparison.Ordinal);
             Assert.Contains("Retry before enabling", view.TransitionStatusText.Text, StringComparison.Ordinal);
+
+            view.ChangeStateButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal([false], control.Requests);
+            control.Complete(new UsageStatisticsTransitionResult(false, true, true));
+            DrainDispatcher();
+
+            Assert.Equal("Off", view.StateText.Text);
+            Assert.Equal("Enable", view.ChangeStateButton.Content);
+            Assert.Equal(Visibility.Collapsed, view.TransitionStatusText.Visibility);
         });
     }
 

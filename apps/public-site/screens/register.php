@@ -8,7 +8,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = (string)($_POST['password'] ?? '');
     $generic = 'If that address can be registered, a verification link has been sent.';
     try {
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $name === '' || strlen($name) > 80 || strlen($password) < 12) {
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $name === '' ||
+            !air_screen_fits_text_limit($name, 80) || strlen($password) < 12) {
             throw new InvalidArgumentException('invalid');
         }
         $emailKey = air_screen_email_bucket_key($email);

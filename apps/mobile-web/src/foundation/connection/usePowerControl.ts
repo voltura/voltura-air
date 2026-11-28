@@ -18,7 +18,7 @@ interface PendingPowerOperation {
 export function usePowerControl(
   state: ConnectionState,
   connectionEpoch: number,
-  send: (payload: ClientMessage) => void,
+  send: (payload: ClientMessage) => boolean | void,
 ) {
   const [pendingOperation, setPendingOperation] = useState<PendingPowerOperation | null>(null);
   const [powerActionResult, setPowerActionResult] = useState<SystemPowerResultMessage | null>(null);
@@ -61,14 +61,24 @@ export function usePowerControl(
 
   const requestPowerAction = (action: SystemPowerAction) => {
     if (state !== "paired" || pendingRef.current !== null) {
-      return;
+      return false;
     }
 
     const pending = { operationId: createLocalId(), action } satisfies PendingPowerOperation;
+    if (send({ type: "system.power", ...pending }) === false) {
+      setPowerActionResult({
+        type: "system.power.result",
+        ...pending,
+        succeeded: false,
+        code: "VAIR-POWER-SEND-FAILED",
+        message: "Could not send the power request. Reconnect and try again.",
+      });
+      return false;
+    }
     pendingRef.current = pending;
     setPendingOperation(pending);
     setPowerActionResult(null);
-    send({ type: "system.power", ...pending });
+    return true;
   };
 
   const completePowerAction = (result: SystemPowerResultMessage) => {

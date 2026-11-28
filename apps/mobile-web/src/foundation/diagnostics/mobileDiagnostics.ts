@@ -182,6 +182,7 @@ export function sanitizeUrl(value: string): string {
 
     url.username = "";
     url.password = "";
+    url.hash = "";
     return url.toString();
   } catch {
     return redactSensitiveText(value);

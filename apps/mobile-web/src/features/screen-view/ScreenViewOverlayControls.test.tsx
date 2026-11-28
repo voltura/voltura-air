@@ -300,6 +300,23 @@ describe("Screen View overlay controls", () => {
     expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ volume: 55 }));
   });
 
+  it("retries the same volume step after a failed send", () => {
+    const send = vi.fn<(message: ClientMessage) => boolean>()
+      .mockReturnValue(true)
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false);
+    render(<ScreenViewVolumeControls audioState={audioState} enabled visible send={send} />);
+    const up = screen.getByRole("button", { name: "Increase PC volume" });
+
+    for (let tap = 0; tap < 4; tap++) {
+      fireEvent.click(up);
+    }
+
+    expect(send.mock.calls.map(([message]) =>
+      message.type === "audio.volume.set" ? message.volume : null,
+    )).toEqual([55, 60, 60, 65]);
+  });
+
   it("only sends volume commands on activation and accumulates rapid taps within bounds", () => {
     const send = vi.fn<(message: ClientMessage) => void>();
     const { rerender } = render(

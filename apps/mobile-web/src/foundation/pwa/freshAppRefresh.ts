@@ -109,6 +109,7 @@ export async function refreshWithFreshAppUrl(
   beforeNavigate: () => void = () => {
     /* Optional session guard. */
   },
+  refreshValue?: string,
 ): Promise<FreshAppRefreshResult> {
   const warnings: string[] = [];
 
@@ -141,7 +142,7 @@ export async function refreshWithFreshAppUrl(
 
   let freshUrl: string | null = null;
   try {
-    freshUrl = environment.createFreshUrl();
+    freshUrl = environment.createFreshUrl(refreshValue);
   } catch (error) {
     warnings.push(formatWarning("fresh URL creation", error));
   }
@@ -154,6 +155,11 @@ export async function refreshWithFreshAppUrl(
     } catch (error) {
       warnings.push(formatWarning("location replacement", error));
     }
+  }
+
+  // Automatic refresh needs its build marker even if session storage is unavailable.
+  if (refreshValue !== undefined) {
+    return { navigationStarted: false, navigationMethod: null, warnings };
   }
 
   try {
@@ -224,9 +230,9 @@ function hasRefreshGuard(storage: Pick<Storage, "getItem"> | undefined, key: str
   }
 }
 
-function hasRefreshUrlGuard(buildId: string): boolean {
+export function hasRefreshUrlGuard(refreshValue: string): boolean {
   try {
-    return new URL(window.location.href).searchParams.get("refresh") === buildId;
+    return new URL(window.location.href).searchParams.get("refresh") === refreshValue;
   } catch {
     return false;
   }

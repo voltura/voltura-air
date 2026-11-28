@@ -254,7 +254,7 @@ describe("PairingStatus", () => {
         blocksAppInteraction
         message="Reading QR code..."
         onPrimaryAction={onPrimaryAction}
-        primaryActionPending
+        readingQr="primary"
       />,
     );
 

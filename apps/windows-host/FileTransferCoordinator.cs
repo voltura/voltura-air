@@ -19,6 +19,7 @@ internal sealed class FileTransferCoordinator : IAsyncDisposable
     private readonly HashSet<(string ClientId, string OperationId)> _usedScreenCaptureRequests = [];
     private readonly Queue<(string ClientId, string OperationId)> _usedScreenCaptureRequestOrder = [];
     private readonly Lock _gate = new();
+    private bool _disposed;
 
     internal FileTransferCoordinator(
         FileManagerService files,
@@ -46,20 +47,22 @@ internal sealed class FileTransferCoordinator : IAsyncDisposable
         string operationId = String(root, "operationId");
         string direction = String(root, "direction");
         FileTransferSourceKind sourceKind = SourceKind(root, direction);
-#pragma warning disable CA2000 // PendingStart owns and disposes the linked cancellation source after its admission task ends.
-        var pending = new FileTransferPendingStart(clientId, direction, socket, CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token), sourceKind);
-#pragma warning restore CA2000
+        FileTransferPendingStart pending;
         lock (_gate)
         {
+            if (_disposed) return Task.CompletedTask;
             if (_pendingStarts.ContainsKey((clientId, operationId)) ||
                 sourceKind == FileTransferSourceKind.ScreenCapture && _usedScreenCaptureRequests.Contains((clientId, operationId)))
             {
-                pending.Dispose();
                 Task duplicate = SendStartResultAsync(socket, operationId, false, "duplicate-request", "The file-transfer request is already pending.", null, null, cancellationToken);
                 _ = duplicate.ContinueWith(completed => _ = completed.Exception,
                     CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
                 return Task.CompletedTask;
             }
+#pragma warning disable CA2000 // PendingStart owns and disposes the linked cancellation source after its admission task ends.
+            pending = new FileTransferPendingStart(clientId, direction, socket,
+                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token), sourceKind);
+#pragma warning restore CA2000
             _pendingStarts.Add((clientId, operationId), pending);
             pending.Task = StartCoreAsync(socket, clientId, root, pending);
         }
@@ -126,6 +129,7 @@ internal sealed class FileTransferCoordinator : IAsyncDisposable
             if (direction == "download")
             {
                 (bool Succeeded, string? Code, string Message, FileTransferDownloadSource? Source) source;
+                ScreenViewCaptureLifetime screenLifetime = default;
                 if (sourceKind == FileTransferSourceKind.ScreenCapture)
                 {
                     if (!_runner.TryAcquireSlot())
@@ -145,6 +149,7 @@ internal sealed class FileTransferCoordinator : IAsyncDisposable
                         var generated = new FileTransferDownloadSource(capture.FileName, capture.Screenshot.Length, capture.Screenshot.Content);
 #pragma warning restore CA2000
                         source = (true, null, capture.Message, generated);
+                        screenLifetime = capture.CaptureLifetime;
                     }
                     else
                     {
@@ -175,7 +180,8 @@ internal sealed class FileTransferCoordinator : IAsyncDisposable
                 transfer = new FileTransferSession(NewId(), clientId, operationId, socket, direction, source.Source.Name, source.Source.Size, sourceKind)
                 {
                     DownloadSource = source.Source,
-                    SlotHeld = true
+                    SlotHeld = true,
+                    ScreenCaptureLifetime = screenLifetime
                 };
                 preparedDownloadSlotHeld = false;
                 message = "Download ready.";
@@ -221,8 +227,26 @@ internal sealed class FileTransferCoordinator : IAsyncDisposable
                 message = "Upload queued.";
             }
 
-            lock (_gate) _transfers[transfer.Id] = transfer;
-            if (direction == "download") transfer.RunTask = _runner.RunDownloadAsync(transfer);
+            bool registered;
+            lock (_gate)
+            {
+                registered = !_disposed && !cancellationToken.IsCancellationRequested;
+                if (registered)
+                {
+                    if (direction == "download") transfer.RunTask = _runner.RunDownloadAsync(transfer);
+                    _transfers[transfer.Id] = transfer;
+                }
+            }
+            if (!registered)
+            {
+                var failure = pending.Failure;
+                CancelTransfer(transfer, failure.Code ?? "canceled", failure.Message ?? "File transfer canceled.");
+                if (uploadCompletion is not null)
+                    await _runner.ObserveUploadCompletionAsync(transfer, uploadCompletion, publishResult: false).ConfigureAwait(false);
+                else
+                    await _runner.DisposeTransferAsync(transfer).ConfigureAwait(false);
+                return;
+            }
             if (!HasPermissions(clientId, direction, sourceKind))
             {
                 CancelTransfer(transfer, "permission-revoked", "File-transfer permission was revoked on the PC.");
@@ -233,6 +257,11 @@ internal sealed class FileTransferCoordinator : IAsyncDisposable
             try
             {
                 await SendStartResultAsync(socket, operationId, true, code, message, transfer.Id, job, cancellationToken);
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    var failure = pending.Failure;
+                    CancelTransfer(transfer, failure.Code ?? "connection-lost", failure.Message ?? "The control connection was lost.");
+                }
                 transfer.StartPublished.TrySetResult();
                 if (uploadCompletion is not null)
                 {
@@ -331,10 +360,15 @@ internal sealed class FileTransferCoordinator : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        FileTransferPendingStart[] pendingOwners;
+        lock (_gate)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            pendingOwners = [.. _pendingStarts.Values];
+        }
         _pairingManager.PermissionsChanged -= OnPermissionsChanged;
         AppPermissionSettings.Changed -= OnPermissionsChanged;
-        FileTransferPendingStart[] pendingOwners;
-        lock (_gate) pendingOwners = [.. _pendingStarts.Values];
         foreach (FileTransferPendingStart pending in pendingOwners) pending.TryCancel("host-stopped", "The PC stopped the file transfer.");
         await _lifetime.CancelAsync().ConfigureAwait(false);
         Task[] pendingStarts;
@@ -344,8 +378,8 @@ internal sealed class FileTransferCoordinator : IAsyncDisposable
         catch (Exception ex) when (ex is not OutOfMemoryException) { }
         FileTransferSession[] transfers = Snapshot();
         await _runner.ShutdownAsync(transfers).ConfigureAwait(false);
-        if (pendingCompletion.IsCompleted) await DisposeOwnedResourcesAsync().ConfigureAwait(false);
-        else _ = DisposeOwnedResourcesWhenPendingCompletesAsync(pendingCompletion);
+        Task cleanup = DisposeOwnedResourcesWhenWorkCompletesAsync(pendingCompletion, transfers);
+        if (cleanup.IsCompleted) await cleanup.ConfigureAwait(false);
     }
 
     private void CancelTransfer(FileTransferSession transfer, string code, string message)
@@ -410,14 +444,22 @@ internal sealed class FileTransferCoordinator : IAsyncDisposable
     private static string String(System.Text.Json.JsonElement root, string name) => root.GetProperty(name).GetString()!;
     private static string? OptionalString(System.Text.Json.JsonElement root, string name) => root.TryGetProperty(name, out var value) ? value.GetString() : null;
 
-    private Task SendStartResultAsync(WebSocket socket, string operationId, bool succeeded, string? code, string message, string? transferId, FileJobSnapshot? job, CancellationToken cancellationToken) =>
-        _transport.SendAsync(socket, new { type = "file.transfer.start.result", operationId, succeeded, code, message, transferId, job }, cancellationToken);
+    private async Task SendStartResultAsync(WebSocket socket, string operationId, bool succeeded, string? code, string message, string? transferId, FileJobSnapshot? job, CancellationToken cancellationToken)
+    {
+        bool sent = await _transport.TrySendAsync(socket,
+            new { type = "file.transfer.start.result", operationId, succeeded, code, message, transferId, job }, cancellationToken).ConfigureAwait(false);
+        if (succeeded && !sent) throw new WebSocketException(WebSocketError.InvalidState);
+    }
+
     private Task SendActionResultAsync(WebSocket socket, string type, string operationId, bool succeeded, string? code, string message, CancellationToken cancellationToken) =>
         _transport.SendAsync(socket, new { type, operationId, succeeded, code, message }, cancellationToken);
 
-    private async Task DisposeOwnedResourcesWhenPendingCompletesAsync(Task completion)
+    private async Task DisposeOwnedResourcesWhenWorkCompletesAsync(Task pending, FileTransferSession[] transfers)
     {
-        try { await completion.ConfigureAwait(false); }
+        // A pending start can still attach the observer for an admitted upload as it leaves admission.
+        try { await pending.ConfigureAwait(false); }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { }
+        try { await Task.WhenAll(transfers.Select(transfer => transfer.RunTask).OfType<Task>()).ConfigureAwait(false); }
         catch (Exception ex) when (ex is not OutOfMemoryException) { }
         finally { await DisposeOwnedResourcesAsync().ConfigureAwait(false); }
     }

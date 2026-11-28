@@ -77,6 +77,58 @@ public sealed class AppLogTests
     }
 
     [Fact]
+    public void ReadAppliesSelectedEventsBeforeDiscardingOlderEntriesAtTheLimit()
+    {
+        using var folder = new TemporaryFolder();
+        var store = new AppLogFileStore(folder.Path, () => 30, () => TestNow);
+        store.Append(TestNow,
+        [
+            new AppLogEntry("host_action", "windows_host", Action: "first"),
+            new AppLogEntry("command_outcome", "remote_client", Action: "second"),
+            new AppLogEntry("command_received", "remote_client", Action: "third"),
+            new AppLogEntry("command_received", "remote_client", Action: "fourth")
+        ]);
+        var date = DateOnly.FromDateTime(TestNow.LocalDateTime);
+
+        var result = store.Read(new AppLogQuery(date, date, MaxEntries: 2)
+        {
+            Events = new HashSet<string>(StringComparer.Ordinal) { "HOST_ACTION", "command_outcome" }
+        });
+
+        Assert.True(result.Succeeded);
+        Assert.False(result.Truncated);
+        Assert.Equal(["first", "second"], result.Entries.Select(entry => entry.Action));
+    }
+
+    [Fact]
+    public void WritesUtcFileNamesAndReadsLegacyLocalizedNames()
+    {
+        using var folder = new TemporaryFolder();
+        var previousCulture = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("th-TH");
+        try
+        {
+            var utc = new DateTimeOffset(2026, 7, 13, 23, 30, 0, TimeSpan.Zero);
+            var store = new AppLogFileStore(folder.Path, () => 30, () => utc);
+            store.Append(utc.ToOffset(TimeSpan.FromHours(2)), new AppLogEntry("host_action", "windows_host", Action: "new"));
+            var canonicalPath = Path.Combine(folder.Path, "app-log-2026-07-13.jsonl");
+            var legacyPath = Path.Combine(folder.Path, "app-log-2569-07-13.jsonl");
+            var line = File.ReadAllText(canonicalPath);
+            File.WriteAllText(legacyPath, line.Replace("\"new\"", "\"legacy\"", StringComparison.Ordinal));
+
+            var localDate = DateOnly.FromDateTime(utc.LocalDateTime);
+            var result = store.Read(new AppLogQuery(localDate, localDate));
+
+            Assert.True(result.Succeeded);
+            Assert.Equal(["legacy", "new"], result.Entries.Select(entry => entry.Action));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+        }
+    }
+
+    [Fact]
     public async Task WritePrunesFilesOlderThanConfiguredMaximumAge()
     {
         using var folder = new TemporaryFolder();

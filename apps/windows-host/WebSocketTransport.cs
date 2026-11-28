@@ -151,6 +151,12 @@ internal sealed class WebSocketTransport : IDisposable
             () => SendDirectAsync(socket, payload, cancellationToken),
             cancellationToken);
 
+    public Task<bool> TrySendAsync(WebSocket socket, Func<object> preparePayload, CancellationToken cancellationToken) =>
+        _connections.TrySendAsync(
+            socket,
+            () => SendDirectAsync(socket, preparePayload(), cancellationToken),
+            cancellationToken);
+
     public static Task SendUnauthenticatedAsync(WebSocket socket, object payload, CancellationToken cancellationToken) =>
         SendDirectAsync(socket, payload, cancellationToken);
 

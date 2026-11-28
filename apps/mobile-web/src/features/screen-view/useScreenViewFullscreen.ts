@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+type ScreenOrientationSnapshot = OrientationType | "landscape" | "portrait";
+
 export function useScreenViewFullscreen() {
   const [immersive, setImmersive] = useState(false);
   const workspaceRef = useRef<HTMLElement | null>(null);
   const ownedWorkspaceRef = useRef<HTMLElement | null>(null);
   const immersiveRef = useRef(false);
   const nativeFullscreenRef = useRef(false);
-  const nativeOrientationRef = useRef<"landscape" | "portrait" | null>(null);
+  const nativeOrientationRef = useRef<ScreenOrientationSnapshot | null>(null);
   const fullscreenExitTimerRef = useRef<number | undefined>(undefined);
   const orientationSettleTimerRef = useRef<number | undefined>(undefined);
 
@@ -131,6 +133,7 @@ export function useScreenViewFullscreen() {
   return { workspaceRef, immersive, enterImmersive, exitImmersive };
 }
 
-function currentOrientation(): "landscape" | "portrait" {
-  return window.innerWidth > window.innerHeight ? "landscape" : "portrait";
+function currentOrientation(): ScreenOrientationSnapshot {
+  return screen.orientation?.type ??
+    (window.innerWidth > window.innerHeight ? "landscape" : "portrait");
 }

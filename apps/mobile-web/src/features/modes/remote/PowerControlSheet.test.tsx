@@ -462,6 +462,7 @@ describe("PowerControlSheet", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Restart PC/ }));
     const holdButton = screen.getByRole("button", { name: "Hold to restart pc" });
+    vi.spyOn(holdButton, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 100, 40));
 
     fireEvent.pointerDown(holdButton, { button: 0, pointerId: 1 });
     await act(() => vi.advanceTimersByTime(900));

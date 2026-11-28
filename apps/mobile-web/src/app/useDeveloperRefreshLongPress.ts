@@ -19,15 +19,24 @@ export function useDeveloperRefreshLongPress(
   refreshApp: () => void | Promise<void>,
 ): DeveloperRefreshLongPressHandlers {
   const timerRef = useRef<number | null>(null);
-  const pointerRef = useRef<{ id: number; x: number; y: number } | null>(null);
-  const triggeredRef = useRef(false);
+  const pointerRef = useRef<{ id: number; x: number; y: number; target: HTMLDivElement } | null>(
+    null,
+  );
 
   const cancel = useCallback(() => {
     if (timerRef.current !== null) {
       window.clearTimeout(timerRef.current);
       timerRef.current = null;
     }
+    const pointer = pointerRef.current;
     pointerRef.current = null;
+    if (pointer?.target.hasPointerCapture?.(pointer.id)) {
+      try {
+        pointer.target.releasePointerCapture?.(pointer.id);
+      } catch {
+        // Capture may already have ended with the pointer.
+      }
+    }
   }, []);
 
   const onPointerDown = useCallback(
@@ -36,9 +45,12 @@ export function useDeveloperRefreshLongPress(
         return;
       }
 
-      cancel();
-      triggeredRef.current = false;
-      pointerRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
+      pointerRef.current = {
+        id: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        target: event.currentTarget,
+      };
       try {
         event.currentTarget.setPointerCapture?.(event.pointerId);
       } catch {
@@ -46,7 +58,6 @@ export function useDeveloperRefreshLongPress(
         return;
       }
       timerRef.current = window.setTimeout(() => {
-        triggeredRef.current = true;
         timerRef.current = null;
         void refreshApp();
       }, developerRefreshLongPressMs);
@@ -70,28 +81,15 @@ export function useDeveloperRefreshLongPress(
 
   const onPointerEnd = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
-      if (pointerRef.current?.id !== event.pointerId) {
-        return;
+      if (pointerRef.current?.id === event.pointerId) {
+        cancel();
       }
-      cancel();
-      if (
-        typeof event.currentTarget.hasPointerCapture === "function" &&
-        event.currentTarget.hasPointerCapture(event.pointerId) &&
-        typeof event.currentTarget.releasePointerCapture === "function"
-      ) {
-        try {
-          event.currentTarget.releasePointerCapture(event.pointerId);
-        } catch {
-          // Capture may already have ended with the pointer.
-        }
-      }
-      triggeredRef.current = false;
     },
     [cancel],
   );
 
   const onContextMenu = useCallback((event: MouseEvent<HTMLDivElement>) => {
-    if (triggeredRef.current) {
+    if (pointerRef.current) {
       event.preventDefault();
     }
   }, []);

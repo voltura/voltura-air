@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowRightLeft, Camera, Download, Share2, Upload, X } from "lucide-react";
 import type { PcProfile } from "../../foundation/connection/pcProfiles";
 import type { ClientMessage } from "../../foundation/protocol/messages";
@@ -30,7 +30,7 @@ export function FileTransferMenu({
   send: (message: ClientMessage) => void;
   target: FileTransferTarget;
 }) {
-  const [open, setOpen] = useState(false);
+  const [openMenuKey, setOpenMenuKey] = useState<string | null>(null);
   const [replacementName, setReplacementName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -49,18 +49,44 @@ export function FileTransferMenu({
   const busy = transfer.presentation.active || transfer.presentation.readyToSave;
   const destinationKey = JSON.stringify([
     activePc.id,
+    activePc.hostIdentityPublicKey,
     clientId,
     target.sessionId,
     target.panel,
     target.revision,
   ]);
-  const pickerDestinationRef = useRef(destinationKey);
+  const menuKey = JSON.stringify([destinationKey, target.entry?.id]);
+  const open = enabled && openMenuKey === menuKey;
+  if (!open && openMenuKey !== null) {
+    setOpenMenuKey(null);
+  }
+  const pickerRef = useRef<{ destinationKey: string; input: HTMLInputElement } | null>(null);
+  useLayoutEffect(() => {
+    pickerRef.current = null;
+  }, [canModify, destinationKey, enabled]);
+  const openPicker = (input: HTMLInputElement | null) => {
+    setOpenMenuKey(null);
+    if (input) {
+      pickerRef.current = { destinationKey, input };
+      input.click();
+    }
+  };
   const uploadSelectedFile = (input: HTMLInputElement) => {
     const file = input.files?.[0];
     input.value = "";
-    setOpen(false);
+    setOpenMenuKey(null);
+    const picker = pickerRef.current;
+    if (picker?.input === input) {
+      pickerRef.current = null;
+    }
     if (file) {
-      if (!enabled || !canModify || busy || pickerDestinationRef.current !== destinationKey) {
+      if (
+        !enabled ||
+        !canModify ||
+        busy ||
+        picker?.input !== input ||
+        picker.destinationKey !== destinationKey
+      ) {
         onTransferNotice?.(
           "The destination or file permissions changed. Choose the file again.",
           "error",
@@ -71,9 +97,6 @@ export function FileTransferMenu({
       transfer.startUpload(target, file);
     }
   };
-  if (!enabled && open) {
-    setOpen(false);
-  }
   useEffect(() => {
     onPresentationChange?.(busy);
     return () => onPresentationChange?.(false);
@@ -87,7 +110,7 @@ export function FileTransferMenu({
         !triggerRef.current?.contains(event.target as Node) &&
         !menuRef.current?.contains(event.target as Node)
       ) {
-        setOpen(false);
+        setOpenMenuKey(null);
       }
     };
     document.addEventListener("pointerdown", closeOutside);
@@ -95,7 +118,7 @@ export function FileTransferMenu({
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        setOpen(false);
+        setOpenMenuKey(null);
         triggerRef.current?.focus();
       }
     };
@@ -114,7 +137,7 @@ export function FileTransferMenu({
         title="Transfer"
         data-file-menu-trigger
         disabled={!enabled}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => setOpenMenuKey(open ? null : menuKey)}
       >
         <ArrowRightLeft />
         <span>Transfer</span>
@@ -131,7 +154,7 @@ export function FileTransferMenu({
               role="menuitem"
               disabled={!enabled || !canDownload || busy}
               onClick={() => {
-                setOpen(false);
+                setOpenMenuKey(null);
                 transfer.startDownload(target);
               }}
             >
@@ -142,11 +165,7 @@ export function FileTransferMenu({
           <button
             role="menuitem"
             disabled={!enabled || !canModify || busy}
-            onClick={() => {
-              setOpen(false);
-              pickerDestinationRef.current = destinationKey;
-              inputRef.current?.click();
-            }}
+            onClick={() => openPicker(inputRef.current)}
           >
             <Upload />
             Choose file from this device
@@ -154,11 +173,7 @@ export function FileTransferMenu({
           <button
             role="menuitem"
             disabled={!enabled || !canModify || busy}
-            onClick={() => {
-              setOpen(false);
-              pickerDestinationRef.current = destinationKey;
-              photoInputRef.current?.click();
-            }}
+            onClick={() => openPicker(photoInputRef.current)}
           >
             <Camera />
             Take photo

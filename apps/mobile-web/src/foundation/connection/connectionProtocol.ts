@@ -49,8 +49,13 @@ export function getDisplayPcName(pc: PcProfile, hostName: string, screenshotMode
   return pc.customName || trimmedHostName.length === 0 ? getPcDisplayName(pc) : trimmedHostName;
 }
 
-export function getPcUnavailableMessage(pc: PcProfile, screenshotMode = false): string {
-  return `${getDisplayPcName(pc, "", screenshotMode)} is currently not available. Check that Voltura Air is running on the PC. Retrying...`;
+export function getPcUnavailableMessage(
+  pc: PcProfile,
+  screenshotMode = false,
+  retrying = true,
+): string {
+  const message = `${getDisplayPcName(pc, "", screenshotMode)} is currently not available. Check that Voltura Air is running on the PC.`;
+  return retrying ? `${message} Retrying...` : message;
 }
 
 export function getPcDisconnectedMessage(

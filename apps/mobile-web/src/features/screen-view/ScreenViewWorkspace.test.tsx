@@ -64,6 +64,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -1116,6 +1117,8 @@ describe("ScreenViewWorkspace", () => {
         writable: true,
         value: null,
       });
+      const makeTrack = (kind: string) =>
+        Object.assign(new EventTarget(), { kind, readyState: "live" });
       if (scenario === "cursor-burst") {
         // Finish work already queued on the browser scheduler before replacing it.
         await act(async () => {
@@ -1145,7 +1148,7 @@ describe("ScreenViewWorkspace", () => {
           static revokeObjectURL = revokeObjectURL;
         });
         act(() => {
-          FakePeerConnection.instance?.emit("track", { track: { kind: "video" }, streams: [] });
+          FakePeerConnection.instance?.emit("track", { track: makeTrack("video"), streams: [] });
         });
         fireEvent.loadedData(video);
         const sendCursor = (x: number, pngBytes: number[] = []) => {
@@ -1231,7 +1234,6 @@ describe("ScreenViewWorkspace", () => {
             }),
         );
         const kinds = scenario === "video-first" ? ["video", "audio"] : ["audio", "video"];
-        const makeTrack = (kind: string) => Object.assign(new EventTarget(), { kind, readyState: "live" });
         if (scenario === "audio-first") {
           act(() => {
             FakePeerConnection.instance?.emit("track", { track: makeTrack("audio"), streams: [] });
@@ -1275,7 +1277,7 @@ describe("ScreenViewWorkspace", () => {
           .mockRejectedValueOnce(new DOMException("Decoder unavailable.", "NotSupportedError"))
           .mockResolvedValueOnce();
         await act(async () => {
-          FakePeerConnection.instance?.emit("track", { track: { kind: "video" }, streams: [] });
+          FakePeerConnection.instance?.emit("track", { track: makeTrack("video"), streams: [] });
           await Promise.resolve();
         });
         expect(screen.getByRole("status").textContent).toBe(
@@ -1295,8 +1297,8 @@ describe("ScreenViewWorkspace", () => {
           }))
           .mockResolvedValueOnce();
         await act(() => {
-          FakePeerConnection.instance?.emit("track", { track: { kind: "video" }, streams: [] });
-          FakePeerConnection.instance?.emit("track", { track: { kind: "video" }, streams: [] });
+          FakePeerConnection.instance?.emit("track", { track: makeTrack("video"), streams: [] });
+          FakePeerConnection.instance?.emit("track", { track: makeTrack("video"), streams: [] });
           return Promise.resolve();
         });
         fireEvent.playing(video);
@@ -1311,7 +1313,7 @@ describe("ScreenViewWorkspace", () => {
         return;
       }
       act(() => {
-        FakePeerConnection.instance?.emit("track", { track: { kind: "video" }, streams: [{}] });
+        FakePeerConnection.instance?.emit("track", { track: makeTrack("video"), streams: [{}] });
       });
 
       const showVideo = await screen.findByRole("button", { name: "Show video" });
@@ -1386,7 +1388,7 @@ describe("ScreenViewWorkspace", () => {
       );
 
       act(() => {
-        FakePeerConnection.instance?.emit("track", { track: { kind: "video" }, streams: [{}] });
+        FakePeerConnection.instance?.emit("track", { track: makeTrack("video"), streams: [{}] });
       });
       await waitFor(() => expect(play).toHaveBeenCalledTimes(3));
       FakePeerConnection.instance.connectionState = "failed";

@@ -9,6 +9,7 @@ internal interface IScreenViewWebRtcPeer : IDisposable
     event EventHandler? AudioStopped;
     event EventHandler? KeyFrameRequested;
     Task Connected { get; }
+    bool TransportStopped => false;
     Task<string> CreateOfferAsync(CancellationToken cancellationToken);
     void ApplyAnswer(string answerSdp);
     bool TrySendH264(byte[] accessUnit, int framesPerSecond);
@@ -115,6 +116,7 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
     private bool _eventsOpen;
     private bool _transportConnected;
     private bool _disposed;
+    private int _transportStopped;
 
     public ScreenViewWebRtcPeer(ScreenViewPeerConfiguration? peerConfiguration = null)
         : this(peerConfiguration, static endpoint => new TurnTlsBridge(endpoint))
@@ -263,6 +265,7 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
     public event EventHandler? KeyFrameRequested;
 
     public Task Connected => _connected.Task;
+    public bool TransportStopped => Volatile.Read(ref _transportStopped) != 0;
 
     public async Task<string> CreateOfferAsync(CancellationToken cancellationToken)
     {
@@ -292,7 +295,7 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
         if (accessUnit.Length == 0 || framesPerSecond is < 1 or > 60) return false;
         lock (_gate)
         {
-            if (_disposed || !_trackOpen || LibDataChannelNative.rtcGetBufferedAmount(_track) > 1_000_000) return false;
+            if (_disposed || TransportStopped || !_trackOpen || LibDataChannelNative.rtcGetBufferedAmount(_track) > 1_000_000) return false;
             ScreenViewVideoRtpTime next = _videoRtpTime.ForFrame(TimeProvider.System.GetTimestamp());
             EnsureSuccess(LibDataChannelNative.rtcSetTrackRtpTimestamp(_track, next.Timestamp), "set the screen video timestamp");
             int result = LibDataChannelNative.rtcSendMessage(_track, accessUnit, accessUnit.Length);
@@ -432,8 +435,7 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
         }
         else if (ShouldStopForPeerState(state))
         {
-            owner._connected.TrySetException(new ScreenViewWebRtcException("The WebRTC screen connection stopped."));
-            owner.Stopped?.Invoke(owner, EventArgs.Empty);
+            owner.StopTransport();
         }
     }
 
@@ -461,26 +463,36 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
 
     private static void OnClosed(int id, nint pointer)
     {
-        ScreenViewWebRtcPeer? owner = From(pointer);
-        if (owner is null) return;
-        lock (owner._gate)
-        {
-            if (id == owner._track) owner._trackOpen = false;
-            if (id == owner._audioTrack) owner._audioTrackOpen = false;
-            if (id == owner._eventsChannel) owner._eventsOpen = false;
-        }
-        if (owner._disposed) return;
-        if (id == owner._audioTrack) owner.AudioStopped?.Invoke(owner, EventArgs.Empty);
-        else owner.Stopped?.Invoke(owner, EventArgs.Empty);
+        From(pointer)?.StopMedia(id);
     }
 
     private static void OnError(int id, nint message, nint pointer)
     {
         _ = message;
-        ScreenViewWebRtcPeer? owner = From(pointer);
-        if (owner is null || owner._disposed) return;
-        if (id == owner._audioTrack) owner.AudioStopped?.Invoke(owner, EventArgs.Empty);
-        else owner.Stopped?.Invoke(owner, EventArgs.Empty);
+        From(pointer)?.StopMedia(id);
+    }
+
+    private void StopMedia(int id)
+    {
+        bool audioStopped;
+        lock (_gate)
+        {
+            if (_disposed) return;
+            audioStopped = id == _audioTrack;
+            if (audioStopped) _audioTrackOpen = false;
+            else if (id == _track) _trackOpen = false;
+            else if (id == _eventsChannel) _eventsOpen = false;
+            else return;
+        }
+        if (audioStopped) AudioStopped?.Invoke(this, EventArgs.Empty);
+        else StopTransport();
+    }
+
+    private void StopTransport()
+    {
+        if (Interlocked.Exchange(ref _transportStopped, 1) != 0) return;
+        _connected.TrySetException(new ScreenViewWebRtcException("The WebRTC screen connection stopped."));
+        Stopped?.Invoke(this, EventArgs.Empty);
     }
 
     private static void OnPictureLoss(int track, nint pointer)

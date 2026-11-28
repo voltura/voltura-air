@@ -69,6 +69,7 @@
   left: 0.4rem;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
 
   /* Seven 2.5rem buttons plus the two 0.4rem edge insets. */
   gap: clamp(0px, calc((100% - 18.3rem) / 6), 0.5rem);

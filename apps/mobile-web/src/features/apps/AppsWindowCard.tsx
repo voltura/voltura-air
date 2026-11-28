@@ -6,7 +6,7 @@ import type { AppsPreviewState } from "./useAppsPreviews";
 interface Props {
   busy: boolean;
   onActivate: () => void;
-  onClose: () => void;
+  onClose: () => boolean | void;
   onSelect: () => void;
   previewState: AppsPreviewState;
   previewUrl?: string | undefined;
@@ -204,9 +204,14 @@ export function AppsWindowCard({
       showCloseProgress(event.currentTarget, 0);
       return;
     }
-    if (selected && !busy && dy <= -closeThreshold && Math.abs(dy) > Math.abs(dx) * 1.25) {
+    if (
+      selected &&
+      !busy &&
+      dy <= -closeThreshold &&
+      Math.abs(dy) > Math.abs(dx) * 1.25 &&
+      onClose() !== false
+    ) {
       commitClose(event.currentTarget);
-      onClose();
       return;
     }
     showCloseProgress(event.currentTarget, 0);

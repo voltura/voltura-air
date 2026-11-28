@@ -71,6 +71,60 @@ describe("Apps workspace", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it("allows Refresh immediately when the initial list request cannot be sent", () => {
+    vi.useFakeTimers();
+    const send = vi.fn<(message: ClientMessage) => boolean | void>().mockReturnValueOnce(false);
+    renderWorkspace(send);
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+
+    expect(screen.queryByText("Loading…")).toBeNull();
+    expect(
+      screen.getByText("Could not request open applications. Use Refresh to try again."),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh applications" }));
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it("defers the initial list request when Apps opens in the background", () => {
+    vi.useFakeTimers();
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    const send = vi.fn<(message: ClientMessage) => void>();
+    renderWorkspace(send);
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+
+    expect(send).not.toHaveBeenCalled();
+    visibility.mockReturnValue("visible");
+    fireEvent(document, new Event("visibilitychange"));
+    expect(send).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "apps.list" }));
+  });
+
+  it("opens Apps on an HTTP controller without secure-context UUID support", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("crypto", { getRandomValues: crypto.getRandomValues.bind(crypto) });
+    const send = vi.fn<(message: ClientMessage) => void>();
+    renderWorkspace(send, { activePc: {
+      customName: false,
+      id: "pc-local",
+      name: "Local PC",
+      url: "http://pc.test",
+    } });
+
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+
+    expect(send).toHaveBeenCalledOnce();
+    const request = send.mock.lastCall?.[0];
+    if (request?.type !== "apps.list") {
+      throw new Error("Expected an Apps list request.");
+    }
+    expect(request.operationId).toMatch(/^[a-z0-9-]+$/u);
+  });
+
   it("releases an unconfirmed application action so the user can refresh", () => {
     vi.useFakeTimers();
     const send = vi.fn<(message: ClientMessage) => void>();
@@ -92,6 +146,39 @@ describe("Apps workspace", () => {
     unmount();
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  it.each(["activate", "close", "swipe"])(
+    "releases the %s action immediately when it cannot be sent",
+    (action) => {
+      vi.useFakeTimers();
+      const send = vi.fn<(message: ClientMessage) => boolean | void>();
+      const feedback = vi.fn();
+      renderWorkspace(send, { onFeedback: feedback });
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+      const list = send.mock.calls[0]![0] as { operationId: string };
+      act(() => publishAppsResult(listResult(list.operationId)));
+      send.mockReturnValueOnce(false);
+      const card = screen.getByRole("button", { name: /activate browser/i }).closest("article")!;
+      if (action === "swipe") {
+        fireEvent.pointerDown(card, { button: 0, pointerId: 1, clientX: 100, clientY: 200 });
+        fireEvent.pointerMove(card, { pointerId: 1, clientX: 100, clientY: 90 });
+        fireEvent.pointerUp(card, { pointerId: 1, clientX: 100, clientY: 90 });
+      } else {
+        fireEvent.click(screen.getByRole("button", { name: new RegExp(`${action} browser`, "i") }));
+      }
+
+      expect(feedback).toHaveBeenCalledExactlyOnceWith(
+        "Could not send the application action. Reconnect and try again.",
+        "error",
+      );
+      expect(
+        screen.getByRole<HTMLButtonElement>("button", { name: "Refresh applications" }).disabled,
+      ).toBe(false);
+      expect(card.classList.contains("is-close-committed")).toBe(false);
+    },
+  );
 
   it("holds the active-card space while discovering open applications", async () => {
     const send = vi.fn<(message: ClientMessage) => void>();

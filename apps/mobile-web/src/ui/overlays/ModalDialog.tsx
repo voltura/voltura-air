@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useId, useRef, type ReactNode, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
@@ -77,6 +85,7 @@ export function ModalDialog({
     dialog.removeAttribute("open");
     finishClosing();
   }, [finishClosing]);
+  const closeFromBackdrop = useEffectEvent(closeDialog);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -200,7 +209,7 @@ export function ModalDialog({
       const startsOnBackdrop = !pressedInside;
       pressedInside = false;
       if (startsOnBackdrop && isBackdrop(event)) {
-        closeDialog();
+        closeFromBackdrop();
       }
     };
     dialog.addEventListener("pointerdown", rememberPress);
@@ -209,7 +218,7 @@ export function ModalDialog({
       dialog.removeEventListener("pointerdown", rememberPress);
       dialog.removeEventListener("click", dismissFromBackdrop);
     };
-  }, [closeDialog, isOpen]);
+  }, [isOpen]);
 
   if (!isOpen) {
     return null;

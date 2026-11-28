@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { usePersistentStorage } from "./usePersistentStorage";
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   window.localStorage.clear();
 });
@@ -41,6 +42,44 @@ describe("persistent browser storage", () => {
     await act(() => view.result.current.protectSavedData());
     expect(view.result.current.storageProtection).toBe("enabled");
   });
+
+  it.each(["status", "permission"])(
+    "enables a manual retry when the browser never finishes the startup %s check",
+    async (boundary) => {
+      vi.useFakeTimers();
+      let resolveStatus!: (value: boolean) => void;
+      let resolvePermission!: (value: { state: PermissionState }) => void;
+      const lateStatus = new Promise<boolean>((resolve) => {
+        resolveStatus = resolve;
+      });
+      const latePermission = new Promise<{ state: PermissionState }>((resolve) => {
+        resolvePermission = resolve;
+      });
+      const persist = vi.fn().mockResolvedValue(true);
+      vi.stubGlobal("navigator", {
+        permissions: { query: () => latePermission },
+        storage: {
+          persisted: () => (boundary === "status" ? lateStatus : Promise.resolve(false)),
+          persist,
+        },
+      });
+      const view = renderHook(() => usePersistentStorage(), { wrapper: StrictMode });
+      expect(view.result.current.storageProtection).toBe("checking");
+
+      await act(() => vi.advanceTimersByTimeAsync(5_000));
+      expect(view.result.current.storageProtection).toBe("failed");
+      await act(async () => {
+        resolveStatus(false);
+        resolvePermission({ state: "granted" });
+        await latePermission;
+      });
+      expect(persist).not.toHaveBeenCalled();
+
+      await act(() => view.result.current.protectSavedData());
+      expect(view.result.current.storageProtection).toBe("enabled");
+      expect(persist).toHaveBeenCalledOnce();
+    },
+  );
 
   it.each(["unmount", "manual request"])(
     "ignores a permission query completing after %s",

@@ -84,6 +84,61 @@ public sealed class WebHostTextTransferTests : WebHostServiceTestBase
     }
 
     [Fact]
+    public async Task ClipboardReplyRechecksPermissionAfterAReadFinishes()
+    {
+        var originalPermissions = AppPermissionSettings.Load();
+        var readStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var finishRead = new ManualResetEventSlim();
+        var clipboard = new FakeClipboardTextReader(
+            new ClipboardTextReadResult(true, "test clipboard contents", null, "Read complete."),
+            () =>
+            {
+                readStarted.TrySetResult();
+                Assert.True(finishRead.Wait(TimeSpan.FromSeconds(5)));
+            });
+
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowClipboardRead = true });
+            await using var fixture = await WebHostFixture.StartAsync(clipboardTextReader: clipboard);
+            using var socket = await ConnectAsync(fixture.WebHost);
+            const string clientId = "clipboard-recheck-client";
+            _ = await SendAndReceiveAsync(socket, new
+            {
+                type = "pair.hello",
+                clientId,
+                deviceName = "Phone",
+                pairToken = fixture.Manager.CreatePairingToken(),
+                reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
+            });
+
+            await SendAsync(socket, new { type = "clipboard.get", operationId = "clipboard-recheck" });
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try
+            {
+                await readStarted.Task.WaitAsync(deadline.Token);
+                fixture.Manager.SetDevicePermission(clientId, DevicePermissionKind.ClipboardRead, false);
+            }
+            finally { finishRead.Set(); }
+
+            while (true)
+            {
+                using var response = JsonDocument.Parse(await ReceiveTextAsync(socket, deadline.Token));
+                var result = response.RootElement;
+                if (result.GetProperty("type").GetString() != "clipboard.get.result") continue;
+                Assert.False(result.GetProperty("succeeded").GetBoolean());
+                Assert.Equal("VAIR-CLIPBOARD-PERMISSION-DENIED", result.GetProperty("code").GetString());
+                Assert.False(result.TryGetProperty("text", out _));
+                break;
+            }
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
     public async Task ReportsConfiguredClipboardFallbackWithoutExposingHostDetails()
     {
         var originalPermissions = AppPermissionSettings.Load();

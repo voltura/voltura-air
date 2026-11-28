@@ -5,6 +5,21 @@ import { usePowerControl } from "./usePowerControl";
 describe("usePowerControl", () => {
   afterEach(() => vi.useRealTimers());
 
+  it("reports a refused power command without starting a response timeout", () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => usePowerControl("paired", 1, () => false));
+    act(() => {
+      expect(result.current.requestPowerAction("lock")).toBe(false);
+    });
+    expect(result.current.pendingPowerAction).toBeNull();
+    expect(result.current.powerActionResult).toMatchObject({
+      action: "lock",
+      succeeded: false,
+      code: "VAIR-POWER-SEND-FAILED",
+    });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("keeps a same-action retry pending when the old result arrives", async () => {
     vi.useFakeTimers();
     const send = vi.fn();

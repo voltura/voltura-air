@@ -7,6 +7,7 @@ const originalExit = Object.getOwnPropertyDescriptor(document, "exitFullscreen")
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   for (const [name, descriptor] of [
     ["fullscreenElement", originalFullscreen],
     ["exitFullscreen", originalExit],
@@ -150,6 +151,49 @@ describe("Screen View fullscreen ownership", () => {
     });
 
     expect(view.result.current.immersive).toBe(false);
+  });
+
+  it("exits fullscreen when restoring a narrow window on an unchanged screen", async () => {
+    vi.useFakeTimers();
+    const orientation = Object.assign(new EventTarget(), { type: "landscape-primary" });
+    vi.stubGlobal("screen", { orientation });
+    vi.stubGlobal("innerHeight", 900);
+    vi.stubGlobal("innerWidth", 1500);
+    const view = setup();
+    await act(async () => {
+      const entry = view.result.current.enterImmersive();
+      view.complete();
+      await entry;
+    });
+
+    act(() => {
+      vi.stubGlobal("innerWidth", 500);
+      view.setFullscreen(null);
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(view.result.current.immersive).toBe(false);
+  });
+
+  it("preserves the fullscreen fallback when the screen rotates without changing aspect", async () => {
+    vi.useFakeTimers();
+    const orientation = Object.assign(new EventTarget(), { type: "landscape-primary" });
+    vi.stubGlobal("screen", { orientation });
+    const view = setup();
+    await act(async () => {
+      const entry = view.result.current.enterImmersive();
+      view.complete();
+      await entry;
+    });
+
+    act(() => {
+      orientation.type = "landscape-secondary";
+      orientation.dispatchEvent(new Event("change"));
+      view.setFullscreen(null);
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(view.result.current.immersive).toBe(true);
   });
 
   it("ignores a delayed exit when native fullscreen already returned", async () => {

@@ -81,22 +81,30 @@ internal sealed class UpdateHttpHandler(UpdateTestRelease release) : HttpMessage
 
     internal UpdateTestRelease Release { get; set; } = release;
     internal bool BlockFirstInstaller { get; set; }
+    internal bool BlockMetadataRead { get; set; }
+    internal Func<CancellationToken, Task>? BeforeMetadata { get; set; }
     internal HttpStatusCode ApiStatusCode { get; set; } = HttpStatusCode.OK;
+    internal HttpStatusCode InstallerStatusCode { get; set; } = HttpStatusCode.OK;
     internal int ApiRequests { get; private set; }
     internal int AssetResponses { get; private set; }
     internal TaskCompletionSource InstallerReadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal TaskCompletionSource ContinueInstallerRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal Func<Task>? OnInstallerReadCancelled { get; set; }
 
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var uri = request.RequestUri ?? throw new InvalidOperationException("Missing request URI.");
         if (uri.Host == "api.github.com")
         {
             ApiRequests++;
-            return Task.FromResult(new HttpResponseMessage(ApiStatusCode)
+            if (BeforeMetadata is { } beforeMetadata)
             {
-                Content = ApiStatusCode == HttpStatusCode.OK ? new StringContent(Release.Metadata()) : null
-            });
+                await beforeMetadata(cancellationToken);
+            }
+            return new HttpResponseMessage(ApiStatusCode)
+            {
+                Content = ApiStatusCode == HttpStatusCode.OK ? CreateMetadataContent() : null
+            };
         }
 
         var name = Uri.UnescapeDataString(Path.GetFileName(uri.AbsolutePath));
@@ -104,15 +112,19 @@ internal sealed class UpdateHttpHandler(UpdateTestRelease release) : HttpMessage
         {
             var redirect = new HttpResponseMessage(HttpStatusCode.Found);
             redirect.Headers.Location = new Uri($"https://objects.githubusercontent.com/{Uri.EscapeDataString(name)}");
-            return Task.FromResult(redirect);
+            return redirect;
         }
 
         if (uri.Host != "objects.githubusercontent.com")
         {
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
         }
 
         AssetResponses++;
+        if (name == Release.InstallerName && InstallerStatusCode != HttpStatusCode.OK)
+        {
+            return new HttpResponseMessage(InstallerStatusCode);
+        }
         var bytes = name switch
         {
             var value when value.EndsWith(".json", StringComparison.Ordinal) => Release.Manifest,
@@ -120,15 +132,23 @@ internal sealed class UpdateHttpHandler(UpdateTestRelease release) : HttpMessage
             _ => Release.Installer
         };
         HttpContent content = BlockFirstInstaller && name == Release.InstallerName && Interlocked.Exchange(ref _firstInstaller, 0) == 1
-            ? new StreamContent(new GatedReadStream(bytes, InstallerReadStarted, ContinueInstallerRead))
+            ? new StreamContent(new GatedReadStream(bytes, InstallerReadStarted, ContinueInstallerRead, OnInstallerReadCancelled))
             : new ByteArrayContent(bytes);
-        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
     }
+
+    private HttpContent CreateMetadataContent() => BlockMetadataRead
+        ? new StreamContent(new GatedReadStream(
+            Encoding.UTF8.GetBytes(Release.Metadata()),
+            new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously),
+            new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)))
+        : new StringContent(Release.Metadata());
 
     private sealed class GatedReadStream(
         byte[] bytes,
         TaskCompletionSource started,
-        TaskCompletionSource continueRead) : Stream
+        TaskCompletionSource continueRead,
+        Func<Task>? onCancelled = null) : Stream
     {
         private int _position;
         private int _gated;
@@ -146,7 +166,12 @@ internal sealed class UpdateHttpHandler(UpdateTestRelease release) : HttpMessage
             if (Interlocked.Exchange(ref _gated, 1) == 0)
             {
                 started.TrySetResult();
-                await continueRead.Task.WaitAsync(cancellationToken);
+                try { await continueRead.Task.WaitAsync(cancellationToken); }
+                catch (OperationCanceledException) when (onCancelled is not null)
+                {
+                    await onCancelled();
+                    throw;
+                }
             }
             if (_position == bytes.Length) return 0;
             var count = Math.Min(buffer.Length, bytes.Length - _position);

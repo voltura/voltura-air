@@ -10,6 +10,43 @@ afterEach(() => {
 });
 
 describe("usePointerInput", () => {
+  it("discards input from a replaced control session that remains paired", () => {
+    const send = vi.fn();
+    let frame: FrameRequestCallback | undefined;
+    const cancelAnimationFrame = vi.fn();
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frame = callback;
+      return 1;
+    });
+    vi.stubGlobal("cancelAnimationFrame", cancelAnimationFrame);
+    const view = renderHook(
+      ({ sessionKey }) =>
+        usePointerInput({
+          send,
+          state: "paired",
+          sessionKey,
+          trackpadSettings: defaultTrackpadSettings,
+        }),
+      { initialProps: { sessionKey: 1 } },
+    );
+    act(() => view.result.current.emit({ type: "pointer.move", dx: 4, dy: 2 }));
+    view.rerender({ sessionKey: 2 });
+    act(() => frame?.(0));
+    expect(cancelAnimationFrame).toHaveBeenCalledWith(1);
+    expect(send).not.toHaveBeenCalled();
+
+    act(() => {
+      view.result.current.emit({ type: "pointer.move", dx: 7, dy: -1 });
+      frame?.(1);
+    });
+    expect(send).toHaveBeenCalledExactlyOnceWith({
+      type: "pointer.move",
+      inputContext: "trackpad",
+      dx: 7,
+      dy: -1,
+    });
+  });
+
   it.each(["disconnect", "hidden"])("drops queued input across %s and return", (reason) => {
     const send = vi.fn();
     let frame: FrameRequestCallback | undefined;

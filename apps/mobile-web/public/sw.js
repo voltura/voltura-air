@@ -2,6 +2,8 @@ const webBuildId = new URL(self.location.href).searchParams.get("build") || "dev
 const appBase = new URL("./", self.location.href).pathname;
 const cachePrefix = `voltura-air:scope:${encodeURIComponent(appBase)}:`;
 const cacheName = `${cachePrefix}${webBuildId}`;
+const bootAssets = /* offline shell assets */ [];
+const bootAssetPaths = new Set(bootAssets.map((path) => `${appBase}${path}`));
 const shellFiles = [
   "",
   "manifest.webmanifest",
@@ -11,7 +13,9 @@ const shellFiles = [
   "icons/icon-512.png",
   "icons/icon-maskable-192.png",
   "icons/icon-maskable-512.png",
-].map((path) => `${appBase}${path}`);
+]
+  .map((path) => `${appBase}${path}`)
+  .concat([...bootAssetPaths]);
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -56,32 +60,45 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  event.respondWith(
-    fetch(event.request)
-      .then(async (response) => {
-        if (response.ok && !response.redirected) {
-          try {
+  const cacheKey = isShellNavigation ? appBase : event.request;
+  const isBootAsset = bootAssetPaths.has(requestUrl.pathname);
+  // The installed HTML and its hashed imports belong to the same build.
+  const assetCache =
+    !isShellNavigation && !isBootAsset
+      ? caches
+          .has(cacheName)
+          .then((exists) => (exists ? caches.open(cacheName) : undefined))
+          .catch(() => undefined)
+      : undefined;
+  const networkResponse = fetch(event.request);
+  if (assetCache) {
+    // Acquire the cache when the fetch starts, before waiting for the network.
+    event.waitUntil(
+      networkResponse
+        .then(async (response) => {
+          if (response.ok && !response.redirected) {
             const copy = response.clone();
-            const cacheKey = isShellNavigation ? appBase : event.request;
-            const cache = await caches.open(cacheName);
-            await cache.put(cacheKey, copy);
-          } catch {
-            // A failed cache write must not fail the live network response.
+            const cache = await assetCache;
+            await cache?.put(cacheKey, copy);
           }
-        }
-        return response;
-      })
-      .catch(async () => {
-        try {
-          const cached = await caches.match(isShellNavigation ? appBase : event.request, {
-            cacheName,
-          });
-          if (cached) return cached;
-        } catch {
-          // A disabled or unavailable Cache API also gets the offline response.
-        }
+        })
+        .catch(() => {}),
+    );
+  }
+  event.respondWith(
+    networkResponse.catch(async () => {
+      try {
+        const cached = await caches.match(cacheKey, {
+          cacheName,
+          // Precache requests and module loading can send different headers to the same asset.
+          ignoreVary: isBootAsset,
+        });
+        if (cached) return cached;
+      } catch {
+        // A disabled or unavailable Cache API also gets the offline response.
+      }
 
-        return new Response("", { status: 503, statusText: "Service Unavailable" });
-      }),
+      return new Response("", { status: 503, statusText: "Service Unavailable" });
+    }),
   );
 });

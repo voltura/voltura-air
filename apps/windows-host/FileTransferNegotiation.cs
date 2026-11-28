@@ -22,6 +22,7 @@ internal static class FileTransferNegotiation
         signaling.CancelAfter(signalingLifetime ?? FileTransferProtocol.SignalingLifetime);
         try
         {
+            signaling.Token.ThrowIfCancellationRequested();
             RelayTurnConfiguration? relay;
             try
             {
@@ -51,6 +52,7 @@ internal static class FileTransferNegotiation
                 }
                 throw new FileTransferWebRtcException(transfer.FailureMessage);
             }
+            signaling.Token.ThrowIfCancellationRequested();
             IFileTransferWebRtcPeer peer = peerFactory.Create(relay is null ? null : new FileTransferPeerConfiguration(relay.HostIceServerUris, RelayOnly: true));
             bool admitted;
             lock (transfer.Gate)
@@ -64,6 +66,7 @@ internal static class FileTransferNegotiation
                 throw new OperationCanceledException(cancellationToken);
             }
             string offerSdp = await peer.CreateOfferAsync(signaling.Token).ConfigureAwait(false);
+            signaling.Token.ThrowIfCancellationRequested();
             string offerHash = HashSdp(offerSdp);
             lock (transfer.Gate) transfer.OfferHash = offerHash;
             string transcript = OfferTranscript(transfer.ClientId, pairingManager.HostIdentity.PublicKey, transfer.OperationId, transfer.Id, transfer.Direction, transfer.FileName, transfer.DeclaredSize, offerHash);

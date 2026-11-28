@@ -601,6 +601,62 @@ describe("useFileTransfer download lifecycle", () => {
     });
   });
 
+  it.each(["download", "upload"] as const)(
+    "releases an unanswered file %s start and ignores its reply after retry",
+    (direction) => {
+      vi.useFakeTimers();
+      vi.stubGlobal("RTCPeerConnection", TestPeerConnection);
+      const sent: ClientMessage[] = [];
+      const send = (message: ClientMessage) => {
+        sent.push(message);
+      };
+      const hook = renderHook(() => useFileTransfer(pc, "client", true, send));
+      const start = () => act(() => {
+        if (direction === "download") {
+          hook.result.current.startDownload(target);
+        } else {
+          hook.result.current.startUpload(target, new File(["test"], "upload.txt"));
+        }
+      });
+      try {
+        start();
+        const first = sent[0];
+        if (first?.type !== "file.transfer.start") {
+          throw new Error("Missing file transfer request");
+        }
+        act(() => { vi.advanceTimersByTime(30_000); });
+        expect(sent.at(-1)).toMatchObject({
+          type: "file.transfer.cancel", requestId: first.operationId,
+        });
+        expect(hook.result.current.presentation).toMatchObject({
+          active: false, message: "The PC did not respond to the file transfer request. Try again.",
+        });
+
+        start();
+        const replacement = sent.at(-1);
+        if (replacement?.type !== "file.transfer.start") {
+          throw new Error("Missing replacement request");
+        }
+        expect(replacement.operationId).not.toBe(first.operationId);
+        act(() => publishFileManagerResult({
+          type: "file.transfer.start.result", operationId: first.operationId,
+          succeeded: false, message: "Old request response",
+        }));
+        expect(hook.result.current.presentation.active).toBe(true);
+        act(() => publishFileManagerResult({
+          type: "file.transfer.start.result", operationId: replacement.operationId,
+          succeeded: true, message: "Started", transferId: "new-transfer",
+        }));
+        act(() => { vi.advanceTimersByTime(30_000); });
+        expect(sent.at(-1)).toBe(replacement);
+        expect(hook.result.current.presentation.active).toBe(true);
+      } finally {
+        hook.unmount();
+        vi.useRealTimers();
+      }
+    },
+  );
+
   it("cancels an unacknowledged screenshot request and allows a retry", () => {
     vi.useFakeTimers();
     try {

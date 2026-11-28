@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PcProfile } from "../../foundation/connection/pcProfiles";
 import { subscribeAppsResults } from "../../foundation/connection/appsResultBus";
 import type { ConnectionState } from "../../foundation/connection/connectionTypes";
+import { createLocalId } from "../../foundation/identity/localId";
 import type {
   AppLaunchActionSummary,
   AppLaunchResultMessage,
@@ -40,7 +41,6 @@ interface Props {
   supportsRemoteLaunch: boolean;
 }
 
-const localId = () => crypto.randomUUID().replaceAll("_", "-");
 const initialPreviewWaitMs = 2_500;
 
 function findNearestCarouselCard(carousel: HTMLElement) {
@@ -230,17 +230,18 @@ export function AppsWorkspace({
         setClosing(false);
         return;
       }
-      if (listOperationRef.current) {
+      if (listOperationRef.current || document.visibilityState === "hidden") {
         return;
       }
-      const operationId = localId();
+      const operationId = createLocalId();
       const isManualRefresh = !quiet && hasCompletedInitialListRef.current;
       listOperationRef.current = operationId;
       window.clearTimeout(listTimeoutRef.current);
-      listTimeoutRef.current = window.setTimeout(() => {
+      const failList = (message: string) => {
         if (listOperationRef.current !== operationId) {
           return;
         }
+        window.clearTimeout(listTimeoutRef.current);
         listOperationRef.current = null;
         actionOperationRef.current = null;
         hasCompletedInitialListRef.current = true;
@@ -249,14 +250,20 @@ export function AppsWorkspace({
         setRefreshing(false);
         setClosing(false);
         setPendingWindowId(null);
-        setMessage("The PC did not return its applications. Use Refresh to try again.");
-      }, 15_000);
+        setMessage(message);
+      };
+      listTimeoutRef.current = window.setTimeout(
+        () => failList("The PC did not return its applications. Use Refresh to try again."),
+        15_000,
+      );
       setLoading(true);
       setRefreshing(isManualRefresh);
       if (!quiet && !isManualRefresh) {
         setMessage("Checking open applications…");
       }
-      send({ type: "apps.list", operationId });
+      if (send({ type: "apps.list", operationId }) === false) {
+        failList("Could not request open applications. Use Refresh to try again.");
+      }
     },
     [capability.canUse, send, state],
   );
@@ -368,6 +375,7 @@ export function AppsWorkspace({
         listOperationRef.current = null;
         actionOperationRef.current = null;
         setLoading(false);
+        setRefreshing(false);
         setPendingWindowId(null);
         setClosing(false);
         return;
@@ -621,32 +629,41 @@ export function AppsWorkspace({
   };
 
   const runWindowAction = (type: "activate" | "close", targetWindow: AppsWindowSummary) => {
-    if (!revision || pendingWindowId || listOperationRef.current || state !== "paired") {
-      return;
+    if (!revision || actionOperationRef.current || listOperationRef.current || state !== "paired") {
+      return false;
     }
-    const operationId = localId();
+    const operationId = createLocalId();
     actionOperationRef.current = { operationId, type, target: targetWindow };
     window.clearTimeout(actionTimeoutRef.current);
-    actionTimeoutRef.current = window.setTimeout(() => {
+    const failAction = (message: string) => {
       if (actionOperationRef.current?.operationId !== operationId) {
         return;
       }
+      window.clearTimeout(actionTimeoutRef.current);
       actionOperationRef.current = null;
       setPendingWindowId(null);
       setClosing(false);
-      const timeoutMessage =
-        "The PC did not confirm the application action. Check the PC, then refresh before retrying.";
-      setMessage(timeoutMessage);
-      onFeedback(timeoutMessage, "error");
+      setMessage(message);
+      onFeedback(message, "error");
+    };
+    actionTimeoutRef.current = window.setTimeout(() => {
+      failAction(
+        "The PC did not confirm the application action. Check the PC, then refresh before retrying.",
+      );
     }, 30_000);
     setPendingWindowId(targetWindow.windowId);
     setClosing(type === "close");
-    send({
+    const sent = send({
       type: type === "close" ? "apps.close" : "apps.activate",
       operationId,
       revision,
       windowId: targetWindow.windowId,
     });
+    if (sent === false) {
+      failAction("Could not send the application action. Reconnect and try again.");
+      return false;
+    }
+    return true;
   };
 
   const loadingCardText = closing ? "Closing…" : refreshing ? "Refreshing…" : "Loading…";

@@ -231,6 +231,65 @@ public sealed class WebHostTerminalReconnectTests : WebHostServiceTestBase
         Assert.False(Assert.Single(processes.Processes).Terminated);
     }
 
+    [Fact]
+    public async Task AnswerInFlightCannotAttachAfterItsPeerIsReplaced()
+    {
+        var processes = new ReconnectProcessFactory();
+        var peers = new ReconnectPeerFactory();
+        await using var fixture = await WebHostFixture.StartAsync(
+            terminalProcessFactory: processes,
+            terminalPeerFactory: peers);
+        using var key = new PairingTestKey();
+        using WebSocket socket = await ConnectAsync(fixture.WebHost);
+        await PairAsync(socket, fixture.Manager, key, "terminal-owner");
+        (string terminalId, JsonElement firstOffer) = await StartTerminalAsync(
+            socket, fixture.Manager, key, "terminal-owner", "pending-start");
+        ReconnectPeer firstPeer = Assert.Single(peers.Peers);
+        firstPeer.OpenOnAnswer = false;
+        await SendAsync(socket, CreateAnswer(fixture.Manager, key, "terminal-owner", "pending-start",
+            "pending-answer", terminalId, firstOffer));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await firstPeer.AnswerApplied.WaitAsync(timeout.Token);
+
+        const string attachOperation = "pending-replacement";
+        await SendAsync(socket, new
+        {
+            type = "terminal.attach",
+            operationId = attachOperation,
+            terminalId,
+            acknowledgedOffset = 0,
+            columns = 80,
+            rows = 24,
+            clientSignature = key.SignPayload(TerminalNegotiation.AttachTranscript(
+                "terminal-owner", fixture.Manager.HostIdentity.PublicKey, attachOperation,
+                terminalId, 0, 80, 24))
+        });
+
+        JsonElement? staleAnswer = null;
+        JsonElement? replacement = null;
+        while (replacement is null)
+        {
+            using var message = JsonDocument.Parse(await ReceiveTextAsync(socket, timeout.Token));
+            switch (message.RootElement.GetProperty("type").GetString())
+            {
+                case "terminal.answer.result": staleAnswer = message.RootElement.Clone(); break;
+                case "terminal.offer": replacement = message.RootElement.Clone(); break;
+            }
+        }
+        firstPeer.SignalOpened();
+        JsonElement expired = staleAnswer ?? await ReceiveUntilTypeAsync(socket, "terminal.answer.result");
+        Assert.False(expired.GetProperty("succeeded").GetBoolean());
+        Assert.Equal("offer-expired", expired.GetProperty("code").GetString());
+        Assert.True(firstPeer.Disposed);
+
+        ReconnectPeer currentPeer = peers.Peers[1];
+        await AnswerAsync(socket, fixture.Manager, key, "terminal-owner", attachOperation,
+            "replacement-answer", terminalId, replacement.Value, currentPeer);
+        await Assert.Single(processes.Processes).WriteOutputAsync([0x61]);
+        await WaitUntilAsync(() => currentPeer.Sent.Count == 1);
+        Assert.Empty(firstPeer.Sent);
+    }
+
     private static async Task<(string TerminalId, ReconnectPeer Peer)> StartAndAnswerAsync(
         WebSocket socket,
         PairingManager manager,
@@ -238,6 +297,20 @@ public sealed class WebHostTerminalReconnectTests : WebHostServiceTestBase
         string clientId,
         string operationId,
         ReconnectPeerFactory peers)
+    {
+        (string terminalId, JsonElement offer) = await StartTerminalAsync(socket, manager, key, clientId, operationId);
+        ReconnectPeer peer = Assert.Single(peers.Peers);
+        await AnswerAsync(socket, manager, key, clientId, operationId,
+            $"{operationId}-answer", terminalId, offer, peer);
+        return (terminalId, peer);
+    }
+
+    private static async Task<(string TerminalId, JsonElement Offer)> StartTerminalAsync(
+        WebSocket socket,
+        PairingManager manager,
+        PairingTestKey key,
+        string clientId,
+        string operationId)
     {
         JsonElement started = await SendUntilTypeAsync(socket, new
         {
@@ -249,11 +322,7 @@ public sealed class WebHostTerminalReconnectTests : WebHostServiceTestBase
                 clientId, manager.HostIdentity.PublicKey, operationId, 80, 24))
         }, "terminal.start.result");
         string terminalId = started.GetProperty("terminalId").GetString()!;
-        JsonElement offer = await ReceiveUntilTypeAsync(socket, "terminal.offer");
-        ReconnectPeer peer = Assert.Single(peers.Peers);
-        await AnswerAsync(socket, manager, key, clientId, operationId,
-            $"{operationId}-answer", terminalId, offer, peer);
-        return (terminalId, peer);
+        return (terminalId, await ReceiveUntilTypeAsync(socket, "terminal.offer"));
     }
 
     private static async Task AnswerAsync(
@@ -267,12 +336,28 @@ public sealed class WebHostTerminalReconnectTests : WebHostServiceTestBase
         JsonElement offer,
         ReconnectPeer peer)
     {
+        JsonElement answered = await SendUntilTypeAsync(socket,
+            CreateAnswer(manager, key, clientId, offerOperationId, answerOperationId, terminalId, offer),
+            "terminal.answer.result");
+        Assert.True(answered.GetProperty("succeeded").GetBoolean());
+        Assert.True(peer.Opened.IsCompletedSuccessfully);
+    }
+
+    private static object CreateAnswer(
+        PairingManager manager,
+        PairingTestKey key,
+        string clientId,
+        string offerOperationId,
+        string answerOperationId,
+        string terminalId,
+        JsonElement offer)
+    {
         const string answerSdp = "v=0\r\no=phone 1 1 IN IP4 127.0.0.1\r\ns=terminal answer\r\nt=0 0\r\n";
         string proof = key.SignPayload(TerminalNegotiation.AnswerTranscript(
             clientId, manager.HostIdentity.PublicKey, offerOperationId, answerOperationId,
             terminalId, TerminalNegotiation.HashSdp(offer.GetProperty("offerSdp").GetString()!),
             TerminalNegotiation.HashSdp(answerSdp)));
-        JsonElement answered = await SendUntilTypeAsync(socket, new
+        return new
         {
             type = "terminal.answer",
             operationId = answerOperationId,
@@ -280,9 +365,7 @@ public sealed class WebHostTerminalReconnectTests : WebHostServiceTestBase
             terminalId,
             answerSdp,
             clientSignature = proof
-        }, "terminal.answer.result");
-        Assert.True(answered.GetProperty("succeeded").GetBoolean());
-        Assert.True(peer.Opened.IsCompletedSuccessfully);
+        };
     }
 
     private static async Task PairAsync(
@@ -381,14 +464,22 @@ public sealed class WebHostTerminalReconnectTests : WebHostServiceTestBase
         private readonly Channel<byte[]> _received = Channel.CreateUnbounded<byte[]>();
         private readonly TaskCompletionSource _opened = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _closed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _answerApplied = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal List<byte[]> Sent { get; } = [];
         internal bool Disposed { get; private set; }
+        internal bool OpenOnAnswer { get; set; } = true;
+        internal Task AnswerApplied => _answerApplied.Task;
         public Task Opened => _opened.Task;
         public Task Closed => _closed.Task;
         public ChannelReader<byte[]> Messages => _received.Reader;
         public Task<string> CreateOfferAsync(CancellationToken cancellationToken) =>
             Task.FromResult("v=0\r\no=host 1 1 IN IP4 127.0.0.1\r\ns=terminal offer\r\nt=0 0\r\n");
-        public void ApplyAnswer(string answerSdp) => _opened.TrySetResult();
+        public void ApplyAnswer(string answerSdp)
+        {
+            _answerApplied.TrySetResult();
+            if (OpenOnAnswer) SignalOpened();
+        }
+        internal void SignalOpened() => _opened.TrySetResult();
         public bool TrySend(byte[] record) { Sent.Add(record); return true; }
         internal void Disconnect() => _closed.TrySetResult();
         public ValueTask DisposeAsync()

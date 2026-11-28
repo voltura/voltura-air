@@ -189,6 +189,10 @@
   background: var(--border);
 }
 
+.file-manager-workspace[data-layout="dual"] .file-manager-panels {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .file-panel {
   position: relative;
   display: grid;
@@ -201,6 +205,10 @@
 
 .file-panel:last-child {
   display: none;
+}
+
+.file-manager-workspace[data-layout="dual"] .file-panel:last-child {
+  display: grid;
 }
 
 .file-panel.active::after {
@@ -594,14 +602,6 @@
 }
 
 @container (min-width: 640px) {
-  .file-manager-panels {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .file-panel:last-child {
-    display: grid;
-  }
-
   .file-toolbar.dual-panel {
     grid-template-columns: repeat(13, minmax(0, 1fr));
   }

@@ -6,6 +6,35 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.5.8
+
+- Pairing shows recovery actions when the PC is unreachable and offers manual
+  entry on the pairing and reconnect screens. Reconnecting to a saved address
+  checks its identity, and canceling a device change keeps the current
+  connection. Forget uses the connection for the selected PC.
+- PC Screen keeps the current display and fullscreen controls during recovery.
+  Video can start while Windows audio is still initializing. Stopping the mirror
+  also stops its input and prevents it from restarting itself.
+- Phone Webcam reports failed starts, keeps microphone mute available during
+  camera interruptions, and can recover video after an audio failure. If the
+  chosen camera disappears, the next camera starts only when you press Start.
+- Files keeps actions tied to the visible folder and lets you retry when an
+  upload or download fails to start. Terminal can reconnect without replaying
+  text already displayed on the phone.
+- The installed mobile app caches its startup files so it can open offline.
+  It avoids repeated update reloads, and a stalled storage protection check
+  leaves the manual action available.
+- Gyro stays off when you leave Trackpad while browser permission is pending.
+  Dictation resumes after interrupted recognition results, and rejected control
+  requests show feedback without leaving the action pending.
+- Windows updates recover from stalled downloads and invalid metadata. The
+  selected installer stays available until Windows launches it. Keep awake
+  handles long timed sessions, and diagnostics apply filters before limiting the
+  displayed results.
+- Cloud Relay recovers from stale connections sooner. The Custom Screens library
+  improves search, international text entry, and submission feedback. Catalog
+  cleanup leaves uploads and imports alone while they finish saving.
+
 ## v1.5.7
 
 - Phone webcam stays fullscreen through recoverable interruptions and retries the

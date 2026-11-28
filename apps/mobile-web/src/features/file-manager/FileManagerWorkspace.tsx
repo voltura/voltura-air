@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type {
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
@@ -75,6 +75,7 @@ interface PendingPanelRequest {
 interface TrackedJob {
   operation: "copy" | "move" | "paste" | "rename" | "delete";
   sourcePanel: PanelName;
+  sourceSelectionGeneration: number;
   destinationPanel?: PanelName;
 }
 interface ConfirmedSelection {
@@ -121,7 +122,7 @@ export default function FileManagerWorkspace({
 }: Props) {
   const [session, setSession] = useState<FileManagerSession | null>(null);
   const [panels, setPanels] = useState<Record<PanelName, PanelView> | null>(null);
-  const [activePanel, setActivePanel] = useState<PanelName>("left");
+  const [requestedPanel, setActivePanel] = useState<PanelName>("left");
   const [selections, setSelections] = useState<Record<PanelName, SelectionState>>({
     left: emptySelection(),
     right: emptySelection(),
@@ -137,7 +138,8 @@ export default function FileManagerWorkspace({
   const [deleteTarget, setDeleteTarget] = useState<ConfirmedSelection | null>(null);
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [dualPanel, setDualPanel] = useState(false);
-  const stageRef = useRef<HTMLDivElement>(null);
+  const activePanel = dualPanel ? requestedPanel : "left";
+  const workspaceRef = useRef<HTMLElement>(null);
   const sessionRequestRef = useRef("");
   const sessionRef = useRef<FileManagerSession | null>(null);
   const panelsRef = useRef<Record<PanelName, PanelView> | null>(null);
@@ -148,7 +150,6 @@ export default function FileManagerWorkspace({
   const pendingMirrorOpenRef = useRef("");
   const pendingPropertiesRef = useRef("");
   const trackedJobs = useRef(new Map<string, TrackedJob>());
-  const terminalJobEffects = useRef(new Set<string>());
   const jobsRef = useRef<FileJobSnapshot[]>([]);
   const readTimersRef = useRef(new Map<string, number>());
   const send = useCallback(
@@ -264,20 +265,25 @@ export default function FileManagerWorkspace({
     [refreshPanel],
   );
   useEffect(() => {
-    const stage = stageRef.current;
-    if (!stage) {
+    const workspace = workspaceRef.current;
+    if (!workspace) {
       return;
     }
+    let wasDualPanel = false;
     const updateLayout = () => {
-      const nextDualPanel = stage.clientWidth >= 640;
+      const nextDualPanel = workspace.clientWidth >= 640;
       setDualPanel(nextDualPanel);
-      if (!nextDualPanel) {
+      if (wasDualPanel && !nextDualPanel) {
         setClipboardOpen(false);
+        setShortcutsOpen(false);
+        setDeleteTarget((current) => (current?.panel === "right" ? null : current));
+        setRenameTarget((current) => (current?.panel === "right" ? null : current));
       }
+      wasDualPanel = nextDualPanel;
     };
     const observer = new ResizeObserver(updateLayout);
     updateLayout();
-    observer.observe(stage);
+    observer.observe(workspace);
     return () => observer.disconnect();
   }, [session]);
   useEffect(() => {
@@ -288,7 +294,6 @@ export default function FileManagerWorkspace({
     const panelRequests = pendingPanelRequests.current;
     const jobRequests = pendingJobRequests.current;
     const currentTrackedJobs = trackedJobs.current;
-    const currentTerminalJobEffects = terminalJobEffects.current;
     const readTimers = readTimersRef.current;
     sessionRequestRef.current = operationId;
     send({ type: "file.session.open", operationId });
@@ -304,7 +309,6 @@ export default function FileManagerWorkspace({
       pendingMirrorOpenRef.current = "";
       jobRequests.clear();
       currentTrackedJobs.clear();
-      currentTerminalJobEffects.clear();
       jobsRef.current = [];
       queueMicrotask(() => {
         setSession(null);
@@ -321,10 +325,9 @@ export default function FileManagerWorkspace({
   useEffect(() => {
     const applyTerminalJobEffects = (job: FileJobSnapshot) => {
       const tracked = trackedJobs.current.get(job.jobId);
-      if (!tracked || !isTerminalJob(job.state) || terminalJobEffects.current.has(job.jobId)) {
-        return;
+      if (!tracked || !isTerminalJob(job.state)) {
+        return false;
       }
-      terminalJobEffects.current.add(job.jobId);
       trackedJobs.current.delete(job.jobId);
       const completed = job.state === "completed";
       setStatus(
@@ -332,7 +335,11 @@ export default function FileManagerWorkspace({
           (completed ? `${job.operation} completed.` : `${job.operation} did not complete.`),
       );
       setStatusTone(completed ? "success" : job.state === "canceled" ? "neutral" : "error");
-      if (completed && tracked.operation === "copy") {
+      if (
+        completed &&
+        tracked.operation === "copy" &&
+        tracked.sourceSelectionGeneration === selectionLookupGeneration.current[tracked.sourcePanel]
+      ) {
         setSelections((current) => ({ ...current, [tracked.sourcePanel]: emptySelection() }));
       }
       const refreshPanels = new Set<PanelName>();
@@ -348,6 +355,7 @@ export default function FileManagerWorkspace({
         refreshPanels.add(tracked.destinationPanel!);
       }
       refreshPanels.forEach(refreshPanel);
+      return true;
     };
     return subscribeFileManagerResults((message) => {
       const wasPendingRead =
@@ -406,15 +414,16 @@ export default function FileManagerWorkspace({
           return;
         }
         pendingPanelRequests.current.delete(message.operationId);
+        const selectName =
+          pending.selectionGeneration === selectionLookupGeneration.current[pending.panel]
+            ? pending.selectName
+            : undefined;
+        const currentPanel = panelsRef.current?.[pending.panel];
+        const currentRevision = currentPanel?.page.revision;
         if (
-          pending.selectName &&
-          pending.selectionGeneration !== selectionLookupGeneration.current[pending.panel]
-        ) {
-          return;
-        }
-        if (
-          pending.kind === "replace" &&
-          latestReplacementRequest.current[pending.panel] !== message.operationId
+          (pending.kind === "replace" &&
+            latestReplacementRequest.current[pending.panel] !== message.operationId) ||
+          (pending.kind === "page" && pending.revision !== currentRevision)
         ) {
           return;
         }
@@ -443,9 +452,9 @@ export default function FileManagerWorkspace({
                 panel: pending.panel,
                 kind: "replace",
                 revision: "",
-                ...(pending.selectName
+                ...(selectName
                   ? {
-                      selectName: pending.selectName,
+                      selectName,
                       selectionPagesRemaining:
                         pending.selectionPagesRemaining ?? maximumUploadSelectionContinuationPages,
                       selectionGeneration: pending.selectionGeneration,
@@ -463,13 +472,9 @@ export default function FileManagerWorkspace({
           return;
         }
         const page = message.page;
-        const currentPanel = panelsRef.current?.[pending.panel];
-        const currentRevision = currentPanel?.page.revision;
         const invalidAppend =
           pending.kind === "page" &&
-          (currentRevision === undefined ||
-            pending.revision !== currentRevision ||
-            page.revision !== currentRevision ||
+          (page.revision !== currentRevision ||
             hasOverlappingIds(currentPanel?.entries ?? [], page.entries));
         if (page.panel !== pending.panel || !hasUniqueIds(page.entries) || invalidAppend) {
           setStatus("The PC returned an invalid file page.");
@@ -488,6 +493,19 @@ export default function FileManagerWorkspace({
           );
           return;
         }
+        const selected = selectName
+          ? page.entries.find((entry) => entry.name === selectName)
+          : undefined;
+        const currentSession = sessionRef.current;
+        const selectionPagesRemaining = pending.selectionPagesRemaining ?? 0;
+        const selectionContinuation =
+          currentSession &&
+          selectName &&
+          !selected &&
+          page.continuation &&
+          selectionPagesRemaining > 0
+            ? { sessionId: currentSession.sessionId, continuation: page.continuation, selectName }
+            : null;
         setPanels((current) => {
           if (!current) {
             return current;
@@ -505,16 +523,13 @@ export default function FileManagerWorkspace({
             [page.panel]: {
               page,
               entries: append ? [...existing.entries, ...page.entries] : page.entries,
-              loadingMore: false,
+              loadingMore: selectionContinuation !== null,
               pageError: "",
             },
           };
           panelsRef.current = next;
           return next;
         });
-        const selected = pending.selectName
-          ? page.entries.find((entry) => entry.name === pending.selectName)
-          : undefined;
         if (selected || pending.kind === "replace") {
           setSelections((current) => ({
             ...current,
@@ -523,21 +538,13 @@ export default function FileManagerWorkspace({
               : emptySelection(),
           }));
         }
-        const currentSession = sessionRef.current;
-        const selectionPagesRemaining = pending.selectionPagesRemaining ?? 0;
-        if (
-          currentSession &&
-          pending.selectName &&
-          !selected &&
-          page.continuation &&
-          selectionPagesRemaining > 0
-        ) {
+        if (selectionContinuation) {
           const nextPageId = createLocalId();
           pendingPanelRequests.current.set(nextPageId, {
             panel: page.panel,
             kind: "page",
             revision: page.revision,
-            selectName: pending.selectName,
+            selectName: selectionContinuation.selectName,
             selectionPagesRemaining: selectionPagesRemaining - 1,
             selectionGeneration:
               pending.selectionGeneration ?? selectionLookupGeneration.current[page.panel],
@@ -545,14 +552,14 @@ export default function FileManagerWorkspace({
           send({
             type: "file.page.get",
             operationId: nextPageId,
-            sessionId: currentSession.sessionId,
+            sessionId: selectionContinuation.sessionId,
             panel: page.panel,
             revision: page.revision,
-            continuation: page.continuation,
+            continuation: selectionContinuation.continuation,
           });
         }
         const selectionNotLocated =
-          pending.selectName && !selected && (!page.continuation || selectionPagesRemaining === 0);
+          selectName && !selected && (!page.continuation || selectionPagesRemaining === 0);
         setStatus(
           selectionNotLocated
             ? "File copied to the PC. It is outside the loaded rows."
@@ -581,25 +588,28 @@ export default function FileManagerWorkspace({
         });
         return;
       }
-      if (message.type === "file.job.create.result" && message.job) {
-        const tracked = pendingJobRequests.current.get(message.operationId);
-        pendingJobRequests.current.delete(message.operationId);
-        if (tracked) {
-          trackedJobs.current.set(message.job.jobId, tracked);
-        }
-        const newest =
-          jobsRef.current.find((job) => job.jobId === message.job!.jobId) ?? message.job;
-        jobsRef.current = [newest, ...jobsRef.current.filter((job) => job.jobId !== newest.jobId)];
-        setJobs(jobsRef.current);
-        applyTerminalJobEffects(newest);
-        setStatus(message.message);
-        setStatusTone("success");
-        return;
-      }
       if (message.type === "file.job.create.result") {
         const tracked = pendingJobRequests.current.get(message.operationId);
         pendingJobRequests.current.delete(message.operationId);
-        if (message.code === "stale-panel" && tracked) {
+        if (!tracked) {
+          return;
+        }
+        if (message.succeeded && message.job) {
+          const queued = message.job;
+          trackedJobs.current.set(queued.jobId, tracked);
+          const newest = jobsRef.current.find((job) => job.jobId === queued.jobId) ?? queued;
+          jobsRef.current = [
+            newest,
+            ...jobsRef.current.filter((job) => job.jobId !== newest.jobId),
+          ];
+          setJobs(jobsRef.current);
+          if (!applyTerminalJobEffects(newest)) {
+            setStatus(message.message);
+            setStatusTone("success");
+          }
+          return;
+        }
+        if (message.code === "stale-panel") {
           const currentSession = sessionRef.current;
           if (currentSession) {
             const refreshId = createLocalId();
@@ -773,8 +783,13 @@ export default function FileManagerWorkspace({
     if (!session || !panels) {
       return;
     }
-    if (confirmed && confirmed.sessionId !== session.sessionId) {
-      setStatus("The file session changed. Select the item again.");
+    if (
+      confirmed &&
+      (confirmed.sessionId !== session.sessionId ||
+        confirmed.revision !== panels[confirmed.panel].page.revision ||
+        (!dualPanel && confirmed.panel !== activePanel))
+    ) {
+      setStatus("The file selection changed. Select the item again.");
       setStatusTone("error");
       return;
     }
@@ -796,6 +811,7 @@ export default function FileManagerWorkspace({
     pendingJobRequests.current.set(operationId, {
       operation,
       sourcePanel,
+      sourceSelectionGeneration: selectionLookupGeneration.current[sourcePanel],
       ...(operation === "copy" || operation === "move"
         ? { destinationPanel: sourcePanel === "left" ? ("right" as const) : ("left" as const) }
         : {}),
@@ -901,10 +917,12 @@ export default function FileManagerWorkspace({
   };
   return (
     <section
+      ref={workspaceRef}
       className={`file-manager-workspace ${leadingJob ? "job-bar-presented" : ""}`}
       aria-label="Files on PC"
+      data-layout={dualPanel ? "dual" : "single"}
     >
-      <div ref={stageRef} className="file-manager-stage">
+      <div className="file-manager-stage">
         <div
           className="file-manager-content"
           onPointerDownCapture={(event) => dismissTransientMenus(event.target)}
@@ -1041,6 +1059,7 @@ export default function FileManagerWorkspace({
                 drives={session.drives}
                 panel={panels[panel]}
                 selection={selections[panel]}
+                visible={panel === "left" || dualPanel}
                 onActivate={() => setActivePanel(panel)}
                 onDrive={(id) => sendPanel(panel, id)}
                 onLoadMore={() => loadMore(panel)}
@@ -1238,6 +1257,7 @@ function FilePanel({
   drives,
   panel,
   selection,
+  visible: panelVisible,
   onActivate,
   onDrive,
   onLoadMore,
@@ -1252,6 +1272,7 @@ function FilePanel({
   drives: FileManagerSession["drives"];
   panel: PanelView;
   selection: SelectionState;
+  visible: boolean;
   onActivate: () => void;
   onDrive: (id: string) => void;
   onLoadMore: () => void;
@@ -1270,10 +1291,19 @@ function FilePanel({
     pointerId: number;
     x: number;
     y: number;
-    fired: boolean;
   } | null>(null);
   const suppressClickRef = useRef(false);
   const rowHeight = 54;
+  const cancelLongPress = useCallback(() => {
+    if (longPressRef.current) {
+      clearTimeout(longPressRef.current.timer);
+      longPressRef.current = null;
+    }
+  }, []);
+  const retireLongPress = useCallback(() => {
+    cancelLongPress();
+    suppressClickRef.current = false;
+  }, [cancelLongPress]);
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) {
@@ -1283,14 +1313,25 @@ function FilePanel({
     observer.observe(viewport);
     return () => observer.disconnect();
   }, []);
-  useEffect(
-    () => () => {
-      if (longPressRef.current) {
-        clearTimeout(longPressRef.current.timer);
+  useLayoutEffect(() => retireLongPress, [panel.page.revision, panelVisible, retireLongPress]);
+  useEffect(() => {
+    if (!panelVisible) {
+      return;
+    }
+    const retireWhenHidden = () => {
+      if (document.visibilityState === "hidden") {
+        retireLongPress();
       }
-    },
-    [],
-  );
+    };
+    window.addEventListener("blur", retireLongPress);
+    window.addEventListener("pagehide", retireLongPress);
+    document.addEventListener("visibilitychange", retireWhenHidden);
+    return () => {
+      window.removeEventListener("blur", retireLongPress);
+      window.removeEventListener("pagehide", retireLongPress);
+      document.removeEventListener("visibilitychange", retireWhenHidden);
+    };
+  }, [panelVisible, retireLongPress]);
   useEffect(() => {
     if (selection.all || selection.ids.size !== 1) {
       return;
@@ -1320,6 +1361,7 @@ function FilePanel({
   const visibleAttributes = [...new Set(panel.entries.flatMap((entry) => entry.attributes))];
   useEffect(() => {
     if (
+      panelVisible &&
       entryStart + visible >= panel.entries.length - 10 &&
       panel.page.continuation &&
       !panel.loadingMore &&
@@ -1334,37 +1376,28 @@ function FilePanel({
     panel.loadingMore,
     panel.page.continuation,
     panel.pageError,
+    panelVisible,
     visible,
   ]);
-  const cancelLongPress = () => {
-    if (!longPressRef.current) {
-      return;
-    }
-    clearTimeout(longPressRef.current.timer);
-    longPressRef.current = null;
-  };
   const beginLongPress = (event: ReactPointerEvent<HTMLElement>) => {
-    if (event.pointerType === "mouse" && event.button !== 0) {
+    if (!panelVisible || (event.pointerType === "mouse" && event.button !== 0)) {
       return;
     }
+    retireLongPress();
     const target = (event.target as HTMLElement).closest<HTMLElement>("[data-properties-entry]");
     const entryId = target?.dataset.propertiesEntry;
     if (!entryId) {
       return;
     }
-    cancelLongPress();
-    const pending = {
+    longPressRef.current = {
       pointerId: event.pointerId,
       x: event.clientX,
       y: event.clientY,
-      fired: false,
       timer: setTimeout(() => {
-        pending.fired = true;
         suppressClickRef.current = true;
         onProperties(entryId);
       }, 550),
     };
-    longPressRef.current = pending;
   };
   const moveLongPress = (event: ReactPointerEvent<HTMLElement>) => {
     const pending = longPressRef.current;
@@ -1382,8 +1415,7 @@ function FilePanel({
   };
   const cancelLongPressGesture = (event: ReactPointerEvent<HTMLElement>) => {
     if (longPressRef.current?.pointerId === event.pointerId) {
-      cancelLongPress();
-      suppressClickRef.current = false;
+      retireLongPress();
     }
   };
   const suppressLongPressClick = (event: ReactMouseEvent<HTMLElement>) => {
@@ -1408,6 +1440,7 @@ function FilePanel({
       onPointerMoveCapture={moveLongPress}
       onPointerUpCapture={endLongPress}
       onPointerCancelCapture={cancelLongPressGesture}
+      onLostPointerCapture={cancelLongPressGesture}
       onClickCapture={suppressLongPressClick}
       onContextMenuCapture={(event) => {
         if ((event.target as HTMLElement).closest("[data-properties-entry]")) {

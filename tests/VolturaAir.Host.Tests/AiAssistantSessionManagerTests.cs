@@ -32,6 +32,64 @@ public sealed class AiAssistantSessionManagerTests
     }
 
     [Fact]
+    public async Task ShutdownDuringAvailabilityCheckDoesNotReserveAnOpen()
+    {
+        var checking = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var finishCheck = new ManualResetEventSlim();
+        var factory = new ManagerClientFactory
+        {
+            OnAvailability = () =>
+            {
+                checking.TrySetResult();
+                Assert.True(finishCheck.Wait(TimeSpan.FromSeconds(5)));
+            }
+        };
+        await using var manager = new AiAssistantSessionManager(factory);
+        var opening = Task.Run(() => manager.TryOpenAsync(new object(), TestContext.Current.CancellationToken));
+        try
+        {
+            await checking.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await manager.DisposeAsync();
+        }
+        finally { finishCheck.Set(); }
+
+        var result = await opening;
+        Assert.Equal("closed", result.Code);
+        Assert.False(manager.IsActive);
+        Assert.Empty(factory.Clients);
+    }
+
+    [Fact]
+    public async Task ShutdownRetiresAClientWhoseLeaseWasNeverPublished()
+    {
+        var subscribing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var finishSubscription = new ManualResetEventSlim();
+        var factory = new ManagerClientFactory
+        {
+            OnConnectionHandlerAdded = () =>
+            {
+                subscribing.TrySetResult();
+                Assert.True(finishSubscription.Wait(TimeSpan.FromSeconds(5)));
+            }
+        };
+        await using var manager = new AiAssistantSessionManager(factory);
+        var opening = Task.Run(() => manager.TryOpenAsync(new object(), TestContext.Current.CancellationToken));
+        Task shutdown;
+        try
+        {
+            await subscribing.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            shutdown = manager.DisposeAsync().AsTask();
+            Assert.False(shutdown.IsCompleted);
+        }
+        finally { finishSubscription.Set(); }
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => opening);
+        await shutdown.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(Assert.Single(factory.Clients).Disposed);
+        Assert.False(manager.IsActive);
+    }
+
+    [Fact]
     public async Task ReportsMissingKnowledgeSeparatelyFromMissingCodex()
     {
         var factory = new ManagerClientFactory { ReportedAvailability = AiAssistantAvailability.KnowledgeMissing };
@@ -145,15 +203,25 @@ public sealed class AiAssistantSessionManagerTests
         internal AiAssistantAvailability ReportedAvailability { get; set; } = AiAssistantAvailability.Ready;
         internal bool CloseWhenConnectionHandlerIsAdded { get; init; }
         internal bool HasExistingThread { get; init; } = true;
+        internal Action? OnAvailability { get; init; }
+        internal Action? OnConnectionHandlerAdded { get; init; }
         public bool IsAvailable => ReportedAvailability == AiAssistantAvailability.Ready;
-        public AiAssistantAvailability Availability => ReportedAvailability;
+        public AiAssistantAvailability Availability
+        {
+            get
+            {
+                OnAvailability?.Invoke();
+                return ReportedAvailability;
+            }
+        }
 
         public Task<IAiAssistantClient> ConnectAsync(CancellationToken cancellationToken)
         {
             var client = new ManagerClient
             {
                 CloseWhenConnectionHandlerIsAdded = CloseWhenConnectionHandlerIsAdded,
-                HasExistingThread = HasExistingThread
+                HasExistingThread = HasExistingThread,
+                OnConnectionHandlerAdded = OnConnectionHandlerAdded
             };
             Clients.Add(client);
             return Task.FromResult<IAiAssistantClient>(client);
@@ -167,6 +235,7 @@ public sealed class AiAssistantSessionManagerTests
         internal bool Disposed { get; private set; }
         internal bool CloseWhenConnectionHandlerIsAdded { get; init; }
         internal bool HasExistingThread { get; init; }
+        internal Action? OnConnectionHandlerAdded { get; init; }
         internal int ReadCount { get; private set; }
         internal int StartCount { get; private set; }
         public event Action<string, string, string, string>? AgentMessageCompleted;
@@ -176,6 +245,7 @@ public sealed class AiAssistantSessionManagerTests
             add
             {
                 _connectionClosed += value;
+                OnConnectionHandlerAdded?.Invoke();
                 if (CloseWhenConnectionHandlerIsAdded) value?.Invoke();
             }
             remove => _connectionClosed -= value;

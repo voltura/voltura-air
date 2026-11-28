@@ -22,13 +22,27 @@
   Inputs and queues are bounded; cleanup is deterministic and awaited.
 - Non-cancellable native calls have bounded callers. Late completion reconciles
   native state to the last committed state before more work.
+- Keep awake retries an expiration after temporary worker or Windows failures
+  while the same setting remains active.
+- Simulated activity bounds the stop wait for a pulse already in Windows. Its
+  retiring loop keeps ownership until the pulse returns. A new loop can start
+  after that retirement.
 - Authentication, origin validation, throttling, message bounds, and permission
   checks precede privileged actions. Input is normalized and decoded once;
-  socket sends are serialized and status updates coalesced.
+  socket sends are serialized and status updates coalesced. Retiring a socket
+  drops sends still queued behind its admitted write.
 - Settings used on hot paths are cached. Pairing and other persisted data are
   bounded, validated, and atomically replaced.
 - External failures stop at their owning boundary and are logged without
   secrets, payload contents, typed text, pointer coordinates, or credentials.
+- Installed-host update requests bound metadata and signature reads to 20
+  seconds and allow up to 20 seconds of inactivity per installer read. Shutdown
+  cancels and awaits update checks and staging before releasing their resources.
+  Turning off automatic downloads also cancels any deferred automatic download.
+  Publishing the verified manifest commits the ready package. Cleanup of
+  superseded files runs after the commit and can be retried on a later update.
+  An accepted install handoff closes updater admission and preserves the
+  selected installer for the post-shutdown launcher.
 - Relay connection-end diagnostics retain the connection phase, elapsed time,
   numeric close/native error codes, and local recovery-abort category. They omit
   exception messages, peer close descriptions, connection URLs, and identifiers.

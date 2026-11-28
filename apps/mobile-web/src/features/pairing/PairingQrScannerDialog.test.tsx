@@ -37,6 +37,8 @@ function fakeStream() {
 }
 
 describe("PairingQrScannerDialog", () => {
+  const originalMediaDevices = Object.getOwnPropertyDescriptor(navigator, "mediaDevices");
+
   beforeEach(() => {
     vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
     vi.mocked(createQrDecoderSession).mockReturnValue({
@@ -47,13 +49,19 @@ describe("PairingQrScannerDialog", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    if (originalMediaDevices) {
+      Object.defineProperty(navigator, "mediaDevices", originalMediaDevices);
+    } else {
+      Reflect.deleteProperty(navigator, "mediaDevices");
+    }
   });
 
   it("requires HTTPS and the camera API without identifying the browser", () => {
     const mediaDevices = { getUserMedia: vi.fn() } as unknown as MediaDevices;
     expect(canUseLivePairingQrScanner("https:", mediaDevices)).toBe(true);
     expect(canUseLivePairingQrScanner("http:", mediaDevices)).toBe(false);
-    expect(canUseLivePairingQrScanner("https:", undefined as unknown as MediaDevices)).toBe(false);
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: undefined });
+    expect(canUseLivePairingQrScanner("https:")).toBe(false);
   });
 
   it("does not request the camera when opened while the document is already hidden", async () => {
@@ -194,14 +202,8 @@ describe("PairingQrScannerDialog", () => {
       configurable: true,
       value: { getUserMedia },
     });
-    Object.defineProperty(HTMLVideoElement.prototype, "videoWidth", {
-      configurable: true,
-      get: () => 1280,
-    });
-    Object.defineProperty(HTMLVideoElement.prototype, "videoHeight", {
-      configurable: true,
-      get: () => 720,
-    });
+    vi.spyOn(HTMLVideoElement.prototype, "videoWidth", "get").mockReturnValue(1280);
+    vi.spyOn(HTMLVideoElement.prototype, "videoHeight", "get").mockReturnValue(720);
     const getImageData = vi.fn(
       () =>
         ({

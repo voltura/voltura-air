@@ -428,7 +428,7 @@ describe("CustomScreenWorkspace", () => {
     expect(invoke).toHaveBeenCalledExactlyOnceWith("screen.media", "revision.one", "button.play");
   });
 
-  it("requires an uninterrupted hold before invoking destructive host actions", () => {
+  it("requires an uninterrupted hold before invoking destructive host actions", async () => {
     vi.useFakeTimers();
     const invoke = vi.fn();
     const protectedDefinition: CustomScreenDefinition = {
@@ -451,11 +451,12 @@ describe("CustomScreenWorkspace", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Shut down PC" }));
     const hold = screen.getByRole("button", { name: "Hold to shut down pc" });
+    vi.spyOn(hold, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 100, 40));
     expect(document.activeElement).toBe(hold);
     fireEvent.pointerDown(hold, { button: 0, pointerId: 1 });
-    vi.advanceTimersByTime(1599);
+    await act(() => vi.advanceTimersByTime(1599));
     expect(invoke).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
+    await act(() => vi.advanceTimersByTime(1));
     expect(invoke).toHaveBeenCalledExactlyOnceWith("screen.media", "revision.one", "button.play");
   });
 

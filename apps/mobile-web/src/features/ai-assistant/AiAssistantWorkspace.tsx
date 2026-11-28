@@ -6,6 +6,7 @@ import { signClientPayload } from "../../foundation/connection/pairingCredential
 import { subscribeAiAssistantResults } from "../../foundation/connection/aiAssistantResultBus";
 import type { AiAssistantCapability, ClientMessage } from "../../foundation/protocol/messages";
 import type { ConnectionState } from "../../foundation/connection/connectionTypes";
+import { createLocalId } from "../../foundation/identity/localId";
 import {
   assistantAskTranscript,
   assistantOpenTranscript,
@@ -19,7 +20,7 @@ interface Props {
   capability: AiAssistantCapability;
   clientId: string;
   onBack: () => void;
-  send: (message: ClientMessage) => void;
+  send: (message: ClientMessage) => boolean | void;
   state: ConnectionState;
 }
 
@@ -41,7 +42,6 @@ const workingPhrases = [
 ];
 const maximumConversationMessages = 32;
 const maximumQuestionLength = 16 * 1024;
-const newOperationId = () => crypto.randomUUID().replaceAll("_", "-");
 const truncateQuestion = (value: string) => {
   if (value.length <= maximumQuestionLength) {
     return value;
@@ -79,7 +79,7 @@ export default function AiAssistantWorkspace({
     sendRef.current = send;
   }, [send]);
   const openOperationRef = useRef<string | null>(null);
-  const askOperationRef = useRef<string | null>(null);
+  const askOperationRef = useRef<{ operationId: string; draft: string } | null>(null);
   const resetOperationRef = useRef<string | null>(null);
   const appendDictationText = useCallback((text: string) => {
     setQuestion((current) => truncateQuestion(`${current}${text}`));
@@ -169,16 +169,16 @@ export default function AiAssistantWorkspace({
         }
         setStatus(message.message);
       } else if (message.type === "ai.assistant.ask.result") {
-        if (message.operationId !== askOperationRef.current) {
+        const pendingAsk = askOperationRef.current;
+        if (message.operationId !== pendingAsk?.operationId) {
           return;
         }
         askOperationRef.current = null;
         setPendingOperation(null);
         if (message.succeeded) {
-          setQuestion("");
-        } else {
-          setStatus(message.message);
+          setQuestion((current) => (current === pendingAsk.draft ? "" : current));
         }
+        setStatus(message.message);
       } else if (message.type === "ai.assistant.reset.result") {
         if (message.operationId !== resetOperationRef.current) {
           return;
@@ -212,7 +212,7 @@ export default function AiAssistantWorkspace({
       if (openOperationRef.current === pendingOperation) {
         openOperationRef.current = null;
       }
-      if (askOperationRef.current === pendingOperation) {
+      if (askOperationRef.current?.operationId === pendingOperation) {
         askOperationRef.current = null;
       }
       if (resetOperationRef.current === pendingOperation) {
@@ -248,7 +248,7 @@ export default function AiAssistantWorkspace({
   useEffect(
     () => () => {
       if (openAttemptedRef.current) {
-        sendRef.current({ type: "ai.assistant.close", operationId: newOperationId() });
+        sendRef.current({ type: "ai.assistant.close", operationId: createLocalId() });
       }
     },
     [],
@@ -279,7 +279,7 @@ export default function AiAssistantWorkspace({
     ) {
       return;
     }
-    const operationId = newOperationId();
+    const operationId = createLocalId();
     const signature = sign(
       assistantOpenTranscript(clientId, activePc.hostIdentityPublicKey, operationId),
     );
@@ -291,13 +291,23 @@ export default function AiAssistantWorkspace({
     setStatus("Opening the Assistant…");
     openAttemptedRef.current = true;
     openOperationRef.current = operationId;
-    send({ type: "ai.assistant.open", operationId, clientSignature: signature });
+    if (send({ type: "ai.assistant.open", operationId, clientSignature: signature }) === false) {
+      openOperationRef.current = null;
+      openAttemptedRef.current = false;
+      setPendingOperation(null);
+      setStatus("Could not open the Assistant. Reconnect and reopen the tool.");
+    }
   }, [activePc.hostIdentityPublicKey, capability.canUse, clientId, send, sign, state]);
 
   useEffect(() => {
     const timer = window.setTimeout(open, 0);
     return () => window.clearTimeout(timer);
   }, [open]);
+
+  const reportUnsentRequest = () => {
+    setPendingOperation(null);
+    setStatus("Could not send the Assistant request. Reconnect and try again.");
+  };
 
   const submit = () => {
     const normalized = question.trim();
@@ -313,7 +323,7 @@ export default function AiAssistantWorkspace({
       return;
     }
     stopSpeech();
-    const operationId = newOperationId();
+    const operationId = createLocalId();
     const signature = sign(
       assistantAskTranscript(clientId, activePc.hostIdentityPublicKey, operationId, normalized),
     );
@@ -322,13 +332,17 @@ export default function AiAssistantWorkspace({
       return;
     }
     setPendingOperation(operationId);
-    askOperationRef.current = operationId;
-    send({
+    askOperationRef.current = { operationId, draft: question };
+    const sent = send({
       type: "ai.assistant.ask",
       operationId,
       question: normalized,
       clientSignature: signature,
     });
+    if (sent === false) {
+      askOperationRef.current = null;
+      reportUnsentRequest();
+    }
   };
 
   const reset = () => {
@@ -342,7 +356,7 @@ export default function AiAssistantWorkspace({
     ) {
       return;
     }
-    const operationId = newOperationId();
+    const operationId = createLocalId();
     const signature = sign(
       assistantResetTranscript(clientId, activePc.hostIdentityPublicKey, operationId),
     );
@@ -351,7 +365,10 @@ export default function AiAssistantWorkspace({
     }
     setPendingOperation(operationId);
     resetOperationRef.current = operationId;
-    send({ type: "ai.assistant.reset", operationId, clientSignature: signature });
+    if (send({ type: "ai.assistant.reset", operationId, clientSignature: signature }) === false) {
+      resetOperationRef.current = null;
+      reportUnsentRequest();
+    }
   };
 
   const canInteract = opened && state === "paired" && capability.canUse && !working && !pending;

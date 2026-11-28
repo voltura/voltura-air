@@ -10,7 +10,7 @@ const resultVisibilityMs = 5000;
 export function useClipboardRead(
   state: ConnectionState,
   connectionEpoch: number,
-  send: (payload: ClientMessage) => void,
+  send: (payload: ClientMessage) => boolean | void,
 ) {
   const [clipboardText, setClipboardText] = useState("");
   const [clipboardReadResult, setClipboardReadResult] = useState<ClipboardGetResultMessage | null>(
@@ -112,15 +112,22 @@ export function useClipboardRead(
     }
 
     const operationId = createLocalId();
+    if (send({ type: "clipboard.get", operationId }) === false) {
+      return null;
+    }
     pendingOperationRef.current = operationId;
     setPendingOperationId(operationId);
     setClipboardReadResult(null);
-    send({ type: "clipboard.get", operationId });
     return operationId;
   };
 
   const requestClipboardReadForDevice = (): Promise<ClipboardGetResultMessage> | null => {
     if (state !== "paired") {
+      return null;
+    }
+
+    const operationId = createLocalId();
+    if (send({ type: "clipboard.get", operationId }) === false) {
       return null;
     }
 
@@ -136,8 +143,7 @@ export function useClipboardRead(
       });
     }
 
-    const operationId = createLocalId();
-    const result = new Promise<ClipboardGetResultMessage>((resolve) => {
+    return new Promise<ClipboardGetResultMessage>((resolve) => {
       const timeout = window.setTimeout(() => {
         if (pendingDeviceClipboardOperationRef.current?.operationId !== operationId) {
           return;
@@ -154,8 +160,6 @@ export function useClipboardRead(
       }, responseTimeoutMs);
       pendingDeviceClipboardOperationRef.current = { operationId, resolve, timeout };
     });
-    send({ type: "clipboard.get", operationId });
-    return result;
   };
 
   const completeClipboardRead = (result: ClipboardGetResultMessage) => {

@@ -63,8 +63,7 @@ export function TerminalWorkspace({
 }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
-  const fitRef = useRef<FitAddon | null>(null);
-  const fitAndResizeRef = useRef<() => boolean>(() => false);
+  const fitAndResizeRef = useRef<(queueResize?: boolean) => boolean>(() => false);
   const stopMomentumRef = useRef<() => void>(() => undefined);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const peerSetupRef = useRef<AbortController | null>(null);
@@ -72,15 +71,16 @@ export function TerminalWorkspace({
   const stopOperationRef = useRef<{ operationId: string; terminalId: string } | null>(null);
   const channelRef = useRef<RTCDataChannel | null>(null);
   const terminalIdRef = useRef<string | null>(null);
-  const acknowledgedRef = useRef(0);
-  const receivedRef = useRef(0);
+  const outputProgressRef = useRef({ queuedOffset: 0, renderedOffset: 0 });
+  const acknowledgeOutputRef = useRef<(() => void) | null>(null);
   const reconnectEpochRef = useRef(-1);
+  const attachOnVisibleRef = useRef(false);
   const connectionEpochRef = useRef(connectionEpoch);
   const pendingAttachRef = useRef<{ epoch: number; operationId: string } | null>(null);
   const pendingStartRef = useRef<string | null>(null);
   const offerOperationRef = useRef<string | null>(null);
   const setupTimerRef = useRef<number | undefined>(undefined);
-  const observedActiveRef = useRef(false);
+  const observedActiveTerminalRef = useRef<string | null>(null);
   const renewalTimerRef = useRef<number | undefined>(undefined);
   const inputQueueRef = useRef<TerminalInputQueue | null>(null);
   const transportFailureRef = useRef<() => void>(() => undefined);
@@ -110,28 +110,38 @@ export function TerminalWorkspace({
     }),
     [],
   );
-  const closePeer = useCallback(() => {
+  const clearSetupDeadline = useCallback(() => {
     window.clearTimeout(setupTimerRef.current);
     setupTimerRef.current = undefined;
-    answerOperationRef.current = null;
-    const peer = peerRef.current;
-    const setup = peerSetupRef.current;
-    peerRef.current = null;
-    peerSetupRef.current = null;
-    const channel = channelRef.current;
-    channelRef.current = null;
-    setup?.abort();
-    inputQueueRef.current?.disconnect(channel ?? undefined);
-    channel?.close();
-    setInputReady(false);
-    modifierRef.current = null;
-    setModifier(null);
-    peer?.close();
-    if (renewalTimerRef.current !== undefined) {
-      window.clearTimeout(renewalTimerRef.current);
-    }
-    renewalTimerRef.current = undefined;
   }, []);
+
+  const closePeer = useCallback(
+    (keepSetupDeadline = false) => {
+      if (!keepSetupDeadline) {
+        clearSetupDeadline();
+      }
+      answerOperationRef.current = null;
+      const peer = peerRef.current;
+      const setup = peerSetupRef.current;
+      peerRef.current = null;
+      peerSetupRef.current = null;
+      const channel = channelRef.current;
+      channelRef.current = null;
+      acknowledgeOutputRef.current = null;
+      setup?.abort();
+      inputQueueRef.current?.disconnect(channel ?? undefined);
+      channel?.close();
+      setInputReady(false);
+      modifierRef.current = null;
+      setModifier(null);
+      peer?.close();
+      if (renewalTimerRef.current !== undefined) {
+        window.clearTimeout(renewalTimerRef.current);
+      }
+      renewalTimerRef.current = undefined;
+    },
+    [clearSetupDeadline],
+  );
 
   const beginSetupDeadline = useCallback(() => {
     window.clearTimeout(setupTimerRef.current);
@@ -198,8 +208,7 @@ export function TerminalWorkspace({
       }
     });
     terminalRef.current = terminal;
-    fitRef.current = fit;
-    const fitAndResize = () => {
+    const fitAndResize = (queueResize = true) => {
       if (!activeRef.current || host.clientWidth <= 0 || host.clientHeight <= 0) {
         return false;
       }
@@ -211,7 +220,9 @@ export function TerminalWorkspace({
         Math.max(minimumTerminalColumns, Math.min(500, proposed.cols)),
         Math.min(300, proposed.rows),
       );
-      inputQueue.enqueueResize(createTerminalResize(terminal.cols, terminal.rows));
+      if (queueResize) {
+        inputQueue.enqueueResize(createTerminalResize(terminal.cols, terminal.rows));
+      }
       return true;
     };
     fitAndResizeRef.current = fitAndResize;
@@ -221,7 +232,7 @@ export function TerminalWorkspace({
       window.cancelAnimationFrame(firstLayoutFrame);
       window.cancelAnimationFrame(secondLayoutFrame);
       firstLayoutFrame = window.requestAnimationFrame(() => {
-        secondLayoutFrame = window.requestAnimationFrame(fitAndResize);
+        secondLayoutFrame = window.requestAnimationFrame(() => fitAndResize());
       });
     };
     scheduleLayout();
@@ -453,7 +464,6 @@ export function TerminalWorkspace({
       stopMomentumRef.current = () => undefined;
       terminal.dispose();
       terminalRef.current = null;
-      fitRef.current = null;
       fitAndResizeRef.current = () => false;
       closePeer();
       inputQueue.clear();
@@ -483,10 +493,12 @@ export function TerminalWorkspace({
 
   const attach = useCallback(() => {
     if (document.visibilityState === "hidden") {
+      attachOnVisibleRef.current = true;
       setConnecting(false);
       setStatus("Terminal connection interrupted. Waiting to reconnect…");
       return;
     }
+    attachOnVisibleRef.current = false;
     if (stateRef.current !== "paired") {
       setConnecting(false);
       setStatus("Terminal connection interrupted. Waiting to reconnect…");
@@ -500,15 +512,16 @@ export function TerminalWorkspace({
     if (pendingAttachRef.current?.epoch === epoch) {
       return;
     }
-    fitAndResizeRef.current();
+    fitAndResizeRef.current(false);
     const operationId = createLocalId();
     const { columns, rows } = dimensions();
+    const acknowledgedOffset = outputProgressRef.current.renderedOffset;
     const transcript = terminalAttachTranscript(
       clientId,
       activePc.hostIdentityPublicKey,
       operationId,
       terminalId,
-      acknowledgedRef.current,
+      acknowledgedOffset,
       columns,
       rows,
     );
@@ -524,20 +537,51 @@ export function TerminalWorkspace({
     pendingStartRef.current = null;
     answerOperationRef.current = null;
     beginSetupDeadline();
-    receivedRef.current = acknowledgedRef.current;
     setCurrentTerminalId(terminalId);
     setConnecting(true);
     setStatus("Reconnecting Terminal…");
-    send({
+    const previousPeer = peerRef.current;
+    const sent = send({
       type: "terminal.attach",
       operationId,
       terminalId,
-      acknowledgedOffset: acknowledgedRef.current,
+      acknowledgedOffset,
       columns,
       rows,
       clientSignature: signature,
     });
-  }, [activePc, beginSetupDeadline, capability.terminalId, clientId, dimensions, send]);
+    if (sent === false) {
+      pendingAttachRef.current = null;
+      offerOperationRef.current = null;
+      clearSetupDeadline();
+      setConnecting(false);
+      setStatus(
+        "The Terminal reconnect request could not be sent. Check the connection or stop Terminal.",
+      );
+    } else if (previousPeer && peerRef.current === previousPeer) {
+      // No newer acknowledgement may escape on the old peer after this attach.
+      closePeer(true);
+    }
+  }, [
+    activePc,
+    beginSetupDeadline,
+    capability.terminalId,
+    clearSetupDeadline,
+    clientId,
+    closePeer,
+    dimensions,
+    send,
+  ]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible" && attachOnVisibleRef.current) {
+        attach();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [attach]);
 
   const acceptOffer = useCallback(
     async (message: TerminalOfferMessage) => {
@@ -548,6 +592,7 @@ export function TerminalWorkspace({
       ) {
         return;
       }
+      offerOperationRef.current = null;
       if (pendingAttachRef.current?.operationId === message.operationId) {
         pendingAttachRef.current = null;
       }
@@ -574,7 +619,12 @@ export function TerminalWorkspace({
         setStatus("The PC identity signature was invalid.");
         return;
       }
-      offerOperationRef.current = null;
+      if (message.acknowledgedOffset > outputProgressRef.current.renderedOffset) {
+        closePeer();
+        setConnecting(false);
+        setStatus("The PC offered an invalid Terminal output offset.");
+        return;
+      }
       closePeer();
       beginSetupDeadline();
       let peer: RTCPeerConnection | null = null;
@@ -591,6 +641,15 @@ export function TerminalWorkspace({
         const setup = new AbortController();
         peerRef.current = connection;
         peerSetupRef.current = setup;
+        connection.addEventListener("connectionstatechange", () => {
+          const peerState = connection.connectionState;
+          if (
+            peerRef.current === connection &&
+            (peerState === "failed" || peerState === "closed")
+          ) {
+            transportFailureRef.current();
+          }
+        });
         peer.addEventListener("datachannel", ({ channel }) => {
           if (
             peerRef.current !== peer ||
@@ -602,27 +661,42 @@ export function TerminalWorkspace({
           }
           channel.binaryType = "arraybuffer";
           channelRef.current = channel;
+          const output = outputProgressRef.current;
+          let receivedOffset = message.acknowledgedOffset;
+          let lastAcknowledgement = receivedOffset;
+          const acknowledgeOutput = () => {
+            const offset = Math.min(receivedOffset, output.renderedOffset);
+            if (channel.readyState !== "open" || offset <= lastAcknowledgement) {
+              return;
+            }
+            try {
+              channel.send(createTerminalAcknowledgement(offset));
+              lastAcknowledgement = offset;
+            } catch {
+              transportFailureRef.current();
+            }
+          };
+          acknowledgeOutputRef.current = acknowledgeOutput;
           channel.addEventListener("open", () => {
             if (peerRef.current !== peer || channelRef.current !== channel) {
               return;
             }
             inputQueueRef.current?.connect(channel);
-            window.clearTimeout(setupTimerRef.current);
-            setupTimerRef.current = undefined;
+            if (peerRef.current !== peer || channelRef.current !== channel) {
+              return;
+            }
+            clearSetupDeadline();
             setConnecting(false);
             setRunning(true);
             setInputReady(true);
             setStatus("Windows PowerShell is active.");
-            terminalRef.current?.focus();
+            if (activeRef.current && document.visibilityState === "visible") {
+              terminalRef.current?.focus();
+            }
           });
           channel.addEventListener("close", () => {
-            if (terminalIdRef.current && channelRef.current === channel) {
-              channelRef.current = null;
-              inputQueueRef.current?.disconnect(channel);
-              setInputReady(false);
-              setConnecting(false);
-              setStatus("Terminal connection interrupted. Reconnecting…");
-              attach();
+            if (peerRef.current === peer && channelRef.current === channel) {
+              transportFailureRef.current();
             }
           });
           channel.addEventListener("message", (event) => {
@@ -634,26 +708,26 @@ export function TerminalWorkspace({
               return;
             }
             const record = parseTerminalOutput(event.data);
-            if (!record || record.offset !== receivedRef.current) {
+            if (!record || record.offset !== receivedOffset) {
               channel.close();
               setStatus("Terminal output sequence was invalid.");
               return;
             }
-            receivedRef.current += record.payload.length;
-            const acknowledgedOffset = receivedRef.current;
-            terminalRef.current?.write(record.payload, () => {
-              if (peerRef.current !== peer || channelRef.current !== channel) {
-                return;
-              }
-              if (acknowledgedOffset > acknowledgedRef.current) {
-                acknowledgedRef.current = acknowledgedOffset;
-              }
-              if (channel.readyState === "open" && acknowledgedOffset === acknowledgedRef.current) {
-                try {
-                  channel.send(createTerminalAcknowledgement(acknowledgedRef.current));
-                } catch {
-                  transportFailureRef.current();
-                }
+            const endOffset = record.offset + record.payload.length;
+            receivedOffset = endOffset;
+            if (endOffset <= output.queuedOffset) {
+              acknowledgeOutput();
+              return;
+            }
+            // xterm keeps pending writes across peer replacement. Replay only the new suffix.
+            const payload = record.payload.subarray(
+              Math.max(0, output.queuedOffset - record.offset),
+            );
+            output.queuedOffset = endOffset;
+            terminalRef.current?.write(payload, () => {
+              if (outputProgressRef.current === output) {
+                output.renderedOffset = Math.max(output.renderedOffset, endOffset);
+                acknowledgeOutputRef.current?.();
               }
             });
           });
@@ -720,7 +794,7 @@ export function TerminalWorkspace({
         setStatus(error instanceof Error ? error.message : "Terminal connection failed.");
       }
     },
-    [activePc, attach, beginSetupDeadline, clientId, closePeer, send],
+    [activePc, attach, beginSetupDeadline, clearSetupDeadline, clientId, closePeer, send],
   );
 
   useEffect(() => {
@@ -728,9 +802,7 @@ export function TerminalWorkspace({
       if (!terminalIdRef.current) {
         return;
       }
-      closePeer();
-      setConnecting(false);
-      setStatus("Terminal connection interrupted. Reconnecting…");
+      closePeer(pendingAttachRef.current !== null);
       attach();
     };
     return () => {
@@ -774,13 +846,14 @@ export function TerminalWorkspace({
           closePeer();
           terminalIdRef.current = null;
           setCurrentTerminalId(null);
-          acknowledgedRef.current = 0;
-          receivedRef.current = 0;
+          outputProgressRef.current = { queuedOffset: 0, renderedOffset: 0 };
           reconnectEpochRef.current = -1;
+          attachOnVisibleRef.current = false;
           pendingAttachRef.current = null;
           pendingStartRef.current = null;
           offerOperationRef.current = null;
           stopOperationRef.current = null;
+          observedActiveTerminalRef.current = null;
           inputQueueRef.current?.clear();
           terminalRef.current?.clearSelection();
           setRunning(false);
@@ -819,32 +892,33 @@ export function TerminalWorkspace({
 
   useEffect(() => {
     if (capability.active && capability.ownedByClient) {
-      observedActiveRef.current = true;
+      observedActiveTerminalRef.current = capability.terminalId ?? null;
     } else if (
       state === "paired" &&
-      observedActiveRef.current &&
       !capability.active &&
-      terminalIdRef.current
+      terminalIdRef.current &&
+      observedActiveTerminalRef.current === terminalIdRef.current
     ) {
       closePeer();
       terminalIdRef.current = null;
       setCurrentTerminalId(null);
       stopOperationRef.current = null;
       reconnectEpochRef.current = -1;
+      attachOnVisibleRef.current = false;
       pendingAttachRef.current = null;
       inputQueueRef.current?.clear();
       terminalRef.current?.clearSelection();
       setRunning(false);
       setConnecting(false);
       setStatus("Terminal ended on the PC.");
-      observedActiveRef.current = false;
+      observedActiveTerminalRef.current = null;
     }
     if (
       state === "paired" &&
       capability.active &&
       capability.ownedByClient &&
       capability.terminalId &&
-      terminalIdRef.current &&
+      terminalIdRef.current === capability.terminalId &&
       reconnectEpochRef.current !== connectionEpoch &&
       channelRef.current?.readyState !== "open"
     ) {
@@ -856,7 +930,7 @@ export function TerminalWorkspace({
     if (!activePc.hostIdentityPublicKey || state !== "paired" || !capability.canUse || connecting) {
       return;
     }
-    fitAndResizeRef.current();
+    fitAndResizeRef.current(false);
     const operationId = createLocalId();
     const { columns, rows } = dimensions();
     const signature = signClientPayload(
@@ -870,11 +944,24 @@ export function TerminalWorkspace({
     }
     closePeer();
     inputQueueRef.current?.clear();
-    terminalRef.current?.clearSelection();
-    terminalRef.current?.clear();
-    acknowledgedRef.current = 0;
-    receivedRef.current = 0;
+    const output = { queuedOffset: 0, renderedOffset: 0 };
+    outputProgressRef.current = output;
+    const terminal = terminalRef.current;
+    if (terminal) {
+      terminal.clearSelection();
+      terminal.options.disableStdin = true;
+      // xterm processes the reset after previously queued bytes and before new output.
+      terminal.write("", () => {
+        if (terminalRef.current === terminal) {
+          terminal.reset();
+          if (outputProgressRef.current === output) {
+            terminal.options.disableStdin = false;
+          }
+        }
+      });
+    }
     reconnectEpochRef.current = connectionEpoch;
+    attachOnVisibleRef.current = false;
     pendingAttachRef.current = null;
     pendingStartRef.current = operationId;
     offerOperationRef.current = operationId;
@@ -884,7 +971,16 @@ export function TerminalWorkspace({
     setCurrentTerminalId(null);
     setConnecting(true);
     setStatus("Starting Windows PowerShell…");
-    send({ type: "terminal.start", operationId, columns, rows, clientSignature: signature });
+    if (
+      send({ type: "terminal.start", operationId, columns, rows, clientSignature: signature }) ===
+      false
+    ) {
+      pendingStartRef.current = null;
+      offerOperationRef.current = null;
+      clearSetupDeadline();
+      setConnecting(false);
+      setStatus("The Terminal start request could not be sent. Reconnect and try again.");
+    }
   };
   const stop = () => {
     const terminalId = terminalIdRef.current;

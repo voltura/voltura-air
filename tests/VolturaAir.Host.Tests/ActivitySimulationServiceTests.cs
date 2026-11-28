@@ -90,6 +90,37 @@ public sealed class ActivitySimulationServiceTests
         Assert.False(service.Enabled);
         Assert.Equal(1, sender.CallCount);
         Assert.Equal(1, delay.WaitCount);
+
+        Assert.True((await service.SetEnabledAsync(true)).Succeeded);
+        Assert.Equal(ActivitySimulationService.PulseInterval, await delay.NextIntervalAsync());
+        Assert.Equal(1, sender.CallCount);
+    }
+
+    [Fact]
+    public async Task BlockedPulseCannotHoldShutdownOrStartAnotherLoop()
+    {
+        var sender = new BlockingPulseSender();
+        var delay = new ControlledDelay();
+        await using var service = new ActivitySimulationService(
+            sender, enabled: true, save: _ => { }, delay: delay.WaitAsync,
+            loopStopTimeout: TimeSpan.FromMilliseconds(50));
+        _ = await delay.NextIntervalAsync();
+        delay.Release();
+        await sender.Entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var disabling = service.SetEnabledAsync(false);
+        try
+        {
+            var cannotEnable = await service.SetEnabledAsync(true).WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(cannotEnable.Succeeded);
+            Assert.True((await disabling.WaitAsync(TimeSpan.FromSeconds(2))).Succeeded);
+            await service.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.False(service.Enabled);
+            Assert.Equal(1, sender.CallCount);
+            Assert.Equal(1, delay.WaitCount);
+        }
+        finally { sender.Release.TrySetResult(); }
     }
 
     [Fact]

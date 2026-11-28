@@ -4,17 +4,26 @@ require_once __DIR__ . '/lib.php';
 try {
     $user = air_screen_user();
     $isAdmin = ($user['role'] ?? '') === 'admin';
-    $query = trim((string)($_GET['q'] ?? ''));
-    $sort = (string)($_GET['sort'] ?? 'popular');
+    $query = is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
+    $sort = is_string($_GET['sort'] ?? null) ? $_GET['sort'] : 'popular';
     $sortOrders = [
         'popular' => 'average_rating DESC, rating_count DESC, p.downloads DESC, p.created_at DESC',
         'newest' => 'published_at DESC',
         'author' => 'u.display_name ASC, p.name ASC',
     ];
     if (!isset($sortOrders[$sort])) { $sort = 'popular'; }
-    $sql = "SELECT p.id, p.name, p.description, p.tags, p.downloads, COALESCE(p.approved_at, p.created_at) AS published_at, p.screen_json, u.display_name AS author, (SELECT COALESCE(AVG(r.rating), 0) FROM air_screen_ratings r WHERE r.package_id = p.id) AS average_rating, (SELECT COUNT(*) FROM air_screen_ratings r WHERE r.package_id = p.id) AS rating_count FROM air_screen_packages p JOIN air_screen_users u ON u.id = p.owner_id WHERE p.status = 'approved' AND (p.name LIKE :query OR p.description LIKE :query OR p.tags LIKE :query OR u.display_name LIKE :query) ORDER BY " . $sortOrders[$sort] . ' LIMIT 60';
+    $sql = "SELECT p.id, p.name, p.description, p.tags, p.downloads,
+        COALESCE(p.approved_at, p.created_at) AS published_at, p.screen_json, u.display_name AS author,
+        (SELECT COALESCE(AVG(r.rating), 0) FROM air_screen_ratings r WHERE r.package_id = p.id) AS average_rating,
+        (SELECT COUNT(*) FROM air_screen_ratings r WHERE r.package_id = p.id) AS rating_count
+        FROM air_screen_packages p JOIN air_screen_users u ON u.id = p.owner_id
+        WHERE p.status = 'approved' AND (
+            p.name LIKE :query ESCAPE '!' OR p.description LIKE :query ESCAPE '!'
+            OR p.tags LIKE :query ESCAPE '!' OR u.display_name LIKE :query ESCAPE '!'
+        )
+        ORDER BY " . $sortOrders[$sort] . ' LIMIT 60';
     $stmt = air_screen_db()->prepare($sql);
-    $stmt->execute(['query' => '%' . $query . '%']);
+    $stmt->execute(['query' => '%' . strtr($query, ['!' => '!!', '%' => '!%', '_' => '!_']) . '%']);
     $items = $stmt->fetchAll();
     $sortLabels = ['popular' => 'Most popular', 'newest' => 'Newest', 'author' => 'Author A-Z'];
     $sortOptions = '';

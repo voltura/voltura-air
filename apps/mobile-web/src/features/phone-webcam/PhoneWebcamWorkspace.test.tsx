@@ -637,6 +637,66 @@ describe("PhoneWebcamWorkspace", () => {
     expect(getUserMedia).toHaveBeenCalledOnce();
   });
 
+  it.each(["while streaming", "while hidden"])("requires a fresh Start when the camera is removed %s", async (when) => {
+    const active = createTrack("front", 1080, 1920);
+    const replacement = createTrack("back", 1920, 1080);
+    const getUserMedia = vi.fn<(constraints: MediaStreamConstraints) => Promise<MediaStream>>()
+      .mockResolvedValueOnce(createStream(createTrack("probe", 640, 480)))
+      .mockResolvedValueOnce(createStream(active))
+      .mockResolvedValueOnce(createStream(replacement));
+    const { send } = await establishStreamingSession(getUserMedia, new FakeSender());
+    const mediaDevices = navigator.mediaDevices;
+    const current = await mediaDevices.enumerateDevices();
+    vi.mocked(mediaDevices.enumerateDevices).mockResolvedValue(
+      current.filter(({ deviceId }) => deviceId !== "front"),
+    );
+    vi.useFakeTimers();
+    await act(() => {
+      if (when === "while hidden") {
+        fireEvent(window, new Event("pagehide"));
+        fireEvent(window, new Event("pageshow"));
+      } else {
+        mediaDevices.dispatchEvent(new Event("devicechange"));
+        active.end();
+      }
+      return Promise.resolve();
+    });
+    expect(screen.queryByRole("option", { name: "Front Camera" })).toBeNull();
+
+    await act(() => vi.advanceTimersByTimeAsync(250));
+
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("status").textContent).toContain("The selected camera is unavailable.");
+    expect(screen.getByLabelText<HTMLSelectElement>("Camera").value).toBe("back");
+    await act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Start" }));
+      return Promise.resolve();
+    });
+    expect(getUserMedia.mock.lastCall?.[0]?.video).toMatchObject({ deviceId: { exact: "back" } });
+    expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.start"))
+      .toHaveLength(2);
+  });
+
+  it("keeps microphone mute available if device discovery temporarily loses the camera list", async () => {
+    const microphone = createAudioTrack();
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(createTrack("probe", 640, 480)))
+      .mockResolvedValueOnce(createAudioStream(createAudioTrack()))
+      .mockResolvedValueOnce(createAvStream(createTrack("front", 1080, 1920), microphone));
+    await establishStreamingSession(getUserMedia, new FakeSender(), undefined, true);
+    const mediaDevices = navigator.mediaDevices;
+    vi.mocked(mediaDevices.enumerateDevices).mockResolvedValue([]);
+    await act(() => {
+      mediaDevices.dispatchEvent(new Event("devicechange"));
+      return Promise.resolve();
+    });
+
+    expect(screen.queryByLabelText("Camera")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Mute" }));
+    expect(microphone.enabled).toBe(false);
+    expect(screen.getByRole("button", { name: "Unmute" })).toBeDefined();
+  });
+
   it("signs valid capture settings when the browser omits usable dimensions", async () => {
     const active = createTrack("front", Number.NaN, 0);
     stubMediaDevices(vi.fn()
@@ -793,6 +853,27 @@ describe("PhoneWebcamWorkspace", () => {
       type: "phone.webcam.start",
       useMicrophone: false,
     });
+  });
+
+  it("disables the microphone permission probe when the host blocks Phone Webcam", async () => {
+    const getUserMedia = vi.fn().mockResolvedValue(createStream(createTrack("probe", 640, 480)));
+    stubMediaDevices(getUserMedia);
+    const send = vi.fn<(message: ClientMessage) => void>();
+    const withMicrophone = { ...capability, microphoneAvailable: true };
+    const rendered = renderWorkspace(send, undefined, "secure-direct", "paired", 1, withMicrophone);
+    fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
+    await screen.findByLabelText("Camera");
+
+    rendered.rerender(workspace(send, undefined, "secure-direct", "paired", 1, {
+      ...withMicrophone,
+      permissionGranted: false,
+      canUse: false,
+    }));
+
+    const microphone = screen.getByRole<HTMLInputElement>("checkbox", { name: "Use microphone" });
+    expect(microphone.disabled).toBe(true);
+    microphone.click();
+    expect(getUserMedia).toHaveBeenCalledOnce();
   });
 
   it("stops the camera immediately when Stop is pressed during signaling", async () => {
@@ -999,7 +1080,7 @@ describe("PhoneWebcamWorkspace", () => {
     expect(send.mock.calls.some(([message]) => message.type === "phone.webcam.stop")).toBe(true);
   });
 
-  it.each(["visibilitychange", "pageshow", "re-hide"])(
+  it.each(["visibilitychange", "pageshow", "muted pageshow", "re-hide"])(
     "starts one fresh session only in the foreground after %s",
     async (returnMode) => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -1028,7 +1109,10 @@ describe("PhoneWebcamWorkspace", () => {
         Object.defineProperty(document, "visibilityState", { configurable: true, value });
         fireEvent(document, new Event("visibilitychange"));
       };
-      if (returnMode === "pageshow") {
+      if (returnMode === "pageshow" || returnMode === "muted pageshow") {
+        if (returnMode === "muted pageshow") {
+          act(() => firstTrack.setMuted(true));
+        }
         fireEvent(window, new Event("pagehide"));
         fireEvent(window, new Event("pageshow"));
       } else {
@@ -2111,13 +2195,13 @@ describe("PhoneWebcamWorkspace", () => {
   );
 
   it("stops local capture when the webcam media peer cannot recover", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
     const permissionTrack = createTrack("permission", 640, 480);
     const activeTrack = createTrack("front", 1080, 1920);
     const getUserMedia = vi.fn()
       .mockResolvedValueOnce(createStream(permissionTrack))
       .mockResolvedValueOnce(createStream(activeTrack));
     const { send, setPeerState } = await establishStreamingSession(getUserMedia, new FakeSender());
+    vi.useFakeTimers();
     act(() => setPeerState("disconnected"));
     await act(() => vi.advanceTimersByTimeAsync(7_999));
     expect(activeTrack.stop).not.toHaveBeenCalled();
@@ -2412,6 +2496,70 @@ describe("PhoneWebcamWorkspace", () => {
     expect(restart.useMicrophone).toBe(false);
     expect(getUserMedia.mock.lastCall?.[0]).toMatchObject({ audio: false });
   });
+
+  it.each(["before retry", "during retry", "after reconnect"] as const)(
+    "handles a delayed PC microphone failure %s",
+    async (stage) => {
+      const retryMicrophone = createAudioTrack();
+      const getUserMedia = vi.fn<(constraints: MediaStreamConstraints) => Promise<MediaStream>>()
+        .mockResolvedValueOnce(createStream(createTrack("probe", 640, 480)))
+        .mockResolvedValueOnce(createAudioStream(createAudioTrack()))
+        .mockResolvedValueOnce(createAvStream(createTrack("front", 1080, 1920), createAudioTrack()))
+        .mockImplementation(({ audio }) => {
+          const camera = createTrack("front", 1080, 1920);
+          return Promise.resolve(audio ? createAvStream(camera, retryMicrophone) : createStream(camera));
+        });
+      const { send, hostPrivateKey, setPeerState } = await establishStreamingSession(
+        getUserMedia,
+        new FakeSender(),
+        undefined,
+        true,
+      );
+      const initial = await findStart(send, 1);
+      const starts = () => send.mock.calls
+        .map(([message]) => message)
+        .filter((message) => message.type === "phone.webcam.start");
+      vi.useFakeTimers();
+      act(() => setPeerState("failed"));
+
+      if (stage !== "before retry") {
+        await act(() => vi.advanceTimersByTimeAsync(250));
+        const retry = starts()[1];
+        if (!retry) {
+          throw new Error(`Missing initial webcam retry. ${screen.getByRole("status").textContent}`);
+        }
+        expect(retry.useMicrophone).toBe(true);
+        if (stage === "after reconnect") {
+          await act(() => {
+            publishSignedOffer(retry.operationId, hostPrivateKey, true);
+            return Promise.resolve();
+          });
+          act(() => setPeerState("connected", 1));
+        }
+      }
+      act(() => publishPhoneWebcamResult({
+        type: "phone.webcam.ended",
+        operationId: initial.operationId,
+        reason: "audio-failed",
+        message: "The PC microphone output stopped.",
+      }));
+
+      if (stage === "after reconnect") {
+        await act(() => vi.advanceTimersByTimeAsync(1_000));
+        expect(retryMicrophone.stop).not.toHaveBeenCalled();
+        expect(getUserMedia).toHaveBeenCalledTimes(4);
+        expect(screen.getByText("Streaming through Enhanced Direct")).toBeTruthy();
+        return;
+      }
+      await act(() => vi.advanceTimersByTimeAsync(stage === "before retry" ? 250 : 1_000));
+      const restart = starts()[stage === "before retry" ? 1 : 2];
+      expect(restart).toMatchObject({ useMicrophone: false });
+      expect(getUserMedia.mock.lastCall?.[0]?.audio).toBe(false);
+      if (stage === "during retry") {
+        expect(retryMicrophone.stop).toHaveBeenCalledOnce();
+      }
+    },
+  );
 
   it("starts a new stall-detection interval when the encoder resets its counters", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -3164,7 +3312,7 @@ class FakeSender {
 
 function stubMediaDevices(getUserMedia: ReturnType<typeof vi.fn>) {
   vi.stubGlobal("navigator", {
-    mediaDevices: {
+    mediaDevices: Object.assign(new EventTarget(), {
       getUserMedia,
       enumerateDevices: vi.fn().mockResolvedValue([
         {
@@ -3182,7 +3330,7 @@ function stubMediaDevices(getUserMedia: ReturnType<typeof vi.fn>) {
           toJSON: () => ({}),
         },
       ]),
-    },
+    }),
   });
 }
 

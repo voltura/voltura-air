@@ -5,6 +5,7 @@ import {
   deriveRouteId,
   encodeBase64Url,
   encodeEnvelope,
+  maximumBufferedBytes,
   maximumControlMessageBytes,
   maximumInnerMessageBytes,
   maximumDevicesPerRoom,
@@ -33,6 +34,7 @@ class TestSocket {
   static readonly CLOSED = 3;
 
   readyState = TestSocket.OPEN;
+  closeHandshakePending = false;
   bufferedAmount = 0;
   readonly sent: (string | ArrayBuffer | Uint8Array)[] = [];
   closeCode: number | undefined;
@@ -45,7 +47,7 @@ class TestSocket {
   close(code?: number, reason?: string): void {
     this.closeCode = code;
     this.closeReason = reason;
-    this.readyState = TestSocket.CLOSED;
+    this.readyState = this.closeHandshakePending ? TestSocket.CLOSING : TestSocket.CLOSED;
   }
   serializeAttachment(value: unknown): void {
     this.attachment = structuredClone(value);
@@ -92,7 +94,8 @@ class TestContext {
   getWebSockets(tag?: string): TestSocket[] {
     return this.sockets
       .filter(
-        ({ socket, tags }) => socket.readyState === TestSocket.OPEN && (!tag || tags.includes(tag)),
+        ({ socket, tags }) =>
+          socket.readyState !== TestSocket.CLOSED && (!tag || tags.includes(tag)),
       )
       .map(({ socket }) => socket);
   }
@@ -217,6 +220,86 @@ describe("Secure Direct room", () => {
     expect(context.storage.deleteAlarm).toHaveBeenCalled();
   });
 
+  it("cleans up a negotiation that becomes due while another device connects", async () => {
+    const { room, context, routeId } = await authenticatedRoom();
+    await room.fetch(internalRequest("secure-device", routeId));
+    const first = context.getWebSockets("secure-device")[0]!;
+    first.closeHandshakePending = true;
+    const firstAttachment = first.deserializeAttachment() as { negotiationExpiresAt: number };
+    firstAttachment.negotiationExpiresAt = Date.now() - 1;
+    first.serializeAttachment(firstAttachment);
+
+    expect((await room.fetch(internalRequest("secure-device", routeId))).status).toBe(101);
+    expect(first.closeCode).toBe(relayClose.unavailable);
+    expect(first.readyState).toBe(TestSocket.CLOSING);
+    const second = context.getWebSockets("secure-device")[1]!;
+    const secondAttachment = second.deserializeAttachment() as { negotiationExpiresAt: number };
+    expect(context.storage.alarm).toBe(secondAttachment.negotiationExpiresAt);
+    expect(second.readyState).toBe(TestSocket.OPEN);
+  });
+
+  it.each(["offer", "answer"] as const)(
+    "expires a late secure %s even before the alarm is delivered",
+    async (stage) => {
+      const { room, context, host, routeId } = await authenticatedRoom();
+      await room.fetch(internalRequest("secure-device", routeId));
+      const device = context.getWebSockets("secure-device")[0]!;
+      const connected = decodeSentEnvelope(host.sent.pop());
+      const offer = new TextEncoder().encode(
+        JSON.stringify({ type: "secure.offer", sdp: "v=0\r\n" }),
+      );
+      const envelope = Uint8Array.from(
+        encodeEnvelope(connected.sessionId, offer, relayEnvelopeKind.text),
+      ).buffer;
+      if (stage === "answer") await room.webSocketMessage(host as unknown as WebSocket, envelope);
+      const attachment = device.deserializeAttachment() as { negotiationExpiresAt: number };
+      attachment.negotiationExpiresAt = Date.now() - 1;
+      device.serializeAttachment(attachment);
+
+      if (stage === "offer") {
+        await room.webSocketMessage(host as unknown as WebSocket, envelope);
+        expect(device.sent).toHaveLength(0);
+      } else {
+        const answer = JSON.stringify({ type: "secure.answer", sdp: "v=0\r\n" });
+        await room.webSocketMessage(device as unknown as WebSocket, answer);
+        expect(host.sent).toHaveLength(0);
+      }
+      expect(device.closeCode).toBe(relayClose.unavailable);
+    },
+  );
+
+  it("reports an unavailable signal path when the host cannot receive the answer", async () => {
+    const { room, context, host, routeId } = await authenticatedRoom();
+    await room.fetch(internalRequest("secure-device", routeId));
+    const device = context.getWebSockets("secure-device")[0]!;
+    const connected = decodeSentEnvelope(host.sent.pop());
+    const offer = new TextEncoder().encode(
+      JSON.stringify({ type: "secure.offer", sdp: "v=0\r\n" }),
+    );
+    await room.webSocketMessage(
+      host as unknown as WebSocket,
+      Uint8Array.from(encodeEnvelope(connected.sessionId, offer, relayEnvelopeKind.text)).buffer,
+    );
+
+    host.bufferedAmount = maximumBufferedBytes;
+    const answer = JSON.stringify({ type: "secure.answer", sdp: "v=0\r\n" });
+    await room.webSocketMessage(device as unknown as WebSocket, answer);
+
+    expect(host.closeCode).toBe(relayClose.overloaded);
+    expect(device.closeCode).toBe(relayClose.unavailable);
+    expect(host.sent).toHaveLength(0);
+  });
+
+  it("releases a newly accepted device when the host cannot receive its connection notice", async () => {
+    const { room, context, host, routeId } = await authenticatedRoom();
+    const accepted = vi.spyOn(context, "acceptWebSocket");
+    host.bufferedAmount = maximumBufferedBytes;
+
+    expect((await room.fetch(internalRequest("secure-device", routeId))).status).toBe(101);
+    expect(accepted.mock.lastCall?.[0].closeCode).toBe(relayClose.unavailable);
+    expect(context.getWebSockets("secure-device")).toHaveLength(0);
+  });
+
   it("limits candidate sources while letting the route owner replace a stale signaling host", async () => {
     const { room, context, host, routeId, keys } = await authenticatedRoom();
     await room.fetch(internalRequest("secure-device", routeId));
@@ -254,6 +337,60 @@ describe("Secure Direct room", () => {
 });
 
 describe("Worker route isolation", () => {
+  it("times out an overdue relay host when another candidate reschedules the alarm", async () => {
+    const context = new TestContext();
+    const room = new worker.RelayRoomObject(context as never, {} as never);
+    const routeId = "A".repeat(22);
+    await room.fetch(relayHostRequest(routeId, "203.0.113.1"));
+    const first = context.getWebSockets("host")[0]!;
+    const firstAttachment = first.deserializeAttachment() as { authenticationExpiresAt: number };
+    firstAttachment.authenticationExpiresAt = Date.now() - 1;
+    first.serializeAttachment(firstAttachment);
+
+    expect((await room.fetch(relayHostRequest(routeId, "203.0.113.2"))).status).toBe(101);
+    expect(first.closeCode).toBe(relayClose.unauthorized);
+    const second = context.getWebSockets("host")[0]!;
+    const secondAttachment = second.deserializeAttachment() as { authenticationExpiresAt: number };
+    expect(context.storage.alarm).toBe(secondAttachment.authenticationExpiresAt);
+  });
+
+  it.each(["relay", "secure"] as const)(
+    "reuses %s device capacity while the old sockets finish the close handshake",
+    async (mode) => {
+      const { room, context, host, routeId, keys } = await authenticatedRoom();
+      const relay = new worker.RelayRoomObject(context as never, {} as never);
+      let connectDevice = () => room.fetch(internalRequest("secure-device", routeId));
+      let targetHost = host;
+      let deviceTag = "secure-device";
+      let targetRoom: { webSocketMessage(socket: WebSocket, message: ArrayBuffer): Promise<void> } =
+        room;
+      if (mode === "relay") {
+        await relay.fetch(relayHostRequest(routeId, "203.0.113.1"));
+        targetHost = context.getWebSockets("host")[0]!;
+        await authenticateRoomHost(relay, targetHost, routeId, keys);
+        connectDevice = () => relay.fetch(relayDeviceRequest(routeId));
+        deviceTag = "device";
+        targetRoom = relay;
+      }
+
+      for (let index = 0; index < maximumDevicesPerRoom; index++) {
+        expect((await connectDevice()).status).toBe(101);
+        const connected = decodeSentEnvelope(targetHost.sent.pop());
+        await targetRoom.webSocketMessage(
+          targetHost as unknown as WebSocket,
+          Uint8Array.from(
+            encodeEnvelope(connected.sessionId, new Uint8Array(), relayEnvelopeKind.authenticated),
+          ).buffer,
+        );
+      }
+      const first = context.getWebSockets(deviceTag)[0]!;
+      first.closeHandshakePending = true;
+      first.close(1000);
+      expect(context.getWebSockets(deviceTag)).toHaveLength(maximumDevicesPerRoom);
+      expect((await connectDevice()).status).toBe(101);
+    },
+  );
+
   it.each([relayEnvelopeKind.text, relayEnvelopeKind.binary])(
     "isolates a failed client send from the host and other clients (kind %s)",
     async (kind) => {

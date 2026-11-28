@@ -22,6 +22,7 @@ internal sealed class UsageStatisticsController(IUsageStatisticsControl usageSta
             {
                 UsageStatisticsRuntimeState.On => "Disable",
                 UsageStatisticsRuntimeState.OffChoiceNotSaved => "Retry disable",
+                UsageStatisticsRuntimeState.OffIdentityCleanupPending => "Retry cleanup",
                 _ => "Enable"
             };
             view.ChangeStateButton.IsEnabled = !transitionRunning;
@@ -67,8 +68,7 @@ internal sealed class UsageStatisticsController(IUsageStatisticsControl usageSta
             transitionRunning = true;
             transitionMessage = null;
             Refresh();
-            var enabling = usageStatistics.State is not
-                (UsageStatisticsRuntimeState.On or UsageStatisticsRuntimeState.OffChoiceNotSaved);
+            var enabling = usageStatistics.State == UsageStatisticsRuntimeState.Off;
             try
             {
                 var result = await usageStatistics.SetEnabledAsync(enabling);

@@ -138,6 +138,68 @@ describe("guided introduction lifecycle", () => {
     expect(screen.getByText("Find all your tools here.")).toBeTruthy();
     expect(localStorage.getItem("voltura-air.introduction")).toContain('"state":"suppressed"');
   });
+
+  it("waits until both fingers are released before interrupting input with the welcome", async () => {
+    render(<Harness />);
+    fireEvent.pointerDown(document.body, { pointerId: 1, pointerType: "touch" });
+    fireEvent.pointerDown(document.body, { pointerId: 2, pointerType: "touch" });
+    fireEvent.pointerUp(document.body, { pointerId: 1, pointerType: "touch" });
+
+    await advance(850);
+    expect(screen.queryByText("Welcome to Voltura Air")).toBeNull();
+
+    fireEvent.pointerUp(document.body, { pointerId: 2, pointerType: "touch" });
+    await advance(850);
+    expect(screen.getByText("Welcome to Voltura Air")).toBeTruthy();
+  });
+
+  it.each(["hidden", "blur"])(
+    "can show the welcome again after %s loses a pointer release",
+    async (boundary) => {
+      render(<Harness />);
+      fireEvent.pointerDown(document.body, { pointerId: 1, pointerType: "touch" });
+      if (boundary === "hidden") {
+        const visibility = vi.spyOn(document, "visibilityState", "get");
+        visibility.mockReturnValue("hidden");
+        fireEvent(document, new Event("visibilitychange"));
+        await advance(850);
+        expect(screen.queryByText("Welcome to Voltura Air")).toBeNull();
+        visibility.mockReturnValue("visible");
+        fireEvent(document, new Event("visibilitychange"));
+      } else {
+        fireEvent(window, new Event("blur"));
+        await advance(850);
+        expect(screen.queryByText("Welcome to Voltura Air")).toBeNull();
+        fireEvent(window, new Event("focus"));
+      }
+      await advance(850);
+      expect(screen.getByText("Welcome to Voltura Air")).toBeTruthy();
+    },
+  );
+
+  it("restores the card's default position when a resized navigation target moves upward", async () => {
+    render(<Harness />);
+    await start();
+    const navigation = document.querySelector<HTMLElement>(
+      '[data-introduction-target="navigation"]',
+    )!;
+    const initialBounds = navigation.getBoundingClientRect();
+    const bounds = vi.spyOn(navigation, "getBoundingClientRect").mockReturnValue({
+      ...initialBounds,
+      top: window.innerHeight - 100,
+    });
+    for (let step = 0; step < 3; step += 1) {
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+      await advance(30);
+    }
+    const card = screen.getByRole("group", { name: "Introduction controls" }).parentElement!;
+    expect(card.style.bottom).toBe("112px");
+
+    bounds.mockReturnValue(initialBounds);
+    fireEvent(window, new Event("resize"));
+    expect(card.style.bottom).toBe("");
+  });
+
   it("positions each stop before six-second playback and waits for Done", async () => {
     render(<Harness />);
     await start();

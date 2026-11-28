@@ -129,6 +129,9 @@ export function resumeSpeechDestination(destination: SpeechDestination) {
       session.abort();
     }, startupTimeoutMs);
     recognition.onaudiostart = () => {
+      if (shared !== current || current.ending) {
+        return;
+      }
       clearStartupTimer(current);
       session.record("audio-start");
       current.capturing = true;
@@ -146,14 +149,15 @@ export function resumeSpeechDestination(destination: SpeechDestination) {
       if (!accepting && target) {
         pauseSpeechDestination(target);
       }
+      current.observedThrough = event.results.length - 1;
+      if (!accepting) {
+        // A withdrawn interim result no longer occupies an index when listening resumes.
+        current.discardThrough = current.observedThrough;
+      }
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
         const result = event.results[index];
         if (!result) {
           continue;
-        }
-        current.observedThrough = Math.max(current.observedThrough, index);
-        if (!accepting) {
-          current.discardThrough = Math.max(current.discardThrough, index);
         }
         if (index <= current.finalizedThrough) {
           continue;

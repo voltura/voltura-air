@@ -47,6 +47,13 @@ const supportedSpecialKeys = new Set([
   "NumpadDecimal",
   "NumpadDivide",
 ]);
+const browserMediaKeyAliases = new Map([
+  ["MediaTrackNext", "MediaNextTrack"],
+  ["MediaTrackPrevious", "MediaPreviousTrack"],
+  ["AudioVolumeDown", "VolumeDown"],
+  ["AudioVolumeUp", "VolumeUp"],
+  ["AudioVolumeMute", "VolumeMute"],
+]);
 const shortcutPunctuation = ";+=,-./`[\\]'";
 
 export function screenKeyboardMessage(
@@ -78,7 +85,7 @@ export function screenKeyboardMessage(
     return { type: "keyboard.text", text: event.key };
   }
 
-  const key = screenSpecialKey(event.key, event.code);
+  const key = screenSpecialKey(browserMediaKeyAliases.get(event.key) ?? event.key, event.code);
   if (!key) {
     return null;
   }

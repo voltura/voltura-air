@@ -13,8 +13,10 @@ const fileTransferCredentialTtlSeconds = 60 * 60;
 export async function createTurnResponse(
   env: TurnEnvironment,
   routeId: string,
+  ownsRoute: () => boolean,
   purpose?: "file-transfer" | "terminal",
 ): Promise<Response> {
+  if (!ownsRoute()) return new Response("Host unavailable", { status: 503 });
   const credentialTtlSeconds =
     purpose === "file-transfer" || purpose === "terminal"
       ? fileTransferCredentialTtlSeconds
@@ -28,7 +30,9 @@ export async function createTurnResponse(
   } catch {
     return Response.json({ code: "usage-unavailable" }, { status: 503 });
   }
-  const checkedAt = new Date().toISOString();
+  if (!ownsRoute()) return new Response("Host unavailable", { status: 503 });
+  const credentialRequestedAt = Date.now();
+  const checkedAt = new Date(credentialRequestedAt).toISOString();
   if (usageBytes >= cutoffBytes) {
     return Response.json(
       {
@@ -53,20 +57,12 @@ export async function createTurnResponse(
       },
       body: JSON.stringify({ ttl: credentialTtlSeconds, customIdentifier: routeId }),
     },
-  );
-  if (!response.ok) return Response.json({ code: "credential-unavailable" }, { status: 503 });
-  const payload = (await response.json()) as {
-    iceServers?: Array<{ urls?: string[]; username?: string; credential?: string }>;
-  };
-  const turn = payload.iceServers?.find((server) => server.username && server.credential);
-  const urls =
-    turn?.urls?.filter(
-      (url) =>
-        url === "turns:turn.cloudflare.com:443?transport=tcp" ||
-        url === "turn:turn.cloudflare.com:3478?transport=udp",
-    ) ?? [];
-  if (!turn?.username || !turn.credential || urls.length === 0)
-    return Response.json({ code: "credential-invalid" }, { status: 503 });
+  ).catch(() => null);
+  if (!response?.ok) return Response.json({ code: "credential-unavailable" }, { status: 503 });
+  const payload: unknown = await response.json().catch(() => null);
+  if (!ownsRoute()) return new Response("Host unavailable", { status: 503 });
+  const turn = parseIceServer(payload);
+  if (!turn) return Response.json({ code: "credential-invalid" }, { status: 503 });
   return Response.json({
     allowed: true,
     forcedQuality: usageBytes >= warningBytes ? "data-saver" : null,
@@ -74,9 +70,36 @@ export async function createTurnResponse(
     checkedAt,
     usageWarningBytes: warningBytes,
     usageCutoffBytes: cutoffBytes,
-    expiresAt: new Date(Date.now() + credentialTtlSeconds * 1000).toISOString(),
-    iceServers: [{ urls, username: turn.username, credential: turn.credential }],
+    expiresAt: new Date(credentialRequestedAt + credentialTtlSeconds * 1000).toISOString(),
+    iceServers: [turn],
   });
+}
+
+function parseIceServer(payload: unknown) {
+  if (!isRecord(payload) || !Array.isArray(payload.iceServers)) return null;
+  for (const server of payload.iceServers) {
+    if (!isRecord(server)) continue;
+    const { urls, username, credential } = server;
+    if (
+      !Array.isArray(urls) ||
+      typeof username !== "string" ||
+      username.length === 0 ||
+      username.length > 512 ||
+      typeof credential !== "string" ||
+      credential.length === 0 ||
+      credential.length > 512
+    )
+      continue;
+    const supportedUrls = new Set(
+      urls.filter(
+        (url) =>
+          url === "turns:turn.cloudflare.com:443?transport=tcp" ||
+          url === "turn:turn.cloudflare.com:3478?transport=udp",
+      ),
+    );
+    if (supportedUrls.size > 0) return { urls: [...supportedUrls], username, credential };
+  }
+  return null;
 }
 
 function resolveUsageLimits(
@@ -119,21 +142,42 @@ export async function readMonthlyTurnUsage(env: TurnEnvironment): Promise<number
   });
   if (!response.ok) throw new Error("Analytics request failed.");
   const payload = (await response.json()) as {
-    errors?: unknown[];
+    errors?: unknown;
     data?: {
       viewer?: {
         accounts?: Array<{
           callsTurnUsageAdaptiveGroups?: Array<{
-            sum?: { egressBytes?: number; ingressBytes?: number };
+            sum?: { egressBytes?: unknown; ingressBytes?: unknown };
           }>;
         }>;
       };
     };
-  };
-  if (payload.errors?.length) throw new Error("Analytics response failed.");
-  const groups = payload.data?.viewer?.accounts?.[0]?.callsTurnUsageAdaptiveGroups ?? [];
-  return groups.reduce(
-    (total, group) => total + (group.sum?.egressBytes ?? 0) + (group.sum?.ingressBytes ?? 0),
-    0,
-  );
+  } | null;
+  const errors = payload?.errors;
+  if (errors != null && (!Array.isArray(errors) || errors.length > 0))
+    throw new Error("Analytics response failed.");
+  const accounts = payload?.data?.viewer?.accounts;
+  const groups =
+    Array.isArray(accounts) && accounts.length === 1
+      ? accounts[0]?.callsTurnUsageAdaptiveGroups
+      : undefined;
+  if (!Array.isArray(groups)) throw new Error("Analytics totals are unavailable.");
+  let total = 0;
+  for (const group of groups) {
+    const egress = group?.sum?.egressBytes;
+    const ingress = group?.sum?.ingressBytes;
+    if (!isUsageBytes(egress) || !isUsageBytes(ingress))
+      throw new Error("Analytics totals are invalid.");
+    total += egress + ingress;
+  }
+  if (!Number.isSafeInteger(total)) throw new Error("Analytics totals are out of range.");
+  return total;
+}
+
+function isUsageBytes(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

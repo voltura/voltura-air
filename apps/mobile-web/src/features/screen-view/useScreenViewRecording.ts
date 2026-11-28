@@ -21,6 +21,7 @@ const recordingChunkIntervalMs = 1_000;
 const recordingVideoBitsPerSecond = 8_000_000;
 const recordingAudioBitsPerSecond = 96_000;
 const recordingOperationDeadlineMs = 15_000;
+const recordingAudioLostMessage = "PC sound interrupted";
 
 const idlePresentation = (message = ""): ScreenViewRecordingPresentation => ({
   phase: "idle",
@@ -451,10 +452,10 @@ export function useScreenViewRecording(
       const audioTrack = tracks.find((track) => track.kind === "audio");
       if (audioTrack) {
         runtime.audioEnded = () => {
-          if (runtimeRef.current === runtime && !runtime.discarding) {
+          if (runtimeRef.current === runtime && !runtime.discarding && !runtime.stopRequested) {
             setPresentation((current) => ({
               ...current,
-              message: "Recording continues without further PC sound.",
+              message: recordingAudioLostMessage,
             }));
             notify("Recording continues without further PC sound.", "neutral");
           }
@@ -472,7 +473,7 @@ export function useScreenViewRecording(
       setPresentation({
         phase: "recording",
         fileName: runtime.fileName,
-        message: includeSound ? "Recording PC video with sound…" : "Recording PC video…",
+        message: "",
         elapsedMs: 0,
         includesSound: includeSound,
       });
@@ -535,10 +536,15 @@ export function useScreenViewRecording(
 
   function reportAudioUnavailable() {
     const runtime = runtimeRef.current;
-    if (runtime?.includesSound && !runtime.discarding && !runtime.finalizationStarted) {
+    if (
+      runtime?.includesSound &&
+      !runtime.discarding &&
+      !runtime.stopRequested &&
+      !runtime.finalizationStarted
+    ) {
       setPresentation((current) => ({
         ...current,
-        message: "Recording continues without further PC sound.",
+        message: recordingAudioLostMessage,
       }));
     }
   }

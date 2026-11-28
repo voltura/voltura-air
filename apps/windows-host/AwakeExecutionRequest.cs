@@ -6,6 +6,7 @@ internal enum AwakeMutationKind
     Indefinite,
     Timed,
     Expiration,
+    ExpireIfDue,
     KeepScreenOn,
     Reapply
 }
@@ -14,19 +15,21 @@ internal readonly record struct AwakeMutation(
     AwakeMutationKind Kind,
     int IntervalMinutes = 0,
     DateTimeOffset? ExpiresAt = null,
-    bool KeepScreenOnValue = false)
+    bool KeepScreenOnValue = false,
+    AwakeState? ExpectedExpirationState = null)
 {
     public static AwakeMutation Off { get; } = new(AwakeMutationKind.Off);
     public static AwakeMutation Indefinite { get; } = new(AwakeMutationKind.Indefinite);
     public static AwakeMutation Reapply { get; } = new(AwakeMutationKind.Reapply);
     public static AwakeMutation Timed(int minutes) => new(AwakeMutationKind.Timed, IntervalMinutes: minutes);
     public static AwakeMutation Expiration(DateTimeOffset expiresAt) => new(AwakeMutationKind.Expiration, ExpiresAt: expiresAt);
+    public static AwakeMutation ExpireIfDue(AwakeState expected) => new(AwakeMutationKind.ExpireIfDue, ExpectedExpirationState: expected);
     public static AwakeMutation KeepScreenOn(bool value) => new(AwakeMutationKind.KeepScreenOn, KeepScreenOnValue: value);
 
     public bool CommitState => Kind != AwakeMutationKind.Reapply;
     public bool ForceApply => Kind == AwakeMutationKind.Reapply;
 
-    public AwakeState Apply(AwakeState state) => Kind switch
+    public AwakeState Apply(AwakeState state, DateTimeOffset now) => Kind switch
     {
         AwakeMutationKind.Off => state with { Mode = AwakeMode.Off, ExpiresAt = null },
         AwakeMutationKind.Indefinite => state with { Mode = AwakeMode.Indefinite, ExpiresAt = null },
@@ -34,9 +37,11 @@ internal readonly record struct AwakeMutation(
         {
             Mode = AwakeMode.Timed,
             IntervalMinutes = IntervalMinutes,
-            ExpiresAt = DateTimeOffset.Now.AddMinutes(IntervalMinutes)
+            ExpiresAt = now.AddMinutes(IntervalMinutes)
         },
         AwakeMutationKind.Expiration => state with { Mode = AwakeMode.Expiration, ExpiresAt = ExpiresAt },
+        AwakeMutationKind.ExpireIfDue when ReferenceEquals(state, ExpectedExpirationState) && state.ExpiresAt <= now =>
+            state with { Mode = AwakeMode.Off, ExpiresAt = null },
         AwakeMutationKind.KeepScreenOn => state with { KeepScreenOn = KeepScreenOnValue },
         _ => state
     };

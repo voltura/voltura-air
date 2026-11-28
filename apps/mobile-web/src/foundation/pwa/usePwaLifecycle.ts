@@ -9,7 +9,11 @@ import { usePersistentStorage } from "./usePersistentStorage";
 import type { ConnectionState } from "../connection/connectionTypes";
 import type { PcProfile } from "../connection/pcProfiles";
 import type { HostStatusMetadata } from "../protocol/messages";
-import { refreshWithFreshAppUrl, type FreshAppRefreshResult } from "./freshAppRefresh";
+import {
+  hasRefreshUrlGuard,
+  refreshWithFreshAppUrl,
+  type FreshAppRefreshResult,
+} from "./freshAppRefresh";
 
 export type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -105,7 +109,7 @@ export function usePwaLifecycle({
     }
   };
 
-  const runRefreshAttempt = useCallback((refreshKey?: string): Promise<FreshAppRefreshResult> => {
+  const runRefreshAttempt = useCallback((refreshKey?: string, refreshValue?: string) => {
     if (refreshKey) {
       refreshKeysRef.current.add(refreshKey);
       if (refreshGuardsCommittedRef.current) {
@@ -122,12 +126,16 @@ export function usePwaLifecycle({
     const attempt = (async () => {
       let result: FreshAppRefreshResult;
       try {
-        result = await refreshWithFreshAppUrl(undefined, () => {
-          refreshGuardsCommittedRef.current = true;
-          for (const key of refreshKeysRef.current) {
-            setRefreshGuard(key);
-          }
-        });
+        result = await refreshWithFreshAppUrl(
+          undefined,
+          () => {
+            refreshGuardsCommittedRef.current = true;
+            for (const key of refreshKeysRef.current) {
+              setRefreshGuard(key);
+            }
+          },
+          refreshValue,
+        );
       } catch (error) {
         result = {
           navigationStarted: false,
@@ -177,11 +185,12 @@ export function usePwaLifecycle({
     }
 
     const refreshKey = getAutoRefreshSessionKey(clientId, activePc.id, webClientBuildId);
-    if (hasRefreshGuard(refreshKey)) {
+    const refreshValue = `host:${webClientBuildId}`;
+    if (hasRefreshGuard(refreshKey) || hasRefreshUrlGuard(refreshValue)) {
       return;
     }
 
-    void runRefreshAttempt(refreshKey).then((result) => {
+    void runRefreshAttempt(refreshKey, refreshValue).then((result) => {
       if (!result.navigationStarted && isMountedRef.current) {
         setRefreshMessage("Could not refresh the app automatically. Use Refresh app to try again.");
       }

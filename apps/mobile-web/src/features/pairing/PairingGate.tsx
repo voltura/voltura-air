@@ -19,11 +19,13 @@ interface PairingGateProps {
   pairingStatusMessage: string;
   pendingPairing: boolean;
   reconnectablePcs: PcProfile[];
+  scanFeedback: string | null;
   scanPairingQr: () => void;
   setPairingDeviceName: (name: string) => void;
   state: ConnectionState;
   tryManualReconnect: () => void;
   tryReconnectPc: (pcId: string) => void;
+  unavailableTransportMode?: PcProfile["transportMode"];
   usesLivePairingQr: boolean;
 }
 
@@ -41,11 +43,13 @@ export function PairingGate({
   pairingStatusMessage,
   pendingPairing,
   reconnectablePcs,
+  scanFeedback,
   scanPairingQr,
   setPairingDeviceName,
   state,
   tryManualReconnect,
   tryReconnectPc,
+  unavailableTransportMode,
   usesLivePairingQr,
 }: PairingGateProps) {
   const pairingQrActionLabel = usesLivePairingQr ? "Scan QR code" : "Take photo of QR code";
@@ -98,10 +102,9 @@ export function PairingGate({
                 }
               : scanPairingQr
         }
-        primaryActionPending={!pendingPairing && !canReconnectSavedPc && isPairingQrReading}
+        readingQr={isPairingQrReading ? (canReconnectSavedPc ? "secondary" : "primary") : undefined}
         onSecondaryAction={canReconnectSavedPc ? scanPairingQr : undefined}
-        secondaryActionDisabled={isPairingQrReading}
-        onManualHostSubmit={connectManualHost}
+        onManualHostSubmit={pendingPairing ? undefined : connectManualHost}
         primaryLabel={
           pendingPairing ? "Pair" : canReconnectSavedPc ? "Try reconnect" : pairingQrActionLabel
         }
@@ -110,6 +113,7 @@ export function PairingGate({
             ? reconnectablePcs.map((pc) => ({ id: pc.id, label: getPcDisplayName(pc) }))
             : undefined
         }
+        scanFeedback={canReconnectSavedPc ? scanFeedback : null}
         secondaryLabel={canReconnectSavedPc ? pairingQrActionLabel : undefined}
         selectedSavedPcId={selectedReconnectPc?.id}
         usesLivePairingQr={usesLivePairingQr}
@@ -127,13 +131,10 @@ export function PairingGate({
         onPrimaryAction={scanPairingQr}
         onManualHostSubmit={connectManualHost}
         primaryLabel={newPairingQrActionLabel}
-        primaryActionPending={isPairingQrReading}
+        readingQr={isPairingQrReading ? "primary" : undefined}
+        scanFeedback={scanFeedback}
       />
     );
-  }
-
-  if (!activePc) {
-    return null;
   }
 
   if (state !== "unavailable") {
@@ -146,12 +147,14 @@ export function PairingGate({
       blocksAppInteraction
       diagnostics={diagnostics}
       message={message}
-      onPrimaryAction={tryManualReconnect}
-      onSecondaryAction={scanPairingQr}
-      secondaryActionDisabled={isPairingQrReading}
+      onPrimaryAction={activePc ? tryManualReconnect : scanPairingQr}
+      onSecondaryAction={activePc ? scanPairingQr : undefined}
       onManualHostSubmit={connectManualHost}
+      primaryLabel={activePc ? undefined : newPairingQrActionLabel}
+      readingQr={isPairingQrReading ? (activePc ? "secondary" : "primary") : undefined}
+      scanFeedback={scanFeedback}
       secondaryLabel={newPairingQrActionLabel}
-      transportMode={activePc.transportMode}
+      transportMode={activePc ? activePc.transportMode : unavailableTransportMode}
       usesLivePairingQr={usesLivePairingQr}
     />
   );

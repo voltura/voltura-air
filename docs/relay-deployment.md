@@ -22,7 +22,10 @@ quota behavior. Released clients continue to use the configured official service
 
 Cloudflare TURN credential generation and renewal follow the
 [official credential API](https://developers.cloudflare.com/realtime/turn/generate-credentials/).
-Usage is read from the official TURN analytics API by private operations.
+The Relay and private usage checks read the
+[official TURN analytics API](https://developers.cloudflare.com/realtime/turn/analytics/).
+The Relay treats an empty usage result as zero. Incomplete or unavailable usage
+temporarily blocks credential issuance while ordinary command relay remains available.
 
 Command pairing and control use outbound HTTPS/WebSocket only. Relay screen
 viewing on Windows also leaves through TCP 443: a bounded host-owned loopback
@@ -44,6 +47,8 @@ This path is for a future custom provider. It uses the same route, host
 authentication, pairing, encryption, WebSocket, and TURN response contracts as
 Cloudflare. The supplied composition contains the standalone relay, coturn,
 TLS/SNI edge, DuckDNS updater, health check, and bounded UDP allocation range.
+The standalone relay sends a WebSocket ping every 30 seconds to keep idle
+connections open through the edge. It retires sockets that miss the next probe.
 
 ### 1. Confirm inbound hosting is possible
 

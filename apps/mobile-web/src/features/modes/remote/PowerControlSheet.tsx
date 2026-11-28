@@ -25,7 +25,7 @@ interface PowerControlSheetProps {
   awakeResult?: AwakeResultMessage | null;
   capabilities: PowerCapabilities;
   onAwakeChange?: (enabled: boolean) => void;
-  onAction: (action: SystemPowerAction) => void;
+  onAction: (action: SystemPowerAction) => boolean | void;
   onClose: () => void;
   pendingAction: SystemPowerAction | null;
   pendingAwakeChange?: boolean | null;
@@ -182,8 +182,8 @@ export function PowerControlSheet({
       return;
     }
 
-    onAction(definition.action);
-    if (definition.action === "blackoutDisplay") {
+    const accepted = onAction(definition.action);
+    if (accepted !== false && definition.action === "blackoutDisplay") {
       onClose();
     }
   };
@@ -234,8 +234,11 @@ export function PowerControlSheet({
                 setPendingAction(null);
                 return;
               }
-              onAction(pendingAction.action);
-              onClose();
+              if (onAction(pendingAction.action) === false) {
+                setPendingAction(null);
+              } else {
+                onClose();
+              }
             }}
           />
         ) : (

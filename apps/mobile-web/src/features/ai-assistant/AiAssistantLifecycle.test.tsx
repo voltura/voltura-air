@@ -30,9 +30,9 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
-function setup() {
-  const send = vi.fn<(message: ClientMessage) => void>();
+function setup(send = vi.fn<(message: ClientMessage) => boolean | void>()) {
   const props = {
     activePc,
     capability,
@@ -67,6 +67,71 @@ function accept(operationId: string) {
 function question() {
   return screen.getByRole("textbox", { name: "Ask the Voltura Air Assistant" });
 }
+
+it("opens and closes the Assistant on a controller without secure-context UUID support", async () => {
+  vi.stubGlobal("crypto", { getRandomValues: crypto.getRandomValues.bind(crypto) });
+  const { send, unmount } = setup();
+  const request = await open(send);
+  expect(request.operationId).toMatch(/^[a-z0-9-]+$/u);
+  accept(request.operationId);
+
+  unmount();
+
+  const close = send.mock.lastCall?.[0];
+  if (close?.type !== "ai.assistant.close") {
+    throw new Error("Expected an Assistant close request.");
+  }
+  expect(close.operationId).toMatch(/^[a-z0-9-]+$/u);
+});
+
+it.each(["ask", "reset"])("unblocks %s immediately when the request cannot be sent", async (kind) => {
+  const { send } = setup();
+  accept((await open(send)).operationId);
+  send.mockReturnValueOnce(false);
+  const draft = "Keep this draft";
+  fireEvent.change(question(), { target: { value: draft } });
+
+  if (kind === "ask") {
+    fireEvent.keyDown(question(), { key: "Enter" });
+  } else {
+    fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
+  }
+
+  expect((question() as HTMLTextAreaElement).disabled).toBe(false);
+  expect((question() as HTMLTextAreaElement).value).toBe(draft);
+  expect(screen.getByText("Could not send the Assistant request. Reconnect and try again.")).toBeTruthy();
+});
+
+it("reports an unsent open immediately without attempting to close a session that never opened", async () => {
+  const send = vi.fn<(message: ClientMessage) => boolean | void>().mockReturnValueOnce(false);
+  const { unmount } = setup(send);
+  await open(send);
+
+  expect(screen.getByText("Could not open the Assistant. Reconnect and reopen the tool.")).toBeTruthy();
+  unmount();
+  expect(send.mock.calls.some(([message]) => message.type === "ai.assistant.close")).toBe(false);
+});
+
+it("keeps a newer suggested draft when the prior question is accepted", async () => {
+  const { send } = setup();
+  accept((await open(send)).operationId);
+  fireEvent.change(question(), { target: { value: "First question" } });
+  fireEvent.keyDown(question(), { key: "Enter" });
+  const request = send.mock.calls.find(([message]) => message.type === "ai.assistant.ask")?.[0];
+  if (request?.type !== "ai.assistant.ask") {
+    throw new Error("Expected Assistant question");
+  }
+
+  fireEvent.click(screen.getByRole("button", { name: "Top features" }));
+  act(() => publishAiAssistantResult({
+    type: "ai.assistant.ask.result",
+    operationId: request.operationId,
+    succeeded: true,
+    message: "Accepted.",
+  }));
+
+  expect((question() as HTMLTextAreaElement).value).toBe("What are the top features of Voltura Air?");
+});
 it.each(["open", "ask", "reset"])(
   "expires a lost %s acknowledgement and ignores its late result",
   async (kind) => {

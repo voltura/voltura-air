@@ -70,20 +70,18 @@ export function resolveRemoteSettings(
   stored: string | null,
   hostDefaultMode?: RemoteModeId,
 ): { settings: RemoteSettings; isStored: boolean } {
-  if (!stored) {
-    return {
-      isStored: false,
-      settings: { ...defaultRemoteSettings, mode: hostDefaultMode ?? defaultRemoteSettings.mode },
-    };
+  if (stored) {
+    try {
+      const parsed: unknown = JSON.parse(stored);
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        return { isStored: true, settings: normalizeRemoteSettings(parsed) };
+      }
+    } catch {
+      // Unreadable saved settings use the host's default mode.
+    }
   }
-
-  try {
-    const parsed: unknown = JSON.parse(stored);
-    return { isStored: true, settings: normalizeRemoteSettings(parsed) };
-  } catch {
-    return {
-      isStored: false,
-      settings: { ...defaultRemoteSettings, mode: hostDefaultMode ?? defaultRemoteSettings.mode },
-    };
-  }
+  return {
+    isStored: false,
+    settings: { ...defaultRemoteSettings, mode: hostDefaultMode ?? defaultRemoteSettings.mode },
+  };
 }

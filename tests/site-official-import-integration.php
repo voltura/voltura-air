@@ -13,7 +13,7 @@ if (!class_exists(ZipArchive::class)) { throw new RuntimeException('PHP ZipArchi
 $db = air_screen_db();
 $prefix = 'official.integration.';
 $storage = air_screen_storage_path();
-$beforeFiles = glob($storage . DIRECTORY_SEPARATOR . '*.volturascreen') ?: [];
+$beforeFiles = glob($storage . DIRECTORY_SEPARATOR . '*.volturascreen*') ?: [];
 $createdUserIds = [];
 $legacyCollisionId = null;
 $bundle = tempnam(sys_get_temp_dir(), 'voltura-official-integration-');
@@ -39,7 +39,12 @@ try {
     file_put_contents($wrapper, <<<'PHP'
 <?php
 putenv('VOLTURA_AIR_SITE_DEV=1');
-putenv('VOLTURA_AIR_OFFICIAL_IMPORT_FAIL=' . ($argv[2] ?? ''));
+$failure = $argv[2] ?? '';
+if (str_starts_with($failure, 'storage:')) {
+    putenv('VOLTURA_AIR_PACKAGE_STORAGE_FAIL=' . substr($failure, 8));
+} else {
+    putenv('VOLTURA_AIR_OFFICIAL_IMPORT_FAIL=' . $failure);
+}
 require $argv[3] . '/apps/public-site/screens/lib.php';
 $_SESSION['air_screen_user'] = ['id' => (int)$argv[4], 'role' => 'admin'];
 $_SESSION['air_screen_csrf'] = 'integration-csrf';
@@ -49,13 +54,19 @@ $_FILES = ['bundle' => ['error' => UPLOAD_ERR_OK, 'size' => filesize($argv[1]), 
 require $argv[3] . '/apps/public-site/screens/official-import.php';
 PHP);
 
-    foreach (['stage_write', 'install_rename', 'db_upsert', 'db_commit', 'db_upsert,db_rollback'] as $failure) {
+    foreach (['storage:journal_commit', 'storage:stage_write', 'storage:install_rename', 'stage_write', 'install_rename',
+        'db_upsert', 'db_commit', 'db_commit,db_rollback'] as $failure) {
         runImport($wrapper, $bundle, $root, $adminId, $failure);
         assertSame(0, countRows($db, $prefix), "Failure boundary {$failure} changed MariaDB rows.");
-        assertSame($beforeFiles, glob($storage . DIRECTORY_SEPARATOR . '*.volturascreen') ?: [], "Failure boundary {$failure} leaked package files.");
+        if ($failure === 'db_commit,db_rollback') {
+            assertSame(14, count(array_diff(glob($storage . DIRECTORY_SEPARATOR . '*.volturascreen') ?: [], $beforeFiles)),
+                'Unknown rollback outcome reclaimed files before the connection closed.');
+            assertSame(14, air_screen_drain_cleanup_jobs(100), 'Durable jobs did not recover the abandoned import.');
+        }
+        assertSame($beforeFiles, glob($storage . DIRECTORY_SEPARATOR . '*.volturascreen*') ?: [], "Failure boundary {$failure} leaked package files.");
     }
 
-    runImport($wrapper, $bundle, $root, $adminId, '');
+    runImport($wrapper, $bundle, $root, $adminId, 'db_committed');
     assertSame(14, countRows($db, $prefix), 'Successful import did not publish all 14 rows.');
     $legacyStillPresent = $db->prepare('SELECT COUNT(*) FROM air_screen_packages WHERE id = :id');
     $legacyStillPresent->execute(['id' => $legacyCollisionId]);
@@ -80,7 +91,7 @@ PHP);
     if ($legacyCollisionId !== null) {
         $db->prepare('DELETE FROM air_screen_packages WHERE id = :id')->execute(['id' => $legacyCollisionId]);
     }
-    foreach (glob($storage . DIRECTORY_SEPARATOR . '*.volturascreen') ?: [] as $file) {
+    foreach (glob($storage . DIRECTORY_SEPARATOR . '*.volturascreen*') ?: [] as $file) {
         if (!in_array($file, $beforeFiles, true)) { @unlink($file); }
     }
     foreach ($createdUserIds as $id) { $db->prepare('DELETE FROM air_screen_users WHERE id = :id')->execute(['id' => $id]); }

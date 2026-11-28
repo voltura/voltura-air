@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildMobileDiagnostics } from "./mobileDiagnostics";
+import { buildMobileDiagnostics, sanitizeUrl } from "./mobileDiagnostics";
+
+it("omits the pairing fragment from hosted URLs in copied diagnostics", () => {
+  const address = new URL("https://voltura.se/air/app/?r=route&v=1.5.7");
+  const withFragment = new URL(address);
+  withFragment.hash = "A".repeat(32);
+
+  expect(sanitizeUrl(withFragment.href)).toBe(address.href);
+});
 
 describe("buildMobileDiagnostics", () => {
   it("does not invent a WebSocket or TCP port for Secure Direct", () => {

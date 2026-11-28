@@ -56,9 +56,11 @@ internal sealed class ApplicationLogController(
                     DateOnly.FromDateTime(dateRange.SelectedStartDate),
                     DateOnly.FromDateTime(dateRange.SelectedEndDate),
                     Source: GetLogFilterValue(sourceFilter),
-                    MaxEntries: 5000),
-                GetLogFilterValue(actionFilter),
-                eventFilter.SelectedValues),
+                    MaxEntries: 5000)
+                {
+                    Events = eventFilter.SelectedValues
+                },
+                GetLogFilterValue(actionFilter)),
             request =>
             {
                 try
@@ -86,14 +88,11 @@ internal sealed class ApplicationLogController(
                     return;
                 }
 
-                var eventEntries = result.Entries
-                    .Where(entry => request.SelectedEvents.Count == 0 || request.SelectedEvents.Contains(entry.Event))
-                    .ToArray();
                 updatingFilters = true;
-                PopulateActionFilter(actionFilter, eventEntries, request.SelectedAction);
+                PopulateActionFilter(actionFilter, result.Entries, request.SelectedAction);
                 updatingFilters = false;
                 var effectiveAction = GetLogFilterValue(actionFilter);
-                var filtered = eventEntries
+                var filtered = result.Entries
                     .Where(entry => string.IsNullOrWhiteSpace(effectiveAction) || string.Equals(entry.Action, effectiveAction, StringComparison.OrdinalIgnoreCase))
                     .Reverse()
                     .Take(250)
@@ -165,7 +164,8 @@ internal sealed class ApplicationLogController(
         root.ClearFiltersButton.Click += (_, _) =>
         {
             updatingFilters = true;
-            dateRange.SetRange(today.AddDays(-(AppLoggingSettings.GetMaxAgeDays() - 1)), today);
+            var currentDate = DateTime.Today;
+            dateRange.SetRange(currentDate.AddDays(-(AppLoggingSettings.GetMaxAgeDays() - 1)), currentDate);
             eventFilter.Clear();
             sourceFilter.SelectedIndex = 0;
             actionFilter.SelectedIndex = 0;
@@ -239,8 +239,7 @@ internal sealed class ApplicationLogController(
 
     private sealed record LogRefreshRequest(
         AppLogQuery Query,
-        string? SelectedAction,
-        IReadOnlySet<string> SelectedEvents);
+        string? SelectedAction);
 
     private static ComboBox CreateLogFilter(params (string Label, string? Value)[] options)
     {

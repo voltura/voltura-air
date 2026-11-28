@@ -120,7 +120,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function openView(renewalSupported = true, connectOriginal = true, multiDisplay = false) {
+async function openView(
+  renewalSupported = true,
+  connectOriginal = true,
+  multiDisplay = false,
+  relayClockOffsetMs?: number,
+) {
   const host = createPairingKeyMaterial()!;
   const client = createPairingKeyMaterial()!;
   const send = vi.fn<(message: ClientMessage) => void>();
@@ -194,6 +199,7 @@ async function openView(renewalSupported = true, connectOriginal = true, multiDi
   const stops = () => send.mock.calls.filter(([message]) => message.type === "screen.view.stop");
   async function accept(request = starts().at(-1)!, validSignature = true, answerSucceeded = true) {
     const transcript = `VolturaAir screen-view:offer:v2:viewer:${request.operationId}:${request.displayId}:${hashScreenSdp(offer)}${request.renewalOf && validSignature ? `:renew:${request.renewalOf}` : ""}`;
+    const issuedAt = Date.now() + (relayClockOffsetMs ?? 0);
     await act(async () => {
       publishScreenViewResult({
         type: "screen.view.start.result",
@@ -205,7 +211,8 @@ async function openView(renewalSupported = true, connectOriginal = true, multiDi
         offerSdp: offer,
         hostSignature: signPrivateKeyPayload(host.privateKey, new TextEncoder().encode(transcript)),
         iceServers: [{ urls: ["turn:example.test:3478"], username: "test", credential: "test" }],
-        turnExpiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+        turnExpiresAt: new Date(issuedAt + 15 * 60_000).toISOString(),
+        ...(relayClockOffsetMs === undefined ? {} : { relayUsageCheckedAt: new Date(issuedAt).toISOString() }),
       });
       await Promise.resolve();
     });
@@ -288,6 +295,150 @@ describe("Relay screen renewal", () => {
     fireEvent.playing(view.video);
     expect(screen.getByRole("status").textContent).toBe("Screen viewing stopped.");
     expect(view.video.srcObject).toBeNull();
+  });
+
+  it("reconnects when the active video track ends while the media peer is still connected", async () => {
+    const view = await openView();
+    const originalOperation = view.starts()[0]?.operationId;
+
+    act(() => view.original.video.end());
+
+    expect(view.video.srcObject).toBeNull();
+    expect(view.original.close).toHaveBeenCalledOnce();
+    expect(view.starts().at(-1)?.renewalOf).toBe(originalOperation);
+    expect(recording.stop).toHaveBeenCalledWith("Screen viewing was interrupted. Recording is ready.");
+    expect(screen.getByRole("status").textContent).toBe("Reconnecting Screen View...");
+  });
+
+  it("keeps current playback when a renewal video track ends before handover", async () => {
+    const view = await openView();
+    const currentStream = view.video.srcObject;
+    await advance(14 * 60_000);
+    await view.accept();
+    const replacement = Peer.instances.at(-1);
+    if (!replacement || replacement === view.original) {
+      throw new Error("Missing renewal peer.");
+    }
+
+    act(() => replacement.video.end());
+
+    expect(replacement.close).toHaveBeenCalledOnce();
+    expect(view.original.close).not.toHaveBeenCalled();
+    expect(view.video.srcObject).toBe(currentStream);
+    expect(screen.getByText("Live - Encrypted WebRTC")).toBeTruthy();
+  });
+
+  it("recovers promptly if both the current and renewal video end before handover", async () => {
+    const view = await openView();
+    const originalOperation = view.starts()[0]?.operationId;
+    await advance(14 * 60_000);
+    await view.accept();
+    const replacement = Peer.instances.at(-1);
+    if (!replacement || replacement === view.original) {
+      throw new Error("Missing renewal peer.");
+    }
+
+    act(() => {
+      view.original.video.end();
+      replacement.video.end();
+    });
+
+    expect(view.original.close).toHaveBeenCalledOnce();
+    expect(replacement.close).toHaveBeenCalledOnce();
+    expect(view.video.srcObject).toBeNull();
+    expect(view.starts()).toHaveLength(3);
+    expect(view.starts().at(-1)?.renewalOf).toBe(originalOperation);
+  });
+
+  it.each([3_000, 9_000])(
+    "recovers the original peer's media loss when renewal fails after %s ms disconnected",
+    async (elapsed) => {
+      const view = await openView();
+      await advance(14 * 60_000);
+      await view.accept();
+      const replacement = Peer.instances.at(-1)!;
+      act(() => {
+        view.original.connectionState = "disconnected";
+        view.original.dispatchEvent(new Event("connectionstatechange"));
+      });
+      await advance(elapsed);
+      expect(replacement.close).not.toHaveBeenCalled();
+      expect(view.starts()).toHaveLength(2);
+
+      act(() => {
+        replacement.connectionState = "failed";
+        replacement.dispatchEvent(new Event("connectionstatechange"));
+      });
+      if (elapsed < 8_000) {
+        await advance(8_000 - elapsed - 1);
+        expect(view.starts()).toHaveLength(2);
+        await advance(1);
+      }
+
+      expect(view.original.close).toHaveBeenCalledOnce();
+      expect(view.starts()).toHaveLength(3);
+      expect(view.starts().at(-1)?.renewalOf).toBe(view.starts()[0]?.operationId);
+    },
+  );
+
+  it.each(["before", "during"])(
+    "keeps the handover when the original peer disconnected %s renewal",
+    async (when) => {
+      const view = await openView();
+      const disconnect = () => {
+        view.original.connectionState = "disconnected";
+        view.original.dispatchEvent(new Event("connectionstatechange"));
+      };
+      if (when === "before") {
+        await advance(14 * 60_000 - 1);
+        act(disconnect);
+        await advance(1);
+      } else {
+        await advance(14 * 60_000);
+      }
+      await view.accept();
+      const replacement = Peer.instances.at(-1)!;
+      if (when === "during") {
+        act(disconnect);
+      }
+      await advance(9_000);
+      expect(view.original.close).not.toHaveBeenCalled();
+      expect(replacement.close).not.toHaveBeenCalled();
+
+      act(() => {
+        replacement.connect();
+        replacement.video.unmute();
+        fireEvent.loadedData(view.video);
+      });
+
+      expect(view.original.close).toHaveBeenCalledOnce();
+      expect(replacement.close).not.toHaveBeenCalled();
+      expect(view.starts()).toHaveLength(2);
+      expect(screen.getByText("Live - Encrypted WebRTC")).toBeTruthy();
+    },
+  );
+
+  it("restores the original peer on reconnect and still times out a stalled renewal", async () => {
+    const view = await openView();
+    await advance(14 * 60_000 - 1);
+    act(() => {
+      view.original.connectionState = "disconnected";
+      view.original.dispatchEvent(new Event("connectionstatechange"));
+    });
+    expect(screen.queryByRole("button", { name: "Start screen recording" })).toBeNull();
+    await advance(1);
+    await view.accept();
+    const replacement = Peer.instances.at(-1)!;
+
+    act(() => view.original.connect());
+
+    expect(screen.getByText("Live - Encrypted WebRTC")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Start screen recording" })).toBeTruthy();
+    await advance(30_000);
+    expect(replacement.close).toHaveBeenCalledOnce();
+    expect(view.original.close).not.toHaveBeenCalled();
+    expect(view.starts()).toHaveLength(2);
+    expect(screen.getByText("Live - Encrypted WebRTC")).toBeTruthy();
   });
 
   it("applies replacement audio availability and leaves current playback alone before promotion", async () => {
@@ -578,11 +729,20 @@ describe("Relay screen renewal", () => {
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "Start" }).disabled).toBe(false);
   });
 
-  it.each([true, false])(
-    "keeps a manually stopped mirror idle after reconnect and display refresh (renewal: %s)",
-    async (renewalSupported) => {
+  it.each([["device", true], ["device", false], ["PC", true], ["PC", false]] as const)(
+    "keeps the mirror idle after a stop from the %s and a reconnect (renewal: %s)",
+    async (stoppedFrom, renewalSupported) => {
       const view = await openView(renewalSupported);
-      fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+      if (stoppedFrom === "device") {
+        fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+      } else {
+        act(() => publishScreenViewResult({
+          type: "screen.view.ended",
+          operationId: view.starts()[0]!.operationId,
+          reason: "host-stopped",
+          message: "The PC stopped screen viewing.",
+        }));
+      }
       act(() => view.setConnection("connecting", 1));
       act(() => view.setConnection("paired", 2));
       const source = view.send.mock.calls
@@ -646,6 +806,62 @@ describe("Relay screen renewal", () => {
     expect(screen.getByRole("status").textContent).toBe("Screen viewing stopped.");
   });
 
+  it.each(["queued", "sent", "accepted"])("honors PC Stop while a fresh recovery request is %s", async (stage) => {
+    const view = await openView();
+    const original = view.starts()[0]!;
+    act(() => view.setConnection("connecting", 1));
+    act(() => view.setConnection("paired", 2));
+    const renewal = view.starts().at(-1)!;
+    act(() => publishScreenViewResult({
+      type: "screen.view.start.result",
+      operationId: renewal.operationId,
+      displayId: renewal.displayId,
+      succeeded: false,
+      code: "renewal-unavailable",
+      message: "The current screen connection cannot be renewed.",
+    }));
+    if (stage !== "queued") {
+      await advance(0);
+      expect(view.starts()).toHaveLength(3);
+    }
+    if (stage === "accepted") {
+      await view.accept();
+      expect(Peer.instances).toHaveLength(2);
+    }
+
+    act(() => publishScreenViewResult({
+      type: "screen.view.ended",
+      operationId: original.operationId,
+      reason: "host-stopped",
+      message: "The PC stopped screen viewing.",
+    }));
+    if (stage === "sent") {
+      await view.accept();
+      expect(Peer.instances).toHaveLength(1);
+    } else if (stage === "accepted") {
+      expect(Peer.instances.at(-1)?.close).toHaveBeenCalledOnce();
+    }
+    await advance(15 * 60_000);
+
+    expect(view.starts()).toHaveLength(stage === "queued" ? 2 : 3);
+    expect(view.stops()).toHaveLength(stage === "queued" ? 0 : 1);
+    expect(screen.getByRole("status").textContent).toBe("The PC stopped screen viewing.");
+    expect(screen.getByRole("button", { name: "Start" })).toBeTruthy();
+
+    if (stage === "accepted") {
+      fireEvent.click(screen.getByRole("button", { name: "Start" }));
+      await view.accept();
+      const manualPeer = Peer.instances.at(-1)!;
+      act(() => publishScreenViewResult({
+        type: "screen.view.ended",
+        operationId: original.operationId,
+        reason: "host-stopped",
+        message: "The PC stopped screen viewing.",
+      }));
+      expect(manualPeer.close).not.toHaveBeenCalled();
+    }
+  });
+
   it("automatically renews the active mirror after the Relay control connection changes", async () => {
     const view = await openView();
     const originalOperation = view.starts()[0]!.operationId;
@@ -678,6 +894,68 @@ describe("Relay screen renewal", () => {
     expect(document.querySelector(".screen-view-workspace")?.classList).toContain("is-immersive");
     expect(screen.getByText("Live - Encrypted WebRTC")).toBeTruthy();
   });
+
+  it("allows fullscreen to be exited while the Relay control connection is recovering", async () => {
+    const view = await openView();
+    fireEvent.click(screen.getByRole("button", { name: "View PC screen full screen" }));
+    act(() => view.setConnection("connecting", 1));
+
+    const exit = screen.getByRole("button", { name: "Exit full screen" });
+    expect(screen.queryByRole("button", { name: "Hide controls" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start screen recording" })).toBeNull();
+    fireEvent.click(exit);
+
+    expect(view.container.querySelector(".screen-view-workspace")?.classList).not.toContain("is-immersive");
+    expect(screen.getByRole("status").textContent).toContain("Waiting to reconnect Screen View");
+  });
+
+  it.each([-7_200_000, 7_200_000])(
+    "renews using the Relay credential lifetime with a clock offset of %s ms",
+    async (relayClockOffsetMs) => {
+      const view = await openView(true, true, false, relayClockOffsetMs);
+      const original = view.starts()[0];
+
+      await advance(14 * 60_000 - 1);
+      expect(view.starts()).toHaveLength(1);
+      expect(view.stops()).toHaveLength(0);
+
+      await advance(1);
+      expect(view.starts()).toHaveLength(2);
+      expect(view.starts().at(-1)?.renewalOf).toBe(original?.operationId);
+      expect(view.stops()).toHaveLength(0);
+    },
+  );
+
+  it.each(["failed", "disconnected"])(
+    "recovers the acknowledged display when the media peer becomes %s",
+    async (connectionState) => {
+      const view = await openView(true, true, true);
+      const select = screen.getByLabelText<HTMLSelectElement>("Display");
+      fireEvent.change(select, { target: { value: "display-2" } });
+      const request = view.send.mock.calls.find(([message]) => message.type === "screen.view.source.set")?.[0];
+      if (request?.type !== "screen.view.source.set") {
+        throw new Error("Missing display switch request.");
+      }
+      act(() => {
+        publishScreenViewResult({
+          type: "screen.view.source.result",
+          operationId: request.operationId,
+          displayId: request.displayId,
+          succeeded: true,
+          message: "The mirrored display was changed.",
+        });
+        view.original.connectionState = connectionState;
+        view.original.dispatchEvent(new Event("connectionstatechange"));
+      });
+      expect(select.value).toBe("display-2");
+      if (connectionState === "disconnected") {
+        await advance(8_000);
+      }
+
+      const [original, renewal] = view.starts();
+      expect(renewal).toMatchObject({ displayId: "display-2", renewalOf: original?.operationId });
+    },
+  );
 
   it("falls back once to a fresh start when the interrupted host session is already gone", async () => {
     const view = await openView();

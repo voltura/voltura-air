@@ -1,5 +1,18 @@
-import { describe, expect, it } from "vitest";
-import { getPairingFeedback } from "./pairingFeedback";
+import { describe, expect, it, vi } from "vitest";
+import { buildPairingDiagnostics, getPairingFeedback } from "./pairingFeedback";
+
+it("redacts URL credentials in the fallback pairing diagnostics", () => {
+  const pairingToken = "A".repeat(32);
+  const original = window.location.href;
+  window.history.replaceState(null, "", `/pair?t=${pairingToken}&v=1.5.7`);
+  vi.stubGlobal("matchMedia", () => ({ matches: false }));
+  try {
+    expect(buildPairingDiagnostics("Pairing rejected: invalid-token")).not.toContain(pairingToken);
+  } finally {
+    vi.unstubAllGlobals();
+    window.history.replaceState(null, "", original);
+  }
+});
 
 describe("getPairingFeedback", () => {
   it("maps stale pairing tokens to a used QR code message", () => {

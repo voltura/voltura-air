@@ -2,10 +2,16 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { publishTerminalResult } from "../../foundation/connection/terminalResultBus";
 import type { ClientMessage, TerminalCapability } from "../../foundation/protocol/messages";
+import { createTerminalAcknowledgement } from "../../foundation/terminal/terminalRecords";
 import TerminalWorkspace from "./TerminalWorkspace";
 
 const xtermFocus = vi.hoisted(() => vi.fn());
-const xtermWrites = vi.hoisted(() => ({ deferred: false, callbacks: [] as (() => void)[] }));
+const xtermReset = vi.hoisted(() => vi.fn());
+const xtermWrites = vi.hoisted(() => ({
+  deferred: false,
+  callbacks: [] as (() => void)[],
+  payloads: [] as Uint8Array[],
+}));
 const xtermPaste = vi.hoisted(() => vi.fn());
 const xtermScrollLines = vi.hoisted(() => vi.fn());
 const copyTextToClipboard = vi.hoisted(() => vi.fn());
@@ -77,10 +83,13 @@ vi.mock("@xterm/xterm", () => ({
       xtermDimensions.columns = columns;
       xtermDimensions.rows = rows;
     }
-    clear() {
-      return undefined;
+    reset() {
+      xtermReset();
     }
-    write(_data: Uint8Array, callback?: () => void) {
+    write(data: string | Uint8Array, callback?: () => void) {
+      if (typeof data !== "string") {
+        xtermWrites.payloads.push(data);
+      }
       if (callback && xtermWrites.deferred) {
         xtermWrites.callbacks.push(callback);
       } else {
@@ -161,8 +170,10 @@ class FakeDataChannel {
 
 class FakePeerConnection {
   static latest: FakePeerConnection | null = null;
+  connectionState: RTCPeerConnectionState = "new";
   localDescription: RTCSessionDescriptionInit | null = null;
   private dataChannelListener: ((event: { channel: RTCDataChannel }) => void) | null = null;
+  private connectionStateListener: (() => void) | null = null;
 
   constructor() {
     FakePeerConnection.latest = this;
@@ -173,6 +184,8 @@ class FakePeerConnection {
       this.dataChannelListener = listener as unknown as (event: {
         channel: RTCDataChannel;
       }) => void;
+    } else if (type === "connectionstatechange") {
+      this.connectionStateListener = listener as () => void;
     }
   }
 
@@ -194,6 +207,10 @@ class FakePeerConnection {
   emitDataChannel(channel: FakeDataChannel) {
     this.dataChannelListener?.({ channel: channel as unknown as RTCDataChannel });
   }
+  emitConnectionState(state: RTCPeerConnectionState) {
+    this.connectionState = state;
+    this.connectionStateListener?.();
+  }
 }
 
 const terminalId = "0123456789abcdef0123456789abcdef";
@@ -212,7 +229,9 @@ const capability: TerminalCapability = {
 beforeEach(() => {
   xtermWrites.deferred = false;
   xtermWrites.callbacks.length = 0;
+  xtermWrites.payloads.length = 0;
   xtermFocus.mockClear();
+  xtermReset.mockClear();
   xtermPaste.mockClear();
   xtermScrollLines.mockClear();
   copyTextToClipboard.mockReset();
@@ -271,27 +290,29 @@ function startRequestId(send: ReturnType<typeof vi.fn<(message: ClientMessage) =
 }
 
 describe("TerminalWorkspace", () => {
+  const terminalProps = {
+    active: true,
+    activePc: {
+      customName: false,
+      hostIdentityPublicKey: "host-key",
+      id: "pc-1",
+      name: "PC",
+      url: "https://pc.test",
+    },
+    capability,
+    clientId: "client-1",
+    connectionEpoch: 1,
+    state: "paired" as const,
+  };
+
   function renderTerminal(send: (message: ClientMessage) => boolean | void) {
-    return render(
-      <TerminalWorkspace
-        active
-        activePc={{
-          customName: false,
-          hostIdentityPublicKey: "host-key",
-          id: "pc-1",
-          name: "PC",
-          url: "https://pc.test",
-        }}
-        capability={capability}
-        clientId="client-1"
-        connectionEpoch={1}
-        send={send}
-        state="paired"
-      />,
-    );
+    return render(<TerminalWorkspace {...terminalProps} send={send} />);
   }
 
-  async function startTerminalNegotiation(send = vi.fn<(message: ClientMessage) => boolean | void>()) {
+  async function startTerminalNegotiation(
+    send = vi.fn<(message: ClientMessage) => boolean | void>(),
+    turnExpiresAt?: string,
+  ) {
     const view = renderTerminal(send);
     fireEvent.click(screen.getByRole("button", { name: "Start Terminal" }));
     const offer = {
@@ -303,6 +324,7 @@ describe("TerminalWorkspace", () => {
       acknowledgedOffset: 0,
       offerSdp: "v=0\r\n",
       hostSignature: "host-signature",
+      ...(turnExpiresAt ? { turnExpiresAt } : {}),
     };
     await act(async () => {
       publishTerminalResult({
@@ -319,8 +341,8 @@ describe("TerminalWorkspace", () => {
     return { send, offer, view };
   }
 
-  async function connectTerminal() {
-    const { send, offer, view } = await startTerminalNegotiation();
+  async function connectTerminal(turnExpiresAt?: string) {
+    const { send, offer, view } = await startTerminalNegotiation(undefined, turnExpiresAt);
     const peer = FakePeerConnection.latest!;
     vi.spyOn(peer, "close");
     const channel = new FakeDataChannel();
@@ -368,6 +390,24 @@ describe("TerminalWorkspace", () => {
     },
   );
 
+  it("retires an offer that starts beyond output rendered for the current terminal", async () => {
+    const { channel, offer, send } = await connectTerminal();
+    act(() => channel.emit("close"));
+    const attach = send.mock.calls.map(([message]) => message).find((message) => message.type === "terminal.attach")!;
+    await act(async () => {
+      publishTerminalResult({ ...offer, operationId: attach.operationId, acknowledgedOffset: 1 });
+      await Promise.resolve();
+    });
+
+    expect(FakePeerConnection.latest).toBeNull();
+    expect(screen.getByText("The PC offered an invalid Terminal output offset.")).toBeTruthy();
+    await act(async () => {
+      publishTerminalResult({ ...offer, operationId: attach.operationId });
+      await Promise.resolve();
+    });
+    expect(FakePeerConnection.latest).toBeNull();
+  });
+
   it("unblocks a start whose control response never arrives", () => {
     vi.useFakeTimers();
     const send = vi.fn();
@@ -379,6 +419,105 @@ describe("TerminalWorkspace", () => {
     expect(
       (screen.getByRole("button", { name: "Start Terminal" }) as HTMLButtonElement).disabled,
     ).toBe(false);
+    expect(
+      screen.getByText(
+        "The PC did not finish the Terminal connection. Check the connection or stop Terminal.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("unblocks Start immediately when its request cannot be sent", () => {
+    const send = vi.fn<(message: ClientMessage) => boolean | void>();
+    send.mockReturnValueOnce(false);
+    renderTerminal(send);
+
+    fireEvent.click(screen.getByRole("button", { name: "Start Terminal" }));
+    expect(
+      screen.getByText("The Terminal start request could not be sent. Reconnect and try again."),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Start Terminal" }));
+    expect(send.mock.calls.filter(([message]) => message.type === "terminal.start")).toHaveLength(
+      2,
+    );
+  });
+
+  it("reports a reconnect request that cannot be sent without waiting for the setup timeout", async () => {
+    const { channel, send } = await connectTerminal();
+    send.mockReturnValueOnce(false);
+
+    act(() => channel.emit("close"));
+
+    expect(
+      screen.getByText(
+        "The Terminal reconnect request could not be sent. Check the connection or stop Terminal.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it.each(["failed", "closed"] as const)(
+    "retains a temporarily disconnected peer and reattaches after it becomes %s",
+    async (terminalState) => {
+      const { peer, channel, send } = await connectTerminal();
+
+      act(() => peer.emitConnectionState("disconnected"));
+
+      expect(peer.close).not.toHaveBeenCalled();
+      expect(
+        send.mock.calls.filter(([message]) => message.type === "terminal.attach"),
+      ).toHaveLength(0);
+
+      act(() => peer.emitConnectionState(terminalState));
+      act(() => channel.emit("close"));
+
+      expect(peer.close).toHaveBeenCalledOnce();
+      expect(
+        send.mock.calls.filter(([message]) => message.type === "terminal.attach"),
+      ).toHaveLength(1);
+    },
+  );
+
+  it("reattaches on foreground return after its peer closed in the background", async () => {
+    const { peer, channel, send } = await connectTerminal();
+    const visibility = vi.spyOn(document, "visibilityState", "get");
+    visibility.mockReturnValue("hidden");
+
+    act(() => channel.emit("close"));
+
+    expect(peer.close).toHaveBeenCalledOnce();
+    expect(send.mock.calls.some(([message]) => message.type === "terminal.attach")).toBe(false);
+    visibility.mockReturnValue("visible");
+    fireEvent(document, new Event("visibilitychange"));
+    fireEvent(document, new Event("visibilitychange"));
+
+    expect(send.mock.calls.filter(([message]) => message.type === "terminal.attach")).toHaveLength(
+      1,
+    );
+  });
+
+  it("keeps controls disabled and the attach deadline armed if the initial input flush fails", async () => {
+    vi.useFakeTimers();
+    const { send } = await startTerminalNegotiation();
+    const peer = FakePeerConnection.latest!;
+    const channel = new FakeDataChannel();
+    channel.send.mockImplementation(() => {
+      throw new Error("transport closed");
+    });
+
+    act(() => {
+      xtermOnData.callback?.("queued input");
+      peer.emitDataChannel(channel);
+      channel.emit("open");
+    });
+
+    expect(send.mock.calls.filter(([message]) => message.type === "terminal.attach")).toHaveLength(
+      1,
+    );
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Enter" }).disabled).toBe(true);
+
+    act(() => {
+      vi.advanceTimersByTime(15_000);
+    });
+
     expect(
       screen.getByText(
         "The PC did not finish the Terminal connection. Check the connection or stop Terminal.",
@@ -488,6 +627,7 @@ describe("TerminalWorkspace", () => {
     vi.useFakeTimers();
     const answer = send.mock.calls.map(([message]) => message).find((message) => message.type === "terminal.answer")!;
     act(() => channel.emit("close"));
+    expect(peer.close).toHaveBeenCalledOnce();
     act(() => publishTerminalResult({
       type: "terminal.answer.result",
       operationId: answer.operationId,
@@ -495,7 +635,6 @@ describe("TerminalWorkspace", () => {
       message: "The previous answer expired.",
     }));
     expect(screen.getByText("Reconnecting Terminal…")).toBeTruthy();
-    expect(peer.close).not.toHaveBeenCalled();
     await act(() => vi.advanceTimersByTimeAsync(15_000));
     expect(peer.close).toHaveBeenCalledOnce();
     expect(screen.getByText(/did not finish the Terminal connection/)).toBeTruthy();
@@ -566,6 +705,113 @@ describe("TerminalWorkspace", () => {
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({ type: "terminal.attach", acknowledgedOffset: 1 }),
     );
+  });
+
+  it.each(["before", "after"])(
+    "renders replayed output once when the original write completes %s the replay",
+    async (completionOrder) => {
+      const { channel, offer, send } = await connectTerminal();
+      const record = new Uint8Array(10);
+      record[0] = 0x12;
+      record[9] = 65;
+      xtermWrites.deferred = true;
+      act(() => channel.emit("message", new MessageEvent("message", { data: record.buffer })));
+      act(() => channel.emit("close"));
+      const attach = send.mock.calls
+        .map(([message]) => message)
+        .find((message) => message.type === "terminal.attach")!;
+      expect(attach.acknowledgedOffset).toBe(0);
+      await act(async () => {
+        publishTerminalResult({ ...offer, operationId: attach.operationId });
+        await Promise.resolve();
+      });
+      const replacement = new FakeDataChannel();
+      act(() => {
+        FakePeerConnection.latest!.emitDataChannel(replacement);
+        replacement.emit("open");
+      });
+      const finishOriginalWrite = xtermWrites.callbacks.shift()!;
+      const replay = () =>
+        replacement.emit("message", new MessageEvent("message", { data: record.buffer }));
+
+      act(completionOrder === "before" ? finishOriginalWrite : replay);
+      expect(replacement.send).not.toHaveBeenCalled();
+      act(completionOrder === "before" ? replay : finishOriginalWrite);
+
+      expect(xtermWrites.payloads).toEqual([new Uint8Array([65])]);
+      expect(channel.send).not.toHaveBeenCalled();
+      expect(replacement.send).toHaveBeenCalledExactlyOnceWith(createTerminalAcknowledgement(1));
+    },
+  );
+
+  it("retires the old channel as soon as a renewal attach has been sent", async () => {
+    vi.useFakeTimers();
+    const expiresAt = new Date(Date.now() + 6 * 60_000).toISOString();
+    const { peer, send } = await connectTerminal(expiresAt);
+
+    await act(() => vi.advanceTimersByTimeAsync(60_000));
+
+    expect(send.mock.calls.filter(([message]) => message.type === "terminal.attach")).toHaveLength(
+      1,
+    );
+    expect(peer.close).toHaveBeenCalledOnce();
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Enter" }).disabled).toBe(true);
+  });
+
+  it("keeps a new Terminal when the previous session's inactive status arrives", async () => {
+    const { send, view } = await connectTerminal();
+    view.rerender(
+      <TerminalWorkspace
+        {...terminalProps}
+        capability={{ ...capability, active: true, ownedByClient: true, terminalId }}
+        send={send}
+      />,
+    );
+    act(() =>
+      publishTerminalResult({ type: "terminal.ended", terminalId, reason: "shell-exited" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Start Terminal" }));
+    const newStart = send.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message.type === "terminal.start")
+      .at(-1)!;
+    act(() =>
+      publishTerminalResult({
+        type: "terminal.start.result",
+        operationId: newStart.operationId,
+        terminalId: "new-terminal-id",
+        succeeded: true,
+        code: null,
+        message: "Started.",
+      }),
+    );
+
+    view.rerender(<TerminalWorkspace {...terminalProps} send={send} />);
+
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Stop" }).disabled).toBe(false);
+    expect(screen.queryByText("Terminal ended on the PC.")).toBeNull();
+  });
+
+  it("queues the new shell reset behind old output without waiting to send Start", async () => {
+    const { channel, send } = await connectTerminal();
+    xtermReset.mockClear();
+    xtermWrites.deferred = true;
+    const record = new Uint8Array(10);
+    record[0] = 0x12;
+    record[9] = 65;
+    act(() => channel.emit("message", new MessageEvent("message", { data: record.buffer })));
+    act(() => publishTerminalResult({ type: "terminal.ended", terminalId, reason: "shell-exited" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Terminal" }));
+
+    expect(send.mock.calls.filter(([message]) => message.type === "terminal.start")).toHaveLength(2);
+    expect(xtermWrites.callbacks).toHaveLength(2);
+    const [oldOutput, resetBarrier] = xtermWrites.callbacks;
+    expect(xtermReset).not.toHaveBeenCalled();
+    act(oldOutput!);
+    expect(xtermReset).not.toHaveBeenCalled();
+    expect(channel.send).not.toHaveBeenCalled();
+    act(resetBarrier!);
+    expect(xtermReset).toHaveBeenCalledOnce();
   });
 
   it("ignores output write completion from a replaced peer", async () => {

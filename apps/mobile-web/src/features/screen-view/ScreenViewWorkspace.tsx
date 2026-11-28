@@ -102,6 +102,7 @@ interface Props {
 interface PendingOffer {
   operationId: string;
   displayId: string;
+  requestedAt: number;
   renewalOf?: string;
 }
 interface PendingSource {
@@ -121,6 +122,7 @@ const relayStartResponseTimeoutMs = 25_000;
 const peerSetupTimeoutMs = 30_000;
 const sourcesResponseTimeoutMs = 10_000;
 const stopResponseTimeoutMs = 10_000;
+const disconnectedVideoStatus = "Screen video interrupted. Reconnecting for up to 8 seconds...";
 const unconfirmedStopMessage =
   "The PC could not confirm that screen capture stopped. Reconnect before trying again.";
 
@@ -141,6 +143,8 @@ export default function ScreenViewWorkspace({
 }: Props) {
   const [sources, setSources] = useState<ScreenViewSource[]>([]);
   const [selected, setSelected] = useState("");
+  // Media recovery can run after a display acknowledgment and before React renders it.
+  const selectedDisplayRef = useRef("");
   const [sourcePending, setSourcePending] = useState(false);
   const sourceResponseTimerRef = useRef<number | undefined>(undefined);
   const [status, setStatus] = useState(
@@ -156,7 +160,7 @@ export default function ScreenViewWorkspace({
   );
   const [viewing, setViewing] = useState(browserPreviewState !== undefined);
   const [streaming, setStreaming] = useState(browserPreviewState !== undefined);
-  const stoppedByUserRef = useRef(false);
+  const explicitlyStoppedRef = useRef(false);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
   const [qualityText, setQualityText] = useState("");
   const [soundOn, setSoundOn] = useState(false);
@@ -213,17 +217,21 @@ export default function ScreenViewWorkspace({
     peer: RTCPeerConnection | null;
     setup?: AbortController;
   } | null>(null);
-  const [credentialExpires, setCredentialExpires] = useState(0);
+  const [credentialDeadline, setCredentialDeadline] = useState<number | null>(null);
   const recordAfterRenewalRef = useRef(false);
   const [recordAfterRenewal, setRecordAfterRenewal] = useState(false);
-  const disconnectedRecoveryRef = useRef<number | undefined>(undefined);
+  const disconnectedRecoveryRef = useRef<{ deadline: number; timer: number | undefined } | null>(null);
+  const recoverLostVideoRef = useRef<(() => void) | null>(null);
   const relayRecoveryRef = useRef<RelayRecovery | null>(null);
+  // A fresh automatic start still belongs to the viewing request it replaces.
+  const fallbackFromOperationRef = useRef<string | null>(null);
   const lastConnectionEpochRef = useRef(connectionEpoch);
   const lastActivePcIdRef = useRef(activePc.id);
   const stopQualityMonitorRef = useRef<(() => void) | null>(null);
   const qualitySampleRef = useRef<ScreenViewQualitySample | null>(null);
   const pointerInput = usePointerInput({
     send,
+    sessionKey: connectionEpoch,
     state,
     trackpadSettings,
     twoFingerMode: "scroll",
@@ -718,7 +726,12 @@ export default function ScreenViewWorkspace({
     pointerInput.cancel();
   }
 
-  function start(displayId = selected, renewalOf?: string) {
+  function updateSelectedDisplay(displayId: string) {
+    selectedDisplayRef.current = displayId;
+    setSelected(displayId);
+  }
+
+  function start(displayId = selectedDisplayRef.current, renewalOf?: string) {
     if (
       !displayId ||
       !activePc.hostIdentityPublicKey ||
@@ -743,8 +756,11 @@ export default function ScreenViewWorkspace({
       setStatus("The reconnect key is unavailable. Pair this device again.");
       return;
     }
-    stoppedByUserRef.current = false;
-    pendingOfferRef.current = { operationId, displayId, ...(renewalOf ? { renewalOf } : {}) };
+    explicitlyStoppedRef.current = false;
+    if (!renewalOf && !relayRecoveryRef.current) {
+      fallbackFromOperationRef.current = null;
+    }
+    pendingOfferRef.current = createPendingOffer(operationId, displayId, renewalOf);
     if (renewalOf) {
       renewalRef.current = { operationId, peer: null };
     } else {
@@ -806,11 +822,15 @@ export default function ScreenViewWorkspace({
     }
     disableDirectPointer();
     if (!streaming) {
-      setSelected(displayId);
+      updateSelectedDisplay(displayId);
       return;
     }
     const operationId = createLocalId();
-    pendingSourceRef.current = { operationId, displayId, previousDisplayId: selected };
+    pendingSourceRef.current = {
+      operationId,
+      displayId,
+      previousDisplayId: selectedDisplayRef.current,
+    };
     setSourcePending(true);
     window.clearTimeout(sourceResponseTimerRef.current);
     sourceResponseTimerRef.current = window.setTimeout(() => {
@@ -833,7 +853,7 @@ export default function ScreenViewWorkspace({
   }
 
   function stop() {
-    stoppedByUserRef.current = true;
+    explicitlyStoppedRef.current = true;
     relayRecoveryRef.current = null;
     const operationId = createLocalId();
     pendingStopRef.current = operationId;
@@ -1003,6 +1023,7 @@ export default function ScreenViewWorkspace({
         activeOperationRef.current = null;
         setActiveOperation(null);
         if (recovery) {
+          fallbackFromOperationRef.current = recovery.operationId;
           setStatus("The previous screen session ended. Starting a new mirror...");
           renewalRestartRef.current = window.setTimeout(() => start(recovery.displayId), 0);
         }
@@ -1128,6 +1149,7 @@ export default function ScreenViewWorkspace({
       remoteStreamRef.current = stream;
       renewalRef.current = null;
       relayRecoveryRef.current = null;
+      clearDisconnectedRecovery();
       window.clearTimeout(startResponseTimeoutRef.current);
       startResponseTimeoutRef.current = undefined;
       if (pendingMedia.audio) {
@@ -1140,7 +1162,7 @@ export default function ScreenViewWorkspace({
       retiredSetup?.abort();
       retired?.close();
       startQualityMonitor(peer);
-      scheduleCredentialRenewal(message.turnExpiresAt);
+      scheduleCredentialRenewal(message, pending.requestedAt);
       setAudioTrackReady(hasLiveTrack(stream, "audio"));
       if (pendingMedia.cursor) {
         updateCursor(pendingMedia.cursor);
@@ -1182,7 +1204,20 @@ export default function ScreenViewWorkspace({
         return;
       }
       stream.addTrack(track);
-      if (track.kind === "audio") {
+      if (track.kind === "video") {
+        track.addEventListener("ended", () => {
+          if (!isCurrentNegotiation() || hasLiveTrack(stream, "video")) {
+            return;
+          }
+          if (renewalRef.current?.peer === peer) {
+            failRenewal(
+              "The screen connection could not be restored. Ending the previous session...",
+            );
+          } else if (peerRef.current === peer && !renewalRef.current) {
+            recoverLostVideoRef.current?.();
+          }
+        }, { once: true, signal: setup.signal });
+      } else {
         track.addEventListener("ended", () => {
           if (!isCurrentNegotiation() || !stream.getTracks().includes(track)) {
             return;
@@ -1254,9 +1289,20 @@ export default function ScreenViewWorkspace({
         return;
       }
       traceScreenView("connection_state", peer.connectionState);
-      if (peerRef.current === peer && peer.connectionState === "disconnected") {
-        qualitySampleRef.current = null;
-        setQualityText("");
+      if (peerRef.current === peer) {
+        if (peer.connectionState === "disconnected") {
+          qualitySampleRef.current = null;
+          setQualityText("");
+          trackDisconnectedPeer(peer);
+        } else if (peer.connectionState === "connected") {
+          clearDisconnectedRecovery();
+          if (renewalRef.current && hasVisualFrameRef.current) {
+            setViewing(true);
+            setStatus((current) =>
+              current === disconnectedVideoStatus ? "Live - Encrypted WebRTC" : current,
+            );
+          }
+        }
       }
       if (renewalRef.current?.peer === peer) {
         promoteRenewal();
@@ -1273,38 +1319,15 @@ export default function ScreenViewWorkspace({
       if (peer.connectionState === "connected") {
         window.clearTimeout(startResponseTimeoutRef.current);
         startResponseTimeoutRef.current = undefined;
-        window.clearTimeout(disconnectedRecoveryRef.current);
-        disconnectedRecoveryRef.current = undefined;
         if (hasVisualFrameRef.current) {
           setViewing(true);
           setStatus("Live - Encrypted WebRTC");
         }
       }
-      if (peer.connectionState === "disconnected") {
-        traceScreenView("reconnect_started");
-        window.clearTimeout(disconnectedRecoveryRef.current);
-        setViewing(false);
-        setStatus("Screen video interrupted. Reconnecting for up to 8 seconds...");
-        disconnectedRecoveryRef.current = window.setTimeout(() => {
-          if (peerRef.current === peer && peer.connectionState === "disconnected") {
-            if (beginRelayRecovery("Screen video connection was lost. Reconnecting...")) {
-              resumeRelayRecovery();
-            } else {
-              closeStream();
-              setStatus("Screen video connection was lost. Tap Start to reconnect.");
-            }
-          }
-        }, disconnectedRecoveryMs);
-      }
       if (peer.connectionState === "failed" || peer.connectionState === "closed") {
         traceScreenView("connection_lost", peer.connectionState);
         if (peerRef.current === peer) {
-          if (beginRelayRecovery("Screen video connection was lost. Reconnecting...")) {
-            resumeRelayRecovery();
-          } else {
-            closeStream();
-            setStatus("Screen video connection was lost. Tap Start to reconnect.");
-          }
+          recoverLostVideoRef.current?.();
         }
       }
     });
@@ -1357,7 +1380,7 @@ export default function ScreenViewWorkspace({
         return;
       }
       if (!renewing) {
-        scheduleCredentialRenewal(message.turnExpiresAt);
+        scheduleCredentialRenewal(message, pending.requestedAt);
         setStatus("Starting screen video...");
       }
     } catch (error) {
@@ -1442,7 +1465,7 @@ export default function ScreenViewWorkspace({
     }
     relayRecoveryRef.current ??= {
       operationId,
-      displayId: selected,
+      displayId: selectedDisplayRef.current,
       attemptedEpoch: null,
     };
     closeStream(true);
@@ -1460,6 +1483,40 @@ export default function ScreenViewWorkspace({
     start(recovery.displayId, recovery.operationId);
   }
 
+  function clearDisconnectedRecovery() {
+    window.clearTimeout(disconnectedRecoveryRef.current?.timer);
+    disconnectedRecoveryRef.current = null;
+  }
+
+  function trackDisconnectedPeer(peer: RTCPeerConnection) {
+    const recovery = (disconnectedRecoveryRef.current ??= {
+      deadline: performance.now() + disconnectedRecoveryMs,
+      timer: undefined,
+    });
+    // Let the in-flight handover finish while retaining the original connection's deadline.
+    if (renewalRef.current || recovery.timer !== undefined) {
+      return;
+    }
+    const recoverIfStillDisconnected = () => {
+      if (disconnectedRecoveryRef.current !== recovery) {
+        return;
+      }
+      recovery.timer = undefined;
+      if (peerRef.current === peer && peer.connectionState === "disconnected" && !renewalRef.current) {
+        recoverLostVideoRef.current?.();
+      }
+    };
+    const remaining = recovery.deadline - performance.now();
+    if (remaining <= 0) {
+      recoverIfStillDisconnected();
+      return;
+    }
+    traceScreenView("reconnect_started");
+    setViewing(false);
+    setStatus(disconnectedVideoStatus);
+    recovery.timer = window.setTimeout(recoverIfStillDisconnected, remaining);
+  }
+
   function closeStream(preserveRelaySession = false) {
     screenshotTransfer.cancelActiveScreenCapture();
     soundRequestRef.current += 1;
@@ -1469,7 +1526,7 @@ export default function ScreenViewWorkspace({
     }
     traceScreenView("stream_closed");
     abandonRenewal();
-    setCredentialExpires(0);
+    setCredentialDeadline(null);
     recording.stop(
       preserveRelaySession
         ? "Screen viewing was interrupted. Recording is ready."
@@ -1477,6 +1534,7 @@ export default function ScreenViewWorkspace({
     );
     if (!preserveRelaySession) {
       relayRecoveryRef.current = null;
+      fallbackFromOperationRef.current = null;
       activeOperationRef.current = null;
       setActiveOperation(null);
     }
@@ -1491,8 +1549,7 @@ export default function ScreenViewWorkspace({
     credentialRenewalRef.current = undefined;
     window.clearTimeout(renewalRestartRef.current);
     renewalRestartRef.current = undefined;
-    window.clearTimeout(disconnectedRecoveryRef.current);
-    disconnectedRecoveryRef.current = undefined;
+    clearDisconnectedRecovery();
     window.clearTimeout(startResponseTimeoutRef.current);
     startResponseTimeoutRef.current = undefined;
     stopQualityMonitorRef.current?.();
@@ -1607,6 +1664,21 @@ export default function ScreenViewWorkspace({
     }
     const recordingWasWaiting = recordAfterRenewalRef.current;
     abandonRenewal();
+    const currentPeer = peerRef.current;
+    const stream = remoteStreamRef.current;
+    if (
+      currentPeer &&
+      (currentPeer.connectionState === "closed" ||
+        currentPeer.connectionState === "failed" ||
+        (stream && !hasLiveTrack(stream, "video")))
+    ) {
+      recoverLostVideoRef.current?.();
+      return;
+    }
+    if (currentPeer?.connectionState === "disconnected") {
+      trackDisconnectedPeer(currentPeer);
+      return;
+    }
     if (recordingWasWaiting) {
       setStatus("The connection could not renew for recording. Try recording again.");
     }
@@ -1616,34 +1688,45 @@ export default function ScreenViewWorkspace({
     send({ type: "screen.view.stop", operationId: createLocalId() });
     closeStream();
     setStatus("Renewing secure relay credentials...");
-    renewalRestartRef.current = window.setTimeout(() => start(selected), 250);
+    renewalRestartRef.current = window.setTimeout(() => start(), 250);
   });
 
   const renewCredentials = useEffectEvent(() => {
     if (activeOperationRef.current && capability.relayRenewal) {
-      start(selected, activeOperationRef.current);
+      start(selectedDisplayRef.current, activeOperationRef.current);
     } else {
       restartExpiredConnection();
     }
   });
 
-  function scheduleCredentialRenewal(expiresAt: string | null | undefined) {
-    const expires = expiresAt ? Date.parse(expiresAt) : 0;
-    setCredentialExpires(Number.isFinite(expires) ? expires : 0);
+  function scheduleCredentialRenewal(message: ScreenViewStartResultMessage, requestedAt: number) {
+    const expiry = Date.parse(message.turnExpiresAt ?? "");
+    if (!Number.isFinite(expiry)) {
+      setCredentialDeadline(null);
+      return;
+    }
+    const relayLifetime = expiry - Date.parse(message.relayUsageCheckedAt ?? "");
+    // TURN issuance follows the client request, so this estimate can only expire early.
+    setCredentialDeadline(
+      relayLifetime > 0 && relayLifetime <= 24 * 60 * 60_000
+        ? requestedAt + relayLifetime
+        : performance.now() + (expiry - Date.now()),
+    );
   }
 
   useEffect(() => {
-    if (activePc.transportMode !== "relay" || !credentialExpires) {
+    if (activePc.transportMode !== "relay" || credentialDeadline === null) {
       return;
     }
+    const remaining = credentialDeadline - performance.now();
     const renewalTimer = window.setTimeout(
       () => renewCredentials(),
-      Math.max(0, credentialExpires - Date.now() - 60_000),
+      Math.max(0, remaining - 60_000),
     );
     // Keep the existing bounded recovery if preparation fails; never use expired TURN credentials.
     const expiryTimer = window.setTimeout(
       () => restartExpiredConnection(),
-      Math.max(0, credentialExpires - Date.now() - 5_000),
+      Math.max(0, remaining - 5_000),
     );
     credentialRenewalRef.current = renewalTimer;
     renewalRestartRef.current = expiryTimer;
@@ -1651,7 +1734,7 @@ export default function ScreenViewWorkspace({
       window.clearTimeout(renewalTimer);
       window.clearTimeout(expiryTimer);
     };
-  }, [activePc.transportMode, credentialExpires]);
+  }, [activePc.transportMode, credentialDeadline]);
 
   const onControlResult = useEffectEvent(
     (message: Parameters<Parameters<typeof subscribeScreenViewResults>[0]>[0]) => {
@@ -1662,7 +1745,7 @@ export default function ScreenViewWorkspace({
         sourcesRequestRef.current = null;
         window.clearTimeout(sourcesRequestTimerRef.current);
         if (!message.succeeded) {
-          if (!stoppedByUserRef.current) {
+          if (!explicitlyStoppedRef.current) {
             setStatus(message.message);
           }
           return;
@@ -1674,14 +1757,15 @@ export default function ScreenViewWorkspace({
         setSources(message.sources);
         const preferredSource =
           message.sources.find((source) => source.isPrimary) ?? message.sources[0];
-        setSelected((current) =>
-          message.sources.some((source) => source.id === current) ? current : (preferredSource?.id ?? ""),
-        );
+        const currentDisplayId = selectedDisplayRef.current;
+        if (!message.sources.some((source) => source.id === currentDisplayId)) {
+          updateSelectedDisplay(preferredSource?.id ?? "");
+        }
         if (browserPreviewState) {
           setStatus("Live - Encrypted WebRTC");
           return;
         }
-        if (stoppedByUserRef.current) {
+        if (explicitlyStoppedRef.current) {
           return;
         }
         if (message.sources.length === 0) {
@@ -1720,7 +1804,7 @@ export default function ScreenViewWorkspace({
         setSourcePending(false);
         window.clearTimeout(sourceResponseTimerRef.current);
         sourceResponseTimerRef.current = undefined;
-        setSelected(message.succeeded ? pending.displayId : pending.previousDisplayId);
+        updateSelectedDisplay(message.succeeded ? pending.displayId : pending.previousDisplayId);
         setStatus(message.message);
       } else if (message.type === "screen.view.stop.result") {
         if (pendingStopRef.current === message.operationId) {
@@ -1737,13 +1821,26 @@ export default function ScreenViewWorkspace({
           }
         }
       } else if (message.type === "screen.view.ended") {
-        if (activeOperationRef.current !== message.operationId) {
+        const currentOperationId = activeOperationRef.current;
+        const matchesFallback = fallbackFromOperationRef.current === message.operationId;
+        if (currentOperationId !== message.operationId && !matchesFallback) {
           return;
+        }
+        if (message.reason === "host-stopped") {
+          explicitlyStoppedRef.current = true;
         }
         pendingStopRef.current = null;
         blockingStopRef.current = null;
         setBlockingStop(false);
-        closeStream();
+        if (
+          matchesFallback &&
+          currentOperationId !== message.operationId &&
+          (currentOperationId !== null || pendingOfferRef.current)
+        ) {
+          stop();
+        } else {
+          closeStream();
+        }
         setStatus(message.message);
       }
     },
@@ -1753,6 +1850,20 @@ export default function ScreenViewWorkspace({
     beginRelayRecovery(message),
   );
   const resumeRelayRecoveryForConnection = useEffectEvent(resumeRelayRecovery);
+  const recoverLostVideo = useEffectEvent(() => {
+    if (beginRelayRecovery("Screen video connection was lost. Reconnecting...")) {
+      resumeRelayRecovery();
+    } else {
+      closeStream();
+      setStatus("Screen video connection was lost. Tap Start to reconnect.");
+    }
+  });
+  useEffect(() => {
+    recoverLostVideoRef.current = () => recoverLostVideo();
+    return () => {
+      recoverLostVideoRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (!audioNotice) {
@@ -1783,14 +1894,16 @@ export default function ScreenViewWorkspace({
       queueMicrotask(() => {
         if (sourcesRequestRef.current === operationId) {
           sourcesRequestRef.current = null;
-          setStatus("The display list request could not be sent. Reconnect and try again.");
+          if (!explicitlyStoppedRef.current) {
+            setStatus("The display list request could not be sent. Reconnect and try again.");
+          }
         }
       });
     } else if (!browserPreviewState && sourcesRequestRef.current === operationId) {
       sourcesRequestTimerRef.current = window.setTimeout(() => {
         if (sourcesRequestRef.current === operationId) {
           sourcesRequestRef.current = null;
-          if (!stoppedByUserRef.current) {
+          if (!explicitlyStoppedRef.current) {
             setStatus("The PC did not return a display list. Reopen Screen View to try again.");
           }
         }
@@ -1913,11 +2026,12 @@ export default function ScreenViewWorkspace({
         onTouchEnd={onScreenTouchEnd}
         onTouchCancel={onScreenTouchCancel}
       >
-        {viewing && (
+        {(viewing || immersive) && (
           <div className="screen-view-top-actions">
             <button
               type="button"
               className="screen-view-visibility-toggle"
+              hidden={!viewing}
               aria-label={controlsVisible ? "Hide controls" : "Show controls"}
               title={controlsVisible ? "Hide controls" : "Show controls"}
               aria-pressed={!controlsVisible}
@@ -1931,14 +2045,14 @@ export default function ScreenViewWorkspace({
             </button>
             <ScreenViewVolumeControls
               audioState={audioState}
-              enabled={supportsVolumeControl && state === "paired"}
-              visible={controlsVisible && soundOn && supportsVolumeControl}
+              enabled={viewing && supportsVolumeControl && state === "paired"}
+              visible={viewing && controlsVisible && soundOn && supportsVolumeControl}
               send={send}
             />
             <button
               type="button"
               className="screen-view-sound-action"
-              hidden={!controlsVisible}
+              hidden={!viewing || !controlsVisible}
               onTouchStart={stopScreenGesture}
               onTouchMove={stopScreenGesture}
               onTouchEnd={stopScreenGesture}
@@ -1959,7 +2073,7 @@ export default function ScreenViewWorkspace({
             >
               {soundOn ? <Volume2 aria-hidden="true" /> : <VolumeX aria-hidden="true" />}
             </button>
-            {capability.screenshot && activeOperation && (
+            {viewing && capability.screenshot && activeOperation && (
               <button
                 type="button"
                 className="screen-view-camera-action"
@@ -2011,7 +2125,7 @@ export default function ScreenViewWorkspace({
             )}
             <button
               type="button"
-              hidden={!controlsVisible}
+              hidden={!viewing || !controlsVisible}
               className={`screen-view-record-action${recording.presentation.phase === "recording" ? " active" : ""}`}
               onTouchStart={stopScreenGesture}
               onTouchMove={stopScreenGesture}
@@ -2054,7 +2168,8 @@ export default function ScreenViewWorkspace({
                 if (
                   capability.relayRenewal &&
                   activePc.transportMode === "relay" &&
-                  credentialExpires - Date.now() < screenViewRecordingMaximumDurationMs + 120_000
+                  (credentialDeadline === null ||
+                    credentialDeadline - performance.now() < screenViewRecordingMaximumDurationMs + 120_000)
                 ) {
                   updateRecordingRenewalWait(true);
                   setStatus("Preparing screen recording...");
@@ -2353,6 +2468,15 @@ export default function ScreenViewWorkspace({
       </div>
     </section>
   );
+}
+
+function createPendingOffer(operationId: string, displayId: string, renewalOf?: string): PendingOffer {
+  return {
+    operationId,
+    displayId,
+    requestedAt: performance.now(),
+    ...(renewalOf ? { renewalOf } : {}),
+  };
 }
 
 function hasLiveTrack(stream: MediaStream, kind: "video" | "audio") {

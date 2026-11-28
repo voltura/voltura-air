@@ -184,6 +184,36 @@ describe("TextTransferMode", () => {
     expect(onDraftChange).toHaveBeenCalledExactlyOnceWith("");
   });
 
+  it("keeps the admitted send's clear action when a second send is rejected", () => {
+    const onDraftChange = vi.fn();
+    const requestTextTransfer = vi.fn().mockReturnValueOnce("first").mockReturnValueOnce(null);
+    const sendingProps = {
+      ...props,
+      clearAfterSending: true,
+      draft: "Draft",
+      onDraftChange,
+      requestTextTransfer,
+    };
+    const view = render(<TextTransferMode {...sendingProps} />);
+
+    const send = screen.getByRole("button", { name: "Send text" });
+    fireEvent.click(send);
+    fireEvent.click(send);
+    view.rerender(
+      <TextTransferMode
+        {...sendingProps}
+        result={{
+          type: "text.send.result",
+          operationId: "first",
+          succeeded: true,
+          message: "Sent.",
+        }}
+      />,
+    );
+
+    expect(onDraftChange).toHaveBeenCalledExactlyOnceWith("");
+  });
+
   it("preserves a newer edit when an older submission succeeds", () => {
     const onDraftChange = vi.fn();
     const requestTextTransfer = vi.fn(() => "op-a");
@@ -422,6 +452,49 @@ describe("TextTransferMode", () => {
     fireEvent.click(screen.getByRole("button", { name: "Paste from this device's clipboard" }));
 
     await waitFor(() => expect(editor.value).toBe(expected));
+  });
+
+  it("replaces the displayed selection without changing CRLFs in the draft or pasted text", async () => {
+    const changed = vi.fn();
+    vi.mocked(readTextFromDeviceClipboard).mockResolvedValue({ status: "success", text: "x\r\ny" });
+    render(<TextTransferHarness initialDraft={"A\r\nB\rC"} onDraftChange={changed} />);
+    const editor = screen.getByLabelText<HTMLTextAreaElement>("Text to send");
+    editor.setSelectionRange(2, 3);
+
+    fireEvent.click(screen.getByRole("button", { name: "Paste from this device's clipboard" }));
+
+    await waitFor(() => expect(changed).toHaveBeenCalledExactlyOnceWith("A\r\nx\r\ny\rC"));
+    expect(editor.value).toBe("A\nx\ny\nC");
+    await waitFor(() => {
+      expect(editor.selectionStart).toBe(5);
+      expect(editor.selectionEnd).toBe(5);
+    });
+  });
+
+  it("does not move the caret when a newer edit supersedes the pasted draft", async () => {
+    let restoreCaret: FrameRequestCallback | undefined;
+    const frame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      restoreCaret = callback;
+      return 1;
+    });
+    try {
+      render(<TextTransferHarness initialDraft="Draft" />);
+      const editor = screen.getByLabelText<HTMLTextAreaElement>("Text to send");
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Paste from this device's clipboard" }));
+        await Promise.resolve();
+      });
+      expect(editor.value).toBe("PhoneDraft");
+      fireEvent.change(editor, { target: { value: "New text" } });
+      editor.setSelectionRange(2, 2);
+
+      restoreCaret!(0);
+
+      expect(editor.selectionStart).toBe(2);
+      expect(editor.selectionEnd).toBe(2);
+    } finally {
+      frame.mockRestore();
+    }
   });
 
   it("accepts exactly the text limit and rejects an oversized paste without changing the draft", async () => {

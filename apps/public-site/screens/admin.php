@@ -10,7 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($status === 'rejected' && $feedback === '') {
         http_response_code(400);
         $moderationError = 'Give the author a reason before rejecting the screen.';
-    } elseif (strlen($feedback) > 1000) {
+    } elseif (!air_screen_fits_text_limit($feedback, 1000)) {
         http_response_code(400);
         $moderationError = 'Rejection feedback must be 1000 characters or fewer.';
     } else {

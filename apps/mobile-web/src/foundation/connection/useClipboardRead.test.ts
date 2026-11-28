@@ -68,6 +68,35 @@ describe("useClipboardRead", () => {
     await expect(second).resolves.toMatchObject({ succeeded: true, text: "Newest" });
   });
 
+  it("keeps the accepted device clipboard read when its replacement cannot be sent", async () => {
+    const send = vi
+      .fn<(payload: ClientMessage) => boolean>()
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false);
+    const { result } = renderHook(() => useClipboardRead("paired", 1, send));
+    let accepted: ReturnType<typeof result.current.requestClipboardReadForDevice> = null;
+    act(() => {
+      accepted = result.current.requestClipboardReadForDevice();
+      expect(result.current.requestClipboardReadForDevice()).toBeNull();
+    });
+    const request = send.mock.calls[0]![0];
+    if (request.type !== "clipboard.get") {
+      throw new Error("Expected a clipboard.get request.");
+    }
+    act(() => {
+      expect(
+        result.current.completeClipboardRead({
+          type: "clipboard.get.result",
+          operationId: request.operationId,
+          succeeded: true,
+          message: "Read",
+          text: "PC text",
+        }),
+      ).toBe(true);
+    });
+    await expect(accepted).resolves.toMatchObject({ succeeded: true, text: "PC text" });
+  });
+
   it("settles a device clipboard read on timeout and disconnect", async () => {
     vi.useFakeTimers();
     const send = vi.fn<(payload: ClientMessage) => void>();

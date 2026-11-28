@@ -31,7 +31,7 @@ interface RemoteNavigationSectionProps {
   onHideUtilityPanel: () => void;
   onInfo: () => void;
   onMenu: () => void;
-  onPowerAction: (action: SystemPowerAction) => void;
+  onPowerAction: (action: SystemPowerAction) => boolean | void;
   onSubtitles: () => void;
   onToggleUtilityPanel: () => void;
   onUpOneLevel: () => void;

@@ -172,16 +172,17 @@ internal sealed class TerminalCoordinator : IAsyncDisposable
         RaiseActivity(session, active: true, "started");
         await SendResultAsync(socket, "terminal.start.result", operationId, true, null, "Terminal started.", session.Id, cancellationToken);
         await SendStatusAsync(socket, session, "connecting", cancellationToken);
+        using var negotiationWait = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.LifetimeToken);
         try
         {
-            await session.Negotiation.WaitAsync(cancellationToken).ConfigureAwait(false);
+            await session.Negotiation.WaitAsync(negotiationWait.Token).ConfigureAwait(false);
             try
             {
                 await BeginOfferAsync(session, socket, operationId, columns, rows, 0, cancellationToken).ConfigureAwait(false);
             }
             finally
             {
-                session.Negotiation.Release();
+                session.ReleaseNegotiation();
             }
         }
         catch (Exception exception) when (exception is TerminalWebRtcException or OperationCanceledException or RelayQuotaReachedException)
@@ -211,71 +212,73 @@ internal sealed class TerminalCoordinator : IAsyncDisposable
                 : null;
             if (session is not null && !RememberOperationLocked(clientId, operationId)) session = null;
         }
-        if (session is not null)
-        {
-            bool validOffset;
-            bool advancedOffset;
-            lock (session.Gate)
-            {
-                advancedOffset = acknowledgedOffset > session.AcknowledgedOutputOffset;
-                validOffset = acknowledgedOffset >= session.AcknowledgedOutputOffset &&
-                    acknowledgedOffset <= session.NextOutputOffset &&
-                    (acknowledgedOffset == session.AcknowledgedOutputOffset ||
-                        session.Output.Any(chunk => chunk.EndOffset == acknowledgedOffset));
-                if (validOffset)
-                {
-                    session.AcknowledgedOutputOffset = acknowledgedOffset;
-                    while (session.Output.First is { } first && first.Value.EndOffset <= acknowledgedOffset)
-                        session.Output.RemoveFirst();
-                }
-            }
-            if (!validOffset) session = null;
-            else if (advancedOffset) session.OutputSpace.Release();
-        }
         if (session is null || !_status.CanUseTerminal(clientId))
         {
             await SendResultAsync(socket, "terminal.attach.result", operationId, false, "terminal-unavailable", "The Terminal session cannot be resumed.", terminalId, cancellationToken);
             return;
         }
-        using var negotiationWait = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.Lifetime.Token);
+        using var negotiationWait = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.LifetimeToken);
         await session.Negotiation.WaitAsync(negotiationWait.Token).ConfigureAwait(false);
-        TerminalSession negotiatingSession = session;
         try
         {
-            lock (_gate)
-            {
-                if (!ReferenceEquals(_active, negotiatingSession)) session = null;
-            }
-            if (session is null || !_status.CanUseTerminal(clientId))
+            if (!_status.CanUseTerminal(clientId) ||
+                !await PrepareAttachAsync(session, socket, acknowledgedOffset).ConfigureAwait(false))
             {
                 await SendResultAsync(socket, "terminal.attach.result", operationId, false, "terminal-unavailable", "The Terminal session cannot be resumed.", terminalId, cancellationToken);
                 return;
             }
-            ITerminalWebRtcPeer? previousPeer;
-            lock (session.Gate) previousPeer = session.Peer;
-            if (previousPeer is not null) await DetachAsync(session, previousPeer, "transport-renewal").ConfigureAwait(false);
-            CancellationTokenSource? reconnectLifetime;
-            lock (session.Gate)
-            {
-                reconnectLifetime = session.ReconnectLifetime;
-                session.ReconnectLifetime = null;
-            }
-            if (reconnectLifetime is not null) await reconnectLifetime.CancelAsync().ConfigureAwait(false);
-            reconnectLifetime?.Dispose();
+            negotiationWait.Token.ThrowIfCancellationRequested();
             session.Process.Resize((ushort)columns, (ushort)rows);
-            session.ControlSocket = socket;
             await SendResultAsync(socket, "terminal.attach.result", operationId, true, null, "Terminal resume accepted.", terminalId, cancellationToken);
             await SendStatusAsync(socket, session, "connecting", cancellationToken);
             await BeginOfferAsync(session, socket, operationId, columns, rows, acknowledgedOffset, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is TerminalWebRtcException or OperationCanceledException or RelayQuotaReachedException)
         {
-            if (session is not null) await EndAsync(session, "negotiation-failed").ConfigureAwait(false);
+            await EndAsync(session, "negotiation-failed").ConfigureAwait(false);
         }
         finally
         {
-            negotiatingSession.Negotiation.Release();
+            session.ReleaseNegotiation();
         }
+    }
+
+    private async Task<bool> PrepareAttachAsync(TerminalSession session, WebSocket socket, long acknowledgedOffset)
+    {
+        TerminalPeerRetirement retired;
+        CancellationTokenSource? reconnect;
+        lock (_gate)
+        {
+            if (!ReferenceEquals(_active, session)) return false;
+            lock (session.Gate)
+            {
+                if (Volatile.Read(ref session.DisposeStarted) != 0 ||
+                    acknowledgedOffset < session.AcknowledgedOutputOffset || acknowledgedOffset > session.NextOutputOffset ||
+                    (acknowledgedOffset != session.AcknowledgedOutputOffset &&
+                        !session.Output.Any(chunk => chunk.EndOffset == acknowledgedOffset)))
+                {
+                    return false;
+                }
+
+                // Validate and commit the signed boundary while the retiring peer still owns its last ACK.
+                if (acknowledgedOffset > session.AcknowledgedOutputOffset)
+                {
+                    session.AcknowledgedOutputOffset = acknowledgedOffset;
+                    while (session.Output.First is { } first && first.Value.EndOffset <= acknowledgedOffset)
+                        session.Output.RemoveFirst();
+                    session.OutputSpace.Release();
+                }
+                session.ControlSocket = socket;
+                session.SentOutputOffset = acknowledgedOffset;
+                reconnect = session.ReconnectLifetime;
+                session.ReconnectLifetime = null;
+                retired = session.TakePeerLocked();
+            }
+        }
+        if (reconnect is not null) await reconnect.CancelAsync().ConfigureAwait(false);
+        reconnect?.Dispose();
+        await retired.DisposeAsync().ConfigureAwait(false);
+        return true;
     }
 
     internal async Task AnswerAsync(WebSocket socket, string clientId, JsonElement root, CancellationToken cancellationToken)
@@ -316,15 +319,18 @@ internal sealed class TerminalCoordinator : IAsyncDisposable
         }
         bool currentOffer;
         CancellationTokenSource? offerLifetime = null;
+        CancellationToken peerLifetime = default;
         lock (session.Gate)
         {
             currentOffer = ReferenceEquals(session.Peer, peer) &&
                 session.OfferOperationId == offerOperationId &&
                 session.OfferHash == offerHash &&
+                Volatile.Read(ref session.DisposeStarted) == 0 &&
                 !session.AnswerStarted;
             if (currentOffer)
             {
                 session.AnswerStarted = true;
+                peerLifetime = session.PeerLifetime!.Token;
                 offerLifetime = session.OfferLifetime;
                 session.OfferLifetime = null;
             }
@@ -336,14 +342,32 @@ internal sealed class TerminalCoordinator : IAsyncDisposable
         }
         if (offerLifetime is not null) await offerLifetime.CancelAsync().ConfigureAwait(false);
         offerLifetime?.Dispose();
+        using var answerLifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, peerLifetime);
         try
         {
+            answerLifetime.Token.ThrowIfCancellationRequested();
             peer.ApplyAnswer(answerSdp);
-            await peer.Opened.WaitAsync(TerminalProtocol.SignalingLifetime, cancellationToken).ConfigureAwait(false);
-            lock (session.Gate) session.Attached = true;
-            _ = RunPeerAsync(session, peer, session.PeerLifetime!.Token);
+            await peer.Opened.WaitAsync(TerminalProtocol.SignalingLifetime, answerLifetime.Token).ConfigureAwait(false);
+            lock (session.Gate)
+            {
+                currentOffer = ReferenceEquals(session.Peer, peer) && Volatile.Read(ref session.DisposeStarted) == 0;
+                if (currentOffer) session.Attached = true;
+            }
+            if (!currentOffer)
+            {
+                await SendActionResultAsync(socket, "terminal.answer.result", operationId, false, "offer-expired", "The Terminal offer expired.", cancellationToken);
+                return;
+            }
+
+            _ = RunPeerAsync(session, peer, peerLifetime);
             await SendActionResultAsync(socket, "terminal.answer.result", operationId, true, null, "Terminal connected.", cancellationToken);
-            await SendStatusAsync(socket, session, "active", cancellationToken);
+            if (!peerLifetime.IsCancellationRequested)
+                await SendStatusAsync(socket, session, "active", cancellationToken);
+        }
+        catch (Exception exception) when (peerLifetime.IsCancellationRequested &&
+            exception is TerminalWebRtcException or OperationCanceledException or ObjectDisposedException)
+        {
+            await SendActionResultAsync(socket, "terminal.answer.result", operationId, false, "offer-expired", "The Terminal offer expired.", cancellationToken);
         }
         catch (Exception exception) when (exception is TerminalWebRtcException or TimeoutException or OperationCanceledException)
         {
@@ -368,40 +392,61 @@ internal sealed class TerminalCoordinator : IAsyncDisposable
     internal void ClientDisconnected(string clientId, WebSocket socket)
     {
         TerminalSession? session;
-        ITerminalWebRtcPeer? peer;
-        lock (_gate) session = _active is { } active && active.ClientId == clientId && ReferenceEquals(active.ControlSocket, socket) ? active : null;
-        lock (session?.Gate ?? _gate) peer = session?.Peer;
-        if (session is not null) _ = DetachAsync(session, peer, "connection-lost");
+        lock (_gate) session = _active is { } active && active.ClientId == clientId ? active : null;
+        if (session is not null) _ = DetachAsync(session, null, "connection-lost", socket);
     }
 
     internal Task StopFromHostAsync() => GetActive() is { } session ? EndAsync(session, "host-stopped") : Task.CompletedTask;
 
     private async Task BeginOfferAsync(TerminalSession session, WebSocket socket, string operationId, int columns, int rows, long acknowledgedOffset, CancellationToken cancellationToken)
     {
-        using var signaling = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.Lifetime.Token);
+        using var signaling = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.LifetimeToken);
         signaling.CancelAfter(TerminalProtocol.SignalingLifetime);
         RelayTurnConfiguration? relay = _relayMode ? await _getRelayTurnConfiguration(signaling.Token).ConfigureAwait(false) : null;
         if (_relayMode && relay is null) throw new TerminalWebRtcException("Relay credentials were unavailable.");
+        signaling.Token.ThrowIfCancellationRequested();
         var peer = _peerFactory.Create(relay is null ? null : new FileTransferPeerConfiguration(relay.HostIceServerUris, RelayOnly: true));
-        var peerLifetime = CancellationTokenSource.CreateLinkedTokenSource(session.Lifetime.Token);
-        var offerLifetime = CancellationTokenSource.CreateLinkedTokenSource(peerLifetime.Token);
-        lock (session.Gate)
+        CancellationTokenSource offer;
+        CancellationToken offerToken;
+        CancellationTokenSource? unownedPeerLifetime = null;
+        CancellationTokenSource? unownedOfferLifetime = null;
+        var admitted = false;
+        try
         {
-            session.Peer = peer;
-            session.PeerLifetime?.Dispose();
-            session.PeerLifetime = peerLifetime;
-            session.OfferLifetime?.Dispose();
-            session.OfferLifetime = offerLifetime;
-            session.OfferOperationId = operationId;
-            session.OfferColumns = columns;
-            session.OfferRows = rows;
-            session.OfferAcknowledgedOffset = acknowledgedOffset;
-            session.SentOutputOffset = acknowledgedOffset;
-            session.AnswerStarted = false;
+            unownedPeerLifetime = CancellationTokenSource.CreateLinkedTokenSource(session.LifetimeToken);
+            unownedOfferLifetime = CancellationTokenSource.CreateLinkedTokenSource(unownedPeerLifetime.Token);
+            offerToken = unownedOfferLifetime.Token;
+            lock (session.Gate)
+            {
+                if (session.Peer is not null || !ReferenceEquals(session.ControlSocket, socket) ||
+                    Volatile.Read(ref session.DisposeStarted) != 0)
+                {
+                    return;
+                }
+                session.Peer = peer;
+                session.PeerLifetime = unownedPeerLifetime;
+                session.OfferLifetime = offer = unownedOfferLifetime;
+                unownedPeerLifetime = null;
+                unownedOfferLifetime = null;
+                session.OfferOperationId = operationId;
+                session.OfferHash = null;
+                session.AnswerStarted = false;
+                admitted = true;
+            }
+        }
+        finally
+        {
+            unownedOfferLifetime?.Dispose();
+            unownedPeerLifetime?.Dispose();
+            if (!admitted) await peer.DisposeAsync().ConfigureAwait(false);
         }
         string offerSdp = await peer.CreateOfferAsync(signaling.Token).ConfigureAwait(false);
         string offerHash = TerminalNegotiation.HashSdp(offerSdp);
-        lock (session.Gate) session.OfferHash = offerHash;
+        lock (session.Gate)
+        {
+            if (!ReferenceEquals(session.Peer, peer)) return;
+            session.OfferHash = offerHash;
+        }
         string transcript = TerminalNegotiation.OfferTranscript(session.ClientId, _pairingManager.HostIdentity.PublicKey, operationId, session.Id, columns, rows, acknowledgedOffset, offerHash);
         await _transport.SendAsync(socket, new
         {
@@ -416,27 +461,21 @@ internal sealed class TerminalCoordinator : IAsyncDisposable
             iceServers = relay?.IceServers,
             turnExpiresAt = relay?.ExpiresAt
         }, signaling.Token).ConfigureAwait(false);
-        _ = ObserveOfferDeadlineAsync(session, peer, offerLifetime);
+        _ = ObserveOfferDeadlineAsync(session, peer, offer, offerToken);
     }
 
     private async Task ObserveOfferDeadlineAsync(
         TerminalSession session,
         ITerminalWebRtcPeer peer,
-        CancellationTokenSource offerLifetime)
+        CancellationTokenSource offerLifetime,
+        CancellationToken offerToken)
     {
         try
         {
-            await Task.Delay(TerminalProtocol.SignalingLifetime, _timeProvider, offerLifetime.Token).ConfigureAwait(false);
-            bool unanswered;
-            lock (session.Gate)
-            {
-                unanswered = ReferenceEquals(session.Peer, peer) &&
-                    ReferenceEquals(session.OfferLifetime, offerLifetime) &&
-                    !session.AnswerStarted;
-            }
-            if (unanswered) await EndAsync(session, "negotiation-timeout").ConfigureAwait(false);
+            await Task.Delay(TerminalProtocol.SignalingLifetime, _timeProvider, offerToken).ConfigureAwait(false);
+            await EndAsync(session, "negotiation-timeout", expectedPeer: peer, expectedLifetime: offerLifetime).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (offerLifetime.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (offerToken.IsCancellationRequested) { }
     }
 
     private async Task RunPeerAsync(TerminalSession session, ITerminalWebRtcPeer peer, CancellationToken cancellationToken)
@@ -445,6 +484,8 @@ internal sealed class TerminalCoordinator : IAsyncDisposable
         Task receiver = ReceiveRecordsAsync(session, peer, cancellationToken);
         await Task.WhenAny(sender, receiver, peer.Closed).ConfigureAwait(false);
         await DetachAsync(session, peer, "connection-lost").ConfigureAwait(false);
+        try { await Task.WhenAll(sender, receiver).ConfigureAwait(false); }
+        catch (Exception exception) when (exception is TerminalWebRtcException or OperationCanceledException or ObjectDisposedException) { }
     }
 
     private async Task ReadOutputAsync(TerminalSession session)
@@ -455,9 +496,9 @@ internal sealed class TerminalCoordinator : IAsyncDisposable
             {
                 int available;
                 lock (session.Gate) available = TerminalProtocol.MaximumUnacknowledgedOutputBytes - checked((int)(session.NextOutputOffset - session.AcknowledgedOutputOffset));
-                if (available <= 0) { await session.OutputSpace.WaitAsync(session.Lifetime.Token).ConfigureAwait(false); continue; }
+                if (available <= 0) { await session.OutputSpace.WaitAsync(session.LifetimeToken).ConfigureAwait(false); continue; }
                 var bytes = new byte[Math.Min(TerminalProtocol.MaximumPayloadBytes, available)];
-                int read = await session.Process.Output.ReadAsync(bytes, session.Lifetime.Token).ConfigureAwait(false);
+                int read = await session.Process.Output.ReadAsync(bytes, session.LifetimeToken).ConfigureAwait(false);
                 if (read == 0)
                 {
                     Task<int> exitCode = session.Process.ExitCode;
@@ -465,7 +506,7 @@ internal sealed class TerminalCoordinator : IAsyncDisposable
                     {
                         _ = await Task.WhenAny(
                             exitCode,
-                            Task.Delay(TerminalProtocol.OutputEofExitGrace, _timeProvider, session.Lifetime.Token)).ConfigureAwait(false);
+                            Task.Delay(TerminalProtocol.OutputEofExitGrace, _timeProvider, session.LifetimeToken)).ConfigureAwait(false);
                     }
                     if (exitCode.IsCompleted) return;
                     throw new IOException("The terminal output pipe closed.");
@@ -486,10 +527,10 @@ internal sealed class TerminalCoordinator : IAsyncDisposable
     {
         try
         {
-            await foreach (byte[] bytes in session.Input.Reader.ReadAllAsync(session.Lifetime.Token).ConfigureAwait(false))
+            await foreach (byte[] bytes in session.Input.Reader.ReadAllAsync(session.LifetimeToken).ConfigureAwait(false))
             {
-                await session.Process.Input.WriteAsync(bytes, session.Lifetime.Token).ConfigureAwait(false);
-                await session.Process.Input.FlushAsync(session.Lifetime.Token).ConfigureAwait(false);
+                await session.Process.Input.WriteAsync(bytes, session.LifetimeToken).ConfigureAwait(false);
+                await session.Process.Input.FlushAsync(session.LifetimeToken).ConfigureAwait(false);
                 lock (session.Gate) session.QueuedInputBytes -= bytes.Length;
             }
         }
@@ -501,12 +542,22 @@ internal sealed class TerminalCoordinator : IAsyncDisposable
         while (!cancellationToken.IsCancellationRequested)
         {
             TerminalOutputChunk? chunk;
-            lock (session.Gate) chunk = session.Output.FirstOrDefault(item => item.EndOffset > session.SentOutputOffset);
+            long offset;
+            lock (session.Gate)
+            {
+                if (!ReferenceEquals(session.Peer, peer)) return;
+                offset = session.SentOutputOffset;
+                chunk = session.Output.FirstOrDefault(item => item.EndOffset > offset);
+            }
             if (chunk is null) { await session.OutputChanged.WaitAsync(cancellationToken).ConfigureAwait(false); continue; }
-            int skip = checked((int)(session.SentOutputOffset - chunk.Offset));
-            byte[] record = TerminalProtocol.CreateOutput(session.SentOutputOffset, chunk.Bytes.AsSpan(skip));
+            int skip = checked((int)(offset - chunk.Offset));
+            byte[] record = TerminalProtocol.CreateOutput(offset, chunk.Bytes.AsSpan(skip));
             if (!peer.TrySend(record)) { await Task.Delay(10, cancellationToken).ConfigureAwait(false); continue; }
-            lock (session.Gate) session.SentOutputOffset = chunk.EndOffset;
+            lock (session.Gate)
+            {
+                if (!ReferenceEquals(session.Peer, peer)) return;
+                session.SentOutputOffset = chunk.EndOffset;
+            }
         }
     }
 
@@ -514,14 +565,26 @@ internal sealed class TerminalCoordinator : IAsyncDisposable
     {
         await foreach (byte[] bytes in peer.Messages.ReadAllAsync(cancellationToken).ConfigureAwait(false))
         {
-            if (!TerminalProtocol.TryParse(bytes, out var record)) { await EndAsync(session, "invalid-record").ConfigureAwait(false); return; }
+            if (cancellationToken.IsCancellationRequested) return;
+            if (!TerminalProtocol.TryParse(bytes, out var record))
+            {
+                await EndAsync(session, "invalid-record", expectedPeer: peer).ConfigureAwait(false);
+                return;
+            }
             if (record.Kind == TerminalRecordKind.Input)
             {
                 byte[] input = record.Payload.ToArray();
+                bool accepted;
                 lock (session.Gate)
                 {
-                    if (session.QueuedInputBytes + input.Length > TerminalProtocol.MaximumQueuedInputBytes || !session.Input.Writer.TryWrite(input)) { _ = EndAsync(session, "input-overflow"); return; }
-                    session.QueuedInputBytes += input.Length;
+                    if (!ReferenceEquals(session.Peer, peer)) return;
+                    accepted = session.QueuedInputBytes + input.Length <= TerminalProtocol.MaximumQueuedInputBytes && session.Input.Writer.TryWrite(input);
+                    if (accepted) session.QueuedInputBytes += input.Length;
+                }
+                if (!accepted)
+                {
+                    await EndAsync(session, "input-overflow", expectedPeer: peer).ConfigureAwait(false);
+                    return;
                 }
             }
             else if (record.Kind == TerminalRecordKind.Resize) session.Process.Resize(record.Columns, record.Rows);
@@ -531,6 +594,7 @@ internal sealed class TerminalCoordinator : IAsyncDisposable
                 bool advanced;
                 lock (session.Gate)
                 {
+                    if (!ReferenceEquals(session.Peer, peer)) return;
                     advanced = record.Offset > session.AcknowledgedOutputOffset;
                     valid = record.Offset >= session.AcknowledgedOutputOffset && record.Offset <= session.SentOutputOffset &&
                         (record.Offset == session.AcknowledgedOutputOffset || session.Output.Any(chunk => chunk.EndOffset == record.Offset));
@@ -540,49 +604,62 @@ internal sealed class TerminalCoordinator : IAsyncDisposable
                         while (session.Output.First is { } first && first.Value.EndOffset <= record.Offset) session.Output.RemoveFirst();
                     }
                 }
-                if (!valid) { await EndAsync(session, "invalid-offset").ConfigureAwait(false); return; }
+                if (!valid) { await EndAsync(session, "invalid-offset", expectedPeer: peer).ConfigureAwait(false); return; }
                 if (advanced) session.OutputSpace.Release();
             }
-            else { await EndAsync(session, "invalid-record").ConfigureAwait(false); return; }
+            else { await EndAsync(session, "invalid-record", expectedPeer: peer).ConfigureAwait(false); return; }
         }
     }
 
-    private async Task DetachAsync(TerminalSession session, ITerminalWebRtcPeer? peer, string reason)
+    private async Task DetachAsync(
+        TerminalSession session,
+        ITerminalWebRtcPeer? peer,
+        string reason,
+        WebSocket? disconnectedSocket = null)
     {
-        bool detached;
-        CancellationTokenSource? oldPeerLifetime = null;
-        CancellationTokenSource? oldReconnectLifetime = null;
+        TerminalPeerRetirement retired;
+        CancellationTokenSource? oldReconnectLifetime;
+        CancellationTokenSource reconnect;
+        CancellationToken reconnectToken;
         lock (session.Gate)
         {
-            detached = ReferenceEquals(session.Peer, peer) && Volatile.Read(ref session.DisposeStarted) == 0;
-            if (detached)
+            var ownsConnection = disconnectedSocket is null
+                ? ReferenceEquals(session.Peer, peer)
+                : ReferenceEquals(session.ControlSocket, disconnectedSocket);
+            if (!ownsConnection || Volatile.Read(ref session.DisposeStarted) != 0)
             {
-                session.Peer = null;
-                session.Attached = false;
-                session.ControlSocket = null;
-                oldPeerLifetime = session.PeerLifetime;
-                session.SentOutputOffset = session.AcknowledgedOutputOffset;
-                oldReconnectLifetime = session.ReconnectLifetime;
-                session.ReconnectLifetime = CancellationTokenSource.CreateLinkedTokenSource(session.Lifetime.Token);
+                return;
             }
+            retired = session.TakePeerLocked();
+            session.ControlSocket = null;
+            session.SentOutputOffset = session.AcknowledgedOutputOffset;
+            oldReconnectLifetime = session.ReconnectLifetime;
+            session.ReconnectLifetime = reconnect = CancellationTokenSource.CreateLinkedTokenSource(session.LifetimeToken);
+            reconnectToken = reconnect.Token;
         }
-        if (!detached) return;
-        if (oldPeerLifetime is not null) await oldPeerLifetime.CancelAsync().ConfigureAwait(false);
+        _ = ObserveReconnectDeadlineAsync(session, reconnect, reconnectToken);
         if (oldReconnectLifetime is not null) await oldReconnectLifetime.CancelAsync().ConfigureAwait(false);
-        if (peer is not null) await peer.DisposeAsync().ConfigureAwait(false);
-        RaiseActivity(session, active: true, reason);
-        CancellationTokenSource reconnect = session.ReconnectLifetime!;
-        CancellationToken token = reconnect.Token;
-        _ = Task.Run(async () =>
+        oldReconnectLifetime?.Dispose();
+        await retired.DisposeAsync().ConfigureAwait(false);
+
+        lock (session.Gate)
         {
-            try
-            {
-                await Task.Delay(TerminalProtocol.ReconnectLifetime, _timeProvider, token).ConfigureAwait(false);
-                if (ReferenceEquals(session.ReconnectLifetime, reconnect) && !session.Lifetime.IsCancellationRequested)
-                    await EndAsync(session, "reconnect-expired").ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        });
+            if (!ReferenceEquals(session.ReconnectLifetime, reconnect) || reconnectToken.IsCancellationRequested) return;
+        }
+        RaiseActivity(session, active: true, reason);
+    }
+
+    private async Task ObserveReconnectDeadlineAsync(
+        TerminalSession session,
+        CancellationTokenSource reconnect,
+        CancellationToken reconnectToken)
+    {
+        try
+        {
+            await Task.Delay(TerminalProtocol.ReconnectLifetime, _timeProvider, reconnectToken).ConfigureAwait(false);
+            await EndAsync(session, "reconnect-expired", expectedLifetime: reconnect).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (reconnectToken.IsCancellationRequested) { }
     }
 
     private async Task ObserveExitAsync(TerminalSession session)
@@ -601,14 +678,29 @@ internal sealed class TerminalCoordinator : IAsyncDisposable
         catch (OperationCanceledException) when (session.Lifetime.IsCancellationRequested) { }
     }
 
-    private async Task EndAsync(TerminalSession session, string reason, bool notify = true)
+    private async Task EndAsync(
+        TerminalSession session,
+        string reason,
+        bool notify = true,
+        ITerminalWebRtcPeer? expectedPeer = null,
+        CancellationTokenSource? expectedLifetime = null)
     {
+        WebSocket? socket;
         lock (_gate)
         {
             if (!ReferenceEquals(_active, session)) return;
-            _active = null;
+            lock (session.Gate)
+            {
+                if ((expectedPeer is not null && !ReferenceEquals(session.Peer, expectedPeer)) ||
+                    (expectedLifetime is not null && !ReferenceEquals(session.ReconnectLifetime, expectedLifetime) &&
+                        !ReferenceEquals(session.OfferLifetime, expectedLifetime)))
+                {
+                    return;
+                }
+                _active = null;
+                socket = session.ControlSocket;
+            }
         }
-        WebSocket? socket = session.ControlSocket;
         await session.DisposeAsync().ConfigureAwait(false);
         RaiseActivity(session, active: false, reason);
         if (notify && socket?.State == WebSocketState.Open)

@@ -18,9 +18,16 @@ saved-PC, manual-host behavior:
 A valid Direct pairing link imports its token and removes `t` from the visible address.
 An official Relay or Secure Direct link keeps the token only in the URL
 fragment, removes the fragment after import, and stores the opaque route
-profile. It asks for device-name confirmation, then connects. Pairing, rejection,
-unavailable, and intentional-disconnect panels block inactive controls while
-keeping recovery actions usable.
+profile. All three flows ask for device-name confirmation, including when the
+app loaded through its fresh-load URL with the original token. Pairing,
+rejection, unavailable, and intentional-disconnect panels block inactive
+controls while keeping recovery actions usable.
+
+Refreshing a Direct pairing page after token removal returns to the saved
+active PC or the pairing screen. The remaining address hint does not save or
+activate an unconfirmed PC. If the first connection attempt fails, the app
+keeps the appropriate recovery panel open and offers another scan or manual
+host entry.
 
 The browser gives an initial Direct connection 3 seconds to open and authenticate.
 Relay connections get 10 seconds because VPNs, managed networks, DNS, TLS, and
@@ -91,10 +98,15 @@ Expose only relevant actions near the error:
   internet/VPN/work-network guidance.
 - **Copy diagnostics** for repeated failures.
 
+The disconnected panel for a saved PC offers reconnect, QR pairing, and manual
+address entry.
+
 Reconnect keeps the panel visible, prevents duplicate attempts, shows progress,
-and never replays disconnected input. Re-pair from `unavailable` keeps the saved
-PC while opening device-name confirmation; stale connection events cannot
-replace that confirmation.
+and never replays disconnected input. Automatic retries retain the most recent
+failure until a new outcome arrives. Re-pair from `unavailable` keeps the saved
+PC while opening device-name confirmation. A replaced connection attempt cannot
+save a profile or change the new attempt's state. Keeping the current connection
+in the Presentation confirmation discards the unapproved pairing link.
 
 ## Layout
 

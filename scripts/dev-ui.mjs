@@ -1709,6 +1709,10 @@ async function verifyDisconnectedSavedPcReconnect(page) {
     name: "Take photo of QR code",
     exact: true,
   });
+  const manualHostButton = reconnectPanel.getByRole("button", {
+    name: "Enter host manually",
+    exact: true,
+  });
 
   const viewports = [
     { name: "regular portrait", width: 393, height: 852 },
@@ -1718,6 +1722,7 @@ async function verifyDisconnectedSavedPcReconnect(page) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await reconnectButton.scrollIntoViewIfNeeded();
     await qrButton.scrollIntoViewIfNeeded();
+    await manualHostButton.scrollIntoViewIfNeeded();
     const result = await reconnectPanel.evaluate((panel) => {
       const actions = Array.from(panel.querySelectorAll(".pairing-actions button"));
       const bounds = panel.getBoundingClientRect();
@@ -1736,7 +1741,7 @@ async function verifyDisconnectedSavedPcReconnect(page) {
     });
 
     if (
-      result.actionCount !== 2 ||
+      result.actionCount !== 3 ||
       result.horizontalOverflow ||
       result.minActionHeight < 48 ||
       result.outsideViewport ||

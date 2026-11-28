@@ -47,7 +47,7 @@ export interface PendingPowerPointLaunch {
 export function usePresentationControl(
   state: ConnectionState,
   connectionEpoch: number,
-  send: (payload: ClientMessage) => void,
+  send: (payload: ClientMessage) => boolean | void,
 ) {
   const [pendingPresentationCommand, setPendingPresentationCommand] =
     useState<PendingPresentationCommand | null>(null);
@@ -231,8 +231,9 @@ export function usePresentationControl(
       } satisfies PendingPresentationCommand;
       if (pendingRef.current !== null) {
         if (action === "pointer" && commandOptions?.enabled === false) {
-          send({ type: "presentation.command", ...pending });
-          return pending.operationId;
+          return send({ type: "presentation.command", ...pending }) === false
+            ? null
+            : pending.operationId;
         }
 
         return null;
@@ -241,7 +242,19 @@ export function usePresentationControl(
       pendingRef.current = pending;
       setPendingPresentationCommand(pending);
       setPresentationResult(null);
-      send({ type: "presentation.command", ...pending });
+      if (send({ type: "presentation.command", ...pending }) === false) {
+        pendingRef.current = null;
+        setPendingPresentationCommand(null);
+        setPresentationResult({
+          type: "presentation.command.result",
+          ...pending,
+          succeeded: false,
+          code: "VAIR-PRESENTATION-REQUEST-NOT-SENT",
+          message: "Could not send the presentation command. Reconnect and try again.",
+          laserPointerActive: false,
+        });
+        return null;
+      }
       return pending.operationId;
     },
     [send, state],

@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 
 namespace VolturaAir.Host.Tests;
 
@@ -274,11 +275,13 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
             }, "screen.view.source.result");
             Assert.True(switched.GetProperty("succeeded").GetBoolean());
         }
+        Assert.False(capture.Ended.Task.IsCompleted);
 
         if (lateFailure) pending.TrySetException(new ScreenViewCaptureException("capture-failed", "Previous selection failed."));
         else pending.TrySetResult(new([0, 0, 0, 1, 0x65, 1], 1920, 1080, 30, true));
 
         await peer.AcceptedFrame.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.True(capture.Ended.Task.IsCompletedSuccessfully);
         Assert.Equal((byte)2, Assert.Single(peer.SentVideoMarkers));
         Assert.Equal([true, true], capture.ForceKeyFrameRequests.Take(2).ToArray());
         Assert.False(peer.Disposed.Task.IsCompleted);
@@ -428,6 +431,39 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         finally
         {
             AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public async Task VideoStartsWhileSystemAudioEndpointInitializationIsBlocked()
+    {
+        AppPermissionSettings.Save(AppPermissionSettings.Load() with { AllowScreenViewing = true });
+        using var finishAudioStartup = new ManualResetEventSlim();
+        var audioStartupEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var capture = new AdaptiveCaptureSource();
+        var peer = new AdaptivePeer(true) { TrackVideoSends = true };
+        var audio = new DeferredAudioStartupFactory(() =>
+        {
+            audioStartupEntered.TrySetResult();
+            finishAudioStartup.Wait(TimeSpan.FromSeconds(5));
+        });
+        await using var fixture = await WebHostFixture.StartAsync(
+            screenViewCapture: capture, screenViewPeerFactory: new AdaptivePeerFactory(peer),
+            screenViewAudioCaptureFactory: audio);
+        using var key = new PairingTestKey();
+        using WebSocket control = await ConnectAsync(fixture.WebHost);
+        await PairAsync(control, fixture.Manager, key);
+
+        try
+        {
+            await StartAndAnswerAsync(control, key, "screen-slow-audio");
+            await audioStartupEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await peer.AcceptedFrame.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await AssertControlHealthyAsync(control);
+        }
+        finally
+        {
+            finishAudioStartup.Set();
         }
     }
 
@@ -736,6 +772,97 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
         finally { AppPermissionSettings.Save(originalPermissions); }
     }
 
+    [Fact]
+    public async Task NativePixelSizeChangeRetiresTheScreenshotBeforeOfferingATransfer()
+    {
+        AppPermissionSettings.Save(AppPermissionSettings.Load() with { AllowScreenViewing = true, AllowFileTransfer = true });
+        using var screenshot = new MemoryStream([137, 80, 78, 71], writable: false);
+        var capture = new AdaptiveCaptureSource
+        {
+            Sources = [new("display-1", "First", 800, 600, true)],
+            ScreenshotOverride = (_, _) => new(screenshot, screenshot.Length, 1024, 768)
+        };
+        await using var fixture = await WebHostFixture.StartAsync(screenViewCapture: capture);
+        using var key = new PairingTestKey();
+        using WebSocket control = await ConnectAsync(fixture.WebHost);
+        await PairAsync(control, fixture.Manager, key);
+        await StartAndAnswerAsync(control, key, "screen-geometry-change");
+        await capture.Captured.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        JsonElement response = await SendUntilTypeAsync(control,
+            ScreenshotRequest(fixture.Manager, key, "screen-geometry-change"), "file.transfer.start.result");
+
+        Assert.False(response.GetProperty("succeeded").GetBoolean());
+        Assert.Equal("screen-session-stale", response.GetProperty("code").GetString());
+        Assert.False(screenshot.CanRead);
+        await AssertControlHealthyAsync(control);
+    }
+
+    [Theory]
+    [InlineData("stop")]
+    [InlineData("switch")]
+    [InlineData("complete")]
+    public async Task ScreenshotTransferFollowsTheLiveDisplayUntilTheLastAcknowledgement(string change)
+    {
+        AppPermissionSettings.Save(AppPermissionSettings.Load() with { AllowScreenViewing = true, AllowFileTransfer = true });
+        await using var screenshot = new MemoryStream([137, 80, 78, 71], writable: false);
+        var capture = new AdaptiveCaptureSource
+        {
+            Sources = [new("display-1", "First", 800, 600, true), new("display-2", "Second", 800, 600, false)],
+            ScreenshotOverride = (_, _) => new(screenshot, screenshot.Length, 800, 600)
+        };
+        var peer = new ScreenshotTransferPeer();
+        await using var fixture = await WebHostFixture.StartAsync(screenViewCapture: capture, fileTransferPeerFactory: peer);
+        using var key = new PairingTestKey();
+        using WebSocket control = await ConnectAsync(fixture.WebHost);
+        await PairAsync(control, fixture.Manager, key);
+        const string screenOperation = "screen-transfer-lifetime";
+        await StartAndAnswerAsync(control, key, screenOperation);
+        await capture.Captured.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        JsonElement started = await SendUntilTypeAsync(control,
+            ScreenshotRequest(fixture.Manager, key, screenOperation), "file.transfer.start.result");
+        Assert.True(started.GetProperty("succeeded").GetBoolean());
+        string transferId = started.GetProperty("transferId").GetString()!;
+        JsonElement offer = await ReceiveUntilTypeAsync(control, "file.transfer.offer");
+        const string answerSdp = "v=0\r\ns=screenshot-answer\r\n";
+        string transcript = FileTransferNegotiation.AnswerTranscript("client-screen-adaptive", fixture.Manager.HostIdentity.PublicKey,
+            $"{screenOperation}-still", transferId, "download", offer.GetProperty("fileName").GetString()!,
+            offer.GetProperty("declaredSize").GetInt64(), FileTransferNegotiation.HashSdp(offer.GetProperty("offerSdp").GetString()!),
+            FileTransferNegotiation.HashSdp(answerSdp));
+        JsonElement answer = await SendUntilTypeAsync(control, new
+        {
+            type = "file.transfer.answer",
+            operationId = "answer-screenshot-transfer",
+            transferId,
+            answerSdp,
+            clientSignature = key.SignPayload(transcript)
+        }, "file.transfer.answer.result");
+        Assert.True(answer.GetProperty("succeeded").GetBoolean());
+        await peer.DataSent.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        if (change == "complete")
+            peer.Acknowledge(screenshot.Length);
+        else if (change == "stop")
+            await SendAsync(control, new { type = "screen.view.stop", operationId = "stop-screen-transfer" });
+        else
+            await SendAsync(control, new { type = "screen.view.source.set", operationId = "switch-screen-transfer", displayId = "display-2" });
+
+        JsonElement result = await ReceiveUntilTypeAsync(control, "file.transfer.result");
+        Assert.Equal(transferId, result.GetProperty("transferId").GetString());
+        if (change == "complete")
+        {
+            Assert.True(result.GetProperty("succeeded").GetBoolean());
+            _ = await SendUntilTypeAsync(control, new { type = "screen.view.stop", operationId = "stop-after-screenshot" }, "screen.view.stop.result");
+        }
+        else
+        {
+            Assert.False(result.GetProperty("succeeded").GetBoolean());
+            Assert.Equal("screen-session-stale", result.GetProperty("code").GetString());
+        }
+        await peer.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await AssertControlHealthyAsync(control);
+    }
+
     private static object ScreenshotRequest(PairingManager manager, PairingTestKey key, string screenOperationId)
     {
         const string displayId = "display-1";
@@ -881,6 +1008,30 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
             ScreenshotOverride?.Invoke(sourceId, cancellationToken) ?? throw new NotSupportedException();
     }
 
+    private sealed class ScreenshotTransferPeer : IFileTransferWebRtcPeerFactory, IFileTransferWebRtcPeer
+    {
+        private readonly Channel<byte[]> _messages = Channel.CreateBounded<byte[]>(1);
+        public TaskCompletionSource DataSent { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Disposed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task Opened => Task.CompletedTask;
+        public ChannelReader<byte[]> Messages => _messages.Reader;
+        public IFileTransferWebRtcPeer Create(FileTransferPeerConfiguration? configuration) => this;
+        public Task<string> CreateOfferAsync(CancellationToken cancellationToken) => Task.FromResult("v=0\r\ns=screenshot-offer\r\n");
+        public void ApplyAnswer(string answerSdp) { }
+        public bool TrySend(byte[] record)
+        {
+            DataSent.TrySetResult();
+            return true;
+        }
+        public void Acknowledge(long size) => Assert.True(_messages.Writer.TryWrite(FileTransferProtocol.CreateAcknowledgement(size)));
+        public ValueTask DisposeAsync()
+        {
+            _messages.Writer.TryComplete();
+            Disposed.TrySetResult();
+            return ValueTask.CompletedTask;
+        }
+    }
+
     private sealed class AdaptivePeerFactory(AdaptivePeer peer) : IScreenViewWebRtcPeerFactory
     {
         public IScreenViewWebRtcPeer Create() => peer;
@@ -942,6 +1093,15 @@ public sealed class ScreenViewAdaptiveRecoveryTests : WebHostServiceTestBase
             _ = Stopped;
             _ = AudioStopped;
             _ = KeyFrameRequested;
+        }
+    }
+
+    private sealed class DeferredAudioStartupFactory(Action waitForStartup) : IScreenViewSystemAudioCaptureFactory
+    {
+        public IScreenViewSystemAudioCapture Create()
+        {
+            waitForStartup();
+            return new UnavailableScreenViewSystemAudioCaptureFactory().Create();
         }
     }
 

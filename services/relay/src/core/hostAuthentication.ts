@@ -1,6 +1,12 @@
 import { encodeBase64Url } from "./base64url";
 import { maximumControlMessageBytes } from "./constants";
-import { parseHostHello, parseHostProof, verifyHostProof, type RelayHostHello } from "./routing";
+import {
+  deriveRouteId,
+  parseHostHello,
+  parseHostProof,
+  verifyHostProof,
+  type RelayHostHello,
+} from "./routing";
 
 export type HostAuthenticationResult =
   | { kind: "challenge"; hello: RelayHostHello; challenge: string; response: string }
@@ -23,8 +29,12 @@ export async function processHostAuthentication(
 
   if (!pending) {
     const hello = parseHostHello(value, routeId);
-    if (!hello || (await (await import("./routing")).deriveRouteId(hello.publicKey)) !== routeId)
+    if (!hello) return { kind: "rejected" };
+    try {
+      if ((await deriveRouteId(hello.publicKey)) !== routeId) return { kind: "rejected" };
+    } catch {
       return { kind: "rejected" };
+    }
     const challenge = encodeBase64Url(crypto.getRandomValues(new Uint8Array(32)));
     return {
       kind: "challenge",

@@ -177,6 +177,7 @@ interface ConnectionSocketLifecycleOptions {
   reconnectRef: RefObject<(() => void) | null>;
   relayEncryptedSendRef: RefObject<RelayEncryptedSend | null>;
   rescheduleHealthCheckRef: RefObject<(() => void) | null>;
+  retireConnectionRef: RefObject<(() => void) | null>;
   screenshotMode: boolean;
   setActivePcId: Dispatch<SetStateAction<string | null>>;
   setAudioStateFromSocket: (state: AudioStateMessage) => void;
@@ -237,6 +238,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     reconnectRef,
     relayEncryptedSendRef,
     rescheduleHealthCheckRef,
+    retireConnectionRef,
     screenshotMode,
     setActivePcId,
     setAudioStateFromSocket: setAudioState,
@@ -312,6 +314,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     const currentPc = () => getLatestConnectionPc(pc);
     const pendingPc = getPendingManualPc();
     let commitManualPcOnAcceptance = pendingPc?.id === pc.id && pendingPc.url === pc.url;
+    const lifecycleListeners = new AbortController();
 
     function touchHealthy() {
       lastHealthyAtRef.current = Date.now();
@@ -384,8 +387,13 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       window.clearTimeout(connectionTimer);
       connectionTimer = undefined;
       clearHealthCheck();
-      const unavailableMessage = reason ?? getPcUnavailableMessage(currentPc(), screenshotMode);
-      setLastConnectionError({ code, message: unavailableMessage });
+      const unavailableMessage =
+        reason ?? getPcUnavailableMessage(currentPc(), screenshotMode, !commitManualPcOnAcceptance);
+      setLastConnectionError({
+        code,
+        message: unavailableMessage,
+        transportMode: pc.transportMode,
+      });
       setState("unavailable");
       setMessage(unavailableMessage);
 
@@ -448,11 +456,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         lastHealthyAtRef.current > 0 &&
         Date.now() - lastHealthyAtRef.current > staleConnectionMs
       ) {
-        markUnavailable(
-          socket,
-          getPcUnavailableMessage(currentPc(), screenshotMode),
-          "VAIR-PAIR-STALE-CONNECTION",
-        );
+        markUnavailable(socket, undefined, "VAIR-PAIR-STALE-CONNECTION");
         return;
       }
 
@@ -525,11 +529,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         const now = Date.now();
         const staleIn = lastHealthyAtRef.current + staleConnectionMs - now;
         if (staleIn <= 0) {
-          markUnavailable(
-            socket,
-            getPcUnavailableMessage(currentPc(), screenshotMode),
-            "VAIR-PAIR-STALE-CONNECTION",
-          );
+          markUnavailable(socket, undefined, "VAIR-PAIR-STALE-CONNECTION");
           return;
         }
         const delay = Math.min(
@@ -585,12 +585,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       window.clearTimeout(connectionTimer);
       clearHealthCheck();
 
-      if (hasShownUnavailable) {
-        const unavailableMessage = getPcUnavailableMessage(currentPc(), screenshotMode);
-        setLastConnectionError({ code: "VAIR-PAIR-HOST-UNREACHABLE", message: unavailableMessage });
-        setState("unavailable");
-        setMessage(unavailableMessage);
-      } else {
+      if (!hasShownUnavailable) {
         setState("connecting");
         setMessage(`Connecting to ${getDisplayPcName(currentPc(), "", screenshotMode)}...`);
       }
@@ -836,6 +831,11 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         let pendingTerminalMessages = Promise.resolve();
         let pendingAiAssistantMessages = Promise.resolve();
         let pendingAppsMessages = Promise.resolve();
+        function reportProtocolLoadFailure(message: string, code: string) {
+          if (isCurrentSocket()) {
+            markUnavailable(ws, message, code);
+          }
+        }
         function handleSocketMessage(messageData: unknown) {
           const response = parseServerMessage(messageData);
           if (response) {
@@ -857,8 +857,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
                 }
               })
               .catch(() =>
-                markUnavailable(
-                  ws,
+                reportProtocolLoadFailure(
                   "The file transfer protocol could not be loaded. Retrying...",
                   "VAIR-FILE-TRANSFER-PROTOCOL",
                 ),
@@ -877,8 +876,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
                 }
               })
               .catch(() =>
-                markUnavailable(
-                  ws,
+                reportProtocolLoadFailure(
                   "The Terminal protocol could not be loaded. Retrying...",
                   "VAIR-TERMINAL-PROTOCOL",
                 ),
@@ -898,8 +896,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
                 }
               })
               .catch(() =>
-                markUnavailable(
-                  ws,
+                reportProtocolLoadFailure(
                   "The AI Assistant protocol could not be loaded. Retrying...",
                   "VAIR-AI-ASSISTANT-PROTOCOL",
                 ),
@@ -918,8 +915,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
                 }
               })
               .catch(() =>
-                markUnavailable(
-                  ws,
+                reportProtocolLoadFailure(
                   "The Apps protocol could not be loaded. Retrying...",
                   "VAIR-APPS-PROTOCOL",
                 ),
@@ -1075,6 +1071,10 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
 
           if (response.type === "pair.rejected") {
             shouldRetry = false;
+            clearTimers();
+            pendingPairingKey = null;
+            pendingPairingBootstrap = null;
+            verifiedHostIdentity = null;
             if (commitManualPcOnAcceptance) {
               commitManualPcOnAcceptance = false;
               clearPendingPairingToken();
@@ -1100,9 +1100,6 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
             if (shouldClearStoredReconnectKeyForRejection(response.reason)) {
               clearStoredReconnectKey(clientId, pc.id);
             }
-            pendingPairingKey = null;
-            pendingPairingBootstrap = null;
-            verifiedHostIdentity = null;
             clearRuntimeStateFromSocket();
             const rejectedMessage = `Pairing rejected: ${response.reason}`;
             setLastConnectionError({
@@ -1470,12 +1467,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
             return;
           }
 
-          markUnavailable(
-            ws,
-            getPcUnavailableMessage(currentPc(), screenshotMode),
-            "VAIR-PAIR-SOCKET-CLOSED",
-            "socket-close",
-          );
+          markUnavailable(ws, undefined, "VAIR-PAIR-SOCKET-CLOSED", "socket-close");
         }
 
         function onSocketError() {
@@ -1527,14 +1519,16 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     }
 
     reconnectRef.current = () => {
-      if (backgroundSuspended || retryTimer !== undefined) {
+      const socket = socketRef.current;
+      if (
+        backgroundSuspended ||
+        retryTimer !== undefined ||
+        !socket ||
+        isControllerSocketConnecting(socket)
+      ) {
         return;
       }
-      markUnavailable(
-        socketRef.current ?? undefined,
-        getPcUnavailableMessage(currentPc(), screenshotMode),
-        "VAIR-PAIR-CLIENT-SEND-FAILED",
-      );
+      markUnavailable(socket, undefined, "VAIR-PAIR-CLIENT-SEND-FAILED");
     };
     rescheduleHealthCheckRef.current = () => {
       const socket = socketRef.current;
@@ -1566,10 +1560,33 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       reconnectIfStale();
     }
 
-    window.addEventListener("focus", reconnectIfStale);
-    window.addEventListener("pagehide", suspendForBackground);
-    window.addEventListener("pageshow", resumeFromBackground);
-    document.addEventListener("visibilitychange", resumeFromBackground);
+    function retireConnection() {
+      if (disposed) {
+        return;
+      }
+      disposed = true;
+      retireConnectionRef.current = null;
+      reconnectRef.current = null;
+      rescheduleHealthCheckRef.current = null;
+      lifecycleListeners.abort();
+      clearTimers();
+      const socket = socketRef.current;
+      releaseSocketListeners();
+      socketRef.current = null;
+      socket?.close();
+    }
+
+    retireConnectionRef.current = retireConnection;
+    window.addEventListener("focus", reconnectIfStale, { signal: lifecycleListeners.signal });
+    window.addEventListener("pagehide", suspendForBackground, {
+      signal: lifecycleListeners.signal,
+    });
+    window.addEventListener("pageshow", resumeFromBackground, {
+      signal: lifecycleListeners.signal,
+    });
+    document.addEventListener("visibilitychange", resumeFromBackground, {
+      signal: lifecycleListeners.signal,
+    });
     if (backgroundSuspended) {
       suspendForBackground();
     } else {
@@ -1577,18 +1594,8 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     }
 
     return () => {
-      disposed = true;
-      reconnectRef.current = null;
-      rescheduleHealthCheckRef.current = null;
-      window.removeEventListener("focus", reconnectIfStale);
-      window.removeEventListener("pagehide", suspendForBackground);
-      window.removeEventListener("pageshow", resumeFromBackground);
-      document.removeEventListener("visibilitychange", resumeFromBackground);
-      clearTimers();
-      const socket = socketRef.current;
-      releaseSocketListeners();
-      socketRef.current = null;
-      socket?.close();
+      lifecycleListeners.abort();
+      retireConnection();
     };
   }, [
     authenticatedSocketRef,
@@ -1605,6 +1612,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     reconnectRef,
     relayEncryptedSendRef,
     rescheduleHealthCheckRef,
+    retireConnectionRef,
     screenshotMode,
     setActivePcId,
     setConnectionEpoch,

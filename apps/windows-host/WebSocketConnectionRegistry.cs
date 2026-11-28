@@ -156,6 +156,10 @@ internal sealed class WebSocketConnectionRegistry : IDisposable
         {
             await sendGate.Semaphore.WaitAsync(cancellationToken);
             entered = true;
+            lock (_gate)
+            {
+                if (sendGate.Retired) return false;
+            }
             await send();
         }
         finally

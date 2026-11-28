@@ -51,39 +51,37 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
 
     public IReadOnlyList<ScreenViewSource> GetSources()
     {
-        lock (_gate)
+        try
         {
-            try
-            {
-                return [.. EnumerateOutputs().Select(item => new ScreenViewSource(
-                    item.Id,
-                    item.Label,
-                    item.Width,
-                    item.Height,
-                    item.IsPrimary,
-                    item.Left,
-                    item.Top,
-                    item.Rotation switch
-                    {
-                        ModeRotation.Rotate90 => ScreenViewRotation.Rotate90,
-                        ModeRotation.Rotate180 => ScreenViewRotation.Rotate180,
-                        ModeRotation.Rotate270 => ScreenViewRotation.Rotate270,
-                        _ => ScreenViewRotation.Identity
-                    },
-                    item.EffectiveDpiX,
-                    item.EffectiveDpiY))];
-            }
-            catch (ScreenViewCaptureException)
-            {
-                throw;
-            }
-            catch (Exception ex) when (ex is SharpGenException or ExternalException or InvalidOperationException or NotSupportedException)
-            {
-                throw new ScreenViewCaptureException("capture-unavailable", "Windows desktop capture is unavailable.", ex)
+            // Enumeration owns its own DXGI factory and never uses the live capture session.
+            return [.. EnumerateOutputs().Select(item => new ScreenViewSource(
+                item.Id,
+                item.Label,
+                item.Width,
+                item.Height,
+                item.IsPrimary,
+                item.Left,
+                item.Top,
+                item.Rotation switch
                 {
-                    CanRetryCapture = ex is SharpGenException native && IsRecoverableCaptureResult(native.ResultCode.Code)
-                };
-            }
+                    ModeRotation.Rotate90 => ScreenViewRotation.Rotate90,
+                    ModeRotation.Rotate180 => ScreenViewRotation.Rotate180,
+                    ModeRotation.Rotate270 => ScreenViewRotation.Rotate270,
+                    _ => ScreenViewRotation.Identity
+                },
+                item.EffectiveDpiX,
+                item.EffectiveDpiY))];
+        }
+        catch (ScreenViewCaptureException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is SharpGenException or ExternalException or InvalidOperationException or NotSupportedException)
+        {
+            throw new ScreenViewCaptureException("capture-unavailable", "Windows desktop capture is unavailable.", ex)
+            {
+                CanRetryCapture = ex is SharpGenException native && IsRecoverableCaptureResult(native.ResultCode.Code)
+            };
         }
     }
 

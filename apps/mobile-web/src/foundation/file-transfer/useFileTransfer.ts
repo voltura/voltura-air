@@ -50,7 +50,7 @@ export type {
 
 const maximumSafeFileSize = Number.MAX_SAFE_INTEGER;
 const maximumPendingDownloadRecords = 128;
-const screenCaptureStartResponseTimeoutMs = 30_000;
+const startResponseTimeoutMs = 30_000;
 const hasTransferredData = (runtime: TransferRuntime) =>
   (runtime.direction === "download" ? runtime.received : runtime.acknowledged) ===
   runtime.declaredSize;
@@ -672,7 +672,7 @@ export function useFileTransfer(
         });
         runtime.startResponseTimer = window.setTimeout(() => {
           fail(runtime, "The PC did not respond to the screenshot request. Try again.");
-        }, screenCaptureStartResponseTimeoutMs);
+        }, startResponseTimeoutMs);
         const sent = sendRef.current({
           type: "file.transfer.start",
           operationId,
@@ -715,6 +715,9 @@ export function useFileTransfer(
         progress: 0,
         readyToSave: false,
       });
+      runtime.startResponseTimer = window.setTimeout(() => {
+        fail(runtime, "The PC did not respond to the file transfer request. Try again.");
+      }, startResponseTimeoutMs);
       const sent = sendRef.current({
         type: "file.transfer.start",
         operationId,

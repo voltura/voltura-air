@@ -18,7 +18,7 @@ export interface AwakeControlProps {
 
 type PowerControlEntryProps = AwakeControlProps & {
   capabilities: PowerCapabilities | null;
-  onAction: (action: SystemPowerAction) => void;
+  onAction: (action: SystemPowerAction) => boolean | void;
   onOpen: () => void;
   pendingAction: SystemPowerAction | null;
   result: SystemPowerResultMessage | null;

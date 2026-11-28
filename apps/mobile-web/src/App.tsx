@@ -1,7 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getAvailableToolModeIds, toolModeDefinitions } from "./app/appModeTabs";
 import { createSettingsActions, SettingsDrawer } from "./features/settings";
-import { parsePairingLink } from "./foundation/pairing/pairingLink";
 import { getPcDisplayName } from "./foundation/pairing/pcDisplayName";
 import type {
   PhoneWebcamCapability,
@@ -57,7 +56,6 @@ import { Introduction, initializeIntroduction } from "./features/introduction";
 export function App() {
   const [introductionEligibility] = useState(initializeIntroduction);
   const [introductionReplay, setIntroductionReplay] = useState(0);
-  const initialPairing = useMemo(() => parsePairingLink(window.location.href), []);
   const [isUpdateNoticeOpen, setIsUpdateNoticeOpen] = useState(hasChunkLoadUpdateNotice);
   const connection = useVolturaAirConnection();
   const {
@@ -93,6 +91,7 @@ export function App() {
     clientId,
     deviceName,
     activePc,
+    initialPairing,
     pairedPcs,
     reconnectablePcs,
     requestPresentationCommand,
@@ -152,11 +151,8 @@ export function App() {
     null,
   );
   const gyroActivationIdRef = useRef(0);
-  const handleGyroSelectedChange = useCallback((selected: boolean) => {
-    setGyroSelected(selected);
-    if (selected) {
-      setGyroActivationRequest(null);
-    }
+  const handleGyroActivationConsumed = useCallback((requestId: number) => {
+    setGyroActivationRequest((current) => (current?.id === requestId ? null : current));
   }, []);
   const [activeFileJobCount, setActiveFileJobCount] = useState(0);
   const fileJobStatesRef = useRef(new Map<string, string>());
@@ -535,6 +531,7 @@ export function App() {
   });
   const {
     acceptLivePairingQr,
+    cancelPairingScan,
     confirmPendingPairing,
     connectManualHost,
     fallbackFromLivePairingQr,
@@ -544,6 +541,7 @@ export function App() {
     pairingDeviceName,
     pairingDeviceNamePlaceholder,
     pairingQrInputRef,
+    pairingScanFeedback,
     pairingScanMessage,
     pairingStatusMessage,
     pendingPairing,
@@ -551,21 +549,14 @@ export function App() {
     setPairingDeviceName,
     usesLivePairingQr,
   } = usePairingController({
-    beginNewPairing: () => {
-      requestPresentationConnectionChange("connect", beginNewPairing);
-    },
-    connectManualPc: (target) => {
-      requestPresentationConnectionChange("connect", () => {
-        connectManualPc(target);
-      });
-    },
+    beginNewPairing,
+    connectManualPc,
     deviceName,
     initialPairing,
     message,
-    pairWithToken: (token, pcUrl, requestedDeviceName) => {
-      requestPresentationConnectionChange("connect", () => {
-        pairWithToken(token, pcUrl, requestedDeviceName);
-      });
+    pairWithToken,
+    requestConnectionChange: (action) => {
+      requestPresentationConnectionChange("connect", action);
     },
     setIsSettingsOpen,
   });
@@ -809,11 +800,13 @@ export function App() {
               pairingStatusMessage={pairingStatusMessage}
               pendingPairing={pendingPairing !== null}
               reconnectablePcs={reconnectablePcs}
+              scanFeedback={pairingScanFeedback}
               scanPairingQr={scanPairingQr}
               setPairingDeviceName={setPairingDeviceName}
               state={state}
               tryManualReconnect={tryManualReconnect}
               tryReconnectPc={tryReconnectPc}
+              unavailableTransportMode={lastConnectionError?.transportMode}
               usesLivePairingQr={usesLivePairingQr}
             />
           )}
@@ -882,10 +875,16 @@ export function App() {
           diagnostics={mobileDiagnostics}
           deviceName={deviceName}
           disconnectActivePc={() => {
-            requestPresentationConnectionChange("disconnect", disconnectActivePc);
+            requestPresentationConnectionChange("disconnect", () => {
+              cancelPairingScan();
+              disconnectActivePc();
+            });
           }}
           forgetPc={(pcId) => {
             requestPresentationConnectionChange("disconnect", () => {
+              if (activePc?.id === pcId) {
+                cancelPairingScan();
+              }
               forgetPcAndSettings(pcId);
             });
           }}
@@ -1233,9 +1232,8 @@ export function App() {
                 ? (customScreenGetResult.message ?? "The custom screen could not be loaded.")
                 : null
             }
-            gyroActivationRequest={gyroActivationRequest}
             invoke={invokeCustomScreenButton}
-            onGyroSelectedChange={handleGyroSelectedChange}
+            onGyroSelectedChange={setGyroSelected}
             onBack={() => {
               setActiveCustomScreenId(null);
             }}
@@ -1274,13 +1272,14 @@ export function App() {
             connection={connection}
             connectionEpoch={connectionEpoch}
             gyroActivationRequest={gyroActivationRequest}
+            onGyroActivationConsumed={handleGyroActivationConsumed}
             keyboardSettings={keyboardSettings}
             onClearAfterSendingChange={(value) => {
               updateAppSetting("clearTextAfterSending", value);
             }}
             onClipboardCopyFeedback={showClipboardCopyFeedback}
             onPresentationSessionActiveChange={handlePresentationSessionActiveChange}
-            onGyroSelectedChange={handleGyroSelectedChange}
+            onGyroSelectedChange={setGyroSelected}
             onPresentationActivationRequestHandled={handlePresentationActivationRequestHandled}
             presentationActivationRequestId={
               state === "paired" &&

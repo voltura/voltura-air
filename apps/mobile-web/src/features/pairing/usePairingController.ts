@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ChangeEvent,
@@ -21,6 +22,7 @@ interface PairingControllerOptions {
   initialPairing: PairingLink | null;
   message: string;
   pairWithToken: (token: string, pcUrl?: string, requestedDeviceName?: string) => void;
+  requestConnectionChange: (action: () => void) => void;
   setIsSettingsOpen: Dispatch<SetStateAction<boolean>>;
 }
 
@@ -32,6 +34,7 @@ export function usePairingController(options: PairingControllerOptions) {
     initialPairing,
     message,
     pairWithToken,
+    requestConnectionChange,
     setIsSettingsOpen,
   } = options;
   const [pendingPairing, setPendingPairing] = useState<PairingLink | null>(initialPairing);
@@ -40,12 +43,16 @@ export function usePairingController(options: PairingControllerOptions) {
     sourceMessage: message,
     scanMessage: null as string | null,
   });
+  const messageRef = useRef(message);
+  useLayoutEffect(() => {
+    messageRef.current = message;
+  }, [message]);
   const currentScanMessage =
     pairingFeedback.sourceMessage === message ? pairingFeedback.scanMessage : null;
   const pairingScanMessage = currentScanMessage ?? defaultScanMessage;
   const pairingStatusMessage = (currentScanMessage ?? message.trim()) || defaultScanMessage;
   const setPairingScanMessage = (scanMessage: string) => {
-    setPairingFeedback({ sourceMessage: message, scanMessage });
+    setPairingFeedback({ sourceMessage: messageRef.current, scanMessage });
   };
   const pairingDeviceNamePlaceholder = getDefaultDeviceName();
   const [pairingDeviceName, setPairingDeviceName] = useState(
@@ -68,6 +75,17 @@ export function usePairingController(options: PairingControllerOptions) {
     readingQrRef.current = false;
     setIsPairingQrReading(false);
     setLivePairingScannerAttempt((current) => (current === false ? false : null));
+    return scanGenerationRef.current;
+  };
+
+  const requestPairingAction = (action: () => void) => {
+    const generation = retireScan();
+    requestConnectionChange(() => {
+      if (scanGenerationRef.current === generation) {
+        scanGenerationRef.current += 1;
+        action();
+      }
+    });
   };
 
   useEffect(
@@ -77,6 +95,14 @@ export function usePairingController(options: PairingControllerOptions) {
     },
     [],
   );
+
+  const showPairingConfirmation = (pairingInfo: PairingLink) => {
+    beginNewPairing();
+    setPendingPairing(pairingInfo);
+    setPairingDeviceName(deviceName === pairingDeviceNamePlaceholder ? "" : deviceName);
+    setPairingScanMessage("Confirm the device name shown on the PC, or change it before pairing.");
+    setIsSettingsOpen(false);
+  };
 
   const acceptScannedPairingText = (scannedText: string, scanGeneration: number): boolean => {
     if (scanGenerationRef.current !== scanGeneration) {
@@ -89,12 +115,7 @@ export function usePairingController(options: PairingControllerOptions) {
       return false;
     }
 
-    retireScan();
-    beginNewPairing();
-    setPendingPairing(pairingInfo);
-    setPairingDeviceName(deviceName === pairingDeviceNamePlaceholder ? "" : deviceName);
-    setPairingScanMessage("Confirm the device name shown on the PC, or change it before pairing.");
-    setIsSettingsOpen(false);
+    requestPairingAction(() => showPairingConfirmation(pairingInfo));
     return true;
   };
 
@@ -104,30 +125,26 @@ export function usePairingController(options: PairingControllerOptions) {
     }
 
     const name = pairingDeviceName.trim() || pairingDeviceNamePlaceholder;
-    retireScan();
-    setPairingScanMessage("Connecting...");
-    setPendingPairing(null);
-    setIsSettingsOpen(false);
-    pairWithToken(pendingPairing.pairToken, pendingPairing.pcUrl, name);
+    requestPairingAction(() => {
+      setPairingScanMessage("Connecting...");
+      setPendingPairing(null);
+      setIsSettingsOpen(false);
+      pairWithToken(pendingPairing.pairToken, pendingPairing.pcUrl, name);
+    });
   };
 
   const connectManualHost = (target: ManualConnectionTarget) => {
-    retireScan();
-    if (target.kind === "pairing") {
-      beginNewPairing();
-      setPendingPairing({ pairToken: target.pairToken, pcUrl: target.pcUrl });
-      setPairingDeviceName(deviceName === pairingDeviceNamePlaceholder ? "" : deviceName);
-      setPairingScanMessage(
-        "Confirm the device name shown on the PC, or change it before pairing.",
-      );
-      setIsSettingsOpen(false);
-      return;
-    }
+    requestPairingAction(() => {
+      if (target.kind === "pairing") {
+        showPairingConfirmation({ pairToken: target.pairToken, pcUrl: target.pcUrl });
+        return;
+      }
 
-    connectManualPc(target.pcUrl);
-    setPendingPairing(null);
-    setIsSettingsOpen(false);
-    setPairingScanMessage("Connecting to manually entered PC...");
+      connectManualPc(target.pcUrl);
+      setPendingPairing(null);
+      setIsSettingsOpen(false);
+      setPairingScanMessage("Connecting to manually entered PC...");
+    });
   };
 
   const scanPairingQr = () => {
@@ -228,6 +245,7 @@ export function usePairingController(options: PairingControllerOptions) {
 
   return {
     acceptLivePairingQr,
+    cancelPairingScan: retireScan,
     confirmPendingPairing,
     connectManualHost,
     fallbackFromLivePairingQr,
@@ -238,6 +256,7 @@ export function usePairingController(options: PairingControllerOptions) {
     pairingDeviceName,
     pairingDeviceNamePlaceholder,
     pairingQrInputRef,
+    pairingScanFeedback: currentScanMessage,
     pairingScanMessage,
     pairingStatusMessage,
     pendingPairing,

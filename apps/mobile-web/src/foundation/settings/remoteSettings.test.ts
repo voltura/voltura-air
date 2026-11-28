@@ -79,4 +79,11 @@ describe("normalizeRemoteSettings", () => {
       },
     });
   });
+
+  it.each(["null", "[]", '"standard"', "false", "1"])(
+    "ignores the saved value %s when it is not a settings object",
+    (stored) => {
+      expect(resolveRemoteSettings(stored, "kodi")).toEqual(resolveRemoteSettings(null, "kodi"));
+    },
+  );
 });

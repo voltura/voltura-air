@@ -35,7 +35,10 @@ public sealed record AppLogQuery(
     string? Source = null,
     string? Action = null,
     string? Client = null,
-    int MaxEntries = 1000);
+    int MaxEntries = 1000)
+{
+    public IReadOnlySet<string>? Events { get; init; }
+}
 
 public sealed record AppLogReadResult(
     bool Succeeded,

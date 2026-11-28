@@ -29,6 +29,43 @@ public sealed class ScreenViewRelayRenewalTests : IsolatedHostSettingsTest
     }
 
     [Fact]
+    public async Task DisconnectClaimsTheViewBeforeWaitingToCancelNativeWork()
+    {
+        await using var fixture = new Fixture(false);
+        using var originalSocket = CreateSocket();
+        using var replacementSocket = CreateSocket();
+        using var releaseAudioStop = new ManualResetEventSlim();
+        var audioStopEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Audio.OnCanceled = () =>
+        {
+            audioStopEntered.TrySetResult();
+            releaseAudioStop.Wait(TimeSpan.FromSeconds(7));
+        };
+        await fixture.StartAsync("view", owner: originalSocket);
+        await fixture.Audio.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Action audioStopped = fixture.Peers.Peers[0].CaptureAudioStopCallback();
+        Task audioStop = Task.Run(audioStopped);
+        try
+        {
+            await audioStopEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Task<bool> disconnected = Task.Run(() => fixture.Coordinator.StopConnection("viewer", originalSocket));
+            await WaitUntilAsync(() => fixture.Coordinator.SetSource("viewer", "display-1").Code == "not-viewing");
+            Task<ScreenViewStartResult> renewal = fixture.OfferAsync("renew", "view", owner: replacementSocket);
+            Assert.False(renewal.IsCompleted);
+            Assert.Single(fixture.Peers.Peers);
+
+            releaseAudioStop.Set();
+            Assert.True(await disconnected.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.Equal("renewal-unavailable", (await renewal.WaitAsync(TimeSpan.FromSeconds(2))).Code);
+        }
+        finally
+        {
+            releaseAudioStop.Set();
+            await audioStop.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
+    [Fact]
     public async Task RenewalWaitsForOldSocketCleanupBeforeFreshStartFallback()
     {
         await using var fixture = new Fixture(false);
@@ -46,6 +83,166 @@ public sealed class ScreenViewRelayRenewalTests : IsolatedHostSettingsTest
 
     private static RelayVirtualWebSocket CreateSocket() =>
         new(Guid.NewGuid(), new string('r', 22), (_, _) => Task.CompletedTask);
+
+    [Fact]
+    public async Task PermissionRevokedDuringPeerCreationPreventsOfferAdmission()
+    {
+        await using var fixture = new Fixture(false);
+        fixture.Peers.OnCreate = () => fixture.Manager.SetDevicePermission("viewer", DevicePermissionKind.ScreenViewing, false);
+
+        ScreenViewStartResult start = await fixture.OfferAsync("revoked-view");
+
+        Assert.False(start.Succeeded);
+        Assert.Equal("permission-denied", start.Code);
+        Assert.Null(start.OfferSdp);
+        Assert.True(Assert.Single(fixture.Peers.Peers).Disposed);
+    }
+
+    [Fact]
+    public async Task RevocationCancelsOfferPreparationBeforeDisposingItsPeer()
+    {
+        await using var fixture = new Fixture(false);
+        var offerEntered = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finishOffer = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Peers.OnCreate = () => fixture.Peers.Peers[^1].OnCreateOffer = async token =>
+        {
+            offerEntered.TrySetResult(token);
+            await finishOffer.Task.ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            return Peer.Sdp;
+        };
+
+        Task<ScreenViewStartResult> start = fixture.OfferAsync("revoked-during-offer");
+        try
+        {
+            CancellationToken offerToken = await offerEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Peer peer = Assert.Single(fixture.Peers.Peers);
+            fixture.Manager.SetDevicePermission("viewer", DevicePermissionKind.ScreenViewing, false);
+
+            Assert.True(offerToken.IsCancellationRequested);
+            Assert.False(peer.Disposed);
+            finishOffer.TrySetResult();
+            Assert.False((await start).Succeeded);
+            Assert.True(peer.Disposed);
+        }
+        finally
+        {
+            finishOffer.TrySetResult();
+        }
+    }
+
+    [Fact]
+    public async Task ShutdownLeavesPeerOwnedUntilItsInFlightAnswerReturns()
+    {
+        await using var fixture = new Fixture(false);
+        Assert.True((await fixture.OfferAsync("slow-answer")).Succeeded);
+        Peer peer = Assert.Single(fixture.Peers.Peers);
+        using var finishAnswer = new ManualResetEventSlim();
+        var enteredAnswer = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        peer.OnApplyAnswer = () =>
+        {
+            enteredAnswer.TrySetResult();
+            finishAnswer.Wait(TimeSpan.FromSeconds(7));
+        };
+        Task<ScreenViewOperationResult> answer = Task.Run(() => fixture.Answer("slow-answer"));
+
+        try
+        {
+            await enteredAnswer.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await fixture.Coordinator.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.False(peer.Disposed);
+            Assert.False(answer.IsCompleted);
+
+            finishAnswer.Set();
+            Assert.Equal("offer-expired", (await answer.WaitAsync(TimeSpan.FromSeconds(2))).Code);
+            Assert.True(peer.Disposed);
+        }
+        finally
+        {
+            finishAnswer.Set();
+            await answer.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
+    [Fact]
+    public async Task TransportThatStopsDuringAnswerCannotStartScreenCapture()
+    {
+        await using var fixture = new Fixture(false);
+        Assert.True((await fixture.OfferAsync("failed-view")).Succeeded);
+        Peer failed = Assert.Single(fixture.Peers.Peers);
+        failed.OnApplyAnswer = () =>
+        {
+            failed.Connection.TrySetResult();
+            failed.StopTransport();
+        };
+
+        ScreenViewOperationResult answer = fixture.Answer("failed-view");
+
+        Assert.False(answer.Succeeded);
+        Assert.Equal("offer-expired", answer.Code);
+        Assert.True(failed.Disposed);
+        Assert.Empty(failed.Frames);
+        Assert.Equal(0, fixture.Audio.Created);
+        Assert.True((await fixture.OfferAsync("next-view")).Succeeded);
+    }
+
+    [Fact]
+    public async Task CandidateTransportThatStopsDuringTheKeyFrameKeepsTheOriginalView()
+    {
+        await using var fixture = new Fixture(false);
+        await fixture.StartAsync("view");
+        Peer original = Assert.Single(fixture.Peers.Peers);
+        await WaitUntilAsync(() => !original.Frames.IsEmpty);
+
+        await fixture.StartAsync("renew", "view");
+        Peer replacement = fixture.Peers.Peers[1];
+        replacement.AdmitVideo = () =>
+        {
+            replacement.StopTransport();
+            return true;
+        };
+        replacement.Connection.TrySetResult();
+        await replacement.Disposal.Task.WaitAsync(TimeSpan.FromSeconds(3));
+
+        int framesBefore = original.Frames.Count;
+        await WaitUntilAsync(() => original.Frames.Count > framesBefore);
+        Assert.False(original.Disposed);
+        Assert.Equal(0, fixture.Capture.EndCount);
+        Assert.Equal(1, fixture.Audio.Created);
+    }
+
+    [Fact]
+    public async Task PreviousViewPublishesItsStopBeforeTheNextViewEvenIfPeerDisposalIsDelayed()
+    {
+        await using var fixture = new Fixture(false);
+        var activities = new ConcurrentQueue<(string OperationId, bool Active)>();
+        fixture.Coordinator.ActivityChanged += (_, activity) => activities.Enqueue((activity.OperationId, activity.Active));
+        await fixture.StartAsync("first-view");
+        Peer first = Assert.Single(fixture.Peers.Peers);
+        await WaitUntilAsync(() => !first.Frames.IsEmpty);
+        using var releaseDisposal = new ManualResetEventSlim();
+        var disposalEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        first.OnDispose = () =>
+        {
+            disposalEntered.TrySetResult();
+            releaseDisposal.Wait(TimeSpan.FromSeconds(5));
+        };
+
+        try
+        {
+            Assert.True(fixture.Coordinator.Stop("viewer"));
+            await disposalEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await fixture.StartAsync("second-view");
+            await WaitUntilAsync(() => !fixture.Peers.Peers[1].Frames.IsEmpty);
+
+            Assert.Equal([("first-view", true), ("first-view", false), ("second-view", true)], activities.ToArray());
+        }
+        finally
+        {
+            releaseDisposal.Set();
+            await first.Disposal.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
 
     [Fact]
     public async Task DifferentDeviceRemainsBusyAndIsNotAllowedToTakeOver()
@@ -317,6 +514,7 @@ public sealed class ScreenViewRelayRenewalTests : IsolatedHostSettingsTest
     private sealed class Fixture : IAsyncDisposable
     {
         private readonly TempPairingStore _store = new();
+        private readonly ScreenViewHostIdentity _identity = ScreenViewHostIdentity.CreateEphemeral();
         public PairingTestKey Key { get; } = new();
         public Capture Capture { get; }
         public PeerFactory Peers { get; } = new();
@@ -328,7 +526,7 @@ public sealed class ScreenViewRelayRenewalTests : IsolatedHostSettingsTest
         public Fixture(bool staticDesktop)
         {
             AppPermissionSettings.Save(AppPermissionSettings.Load() with { AllowScreenViewing = true });
-            var manager = new PairingManager(_store.Store);
+            var manager = new PairingManager(_store.Store, _identity);
             Manager = manager;
             Assert.True(manager.AcceptPairing("viewer", "Phone", manager.CreatePairingToken(), reconnectPublicKey: Key.PublicKey).Accepted);
             var status = new HostStatusPayloadFactory(manager, null!, null!, null!, null!, null!, null!, null!,
@@ -350,9 +548,11 @@ public sealed class ScreenViewRelayRenewalTests : IsolatedHostSettingsTest
         }
         public async Task StartAsync(string operation, string? renewalOf = null, WebSocket? owner = null)
         {
+            int previousAudioRuns = Volatile.Read(ref Audio.Created);
             Assert.True((await OfferAsync(operation, renewalOf, owner: owner)).Succeeded);
             if (renewalOf is null) Peers.Peers[^1].Connection.TrySetResult();
             Assert.True(Answer(operation, owner: owner).Succeeded);
+            if (renewalOf is null) await WaitUntilAsync(() => Volatile.Read(ref Audio.Created) > previousAudioRuns);
         }
         public ScreenViewOperationResult Answer(string operation, string? proof = null, WebSocket? owner = null)
         {
@@ -365,6 +565,7 @@ public sealed class ScreenViewRelayRenewalTests : IsolatedHostSettingsTest
         {
             await Coordinator.DisposeAsync();
             Key.Dispose();
+            _identity.Dispose();
             _store.Dispose();
         }
     }
@@ -395,12 +596,14 @@ public sealed class ScreenViewRelayRenewalTests : IsolatedHostSettingsTest
     {
         public List<Peer> Peers { get; } = [];
         public List<ScreenViewPeerConfiguration?> Configurations { get; } = [];
+        public Action? OnCreate { get; set; }
         public IScreenViewWebRtcPeer Create() => Create(null);
         public IScreenViewWebRtcPeer Create(ScreenViewPeerConfiguration? configuration)
         {
             var peer = new Peer();
             Peers.Add(peer);
             Configurations.Add(configuration);
+            OnCreate?.Invoke();
             return peer;
         }
     }
@@ -412,6 +615,10 @@ public sealed class ScreenViewRelayRenewalTests : IsolatedHostSettingsTest
         public Task Connected => Connection.Task;
         public ConcurrentQueue<byte[]> Frames { get; } = new();
         public Func<bool>? AdmitVideo { get; set; }
+        public Func<CancellationToken, Task<string>>? OnCreateOffer { get; set; }
+        public Action? OnApplyAnswer { get; set; }
+        public Action? OnDispose { get; set; }
+        public bool TransportStopped { get; private set; }
         public bool FailDisposal { get; set; }
         public volatile bool Disposed;
         public TaskCompletionSource Disposal { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -420,8 +627,14 @@ public sealed class ScreenViewRelayRenewalTests : IsolatedHostSettingsTest
         public event EventHandler? KeyFrameRequested;
         public Action CaptureStopCallback() { EventHandler? callback = Stopped; return () => callback?.Invoke(this, EventArgs.Empty); }
         public Action CaptureAudioStopCallback() { EventHandler? callback = AudioStopped; return () => callback?.Invoke(this, EventArgs.Empty); }
-        public Task<string> CreateOfferAsync(CancellationToken cancellationToken) => Task.FromResult(Sdp);
-        public void ApplyAnswer(string answerSdp) { }
+        public Task<string> CreateOfferAsync(CancellationToken cancellationToken) =>
+            OnCreateOffer?.Invoke(cancellationToken) ?? Task.FromResult(Sdp);
+        public void ApplyAnswer(string answerSdp) => OnApplyAnswer?.Invoke();
+        public void StopTransport()
+        {
+            TransportStopped = true;
+            Stopped?.Invoke(this, EventArgs.Empty);
+        }
         public bool TrySendH264(byte[] accessUnit, int framesPerSecond)
         {
             if (Disposed || AdmitVideo?.Invoke() == false) return false;
@@ -432,6 +645,7 @@ public sealed class ScreenViewRelayRenewalTests : IsolatedHostSettingsTest
         public bool TrySendEvent(byte[] eventBytes) => !Disposed;
         public void Dispose()
         {
+            OnDispose?.Invoke();
             Disposed = true;
             Connection.TrySetCanceled();
             Disposal.TrySetResult();
@@ -444,10 +658,14 @@ public sealed class ScreenViewRelayRenewalTests : IsolatedHostSettingsTest
     {
         public int Created;
         public volatile bool Stopped;
+        public Action? OnCanceled { get; set; }
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public IScreenViewSystemAudioCapture Create() { Interlocked.Increment(ref Created); return this; }
         public async Task RunAsync(Func<ScreenViewEncodedAudioFrame, bool> send, Action<ScreenViewAudioAvailability> reportAvailability,
             Func<ScreenViewSoundQuality> getSoundQuality, CancellationToken cancellationToken)
         {
+            using CancellationTokenRegistration registration = OnCanceled is { } callback ? cancellationToken.Register(callback) : default;
+            Started.TrySetResult();
             try { await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken); }
             finally { Stopped = true; }
         }

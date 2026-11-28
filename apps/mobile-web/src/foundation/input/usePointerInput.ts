@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type TouchEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, type TouchEvent } from "react";
 import type { ConnectionState } from "../connection/connectionTypes";
 import {
   GestureRecognizer,
@@ -17,6 +17,7 @@ import { triggerHapticFeedback } from "./hapticFeedback";
 interface PointerInputOptions {
   send: (payload: ClientMessage) => void;
   state: ConnectionState;
+  sessionKey?: number;
   trackpadSettings: TrackpadSettings;
   twoFingerMode?: TwoFingerMode;
   inputContext?: InputContext | null;
@@ -47,6 +48,7 @@ type PointerEmission = Extract<
 export function usePointerInput({
   send,
   state,
+  sessionKey,
   trackpadSettings,
   twoFingerMode = "scroll",
   inputContext = "trackpad",
@@ -57,6 +59,7 @@ export function usePointerInput({
   const pendingPointerWheelRef = useRef<PendingPointerDelta | null>(null);
   const sendRef = useRef(send);
   const stateRef = useRef(state);
+  const sessionKeyRef = useRef(sessionKey);
 
   const cancel = useCallback(() => {
     if (pointerFrameRef.current !== null) {
@@ -68,13 +71,14 @@ export function usePointerInput({
     recognizerRef.current.cancel();
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     sendRef.current = send;
     stateRef.current = state;
-    if (state !== "paired") {
+    if (state !== "paired" || sessionKeyRef.current !== sessionKey) {
       cancel();
     }
-  }, [cancel, send, state]);
+    sessionKeyRef.current = sessionKey;
+  }, [cancel, send, sessionKey, state]);
 
   useEffect(() => {
     const cancelWhenHidden = () => {

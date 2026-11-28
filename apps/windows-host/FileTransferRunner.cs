@@ -46,23 +46,29 @@ internal sealed class FileTransferRunner : IAsyncDisposable
         try
         {
             await transfer.StartPublished.Task.WaitAsync(transfer.CancellationToken).ConfigureAwait(false);
-            RelayTurnConfiguration? relay = await NegotiateAsync(transfer, transfer.CancellationToken).ConfigureAwait(false);
-            await SendStatusAsync(transfer, "transferring", 0, true, transfer.CancellationToken).ConfigureAwait(false);
+            using var session = CancellationTokenSource.CreateLinkedTokenSource(
+                transfer.CancellationToken, _lifetimeToken, transfer.ScreenCaptureLifetime.View, transfer.ScreenCaptureLifetime.Display);
+            RelayTurnConfiguration? relay = await NegotiateAsync(transfer, session.Token).ConfigureAwait(false);
+            await SendStatusAsync(transfer, "transferring", 0, true, session.Token).ConfigureAwait(false);
             using var inactivity = new CancellationTokenSource();
             inactivity.CancelAfter(FileTransferProtocol.InactivityTimeout);
             using var relayExpiry = CreateRelayExpiry(relay);
             using var stalled = inactivity.Token.Register(() => SetFailureIfUnset(transfer, "stalled", "File transfer stopped after 60 seconds without progress."));
             using var expired = relayExpiry?.Token.Register(() => SetFailureIfUnset(transfer, "relay-expired", "The Relay file-transfer session expired."));
-            using var active = CancellationTokenSource.CreateLinkedTokenSource(transfer.CancellationToken, _lifetimeToken, inactivity.Token, relayExpiry?.Token ?? CancellationToken.None);
+            using var active = CancellationTokenSource.CreateLinkedTokenSource(session.Token, inactivity.Token, relayExpiry?.Token ?? CancellationToken.None);
             await FileTransferDataPump.SendAsync(
                 transfer.DownloadSource ?? throw new IOException("The download source was unavailable."), transfer.DeclaredSize, transfer.Peer!,
                 () => inactivity.CancelAfter(FileTransferProtocol.InactivityTimeout),
                 (completed, force, token) => SendStatusAsync(transfer, "transferring", completed, force, token), active.Token).ConfigureAwait(false);
-            await SendResultAsync(transfer, true, null, "File ready to save.", active.Token).ConfigureAwait(false);
+            // The phone has acknowledged every byte. Later capture or transfer cancellation cannot discard that download.
+            await SendResultAsync(transfer, true, null, "File ready to save.", CancellationToken.None).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
-            await SendFailureAsync(transfer, transfer.FailureCode ?? "canceled", transfer.FailureMessage ?? "File transfer canceled.").ConfigureAwait(false);
+            if (transfer.ScreenCaptureLifetime.IsCancellationRequested)
+                SetFailureIfUnset(transfer, "screen-session-stale", "The active Screen View changed before the screenshot finished transferring.");
+            if (transfer.StartPublished.Task.IsCompletedSuccessfully)
+                await SendFailureAsync(transfer, transfer.FailureCode ?? "canceled", transfer.FailureMessage ?? "File transfer canceled.").ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is IOException or WebSocketException or FileTransferWebRtcException or ChannelClosedException or ObjectDisposedException or InvalidOperationException)
         {
@@ -81,7 +87,15 @@ internal sealed class FileTransferRunner : IAsyncDisposable
         {
             await transfer.StartPublished.Task.WaitAsync(linked.Token).ConfigureAwait(false);
             await _slot.WaitAsync(linked.Token).ConfigureAwait(false);
-            transfer.SlotHeld = true;
+            lock (transfer.Gate)
+            {
+                if (Volatile.Read(ref transfer.DisposeStarted) != 0)
+                {
+                    _slot.Release();
+                    throw new OperationCanceledException(linked.Token);
+                }
+                transfer.SlotHeld = true;
+            }
             RelayTurnConfiguration? relay = await NegotiateAsync(transfer, linked.Token).ConfigureAwait(false);
             await SendStatusAsync(transfer, "transferring", 0, true, linked.Token).ConfigureAwait(false);
             using var inactivity = new CancellationTokenSource();
@@ -173,7 +187,13 @@ internal sealed class FileTransferRunner : IAsyncDisposable
         long now = TimeProvider.System.GetTimestamp();
         if (!force && transfer.LastStatusTimestamp != 0 && TimeProvider.System.GetElapsedTime(transfer.LastStatusTimestamp, now) < TimeSpan.FromMilliseconds(200)) return;
         transfer.LastStatusTimestamp = now;
-        await transport.SendAsync(transfer.Socket, new { type = "file.transfer.status", transferId = transfer.Id, direction = transfer.Direction, state, bytesCompleted = completed, bytesTotal = transfer.DeclaredSize }, cancellationToken).ConfigureAwait(false);
+        if (!await transport.TrySendAsync(transfer.Socket,
+                new { type = "file.transfer.status", transferId = transfer.Id, direction = transfer.Direction, state, bytesCompleted = completed, bytesTotal = transfer.DeclaredSize },
+                cancellationToken).ConfigureAwait(false))
+        {
+            SetFailureIfUnset(transfer, "connection-lost", "The control connection was lost.");
+            throw new WebSocketException(WebSocketError.InvalidState);
+        }
     }
 
     private async Task SendResultAsync(FileTransferSession transfer, bool succeeded, string? code, string message, CancellationToken cancellationToken, string? fileName = null)
@@ -211,11 +231,11 @@ internal sealed class FileTransferRunner : IAsyncDisposable
 
     private async Task RemoveAndDisposeAsync(FileTransferSession transfer)
     {
-        remove(transfer);
-        await DisposeTransferAsync(transfer).ConfigureAwait(false);
+        try { await DisposeTransferAsync(transfer).ConfigureAwait(false); }
+        finally { remove(transfer); }
     }
 
-    private async Task DisposeTransferAsync(FileTransferSession transfer)
+    internal async Task DisposeTransferAsync(FileTransferSession transfer)
     {
         if (Interlocked.Exchange(ref transfer.DisposeStarted, 1) != 0) return;
         List<Exception>? failures = null;

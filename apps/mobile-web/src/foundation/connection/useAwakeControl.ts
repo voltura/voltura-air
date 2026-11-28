@@ -14,7 +14,7 @@ interface PendingAwakeOperation {
 export function useAwakeControl(
   state: ConnectionState,
   connectionEpoch: number,
-  send: (payload: ClientMessage) => void,
+  send: (payload: ClientMessage) => boolean | void,
 ) {
   const [pendingOperation, setPendingOperation] = useState<PendingAwakeOperation | null>(null);
   const [awakeResult, setAwakeResult] = useState<AwakeResultMessage | null>(null);
@@ -58,10 +58,12 @@ export function useAwakeControl(
     }
 
     const pending = { operationId: createLocalId(), enabled } satisfies PendingAwakeOperation;
+    if (send({ type: "awake.set", ...pending }) === false) {
+      return;
+    }
     pendingRef.current = pending;
     setPendingOperation(pending);
     setAwakeResult(null);
-    send({ type: "awake.set", ...pending });
   };
 
   const completeAwakeChange = (result: AwakeResultMessage) => {

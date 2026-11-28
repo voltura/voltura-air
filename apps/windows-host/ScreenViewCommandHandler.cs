@@ -15,13 +15,14 @@ internal sealed class ScreenViewCommandHandler(
 
     public async Task ClientDisconnectedAsync(string clientId, WebSocket socket)
     {
-        coordinator.StopConnection(clientId, socket);
         PendingStart? pending = GetPending(clientId);
-        if (pending is not null && ReferenceEquals(pending.Owner, socket))
-        {
-            pending.Cancel();
+        if (pending is not null && !ReferenceEquals(pending.Owner, socket))
+            pending = null;
+
+        pending?.Cancel();
+        coordinator.StopConnection(clientId, socket);
+        if (pending is not null)
             await pending.Task.ConfigureAwait(false);
-        }
     }
 
     public Task HandlePointerAsync(

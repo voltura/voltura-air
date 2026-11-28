@@ -54,6 +54,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
     private readonly IPhoneWebcamAudioTarget _audioTarget;
     private readonly TimeProvider _timeProvider;
     private readonly PhoneWebcamFrameSequence _frameSequence = new();
+    private readonly HashSet<Task> _retiring = [];
     private PendingSession? _pending;
     private PendingSession? _answering;
     private ActiveSession? _active;
@@ -138,6 +139,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         }
 
         var offerReady = false;
+        var activityReported = false;
         try
         {
             if (expired is not null)
@@ -161,6 +163,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             string offerHash = HashSdp(offerSdp);
             string offerTranscript = OfferTranscript(clientId, operationId, offerHash);
             string signature = _pairingManager.HostIdentity.Sign(Encoding.UTF8.GetBytes(offerTranscript));
+            activityReported = true;
             ReportSessionActivity(pending.Generation, clientId, "connecting", captureWidth, captureHeight);
             lock (_gate)
             {
@@ -194,8 +197,10 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             pending.CompleteOfferCreation();
             if (!offerReady)
             {
-                RemovePending(pending);
+                bool removed = RemovePending(pending);
                 await pending.DisposeAsync().ConfigureAwait(false);
+                if (removed && activityReported)
+                    ReportTerminalActivity(pending.Generation, clientId, "idle");
             }
         }
     }
@@ -305,23 +310,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            lock (_gate)
-            {
-                if (ReferenceEquals(_answering, pending))
-                {
-                    _answering = null;
-                }
-            }
-
-            try
-            {
-                await createdActive.DisposeAsync().ConfigureAwait(false);
-            }
-            finally
-            {
-                pending.CompleteAnswering();
-            }
-
+            await RejectAnsweringAsync(pending, createdActive).ConfigureAwait(false);
             return pending.UseMicrophone
                 ? new(false, "microphone-unavailable", "The PC could not start the VB-CABLE audio endpoint.")
                 : new(false, "decoder-unavailable", "The PC could not start its H.264 Phone webcam decoder.");
@@ -342,21 +331,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         }
         if (!accepted)
         {
-            lock (_gate)
-            {
-                if (ReferenceEquals(_answering, pending))
-                {
-                    _answering = null;
-                }
-            }
-            try
-            {
-                await createdActive.DisposeAsync().ConfigureAwait(false);
-            }
-            finally
-            {
-                pending.CompleteAnswering();
-            }
+            await RejectAnsweringAsync(pending, createdActive).ConfigureAwait(false);
             return startupFailure switch
             {
                 "audio-failed" => new(false, "microphone-unavailable", "The PC could not start the VB-CABLE audio endpoint."),
@@ -371,23 +346,30 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         return new(true, "accepted", "Phone webcam is connecting to the PC.");
     }
 
-    private async Task RejectAnsweringAsync(PendingSession pending)
+    private async Task RejectAnsweringAsync(PendingSession pending, ActiveSession? active = null)
     {
-        lock (_gate)
-        {
-            if (ReferenceEquals(_answering, pending))
-            {
-                _answering = null;
-            }
-        }
-
         try
         {
-            await pending.DisposeAsync().ConfigureAwait(false);
+            if (active is null)
+                await pending.DisposeAsync().ConfigureAwait(false);
+            else
+                await active.DisposeAsync().ConfigureAwait(false);
         }
         finally
         {
-            pending.CompleteAnswering();
+            bool resetActivity = false;
+            lock (_gate)
+            {
+                if (ReferenceEquals(_answering, pending))
+                {
+                    _answering = null;
+                    resetActivity = !pending.StopRequested;
+                }
+                pending.CompleteAnswering();
+            }
+
+            if (resetActivity)
+                ReportTerminalActivity(pending.Generation, pending.ClientId, "idle");
         }
     }
 
@@ -448,7 +430,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
                 return;
             }
 
-            _pending = null;
+            DetachPendingLocked();
         }
 
         await FinishExpiredPendingAsync(pending).ConfigureAwait(false);
@@ -470,25 +452,26 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         PendingSession? pending = null;
         PendingSession? answering = null;
         ActiveSession? active = null;
+        bool claimedAnswering = false;
         lock (_gate)
         {
             if (_pending?.ClientId == clientId && (owner is null || ReferenceEquals(_pending.Owner, owner)))
             {
-                pending = _pending;
-                _pending = null;
+                pending = DetachPendingLocked();
             }
 
             if (_active?.ClientId == clientId && (owner is null || ReferenceEquals(_active.Owner, owner)))
             {
                 active = _active;
                 _active = null;
+                TrackRetirementLocked(active.Retirement);
             }
 
             if (_answering?.ClientId == clientId &&
-                (owner is null || ReferenceEquals(_answering.Owner, owner)) &&
-                _answering.RequestStop())
+                (owner is null || ReferenceEquals(_answering.Owner, owner)))
             {
                 answering = _answering;
+                claimedAnswering = answering.RequestStop();
             }
         }
 
@@ -516,7 +499,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         if (answering is not null)
         {
             await answering.AnsweringCompleted.ConfigureAwait(false);
-            if (retiredGeneration is null)
+            if (retiredGeneration is null && claimedAnswering)
             {
                 ReportTerminalActivity(answering.Generation, clientId, reason);
             }
@@ -524,7 +507,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
 
         PendingSession? endedPending = pending;
         ActiveSession? endedActive = active;
-        PendingSession? endedAnswering = answering;
+        PendingSession? endedAnswering = claimedAnswering ? answering : null;
         if (endedPending is not null || endedAnswering is not null || endedActive is not null)
         {
             Ended?.Invoke(this, new PhoneWebcamActivityChangedEventArgs(
@@ -534,7 +517,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
                 operationId: endedActive?.OperationId ?? endedAnswering?.OperationId ?? endedPending?.OperationId));
         }
 
-        return pending is not null || answering is not null || active is not null;
+        return pending is not null || claimedAnswering || active is not null;
     }
 
     private async Task StopSpecificAsync(ActiveSession active, string reason, long? stalledAt = null)
@@ -548,6 +531,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             }
 
             _active = null;
+            TrackRetirementLocked(active.Retirement);
         }
 
         try
@@ -581,20 +565,37 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             return null;
         }
 
-        PendingSession expired = _pending;
-        _pending = null;
-        return expired;
+        return DetachPendingLocked();
     }
 
-    private void RemovePending(PendingSession pending)
+    private bool RemovePending(PendingSession pending)
     {
         lock (_gate)
         {
-            if (ReferenceEquals(_pending, pending))
-            {
-                _pending = null;
-            }
+            if (!ReferenceEquals(_pending, pending)) return false;
+            DetachPendingLocked();
+            return true;
         }
+    }
+
+    private PendingSession? DetachPendingLocked()
+    {
+        PendingSession? pending = _pending;
+        _pending = null;
+        if (pending is not null) TrackRetirementLocked(pending.Retirement);
+        return pending;
+    }
+
+    private void TrackRetirementLocked(Task completion)
+    {
+        _retiring.Add(completion);
+        _ = ForgetRetirementAsync(completion);
+    }
+
+    private async Task ForgetRetirementAsync(Task completion)
+    {
+        await completion.ConfigureAwait(false);
+        lock (_gate) _retiring.Remove(completion);
     }
 
     private void OnPairingRevoked(object? sender, PairingRevokedEventArgs args)
@@ -639,6 +640,10 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         {
             await StopAsync(client, reason).ConfigureAwait(false);
         }
+
+        Task[] retiring;
+        lock (_gate) retiring = [.. _retiring];
+        await Task.WhenAll(retiring).ConfigureAwait(false);
     }
 
     public async ValueTask DisposeAsync()
@@ -722,7 +727,14 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
                 return;
             }
 
-            ReportActivityCore(clientId, state);
+            try
+            {
+                ReportActivityCore(clientId, state);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                Console.Error.WriteLine("Voltura Air Phone webcam activity notification failed ({0}).", exception.GetType().Name);
+            }
         }
     }
 
@@ -768,6 +780,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         internal string? OfferHash { get; set; }
         internal long Generation { get; set; }
         internal Task AnsweringCompleted => _answeringCompleted.Task;
+        internal Task Retirement => _cleanupCompleted.Task;
         internal bool StopRequested { get; private set; }
         internal IPhoneWebcamWebRtcPeer Peer => _peer ?? throw new ObjectDisposedException(nameof(PendingSession));
         internal bool RequestStop()
@@ -813,6 +826,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         private readonly EventHandler _stopped;
         private readonly PhoneWebcamAudioPipeline? _audioPipeline;
         private readonly CancellationTokenSource _retired = new();
+        private readonly TaskCompletionSource _cleanupCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private long _lastVideoTimestamp = long.MinValue;
         private string? _failureReason;
         private int _disposed;
@@ -878,6 +892,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         internal object Owner { get; }
         internal Task MediaOpen => _peer.MediaOpen;
         internal CancellationToken Retired { get; }
+        internal Task Retirement => _cleanupCompleted.Task;
         internal long LastVideoTimestamp => Volatile.Read(ref _lastVideoTimestamp);
         internal PhoneWebcamVideoPipeline Pipeline { get; }
         internal bool HasMicrophone => _audioPipeline is not null;
@@ -910,26 +925,34 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         {
             if (Interlocked.Exchange(ref _disposed, 1) != 0)
             {
+                await Retirement.ConfigureAwait(false);
                 return;
             }
 
-            await _retired.CancelAsync().ConfigureAwait(false);
-            _retired.Dispose();
-
-            _peer.Stopped -= _stopped;
-            _peer.AccessUnitReceived -= Pipeline.Submit;
-            if (_audioPipeline is not null)
+            try
             {
-                _peer.OpusPacketReceived -= _audioPipeline.Submit;
-                _audioPipeline.Failed -= OnAudioPipelineFailed;
+                await _retired.CancelAsync().ConfigureAwait(false);
+                _retired.Dispose();
+
+                _peer.Stopped -= _stopped;
+                _peer.AccessUnitReceived -= Pipeline.Submit;
+                if (_audioPipeline is not null)
+                {
+                    _peer.OpusPacketReceived -= _audioPipeline.Submit;
+                    _audioPipeline.Failed -= OnAudioPipelineFailed;
+                }
+                Pipeline.KeyFrameRequested -= OnKeyFrameRequested;
+                Pipeline.Failed -= OnPipelineFailed;
+                Task videoStopped = Pipeline.DisposeAsync().AsTask();
+                Task audioStopped = _audioPipeline?.DisposeAsync().AsTask() ?? Task.CompletedTask;
+                // Native peer deletion can wait for the callback that reported the failure.
+                Task peerStopped = Task.Run(() => DisposePeerAsync(_peer).AsTask());
+                await Task.WhenAll(videoStopped, audioStopped, peerStopped).ConfigureAwait(false);
             }
-            Pipeline.KeyFrameRequested -= OnKeyFrameRequested;
-            Pipeline.Failed -= OnPipelineFailed;
-            Task videoStopped = Pipeline.DisposeAsync().AsTask();
-            Task audioStopped = _audioPipeline?.DisposeAsync().AsTask() ?? Task.CompletedTask;
-            // Native peer deletion can wait for the callback that reported the failure.
-            Task peerStopped = Task.Run(() => DisposePeerAsync(_peer).AsTask());
-            await Task.WhenAll(videoStopped, audioStopped, peerStopped).ConfigureAwait(false);
+            finally
+            {
+                _cleanupCompleted.TrySetResult();
+            }
         }
     }
 }

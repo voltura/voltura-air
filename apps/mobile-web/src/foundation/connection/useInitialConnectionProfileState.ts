@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { isScreenshotMode } from "../platform/clientEnvironment";
 import {
   hasPairingTokenParameter,
+  isDirectPairingPath,
   parseHostedConnectionAddress,
   parsePairingLink,
   parsePcUrl,
@@ -19,13 +20,19 @@ export function useInitialConnectionProfileState() {
   const addressClientId = useMemo(() => getClientIdFromAddress(window.location.href), []);
   const addressPcUrl = useMemo(() => parsePcUrl(window.location.href, window.location.origin), []);
   const hostedAddress = useMemo(() => parseHostedConnectionAddress(window.location.href), []);
-  const initialPairing = useMemo(
-    () =>
-      hostedAddress?.pairToken
-        ? { pairToken: hostedAddress.pairToken, pcUrl: hostedAddress.pcUrl }
-        : parsePairingLink(window.location.href),
-    [hostedAddress],
-  );
+  const initialPairing = useMemo(() => {
+    if (hostedAddress?.pairToken) {
+      return { pairToken: hostedAddress.pairToken, pcUrl: hostedAddress.pcUrl };
+    }
+    const address = new URL(window.location.href);
+    if (
+      isDirectPairingPath(address.pathname) &&
+      address.searchParams.getAll("refresh").length === 1
+    ) {
+      address.searchParams.delete("refresh");
+    }
+    return parsePairingLink(address.href);
+  }, [hostedAddress]);
   const addressHasInvalidPairing = useMemo(
     () => initialPairing === null && hasPairingTokenParameter(window.location.href),
     [initialPairing],
@@ -56,6 +63,14 @@ export function useInitialConnectionProfileState() {
   const hasOnlyAddressIdentity =
     addressClientId !== null && storedActivePcId === null && storedPcProfiles.length === 0;
   const clientId = useMemo(() => getOrCreateClientId(window.location.href), []);
+  // The Direct pairing page keeps its routing hint after the token is cleared.
+  // On reload, only the saved active profile should drive a connection from that page.
+  const shouldUseAddressPc =
+    !isDirectPairingPath(window.location.pathname) &&
+    !addressHasInvalidPairing &&
+    initialPairing === null &&
+    hostedAddressIsStored &&
+    (addressHasPcUrl || hasOnlyAddressIdentity);
 
   return {
     addressPcProfile,
@@ -63,16 +78,8 @@ export function useInitialConnectionProfileState() {
     effectiveStoredActivePcId,
     initialPairing,
     screenshotMode,
-    shouldActivateAddressPc:
-      !addressHasInvalidPairing &&
-      initialPairing === null &&
-      hostedAddressIsStored &&
-      (addressHasPcUrl || hasOnlyAddressIdentity),
-    shouldStoreAddressPc:
-      !addressHasInvalidPairing &&
-      initialPairing === null &&
-      hostedAddressIsStored &&
-      (addressHasPcUrl || hasOnlyAddressIdentity),
+    shouldActivateAddressPc: shouldUseAddressPc,
+    shouldStoreAddressPc: shouldUseAddressPc,
     storedPcProfiles,
   };
 }

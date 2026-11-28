@@ -10,6 +10,7 @@ internal static class FileTransferDataPump
         Func<long, bool, CancellationToken, Task> publishProgress,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         long sent = 0;
         long acknowledged = 0;
         var buffer = new byte[FileTransferProtocol.MaximumPayloadBytes];
@@ -27,8 +28,10 @@ internal static class FileTransferDataPump
             if (!FileTransferProtocol.TryParse(bytes, out var record) || record.Kind != FileTransferRecordKind.Acknowledgement ||
                 record.Offset <= acknowledged || record.Offset > sent) throw new IOException("An invalid download acknowledgement was received.");
             acknowledged = record.Offset;
+            // The final acknowledgement commits the download independently of cancellable status delivery.
+            if (acknowledged == declaredSize) return;
             progress();
-            await publishProgress(acknowledged, acknowledged == declaredSize, cancellationToken).ConfigureAwait(false);
+            await publishProgress(acknowledged, false, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -41,6 +44,7 @@ internal static class FileTransferDataPump
         Func<long, bool, CancellationToken, Task> publishProgress,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         long offset = 0;
         if (declaredSize == 0) await SendRecordAsync(peer, FileTransferProtocol.CreateAcknowledgement(0), cancellationToken).ConfigureAwait(false);
         while (offset < declaredSize)
@@ -51,16 +55,23 @@ internal static class FileTransferDataPump
                 throw new IOException("An invalid upload record was received.");
             await destination.WriteAsync(record.Payload, cancellationToken).ConfigureAwait(false);
             await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             offset += record.Payload.Length;
             committed(offset);
             progress();
             await SendRecordAsync(peer, FileTransferProtocol.CreateAcknowledgement(offset), cancellationToken).ConfigureAwait(false);
             await publishProgress(offset, offset == declaredSize, cancellationToken).ConfigureAwait(false);
         }
+        cancellationToken.ThrowIfCancellationRequested();
     }
 
     private static async Task SendRecordAsync(IFileTransferWebRtcPeer peer, byte[] record, CancellationToken cancellationToken)
     {
-        while (!peer.TrySend(record)) await Task.Delay(5, cancellationToken).ConfigureAwait(false);
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (peer.TrySend(record)) return;
+            await Task.Delay(5, cancellationToken).ConfigureAwait(false);
+        }
     }
 }

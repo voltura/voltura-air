@@ -1,6 +1,12 @@
 import { useCallback, useRef, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { getDefaultDeviceName } from "../platform/clientEnvironment";
-import { createPcProfile, forgetPcProfile, renamePcProfile, type PcProfile } from "./pcProfiles";
+import {
+  createPcProfile,
+  forgetPcProfile,
+  renamePcProfile,
+  selectPcProfile,
+  type PcProfile,
+} from "./pcProfiles";
 import type {
   ClientMessage,
   HostStatusMetadata,
@@ -23,11 +29,14 @@ import { normalizeAccentColor } from "../protocol/accentColorProtocol";
 
 interface PairedPcActionOptions {
   activePcId: string | null;
+  authenticatedSocketRef: RefObject<ControllerSocket | null>;
   clearRuntimeState: () => void;
   clientId: string;
+  connectionPc: PcProfile | null;
   deviceNameRef: RefObject<string>;
   pairedPcs: PcProfile[];
   relayEncryptedSendRef: RefObject<RelayEncryptedSend | null>;
+  retireConnectionRef: RefObject<(() => void) | null>;
   screenshotMode: boolean;
   send: (payload: ClientMessage) => void;
   setActivePcId: Dispatch<SetStateAction<string | null>>;
@@ -46,11 +55,14 @@ interface PairedPcActionOptions {
 export function usePairedPcActions(options: PairedPcActionOptions) {
   const {
     activePcId,
+    authenticatedSocketRef,
     clearRuntimeState,
     clientId,
+    connectionPc,
     deviceNameRef,
     pairedPcs,
     relayEncryptedSendRef,
+    retireConnectionRef,
     screenshotMode,
     send,
     setActivePcId,
@@ -77,6 +89,7 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
       setDeviceName(nextDeviceName);
 
       const profile = createPcProfile(pcUrl);
+      retireConnectionRef.current?.();
       setPendingManualPc(profile);
       clearRuntimeState();
       setLastConnectionError(null);
@@ -88,6 +101,7 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     [
       clearRuntimeState,
       deviceNameRef,
+      retireConnectionRef,
       screenshotMode,
       setDeviceName,
       setHostStatus,
@@ -101,26 +115,47 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
 
   const selectPc = useCallback(
     (pcId: string) => {
+      const selectedPc = selectPcProfile(pairedPcs, pcId);
+      if (!selectedPc) {
+        return;
+      }
+
+      retireConnectionRef.current?.();
       setPendingManualPc(null);
       clearRuntimeState();
       setLastConnectionError(null);
       setHostStatus(null);
       setPairingAttempt((current) => ({ token: undefined, id: current.id + 1 }));
       setActivePcId(pcId);
+      setState("connecting");
+      setMessage(`Connecting to ${getDisplayPcName(selectedPc, "", screenshotMode)}...`);
     },
     [
       clearRuntimeState,
+      pairedPcs,
+      retireConnectionRef,
+      screenshotMode,
       setActivePcId,
       setHostStatus,
       setLastConnectionError,
+      setMessage,
       setPairingAttempt,
       setPendingManualPc,
+      setState,
     ],
   );
 
   const addManualPc = useCallback(
     (pcUrl: string) => {
-      const profile = createPcProfile(pcUrl);
+      const target = createPcProfile(pcUrl);
+      const saved = pairedPcs.find((pc) => pc.id === target.id && pc.url === target.url);
+      if (saved?.id === activePcId) {
+        selectPc(saved.id);
+        return;
+      }
+
+      const profile = saved ?? target;
+      retireConnectionRef.current?.();
       clearRuntimeState();
       setLastConnectionError(null);
       setHostStatus(null);
@@ -130,8 +165,12 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
       setMessage(`Connecting to ${getDisplayPcName(profile, "", screenshotMode)}...`);
     },
     [
+      activePcId,
       clearRuntimeState,
+      pairedPcs,
+      retireConnectionRef,
       screenshotMode,
+      selectPc,
       setHostStatus,
       setLastConnectionError,
       setMessage,
@@ -142,19 +181,18 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
   );
 
   const beginNewPairing = useCallback(() => {
+    retireConnectionRef.current?.();
     setPendingManualPc(null);
     clearRuntimeState();
     setLastConnectionError(null);
     setHostStatus(null);
-    const previousSocket = socketRef.current;
-    socketRef.current = null;
-    previousSocket?.close();
     setActivePcId(null);
     setPairingAttempt((current) => ({ token: undefined, id: current.id + 1 }));
     setState("needs-pairing");
     setMessage("Confirm the newly scanned pairing QR code.");
   }, [
     clearRuntimeState,
+    retireConnectionRef,
     setActivePcId,
     setHostStatus,
     setLastConnectionError,
@@ -162,7 +200,6 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     setPairingAttempt,
     setPendingManualPc,
     setState,
-    socketRef,
   ]);
 
   const disconnectActivePc = useCallback(() => {
@@ -170,10 +207,10 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
       return;
     }
 
+    retireConnectionRef.current?.();
     setPendingManualPc(null);
     clearRuntimeState();
     setLastConnectionError(null);
-    socketRef.current?.close();
     setActivePcId(null);
     setPairingAttempt((current) => ({ token: undefined, id: current.id + 1 }));
     setState("disconnected");
@@ -181,13 +218,13 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
   }, [
     activePcId,
     clearRuntimeState,
+    retireConnectionRef,
     setActivePcId,
     setLastConnectionError,
     setMessage,
     setPairingAttempt,
     setPendingManualPc,
     setState,
-    socketRef,
   ]);
 
   const forgetPc = useCallback(
@@ -197,8 +234,14 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
         return;
       }
 
-      const isActivePc = activePcId === pcId;
-      const activeSocket = isActivePc ? socketRef.current : null;
+      // A pending candidate may reuse a saved ID without being the committed profile.
+      const ownsSelectedConnection = activePcId === pcId && connectionPc === pc;
+      const connectionSocket = socketRef.current;
+      const retireConnection = retireConnectionRef.current;
+      const activeSocket =
+        ownsSelectedConnection && authenticatedSocketRef.current === connectionSocket
+          ? connectionSocket
+          : null;
       const ownsReconnectKey = captureReconnectKeyOwnership(clientId, pcId);
       forgettingPcIdsRef.current.add(pcId);
       void revokePcPairing(
@@ -206,7 +249,7 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
         clientId,
         deviceNameRef.current,
         activeSocket,
-        isActivePc ? relayEncryptedSendRef.current : null,
+        activeSocket ? relayEncryptedSendRef.current : null,
       )
         .then((revoked) => {
           forgettingPcIdsRef.current.delete(pcId);
@@ -219,18 +262,22 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
           clearRemoteSettings(clientId, pcId);
           clearAppSettings(clientId, pcId);
           setPairedPcs((current) => forgetPcProfile(current, activePcId, pcId).profiles);
-          if (!isActivePc) {
-            return;
-          }
-          if (socketRef.current !== activeSocket) {
+          if (
+            activePcId !== pcId ||
+            retireConnectionRef.current !== retireConnection ||
+            (ownsSelectedConnection && socketRef.current !== connectionSocket)
+          ) {
             return;
           }
 
+          setActivePcId((current) => (current === pcId ? null : current));
+          if (!ownsSelectedConnection) {
+            return;
+          }
+          retireConnection?.();
           setPendingManualPc(null);
           clearRuntimeState();
           setLastConnectionError(null);
-          socketRef.current?.close();
-          setActivePcId((current) => (current === pcId ? null : current));
           setPairingAttempt((current) => ({ token: undefined, id: current.id + 1 }));
           setState("needs-pairing");
           setMessage("Disconnected. Choose a saved PC or scan a pairing QR.");
@@ -241,11 +288,14 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     },
     [
       activePcId,
+      authenticatedSocketRef,
       clearRuntimeState,
       clientId,
+      connectionPc,
       deviceNameRef,
       pairedPcs,
       relayEncryptedSendRef,
+      retireConnectionRef,
       setActivePcId,
       setLastConnectionError,
       setMessage,

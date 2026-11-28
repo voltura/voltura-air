@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { p256 } from "@noble/curves/nist.js";
+import { sha256 } from "@noble/hashes/sha2.js";
 import { base64Url, createPairingKeyMaterial } from "./pairingCredentials";
 import { revokePcPairing } from "./relayPairingRevocation";
 import { RelayEncryptedChannel } from "./relaySessionCrypto";
@@ -232,6 +233,70 @@ describe("revokePcPairing", () => {
     await expect(revocation).resolves.toBe(false);
     expect(socket.close).toHaveBeenCalledOnce();
   });
+
+  it.each([
+    { host: "matching", confirmed: true },
+    { host: "different", confirmed: false },
+    { host: "missing", confirmed: false },
+    { host: "legacy", confirmed: true },
+  ])(
+    "checks the saved Direct PC identity when reconnecting to forget a $host host",
+    async ({ host, confirmed }) => {
+      const { secretKey } = p256.keygen();
+      const publicKey = p256.getPublicKey(secretKey, false);
+      const hostIdentity = {
+        publicKey: base64Url(publicKey),
+        fingerprint: base64Url(sha256(publicKey).slice(0, 16)),
+      };
+      const acceptedHost =
+        host === "different"
+          ? { publicKey: hostIdentity.publicKey, fingerprint: "g".repeat(22) }
+          : hostIdentity;
+      const key = createPairingKeyMaterial()!.privateKey;
+      localStorage.setItem("voltura-air.reconnect-key.client-a.pc-b", key);
+      const revocation = revokePcPairing(
+        {
+          customName: false,
+          id: "pc-b",
+          name: "PC B",
+          url: "http://pc-b.local:51395",
+          hostIdentityFingerprint: host === "legacy" ? undefined : hostIdentity.fingerprint,
+          hostIdentityPublicKey: host === "legacy" ? undefined : hostIdentity.publicKey,
+        },
+        "client-a",
+        "Phone",
+        null,
+      );
+      const socket = MockWebSocket.instances[0]!;
+      socket.readyState = MockWebSocket.OPEN;
+      socket.dispatch("open");
+      socket.dispatch(
+        "message",
+        JSON.stringify({ type: "pair.challenge", clientId: "client-a", challenge: "c".repeat(43) }),
+      );
+      socket.dispatch(
+        "message",
+        JSON.stringify({
+          type: "pair.accepted",
+          clientId: "client-a",
+          pcName: "PC B",
+          paired: true,
+          hostIdentity: host === "missing" || host === "legacy" ? undefined : acceptedHost,
+        }),
+      );
+      socket.dispatch("close", { code: 1000 });
+
+      await expect(revocation).resolves.toBe(confirmed);
+      expect(socket.close).toHaveBeenCalledOnce();
+      const disconnect = JSON.stringify({ type: "pair.disconnect" });
+      if (confirmed) {
+        expect(socket.send).toHaveBeenCalledWith(disconnect);
+      } else {
+        expect(socket.send).not.toHaveBeenCalledWith(disconnect);
+        expect(localStorage.getItem("voltura-air.reconnect-key.client-a.pc-b")).toBe(key);
+      }
+    },
+  );
 
   it("waits for encrypted delivery and host closure on an active relay session", async () => {
     const activeSocket = new MockWebSocket("wss://relay.test/ws") as unknown as WebSocket;

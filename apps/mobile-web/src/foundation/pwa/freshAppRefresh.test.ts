@@ -135,6 +135,19 @@ describe("refreshWithFreshAppUrl", () => {
     expect(environment.reload).toHaveBeenCalledOnce();
   });
 
+  it("keeps a guarded automatic refresh from falling back to an unmarked reload", async () => {
+    const environment = createEnvironment({
+      replace: () => {
+        throw new Error("replace");
+      },
+    });
+
+    const result = await refreshWithFreshAppUrl(environment, undefined, "host:build-b");
+
+    expect(result).toMatchObject({ navigationStarted: false, navigationMethod: null });
+    expect(environment.reload).not.toHaveBeenCalled();
+  });
+
   it("returns a handled failure when neither navigation method can start", async () => {
     const environment = createEnvironment({
       reload: () => {

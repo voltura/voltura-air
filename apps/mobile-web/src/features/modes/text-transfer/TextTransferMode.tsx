@@ -20,6 +20,18 @@ import { SavedTextSnippets } from "./SavedTextSnippets";
 
 const longTextConfirmationThreshold = 2000;
 
+function draftOffsetForTextareaSelection(draft: string, selectionOffset: number): number {
+  // The textarea counts CRLF as one character, while the draft preserves both.
+  let draftOffset = selectionOffset;
+  for (let i = 0; i < draftOffset; i += 1) {
+    if (draft[i] === "\r" && draft[i + 1] === "\n") {
+      draftOffset += 1;
+      i += 1;
+    }
+  }
+  return draftOffset;
+}
+
 interface TextTransferModeProps {
   clearAfterSending: boolean;
   clientId: string;
@@ -187,14 +199,14 @@ export function TextTransferMode(props: TextTransferModeProps) {
     }
 
     const operationId = props.requestTextTransfer(props.draft, sendEnter);
-    pendingClearOperation.current = operationId
-      ? {
-          operationId,
-          submittedText: props.draft,
-          clearAfterSending,
-          draftRevision: draftRevision.current,
-        }
-      : null;
+    if (operationId) {
+      pendingClearOperation.current = {
+        operationId,
+        submittedText: props.draft,
+        clearAfterSending,
+        draftRevision: draftRevision.current,
+      };
+    }
   };
 
   const loadSnippet = (snippet: SavedTextSnippet) => {
@@ -249,8 +261,10 @@ export function TextTransferMode(props: TextTransferModeProps) {
       return;
     }
 
-    const nextText =
-      sourceText.slice(0, selectionStart) + result.text + sourceText.slice(selectionEnd);
+    const draftStart = draftOffsetForTextareaSelection(sourceText, selectionStart);
+    const draftEnd = draftOffsetForTextareaSelection(sourceText, selectionEnd);
+    const textBeforeCaret = sourceText.slice(0, draftStart) + result.text;
+    const nextText = textBeforeCaret + sourceText.slice(draftEnd);
     if (nextText.length > maxTextTransferLength) {
       setPhoneClipboardFeedback({
         message: `Pasting would exceed the ${maxTextTransferLength.toLocaleString()} character limit.`,
@@ -259,7 +273,8 @@ export function TextTransferMode(props: TextTransferModeProps) {
       return;
     }
 
-    const nextCaret = selectionStart + result.text.length;
+    const nextCaret = textBeforeCaret.replaceAll("\r\n", "\n").length;
+    const expectedRevision = sourceRevision + (nextText === sourceText ? 0 : 1);
     props.onDraftChange(nextText);
     setPhoneClipboardFeedback({
       message: "Text from this device's clipboard pasted.",
@@ -271,7 +286,8 @@ export function TextTransferMode(props: TextTransferModeProps) {
         !nextEditor ||
         !mountedRef.current ||
         !editingRef.current ||
-        generation !== clipboardGenerationRef.current
+        generation !== clipboardGenerationRef.current ||
+        draftRevision.current !== expectedRevision
       ) {
         return;
       }

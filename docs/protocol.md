@@ -52,6 +52,10 @@ screen capture/encoding, logging, registry access, and host UI work never hold
 the command receive/send path. A full bounded queue or relay backpressure closes
 that slow session instead of accumulating delayed commands. Screen media uses
 its separate WebRTC transport and can fail while commands remain connected.
+Both Relay adapters accept a signed JSON body of at most 4 KiB at
+`/v1/turn/<route>` for TURN credentials. Issuance requires the same authenticated
+host connection to still own the route after signature verification. Cloudflare
+also checks ownership before requesting credentials and before returning them.
 
 - Allowed origins: missing, same-origin, configured development, loopback, and
   private LAN. Unrelated public origins are rejected before upgrade.
@@ -1116,7 +1120,8 @@ The portable package format is JSON in a `.volturascreen` file:
 
 Package version 1 is the only package format and contains one exact current
 screen definition. JSON uses exact lower-camel field names and rejects unknown
-fields. Export removes all device assignments. Import rejects unsupported,
+fields. Device assignments, sections, buttons, and shortcut modifiers use
+JSON arrays. Export removes all device assignments. Import rejects unsupported,
 incomplete, oversized, invalid, or host-local packages, shows the screen and
 action summary before saving, generates new screen/section/button IDs, and
 leaves the imported screen unassigned. Host-local `appLaunch` actions cannot be
@@ -1414,8 +1419,8 @@ neither clipboard.
 ```
 
 Codes: `VAIR-CLIPBOARD-PERMISSION-DENIED`, `VAIR-CLIPBOARD-NO-TEXT`,
-`VAIR-CLIPBOARD-TEXT-TOO-LONG`, `VAIR-CLIPBOARD-UNAVAILABLE`. Permission
-denial performs no read.
+`VAIR-CLIPBOARD-TEXT-TOO-LONG`, `VAIR-CLIPBOARD-UNAVAILABLE`. The host checks
+permission before reading the clipboard and again when admitting the reply.
 
 ## Host file manager
 
@@ -1464,11 +1469,13 @@ The browser ends the wait for SDP and ICE when it closes the transfer peer.
 An answer send failure or a rejection of the current answer ends the local
 transfer and cleans up its temporary download. After a successful transfer
 result, the browser finishes queued writes and ignores later channel records.
+Stopping Screen View or changing its display ends a screenshot transfer until
+the phone acknowledges the final byte.
 Closing the transport preserves a completed download for Save or Share.
 
 Binary records begin with version in the high nibble and kind in the low nibble (`1` data, `2` cumulative acknowledgement), followed by an unsigned 64-bit big-endian offset. Data payload is 1 through 65,536 bytes; acknowledgements have no payload. Senders retain at most 1 MiB unacknowledged and also respect data-channel buffered amount. Upload ACKs follow flushed writes; download ACKs follow completed OPFS writes. No hash, retransmission, encryption, or resume layer is added above WebRTC. Retry starts from zero.
 
-Files downloads require browse and transfer permissions plus one current file revision. The host opens a stable source and supplies its name and length. A screen capture requires connected Screen View media. Its cursor-free native pixel copy and bounded PNG encode run independently of the live capture lock, and the host rejects the result if the captured display changed or the mirror stopped during preparation. The same transfer coordinator sends the generated PNG without a PC-side file. The browser checks estimated quota when available and writes an OPFS partial before exposing a fresh Save/Share activation. Canceling the native share sheet keeps that temporary file ready for retry while its owning view remains open; successful share handoff, explicit discard, fallback-download start, owner exit/start, disconnect, permission loss, cancellation, or failure removes it. Reload cleanup reuses an inherited OPFS owner only after acquiring its exclusive browser claim; a cloned live tab or unavailable claim gets a fresh owner and never sweeps the inherited directory. Uploads additionally require change permission. The host validates the Windows name, current destination revision, and available volume space before admission. An invalid name requires a replacement; conflicts use Replace, host-generated Keep both, or Cancel. Upload is admitted only by `file.transfer.start`, appears as a non-pausable existing mutation job, and queues behind other mutations. `file.job.create` does not accept `upload`.
+Files downloads require browse and transfer permissions plus one current file revision. The host opens a stable source and supplies its name and length. A screen capture requires connected Screen View media. Its cursor-free native pixel copy and bounded PNG encode run independently of the live capture lock, and the host rejects the result if the captured size differs from the active display geometry, the captured display changed, or the mirror stopped during preparation. The same transfer coordinator sends the generated PNG without a PC-side file. The browser checks estimated quota when available and writes an OPFS partial before exposing a fresh Save/Share activation. Canceling the native share sheet keeps that temporary file ready for retry while its owning view remains open; successful share handoff, explicit discard, fallback-download start, owner exit/start, disconnect, permission loss, cancellation, or failure removes it. Reload cleanup reuses an inherited OPFS owner only after acquiring its exclusive browser claim; a cloned live tab or unavailable claim gets a fresh owner and never sweeps the inherited directory. Uploads additionally require change permission. The host validates the Windows name, current destination revision, and available volume space before admission. An invalid name requires a replacement; conflicts use Replace, host-generated Keep both, or Cancel. Upload is admitted only by `file.transfer.start`, appears as a non-pausable existing mutation job, and queues behind other mutations. `file.job.create` does not accept `upload`.
 
 The host journals an upload partial before creating it, excludes every journal-owned partial or backup from all client directory revisions, ACKs only flushed bytes, and revalidates the captured destination directory before commit. A later panel refresh or navigation cannot redirect or cancel that upload. The original remains preserved until Replace commits or rolls back. Explicit cancel, 60 seconds without committed progress, control/data-channel loss, disconnect, unpair, owner exit, permission loss, and host shutdown cancel and clean up. Direct transfer duration is not capped and bypasses Relay admission. Relay requests sign the exact purpose `file-transfer`, receive a 60-minute credential, and stop at expiry; media credentials remain 15 minutes. For a screenshot using the official Voltura Cloud Relay, the host rejects before peer creation when aggregate usage is already at the provider cutoff or when `usage + (3 x PNG bytes) + 1 MiB` reaches it, and immediately disposes the PNG. Missing or unavailable official usage fails closed. Custom Relay has no Voltura cutoff. Aggregate Cloudflare analytics may lag and concurrent sessions are not reserved, so this is conservative admission rather than an exact one-byte reservation. Other file transfer bytes count toward the existing TURN warning and cutoff, but screen quality throttling is not applied to file bytes.
 

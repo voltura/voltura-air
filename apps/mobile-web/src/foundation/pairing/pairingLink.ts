@@ -25,6 +25,10 @@ const invalidHostMessage = "Enter a host with a valid port, for example 192.168.
 const invalidPairingLinkMessage = "Enter the complete pairing link shown by Voltura Air on the PC.";
 const hostedAppPaths = new Set(["/air/app/", "/air/dev-app/"]);
 
+export function isDirectPairingPath(pathname: string): boolean {
+  return pathname === pairingPath || pathname === `${pairingPath}/`;
+}
+
 export function isHostedControllerPath(pathname: string): boolean {
   return (
     pathname.startsWith("/a/") ||
@@ -50,7 +54,7 @@ export function parsePairingLink(source: string): PairingLink | null {
     if (relay) {
       return relay;
     }
-    if ((url.pathname !== pairingPath && url.pathname !== `${pairingPath}/`) || url.hash) {
+    if (!isDirectPairingPath(url.pathname) || url.hash) {
       return null;
     }
 

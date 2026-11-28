@@ -27,7 +27,8 @@ internal sealed class AppLogFileStore(
     {
         lock (_gate)
         {
-            var path = Path.Combine(LogDirectory, $"app-log-{timestamp:yyyy-MM-dd}.jsonl");
+            var date = timestamp.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            var path = Path.Combine(LogDirectory, $"app-log-{date}.jsonl");
             TryPruneExpired(timestamp, force: false);
             Directory.CreateDirectory(LogDirectory);
             foreach (var entry in entries)
@@ -64,13 +65,19 @@ internal sealed class AppLogFileStore(
                 }
 
                 files = [.. Directory.EnumerateFiles(LogDirectory, "app-log-*.jsonl")
-                    .Where(path => IsCandidateFile(path, query))
-                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-                    .Take(MaximumCandidateFiles)];
+                    .Select(path => (Path: path, SortKey: GetCandidateFileSortKey(path, query)))
+                    .Where(file => file.SortKey.HasValue)
+                    .OrderBy(file => file.SortKey)
+                    .ThenBy(file => file.Path, StringComparer.OrdinalIgnoreCase)
+                    .Take(MaximumCandidateFiles)
+                    .Select(file => file.Path)];
             }
 
             var limit = Math.Clamp(query.MaxEntries, 1, 5000);
             var entries = new Queue<AppLogRecord>(limit);
+            var selectedEvents = query.Events is { Count: > 0 }
+                ? query.Events.ToHashSet(StringComparer.OrdinalIgnoreCase)
+                : null;
             var truncated = false;
             foreach (var file in files)
             {
@@ -86,7 +93,7 @@ internal sealed class AppLogFileStore(
                         continue;
                     }
 
-                    if (entry is null || !Matches(entry, query))
+                    if (entry is null || !Matches(entry, query, selectedEvents))
                     {
                         continue;
                     }
@@ -223,7 +230,7 @@ internal sealed class AppLogFileStore(
         }
     }
 
-    private static bool Matches(AppLogRecord entry, AppLogQuery query)
+    private static bool Matches(AppLogRecord entry, AppLogQuery query, HashSet<string>? selectedEvents)
     {
         var localDate = DateOnly.FromDateTime(entry.TimestampUtc.LocalDateTime);
         if (localDate < query.FromDate || localDate > query.ToDate)
@@ -232,6 +239,7 @@ internal sealed class AppLogFileStore(
         }
 
         if (!MatchesExact(entry.Event, query.Event) ||
+            (selectedEvents is not null && !selectedEvents.Contains(entry.Event)) ||
             !MatchesExact(entry.Source, query.Source) ||
             !MatchesExact(entry.Action, query.Action))
         {
@@ -245,24 +253,31 @@ internal sealed class AppLogFileStore(
     private static bool MatchesExact(string? value, string? filter) =>
         string.IsNullOrWhiteSpace(filter) || string.Equals(value, filter, StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsCandidateFile(string path, AppLogQuery query)
+    private static (DateOnly UtcDate, bool Canonical)? GetCandidateFileSortKey(string path, AppLogQuery query)
     {
         const string prefix = "app-log-";
         var name = Path.GetFileNameWithoutExtension(path);
-        if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
-            !DateOnly.TryParseExact(
-                name[prefix.Length..],
-                "yyyy-MM-dd",
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out var utcDate))
+        if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
         {
-            return false;
+            return null;
         }
 
+        var date = name.AsSpan(prefix.Length);
         var firstUtcDate = query.FromDate == DateOnly.MinValue ? query.FromDate : query.FromDate.AddDays(-1);
         var lastUtcDate = query.ToDate == DateOnly.MaxValue ? query.ToDate : query.ToDate.AddDays(1);
-        return utcDate >= firstUtcDate && utcDate <= lastUtcDate;
+        if (DateOnly.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var utcDate) &&
+            utcDate >= firstUtcDate && utcDate <= lastUtcDate)
+        {
+            return (utcDate, true);
+        }
+
+        // Earlier versions formatted log filenames with the host's current calendar.
+        var culture = CultureInfo.CurrentCulture;
+        return culture.DateTimeFormat.Calendar is not GregorianCalendar &&
+            DateOnly.TryParseExact(date, "yyyy-MM-dd", culture, DateTimeStyles.None, out var legacyDate) &&
+            legacyDate >= firstUtcDate && legacyDate <= lastUtcDate
+            ? (legacyDate, false)
+            : null;
     }
 
     private static void AppendLine(string path, string line)

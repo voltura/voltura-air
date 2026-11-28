@@ -7,6 +7,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $database = air_screen_db();
     $serviceLock = null;
     $userLock = null;
+    $storageLock = null;
     try {
         $serviceLock = air_screen_acquire_advisory_lock($database, 'upload', 'service');
         $userLock = air_screen_acquire_advisory_lock($database, 'upload_user', (string)$user['id']);
@@ -18,14 +19,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!isset($_FILES['package']) || $_FILES['package']['error'] !== UPLOAD_ERR_OK || $_FILES['package']['size'] > AIR_SCREEN_MAX_BYTES) {
             throw new InvalidArgumentException('Choose a valid .volturascreen package under 8 MB.');
         }
-        $json = file_get_contents($_FILES['package']['tmp_name']);
+        $json = @file_get_contents($_FILES['package']['tmp_name']);
+        if ($json === false) {
+            throw new InvalidArgumentException('The uploaded package could not be read.');
+        }
         $package = air_screen_validate_package($json);
         $screen = $package['screen'];
         air_screen_require_user_package_id((string)$screen['id']);
         $name = trim((string)$screen['name']);
         $description = trim((string)($_POST['description'] ?? ''));
         $tags = trim((string)($_POST['tags'] ?? ''));
-        if ($name === '' || !air_screen_fits_text_limit($name, 24) || strlen($description) > 1000 || strlen($tags) > 500) {
+        if ($name === '' || !air_screen_fits_text_limit($name, 24) ||
+            !air_screen_fits_text_limit($description, 1000) || !air_screen_fits_text_limit($tags, 500)) {
             throw new InvalidArgumentException('Metadata exceeds the allowed length.');
         }
         $id = air_screen_uuid();
@@ -49,39 +54,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sha256 = hash('sha256', $storedJson);
         $basename = $sha256 . '.volturascreen';
         $path = air_screen_package_path($basename);
+        $storageLock = air_screen_try_acquire_package_storage_lock($database, 5)
+            ?? throw new RuntimeException('The catalog is busy. Try again.');
 
         $database->beginTransaction();
         air_screen_enqueue_cleanup($database, $basename, $sha256);
+        air_screen_package_storage_failure('journal_commit');
         $database->commit();
 
-        if (is_file($path)) {
-            $existingHash = hash_file('sha256', $path);
-            if (!is_string($existingHash) || !hash_equals($sha256, $existingHash)) {
-                throw new RuntimeException('The package storage hash is already occupied.');
-            }
-        } else {
-            $stream = fopen($path, 'x+b');
-            if ($stream === false) throw new RuntimeException('The package could not be stored.');
-            try {
-                if (fwrite($stream, $storedJson) !== strlen($storedJson) || !fflush($stream)) {
-                    throw new RuntimeException('The package could not be stored.');
-                }
-            } finally {
-                fclose($stream);
-            }
-        }
+        air_screen_write_content_file($path, $storedJson, $sha256);
         $database->beginTransaction();
         $stmt = $database->prepare('INSERT INTO air_screen_packages (id, owner_id, name, description, tags, package_version, screen_json, storage_basename, screen_id) VALUES (:id, :owner, :name, :description, :tags, 1, :json, :basename, :screenId)');
         $stmt->execute(['id' => $id, 'owner' => $user['id'], 'name' => $name, 'description' => $description, 'tags' => $tags, 'json' => $storedJson, 'basename' => $basename, 'screenId' => (string)$screen['id']]);
+        air_screen_package_storage_failure('db_insert');
         $database->prepare('DELETE FROM air_screen_cleanup_jobs WHERE storage_basename = :basename AND expected_sha256 = :hash')
             ->execute(['basename' => $basename, 'hash' => $sha256]);
+        air_screen_package_storage_failure('db_commit');
         $database->commit();
-        air_screen_drain_cleanup_jobs();
-        air_screen_maybe_maintain_catalog();
+        air_screen_release_advisory_lock($database, $storageLock);
+        $storageLock = null;
         air_screen_release_advisory_lock($database, $userLock);
         $userLock = null;
         air_screen_release_advisory_lock($database, $serviceLock);
         $serviceLock = null;
+        air_screen_package_storage_failure('db_committed');
+        try { air_screen_drain_cleanup_jobs(); }
+        catch (Throwable $cleanupError) { error_log('Custom-screen upload cleanup drain failed: ' . $cleanupError::class); }
+        air_screen_maybe_maintain_catalog();
         air_screen_notify_moderators(
             $id,
             $name,
@@ -91,7 +90,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         air_screen_redirect('upload.php?submitted=1');
     } catch (Throwable $exception) {
         if ($database->inTransaction()) {
-            try { $database->rollBack(); }
+            try {
+                air_screen_package_storage_failure('db_rollback');
+                $database->rollBack();
+            }
             catch (Throwable $rollbackError) { error_log('Custom-screen upload rollback failed: ' . $rollbackError::class); }
         }
         if ($exception instanceof InvalidArgumentException ||
@@ -99,7 +101,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'The daily upload limit has been reached.',
                 'The package could not be stored.',
                 'The account storage limit has been reached.',
-                'The catalog storage limit has been reached.'
+                'The catalog storage limit has been reached.',
+                'The catalog is busy. Try again.'
             ], true))) {
             $error = $exception->getMessage();
         } else {
@@ -107,6 +110,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'The screen could not be submitted. Try again later.';
         }
     } finally {
+        // With an unknown rollback outcome, connection teardown releases the lock with the transaction.
+        if ($storageLock !== null && !$database->inTransaction()) {
+            air_screen_release_advisory_lock($database, $storageLock);
+        }
         if ($userLock !== null) air_screen_release_advisory_lock($database, $userLock);
         if ($serviceLock !== null) air_screen_release_advisory_lock($database, $serviceLock);
     }
@@ -116,10 +123,15 @@ $message = isset($_GET['submitted'])
     : (isset($_GET['rejectedRemoved'])
         ? air_screen_toast('Removed ' . max(0, (int)$_GET['rejectedRemoved']) . ' rejected submission' . ((int)$_GET['rejectedRemoved'] === 1 ? '' : 's'))
         : '');
-$mine = air_screen_db()->prepare("SELECT id, name, status, rejection_feedback FROM air_screen_packages WHERE owner_id = :owner AND status <> 'removed' ORDER BY created_at DESC LIMIT 20");
-$mine->execute(['owner' => $user['id']]);
+$mine = air_screen_db()->prepare(
+    "SELECT id, name, status, rejection_feedback,
+        (SELECT COUNT(*) FROM air_screen_packages WHERE owner_id = :rejected_owner AND status = 'rejected') AS rejected_count
+     FROM air_screen_packages
+     WHERE owner_id = :owner AND status <> 'removed'
+     ORDER BY created_at DESC LIMIT 20");
+$mine->execute(['owner' => $user['id'], 'rejected_owner' => $user['id']]);
 $submissions = $mine->fetchAll();
-$rejectedCount = count(array_filter($submissions, static fn(array $item): bool => strtolower((string)$item['status']) === 'rejected'));
+$rejectedCount = (int)($submissions[0]['rejected_count'] ?? 0);
 $removeRejected = $rejectedCount > 0
     ? '<button class="catalog-remove-rejected-open" type="button" data-remove-rejected-dialog-open>Remove rejected (' . $rejectedCount . ')</button><dialog class="catalog-remove-rejected-dialog"><form method="post" action="remove-rejected.php"><input type="hidden" name="csrf" value="' . air_screen_h(air_screen_csrf()) . '"><span class="catalog-remove-rejected-icon" aria-hidden="true"></span><h2>Remove ' . $rejectedCount . ' rejected submission' . ($rejectedCount === 1 ? '' : 's') . '?</h2><p>They disappear now and are permanently deleted after 30 days.</p><div class="catalog-remove-rejected-dialog-actions"><button class="catalog-remove-rejected-cancel" type="button" data-remove-rejected-dialog-close>Cancel</button><button class="catalog-remove-rejected-button" type="submit">Remove rejected</button></div></form></dialog>'
     : '';

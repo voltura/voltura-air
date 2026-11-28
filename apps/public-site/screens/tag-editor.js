@@ -51,12 +51,15 @@
     addTags(value.value);
     render();
     input.addEventListener("keydown", (event) => {
+      if (event.isComposing || event.keyCode === 229) return;
       if (event.key === " " || event.key === ",") {
         event.preventDefault();
         commit();
       }
     });
-    input.addEventListener("blur", commit);
+    editor.addEventListener("focusout", (event) => {
+      if (!editor.contains(event.relatedTarget)) commit();
+    });
     input.form?.addEventListener("submit", commit);
     editor.addEventListener("click", (event) => {
       if (event.target === editor || event.target === pills) {

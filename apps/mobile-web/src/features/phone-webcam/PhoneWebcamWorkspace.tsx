@@ -14,13 +14,18 @@ import {
   hashSessionDescription,
   verifyHostSessionSignature,
 } from "../../foundation/webrtc/sessionCrypto";
-import { hasOnlyRelayCandidates, waitForIceGathering } from "../../foundation/webrtc/iceGathering";
+import {
+  hasOnlyRelayCandidates,
+  IceGatheringTimeoutError,
+  waitForIceGathering,
+} from "../../foundation/webrtc/iceGathering";
 import { runWebRtcSetupStep } from "../../foundation/webrtc/peerSetup";
 import "./phone-webcam.css";
 
 interface PhoneWebcamWorkspaceProps {
   activePc: PcProfile;
   capability: PhoneWebcamCapability;
+  capabilityConfirmed?: boolean;
   clientId: string;
   connectionEpoch: number;
   onBack: () => void;
@@ -35,11 +40,9 @@ interface CameraChoice {
 interface PendingStart {
   operationId: string;
   stream: MediaStream;
-  settings: MediaTrackSettings;
   useMicrophone: boolean;
 }
 interface PendingReplacement {
-  stream: MediaStream;
   updatingSender: boolean;
   stop: () => void;
 }
@@ -50,21 +53,67 @@ interface SendQuality {
   bitrateMbps?: number | undefined;
 }
 type CameraChangeReason = "selection" | "orientation" | "stalled";
+type Phase = "idle" | "connecting" | "streaming" | "interrupted" | "recovering";
 
 const preferredWidth = 1920;
 const preferredHeight = 1080;
 const preferredFps = 30;
 const stalledStatsSampleLimit = 3;
 const stalledRecoveryCooldownMs = 10_000;
-const startResponseTimeoutMs = 10_000;
+const startResponseTimeoutMs = 25_000;
+const relayStartResponseTimeoutMs = 35_000;
 const peerSetupTimeoutMs = 20_000;
 const disconnectedRecoveryMs = 8_000;
 const cameraCaptureTimeoutMs = 10_000;
 const senderUpdateTimeoutMs = 5_000;
 const statsResponseTimeoutMs = 4_000;
+const recoveryDelaysMs = [250, 1000, 2500, 5000];
+const recoveryOperationHistoryLimit = 16;
+const stableConnectionMs = 15_000;
+const cameraPauseNoticeMs = 2_000;
+const previewFrameDeadlineMs = 2_500;
+const previewCheckIntervalMs = 5_000;
+const recoverableEndReasons = new Set([
+  "connection-lost",
+  "transport-lost",
+  "decoder-failed",
+  "offer-expired",
+]);
+const recoveryVetoReasons = new Set(["host-stopped", "permission-revoked", "pairing-revoked"]);
+const recoverableStartCodes = new Set([
+  "busy",
+  "offer-expired",
+  "turn-unavailable",
+  "webrtc-unavailable",
+]);
 
 function isEndedTrack(track: MediaStreamTrack) {
   return track.readyState === "ended";
+}
+
+function readCameraChoices(devices: MediaDeviceInfo[]): CameraChoice[] {
+  const choices = new Map<string, CameraChoice>();
+  for (const device of devices) {
+    if (device.kind === "videoinput" && device.deviceId && !choices.has(device.deviceId)) {
+      choices.set(device.deviceId, {
+        deviceId: device.deviceId,
+        label: device.label || `Camera ${choices.size + 1}`,
+      });
+    }
+  }
+  return Array.from(choices.values());
+}
+
+function preferredCameraId(choices: CameraChoice[]) {
+  return (
+    choices.find((choice) => /front/i.test(choice.label))?.deviceId ?? choices[0]?.deviceId ?? ""
+  );
+}
+
+function captureValue(actual: number | undefined, fallback: number, limit: number) {
+  return actual !== undefined && Number.isFinite(actual) && actual > 0
+    ? Math.min(limit, Math.max(1, Math.round(actual)))
+    : fallback;
 }
 
 function openCameraCapture(signal: AbortSignal, constraints: MediaStreamConstraints) {
@@ -84,6 +133,7 @@ function scheduleCameraDeadline(capture: AbortController) {
 export default function PhoneWebcamWorkspace({
   activePc,
   capability,
+  capabilityConfirmed = true,
   clientId,
   connectionEpoch,
   onBack,
@@ -93,7 +143,7 @@ export default function PhoneWebcamWorkspace({
   const supportedTransport =
     activePc.transportMode === "secure-direct" || activePc.transportMode === "relay";
   const [cameras, setCameras] = useState<CameraChoice[]>([]);
-  const [selectedCameraId, setSelectedCameraId] = useState("");
+  const [cameraPreferenceId, setSelectedCameraId] = useState("");
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [permissionLoading, setPermissionLoading] = useState(false);
   const [useMicrophone, setUseMicrophone] = useState(false);
@@ -101,17 +151,26 @@ export default function PhoneWebcamWorkspace({
   const [microphonePermissionLoading, setMicrophonePermissionLoading] = useState(false);
   const [microphoneActive, setMicrophoneActive] = useState(false);
   const [microphoneMuted, setMicrophoneMuted] = useState(false);
-  const [phase, setPhase] = useState<"idle" | "connecting" | "streaming">("idle");
+  const [phase, setPhase] = useState<Phase>("idle");
+  const selectedCameraId =
+    phase === "idle" && !cameras.some(({ deviceId }) => deviceId === cameraPreferenceId)
+      ? preferredCameraId(cameras)
+      : cameraPreferenceId;
   const [isCameraViewExpanded, setIsCameraViewExpanded] = useState(false);
+  const [cameraPaused, setCameraPaused] = useState(false);
   const [status, setStatus] = useState(initialStatus(capability));
   const [quality, setQuality] = useState<SendQuality>({});
   const videoRef = useRef<HTMLVideoElement>(null);
+  const previewRetryRef = useRef<number | undefined>(undefined);
   const permissionLoadingRef = useRef(false);
   const permissionGenerationRef = useRef(0);
+  const permissionCaptureRef = useRef<AbortController | null>(null);
   const permissionStreamRef = useRef<MediaStream | null>(null);
   const microphoneRequestGenerationRef = useRef(0);
+  const microphoneCaptureRef = useRef<AbortController | null>(null);
   const microphoneAvailableRef = useRef(capability.microphoneAvailable);
   const streamRef = useRef<MediaStream | null>(null);
+  const activeCameraIdRef = useRef<string | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const peerSetupRef = useRef<AbortController | null>(null);
   const senderRef = useRef<RTCRtpSender | null>(null);
@@ -121,36 +180,62 @@ export default function PhoneWebcamWorkspace({
   const acquiringReplacementGenerationRef = useRef<number | null>(null);
   const replacementCaptureRef = useRef<AbortController | null>(null);
   const activeVideoLossRef = useRef<"ended" | "released" | null>(null);
+  const releaseVideoWatchRef = useRef<(() => void) | null>(null);
   const senderUpdateTailRef = useRef<Promise<void>>(Promise.resolve());
   const acquiringGenerationRef = useRef<number | null>(null);
   const initialCaptureRef = useRef<AbortController | null>(null);
   const operationIdRef = useRef<string | null>(null);
+  const recoveringOperationIdsRef = useRef(new Set<string>());
   const resumeRef = useRef(false);
-  const lastConnectionRef = useRef({ pcId: activePc.id, epoch: connectionEpoch });
-  const startRef = useRef<() => void>(() => undefined);
+  const recoveryAttemptRef = useRef(0);
+  const pageHiddenRef = useRef(false);
+  const microphoneMutedRef = useRef(false);
+  const recoverVideoOnlyRef = useRef(false);
+  const lastConnectionRef = useRef({
+    pcId: activePc.id,
+    hostKey: activePc.hostIdentityPublicKey,
+    epoch: connectionEpoch,
+  });
+  const startRef = useRef<(recovering: boolean) => void>(() => undefined);
+  const scheduleResumeRef = useRef<() => void>(() => undefined);
   const renewalTimerRef = useRef<number | undefined>(undefined);
   const statsTimerRef = useRef<number | undefined>(undefined);
   const restartTimerRef = useRef<number | undefined>(undefined);
   const orientationTimerRef = useRef<number | undefined>(undefined);
   const startResponseTimerRef = useRef<number | undefined>(undefined);
   const disconnectedTimerRef = useRef<number | undefined>(undefined);
+  const stableTimerRef = useRef<number | undefined>(undefined);
   const lastStatsRef = useRef<{ bytes: number; framesEncoded?: number; at: number } | null>(null);
   const stalledStatsSamplesRef = useRef(0);
   const stalledRecoveryAfterRef = useRef(0);
+  const attemptedStallRefreshRef = useRef(false);
   const statsGenerationRef = useRef(0);
   const generationRef = useRef(0);
-  const releaseRef = useRef<(notifyHost: boolean, message: string) => void>(() => undefined);
+  const releaseRef = useRef<(notifyHost: boolean, message: string, recovering?: boolean) => void>(
+    () => undefined,
+  );
   const changeCameraRef = useRef<(deviceId: string, reason?: CameraChangeReason) => Promise<void>>(
     () => Promise.resolve(),
   );
 
   const releaseLocal = useCallback(
-    (notifyHost: boolean, message: string) => {
+    (notifyHost: boolean, message: string, recovering = false) => {
+      resumeRef.current = recovering;
+      if (!recovering) {
+        recoveryAttemptRef.current = 0;
+        recoveringOperationIdsRef.current.clear();
+        microphoneMutedRef.current = false;
+        recoverVideoOnlyRef.current = false;
+      }
       permissionGenerationRef.current += 1;
       microphoneRequestGenerationRef.current += 1;
       permissionLoadingRef.current = false;
       setPermissionLoading(false);
       setMicrophonePermissionLoading(false);
+      permissionCaptureRef.current?.abort();
+      permissionCaptureRef.current = null;
+      microphoneCaptureRef.current?.abort();
+      microphoneCaptureRef.current = null;
       permissionStreamRef.current?.getTracks().forEach((track) => track.stop());
       permissionStreamRef.current = null;
       generationRef.current += 1;
@@ -161,13 +246,18 @@ export default function PhoneWebcamWorkspace({
       window.clearTimeout(orientationTimerRef.current);
       window.clearTimeout(startResponseTimerRef.current);
       window.clearTimeout(disconnectedTimerRef.current);
+      window.clearTimeout(stableTimerRef.current);
+      window.clearTimeout(previewRetryRef.current);
       renewalTimerRef.current = undefined;
       statsTimerRef.current = undefined;
       restartTimerRef.current = undefined;
       disconnectedTimerRef.current = undefined;
+      stableTimerRef.current = undefined;
+      previewRetryRef.current = undefined;
       lastStatsRef.current = null;
       stalledStatsSamplesRef.current = 0;
       stalledRecoveryAfterRef.current = 0;
+      attemptedStallRefreshRef.current = false;
       statsGenerationRef.current += 1;
       acquiringGenerationRef.current = null;
       acquiringReplacementGenerationRef.current = null;
@@ -177,8 +267,20 @@ export default function PhoneWebcamWorkspace({
       replacementCaptureRef.current = null;
       const videoWasReleased = activeVideoLossRef.current === "released";
       activeVideoLossRef.current = null;
+      releaseVideoWatchRef.current?.();
+      releaseVideoWatchRef.current = null;
       senderUpdateTailRef.current = Promise.resolve();
       const operationId = operationIdRef.current;
+      if (recovering && operationId) {
+        const history = recoveringOperationIdsRef.current;
+        history.add(operationId);
+        if (history.size > recoveryOperationHistoryLimit) {
+          const oldest = history.values().next().value;
+          if (oldest !== undefined) {
+            history.delete(oldest);
+          }
+        }
+      }
       operationIdRef.current = null;
       pendingRef.current = null;
       senderRef.current = null;
@@ -190,6 +292,7 @@ export default function PhoneWebcamWorkspace({
       retiredPeer?.close();
       const stream = streamRef.current;
       streamRef.current = null;
+      activeCameraIdRef.current = null;
       const ownedTracks = videoWasReleased ? stream?.getAudioTracks() : stream?.getTracks();
       for (const track of ownedTracks ?? []) {
         track.stop();
@@ -200,14 +303,19 @@ export default function PhoneWebcamWorkspace({
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
-      if (notifyHost && operationId && state === "paired") {
-        send({ type: "phone.webcam.stop", operationId: createLocalId() });
-      }
-      setPhase("idle");
+      setPhase(recovering ? "recovering" : "idle");
+      setCameraPaused(false);
       setMicrophoneActive(false);
       setMicrophoneMuted(false);
       setQuality({});
       setStatus(message);
+      if (notifyHost && operationId && state === "paired") {
+        try {
+          send({ type: "phone.webcam.stop", operationId: createLocalId() });
+        } catch {
+          // Closing the peer has already stopped local capture.
+        }
+      }
     },
     [send, state],
   );
@@ -215,17 +323,171 @@ export default function PhoneWebcamWorkspace({
     releaseRef.current = releaseLocal;
   }, [releaseLocal]);
 
-  const handleActiveVideoEnded = useCallback((stream: MediaStream, generation: number) => {
-    if (generationRef.current !== generation || streamRef.current !== stream) {
+  const recoverSession = useCallback((notifyHost: boolean, message: string) => {
+    const videoTrack = streamRef.current?.getVideoTracks()[0];
+    if (videoTrack?.muted && !isEndedTrack(videoTrack) && document.visibilityState === "visible") {
+      releaseRef.current(notifyHost, "The browser paused your camera. Tap Start to resume.");
       return;
     }
-    if (acquiringReplacementGenerationRef.current !== null) {
-      activeVideoLossRef.current ??= "ended";
+    if (recoveryAttemptRef.current >= recoveryDelaysMs.length) {
+      releaseRef.current(notifyHost, `${message} Tap Start to try again.`);
       return;
     }
-    resumeRef.current = false;
-    releaseRef.current(true, "The selected camera stopped.");
+    releaseRef.current(notifyHost, message, true);
+    scheduleResumeRef.current();
   }, []);
+
+  const recoverWithoutMicrophone = useCallback(
+    (notifyHost: boolean, message: string) => {
+      recoverVideoOnlyRef.current = true;
+      setUseMicrophone(false);
+      setMicrophonePermissionGranted(false);
+      recoverSession(notifyHost, message);
+    },
+    [recoverSession],
+  );
+
+  const requestPreviewPlayback = useCallback(() => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (
+      !video ||
+      !stream ||
+      video.srcObject !== stream ||
+      pageHiddenRef.current ||
+      document.visibilityState !== "visible"
+    ) {
+      return;
+    }
+    try {
+      void video.play().catch(() => undefined);
+    } catch {
+      // The preview is independent of the video sender.
+    }
+  }, []);
+
+  const resumePausedPreview = useCallback(() => {
+    if (previewRetryRef.current !== undefined) {
+      return;
+    }
+    const stream = streamRef.current;
+    if (!stream) {
+      return;
+    }
+    previewRetryRef.current = window.setTimeout(() => {
+      previewRetryRef.current = undefined;
+      if (streamRef.current === stream && videoRef.current?.paused) {
+        requestPreviewPlayback();
+      }
+    }, 250);
+  }, [requestPreviewPlayback]);
+
+  const watchActiveVideo = useCallback(
+    (stream: MediaStream, generation: number) => {
+      releaseVideoWatchRef.current?.();
+      setCameraPaused(false);
+      const track = stream.getVideoTracks()[0];
+      if (!track) {
+        return;
+      }
+      const watch = new AbortController();
+      let muteTimer: number | undefined;
+      const ownsTrack = () => generationRef.current === generation && streamRef.current === stream;
+      const onEnded = () => {
+        if (!ownsTrack()) {
+          return;
+        }
+        if (acquiringReplacementGenerationRef.current !== null) {
+          activeVideoLossRef.current ??= "ended";
+          return;
+        }
+        recoverSession(true, "The selected camera stopped.");
+      };
+      const clearMuteTimer = () => {
+        window.clearTimeout(muteTimer);
+        muteTimer = undefined;
+      };
+      const onMute = () => {
+        if (muteTimer !== undefined || !ownsTrack()) {
+          return;
+        }
+        muteTimer = window.setTimeout(() => {
+          muteTimer = undefined;
+          if (ownsTrack() && track.muted) {
+            setCameraPaused(true);
+          }
+        }, cameraPauseNoticeMs);
+      };
+      const onUnmute = () => {
+        clearMuteTimer();
+        if (ownsTrack()) {
+          setCameraPaused(false);
+          requestPreviewPlayback();
+        }
+      };
+      releaseVideoWatchRef.current = () => {
+        watch.abort();
+        clearMuteTimer();
+      };
+      track.addEventListener("ended", onEnded, { once: true, signal: watch.signal });
+      track.addEventListener("mute", onMute, { signal: watch.signal });
+      track.addEventListener("unmute", onUnmute, { signal: watch.signal });
+      if (track.muted) {
+        onMute();
+      }
+    },
+    [recoverSession, requestPreviewPlayback],
+  );
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (
+      phase !== "streaming" ||
+      !video?.requestVideoFrameCallback ||
+      !video.cancelVideoFrameCallback
+    ) {
+      return;
+    }
+    let callback: number | undefined;
+    let deadline: number | undefined;
+    const clearProbe = () => {
+      if (callback !== undefined) {
+        video.cancelVideoFrameCallback(callback);
+        callback = undefined;
+      }
+      window.clearTimeout(deadline);
+    };
+    const canProbe = (stream: MediaStream) =>
+      streamRef.current === stream &&
+      video.srcObject === stream &&
+      !stream.getVideoTracks()[0]?.muted &&
+      !pageHiddenRef.current &&
+      document.visibilityState === "visible";
+    const probe = () => {
+      const stream = streamRef.current;
+      if (!stream || !canProbe(stream)) {
+        return;
+      }
+      callback = video.requestVideoFrameCallback(() => {
+        callback = undefined;
+        window.clearTimeout(deadline);
+      });
+      deadline = window.setTimeout(() => {
+        clearProbe();
+        if (canProbe(stream)) {
+          // Reattach the preview when its video layer stalls without replacing the sender track.
+          video.srcObject = null;
+          video.srcObject = stream;
+          requestPreviewPlayback();
+        }
+      }, previewFrameDeadlineMs);
+    };
+    const interval = window.setInterval(probe, previewCheckIntervalMs);
+    return () => {
+      window.clearInterval(interval);
+      clearProbe();
+    };
+  }, [phase, requestPreviewPlayback]);
 
   const loadCameras = useCallback(async () => {
     if (permissionLoadingRef.current) {
@@ -237,11 +499,15 @@ export default function PhoneWebcamWorkspace({
     }
     let permissionStream: MediaStream | null = null;
     const generation = ++permissionGenerationRef.current;
+    const capture = new AbortController();
+    permissionCaptureRef.current = capture;
+    const deadline = scheduleCameraDeadline(capture);
     permissionLoadingRef.current = true;
     setPermissionLoading(true);
     try {
-      permissionStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+      permissionStream = await openCameraCapture(capture.signal, { audio: false, video: true });
       if (permissionGenerationRef.current !== generation) {
+        permissionStream.getTracks().forEach((track) => track.stop());
         return;
       }
       permissionStreamRef.current = permissionStream;
@@ -249,28 +515,23 @@ export default function PhoneWebcamWorkspace({
         setStatus("Camera access is paused while Voltura Air is in the background.");
         return;
       }
-      const devices = await navigator.mediaDevices.enumerateDevices();
+      const devices = await runWebRtcSetupStep(capture.signal, () =>
+        navigator.mediaDevices.enumerateDevices(),
+      );
       if (
         permissionGenerationRef.current !== generation ||
         document.visibilityState !== "visible"
       ) {
         return;
       }
-      const choices = devices
-        .filter((device) => device.kind === "videoinput" && device.deviceId)
-        .map((device, index) => ({
-          deviceId: device.deviceId,
-          label: device.label || `Camera ${index + 1}`,
-        }));
+      const choices = readCameraChoices(devices);
       setCameras(choices);
       setSelectedCameraId((current) =>
         current && choices.some((choice) => choice.deviceId === current)
           ? current
-          : (choices.find((choice) => /front/i.test(choice.label))?.deviceId ??
-            choices[0]?.deviceId ??
-            ""),
+          : preferredCameraId(choices),
       );
-      setPermissionGranted(true);
+      setPermissionGranted(choices.length > 0);
       setStatus(
         choices.length > 0 ? "Choose a camera, then start webcam." : "No camera is available.",
       );
@@ -284,11 +545,13 @@ export default function PhoneWebcamWorkspace({
           : "The phone camera could not be opened.",
       );
     } finally {
-      for (const track of permissionStream?.getTracks() ?? []) {
-        track.stop();
-      }
+      window.clearTimeout(deadline);
       if (permissionStreamRef.current === permissionStream) {
+        permissionStream?.getTracks().forEach((track) => track.stop());
         permissionStreamRef.current = null;
+      }
+      if (permissionCaptureRef.current === capture) {
+        permissionCaptureRef.current = null;
       }
       if (permissionGenerationRef.current === generation) {
         permissionLoadingRef.current = false;
@@ -297,18 +560,58 @@ export default function PhoneWebcamWorkspace({
     }
   }, []);
 
+  useEffect(() => {
+    const devices = navigator.mediaDevices;
+    if (!permissionGranted || !devices?.addEventListener) {
+      return;
+    }
+    let refresh: AbortController | undefined;
+    const updateChoices = () => {
+      if (pageHiddenRef.current || document.visibilityState !== "visible") {
+        return;
+      }
+      refresh?.abort();
+      const next = new AbortController();
+      refresh = next;
+      const deadline = scheduleCameraDeadline(next);
+      void runWebRtcSetupStep(next.signal, () => devices.enumerateDevices())
+        .then((current) => {
+          if (
+            refresh === next &&
+            !next.signal.aborted &&
+            !pageHiddenRef.current &&
+            document.visibilityState === "visible"
+          ) {
+            setCameras(readCameraChoices(current));
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => window.clearTimeout(deadline));
+    };
+    devices.addEventListener("devicechange", updateChoices);
+    return () => {
+      refresh?.abort();
+      devices.removeEventListener("devicechange", updateChoices);
+    };
+  }, [permissionGranted]);
+
   const requestMicrophone = useCallback(async (enabled: boolean) => {
     const requestGeneration = ++microphoneRequestGenerationRef.current;
+    microphoneCaptureRef.current?.abort();
+    microphoneCaptureRef.current = null;
     if (!enabled) {
       setMicrophonePermissionLoading(false);
       setUseMicrophone(false);
       setMicrophonePermissionGranted(false);
       return;
     }
+    const capture = new AbortController();
+    microphoneCaptureRef.current = capture;
+    const deadline = scheduleCameraDeadline(capture);
     setMicrophonePermissionLoading(true);
     let stream: MediaStream | null = null;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      stream = await openCameraCapture(capture.signal, { audio: true, video: false });
       if (!stream.getAudioTracks()[0] || stream.getAudioTracks()[0]?.readyState === "ended") {
         throw new Error("No audio track.");
       }
@@ -329,7 +632,11 @@ export default function PhoneWebcamWorkspace({
       setUseMicrophone(false);
       setStatus("Microphone access was not allowed or no microphone is available.");
     } finally {
+      window.clearTimeout(deadline);
       stream?.getTracks().forEach((track) => track.stop());
+      if (microphoneCaptureRef.current === capture) {
+        microphoneCaptureRef.current = null;
+      }
       if (microphoneRequestGenerationRef.current === requestGeneration) {
         setMicrophonePermissionLoading(false);
       }
@@ -407,159 +714,187 @@ export default function PhoneWebcamWorkspace({
     [selectedCameraId],
   );
 
-  const start = useCallback(async () => {
-    if (
-      !supportedTransport ||
-      phase !== "idle" ||
-      acquiringGenerationRef.current !== null ||
-      state !== "paired" ||
-      document.visibilityState !== "visible" ||
-      !capability.canUse ||
-      !selectedCameraId ||
-      !activePc.hostIdentityPublicKey
-    ) {
-      return;
-    }
-    if (typeof RTCPeerConnection === "undefined") {
-      setStatus("This browser does not provide WebRTC video.");
-      return;
-    }
-    const generation = ++generationRef.current;
-    acquiringGenerationRef.current = generation;
-    const capture = new AbortController();
-    initialCaptureRef.current = capture;
-    const captureDeadline = scheduleCameraDeadline(capture);
-    setPhase("connecting");
-    setStatus("Opening the selected camera…");
-    try {
-      const opened = await openSelectedCamera(
-        useMicrophone && microphonePermissionGranted,
-        generation,
-        capture.signal,
-      );
-      if (generationRef.current !== generation || acquiringGenerationRef.current !== generation) {
-        opened.stream.getTracks().forEach((track) => track.stop());
+  const start = useCallback(
+    async (recovering = false) => {
+      if (
+        !supportedTransport ||
+        phase !== (recovering ? "recovering" : "idle") ||
+        (recovering && !resumeRef.current) ||
+        acquiringGenerationRef.current !== null ||
+        microphoneCaptureRef.current !== null ||
+        operationIdRef.current !== null ||
+        state !== "paired" ||
+        pageHiddenRef.current ||
+        document.visibilityState !== "visible" ||
+        !capability.canUse ||
+        !capabilityConfirmed ||
+        !selectedCameraId ||
+        !activePc.hostIdentityPublicKey
+      ) {
         return;
       }
-      acquiringGenerationRef.current = null;
-      const width = Math.max(1, Math.round(opened.settings.width ?? preferredWidth));
-      const height = Math.max(1, Math.round(opened.settings.height ?? preferredHeight));
-      const fps = Math.max(1, Math.round(opened.settings.frameRate ?? preferredFps));
-      const operationId = createLocalId();
-      const transcript = `VolturaAir phone-webcam:start:v2:${clientId}:${operationId}:${width}:${height}:${fps}:${String(opened.useMicrophone)}`;
-      const signature = signClientPayload(clientId, activePc.id, transcript);
-      if (!signature) {
-        opened.stream.getTracks().forEach((track) => track.stop());
-        throw new Error("Reconnect key unavailable.");
-      }
-      streamRef.current = opened.stream;
-      setMicrophoneActive(opened.useMicrophone);
-      setMicrophoneMuted(false);
-      opened.stream.getVideoTracks()[0]?.addEventListener(
-        "ended",
-        () => handleActiveVideoEnded(opened.stream, generation),
-        { once: true },
-      );
-      const audioTrack = opened.stream.getAudioTracks()[0];
-      audioTrack?.addEventListener(
-        "ended",
-        () => {
-          if (
-            generationRef.current === generation &&
-            streamRef.current?.getAudioTracks()[0] === audioTrack
-          ) {
-            resumeRef.current = false;
-            releaseRef.current(true, "The phone microphone stopped.");
-          }
-        },
-        { once: true },
-      );
-      pendingRef.current = {
-        operationId,
-        stream: opened.stream,
-        settings: opened.settings,
-        useMicrophone: opened.useMicrophone,
-      };
-      operationIdRef.current = operationId;
-      if (videoRef.current) {
-        videoRef.current.srcObject = opened.stream;
-        void videoRef.current.play().catch(() => undefined);
-        if (generationRef.current !== generation || streamRef.current !== opened.stream) {
-          if (streamRef.current === opened.stream) {
-            opened.stream.getTracks().forEach((track) => track.stop());
-            streamRef.current = null;
-          }
-          return;
-        }
-      }
-      setQuality({ width, height, fps });
-      setStatus(
-        opened.microphoneFallback
-          ? "The microphone could not be opened. Starting encrypted video only…"
-          : opened.useMicrophone
-            ? "Preparing encrypted webcam video and audio…"
-            : "Preparing encrypted webcam video…",
-      );
-      const sent = send({
-        type: "phone.webcam.start",
-        operationId,
-        captureWidth: width,
-        captureHeight: height,
-        captureFps: fps,
-        useMicrophone: opened.useMicrophone,
-        clientSignature: signature,
-      });
-      if (sent === false) {
-        releaseLocal(false, "The webcam request could not be sent. Reconnect and try again.");
+      if (typeof RTCPeerConnection === "undefined") {
+        releaseLocal(false, "This browser does not provide WebRTC video.");
         return;
       }
-      window.clearTimeout(startResponseTimerRef.current);
-      startResponseTimerRef.current = window.setTimeout(() => {
-        if (
-          operationIdRef.current !== operationId ||
-          pendingRef.current?.operationId !== operationId
-        ) {
+      if (recovering) {
+        resumeRef.current = false;
+        recoveryAttemptRef.current += 1;
+      }
+      setSelectedCameraId(selectedCameraId);
+      const generation = ++generationRef.current;
+      acquiringGenerationRef.current = generation;
+      const capture = new AbortController();
+      initialCaptureRef.current = capture;
+      const captureDeadline = scheduleCameraDeadline(capture);
+      setPhase("connecting");
+      setStatus("Opening the selected camera…");
+      try {
+        const opened = await openSelectedCamera(
+          useMicrophone &&
+            microphonePermissionGranted &&
+            capability.microphoneAvailable &&
+            !recoverVideoOnlyRef.current,
+          generation,
+          capture.signal,
+        );
+        if (generationRef.current !== generation || acquiringGenerationRef.current !== generation) {
+          opened.stream.getTracks().forEach((track) => track.stop());
           return;
         }
-        releaseRef.current(true, "The PC did not respond to the webcam request.");
-      }, startResponseTimeoutMs);
-    } catch (error) {
-      if (generationRef.current === generation) {
-        const cameraFailure = error instanceof DOMException ? error.name : undefined;
-        releaseLocal(
-          true,
-          cameraFailure === "NotAllowedError"
+        acquiringGenerationRef.current = null;
+        streamRef.current = opened.stream;
+        activeCameraIdRef.current = selectedCameraId;
+        const width = captureValue(opened.settings.width, preferredWidth, 4096);
+        const height = captureValue(opened.settings.height, preferredHeight, 4096);
+        const fps = captureValue(opened.settings.frameRate, preferredFps, 60);
+        const operationId = createLocalId();
+        const transcript = `VolturaAir phone-webcam:start:v2:${clientId}:${operationId}:${width}:${height}:${fps}:${String(opened.useMicrophone)}`;
+        const signature = signClientPayload(clientId, activePc.id, transcript);
+        if (!signature) {
+          releaseLocal(false, "The PC reconnect key is unavailable.");
+          return;
+        }
+        setMicrophoneActive(opened.useMicrophone);
+        watchActiveVideo(opened.stream, generation);
+        const audioTrack = opened.stream.getAudioTracks()[0];
+        if (audioTrack) {
+          audioTrack.enabled = !microphoneMutedRef.current;
+          setMicrophoneMuted(microphoneMutedRef.current);
+        }
+        audioTrack?.addEventListener(
+          "ended",
+          () => {
+            if (
+              generationRef.current === generation &&
+              streamRef.current?.getAudioTracks()[0] === audioTrack
+            ) {
+              recoverWithoutMicrophone(true, "The phone microphone stopped. Restoring video…");
+            }
+          },
+          { once: true },
+        );
+        pendingRef.current = {
+          operationId,
+          stream: opened.stream,
+          useMicrophone: opened.useMicrophone,
+        };
+        operationIdRef.current = operationId;
+        if (videoRef.current) {
+          videoRef.current.srcObject = opened.stream;
+          requestPreviewPlayback();
+          if (generationRef.current !== generation || streamRef.current !== opened.stream) {
+            if (streamRef.current === opened.stream) {
+              opened.stream.getTracks().forEach((track) => track.stop());
+              streamRef.current = null;
+            }
+            return;
+          }
+        }
+        setQuality({ width, height, fps });
+        setStatus(
+          opened.microphoneFallback
+            ? "The microphone could not be opened. Starting encrypted video only…"
+            : opened.useMicrophone
+              ? "Preparing encrypted webcam video and audio…"
+              : "Preparing encrypted webcam video…",
+        );
+        const sent = send({
+          type: "phone.webcam.start",
+          operationId,
+          captureWidth: width,
+          captureHeight: height,
+          captureFps: fps,
+          useMicrophone: opened.useMicrophone,
+          clientSignature: signature,
+        });
+        if (sent === false) {
+          recoverSession(false, "The webcam request could not be sent.");
+          return;
+        }
+        window.clearTimeout(startResponseTimerRef.current);
+        startResponseTimerRef.current = window.setTimeout(
+          () => {
+            if (
+              operationIdRef.current === operationId &&
+              pendingRef.current?.operationId === operationId
+            ) {
+              recoverSession(true, "The PC did not respond to the webcam request.");
+            }
+          },
+          activePc.transportMode === "relay" ? relayStartResponseTimeoutMs : startResponseTimeoutMs,
+        );
+      } catch (error) {
+        if (generationRef.current === generation) {
+          const cameraFailure = error instanceof DOMException ? error.name : undefined;
+          const denied = cameraFailure === "NotAllowedError" || cameraFailure === "SecurityError";
+          const message = denied
             ? "Camera access was not allowed."
             : cameraFailure === "TimeoutError"
               ? "The camera did not start in time. Tap Start to try again."
-              : "The selected camera could not be started.",
-        );
+              : "The selected camera could not be started.";
+          if (denied) {
+            setPermissionGranted(false);
+          }
+          if (recovering && !denied && cameraFailure !== "TimeoutError") {
+            recoverSession(true, message);
+          } else {
+            releaseLocal(true, message);
+          }
+        }
+      } finally {
+        window.clearTimeout(captureDeadline);
+        if (initialCaptureRef.current === capture) {
+          initialCaptureRef.current = null;
+        }
       }
-    } finally {
-      window.clearTimeout(captureDeadline);
-      if (initialCaptureRef.current === capture) {
-        initialCaptureRef.current = null;
-      }
-    }
-  }, [
-    activePc.hostIdentityPublicKey,
-    activePc.id,
-    capability.canUse,
-    clientId,
-    handleActiveVideoEnded,
-    microphonePermissionGranted,
-    openSelectedCamera,
-    phase,
-    releaseLocal,
-    selectedCameraId,
-    send,
-    state,
-    supportedTransport,
-    useMicrophone,
-  ]);
+    },
+    [
+      activePc.hostIdentityPublicKey,
+      activePc.id,
+      activePc.transportMode,
+      capability.canUse,
+      capabilityConfirmed,
+      capability.microphoneAvailable,
+      clientId,
+      microphonePermissionGranted,
+      openSelectedCamera,
+      phase,
+      recoverSession,
+      recoverWithoutMicrophone,
+      requestPreviewPlayback,
+      releaseLocal,
+      selectedCameraId,
+      send,
+      state,
+      supportedTransport,
+      useMicrophone,
+      watchActiveVideo,
+    ],
+  );
   useEffect(() => {
-    startRef.current = () => {
-      void start();
+    startRef.current = (recovering) => {
+      void start(recovering);
     };
   }, [start]);
 
@@ -567,6 +902,12 @@ export default function PhoneWebcamWorkspace({
     if (
       !resumeRef.current ||
       state !== "paired" ||
+      !capability.canUse ||
+      !capabilityConfirmed ||
+      !supportedTransport ||
+      !selectedCameraId ||
+      !activePc.hostIdentityPublicKey ||
+      pageHiddenRef.current ||
       document.visibilityState !== "visible" ||
       restartTimerRef.current !== undefined
     ) {
@@ -574,110 +915,134 @@ export default function PhoneWebcamWorkspace({
     }
     restartTimerRef.current = window.setTimeout(() => {
       restartTimerRef.current = undefined;
-      if (resumeRef.current && document.visibilityState === "visible") {
-        resumeRef.current = false;
-        startRef.current();
-      }
-    }, 250);
-  }, [state]);
+      startRef.current(true);
+    }, recoveryDelaysMs[recoveryAttemptRef.current]);
+  }, [
+    activePc.hostIdentityPublicKey,
+    capability.canUse,
+    capabilityConfirmed,
+    selectedCameraId,
+    state,
+    supportedTransport,
+  ]);
 
-  const beginStats = useCallback((peer: RTCPeerConnection, signal: AbortSignal) => {
-    window.clearInterval(statsTimerRef.current);
-    statsGenerationRef.current += 1;
-    lastStatsRef.current = null;
-    stalledStatsSamplesRef.current = 0;
-    let pollPending = false;
-    statsTimerRef.current = window.setInterval(() => {
-      void (async () => {
-        if (pollPending || peerRef.current !== peer || peer.connectionState !== "connected") {
-          return;
-        }
-        const sender = senderRef.current;
-        const track = sender?.track ?? null;
-        const statsGeneration = statsGenerationRef.current;
-        const ownsStats = () =>
-          peerRef.current === peer &&
-          peer.connectionState === "connected" &&
-          senderRef.current === sender &&
-          sender?.track === track &&
-          statsGenerationRef.current === statsGeneration;
-        pollPending = true;
-        let expired = false;
-        const deadline = window.setTimeout(() => {
-          expired = true;
-          if (ownsStats()) {
+  useEffect(() => {
+    scheduleResumeRef.current = scheduleResume;
+    scheduleResume();
+  }, [scheduleResume]);
+
+  const beginStats = useCallback(
+    (peer: RTCPeerConnection, signal: AbortSignal) => {
+      window.clearInterval(statsTimerRef.current);
+      statsGenerationRef.current += 1;
+      lastStatsRef.current = null;
+      stalledStatsSamplesRef.current = 0;
+      let pollPending = false;
+      statsTimerRef.current = window.setInterval(() => {
+        void (async () => {
+          if (pollPending || peerRef.current !== peer || peer.connectionState !== "connected") {
+            return;
+          }
+          const sender = senderRef.current;
+          const track = sender?.track ?? null;
+          if (track?.muted) {
             lastStatsRef.current = null;
             stalledStatsSamplesRef.current = 0;
-            setQuality(({ width, height }) =>
-              width === undefined || height === undefined ? {} : { width, height },
-            );
+            return;
           }
-        }, statsResponseTimeoutMs);
-        let report: RTCStatsReport;
-        try {
-          report = await runWebRtcSetupStep(signal, () => peer.getStats(track));
-        } catch {
-          // Optional statistics must not interrupt the stream or future polls.
-          return;
-        } finally {
-          window.clearTimeout(deadline);
-          pollPending = false;
-        }
-        if (expired || !ownsStats()) {
-          return;
-        }
-        const outbound = readOutboundVideoReport(report);
-        if (outbound) {
-          const now = performance.now();
-          const previous = lastStatsRef.current;
-          const frames = outbound.framesEncoded;
-          const previousFrames = previous?.framesEncoded;
-          const countersReset =
-            previous !== null &&
-            (outbound.bytesSent < previous.bytes ||
-              (frames !== undefined && previousFrames !== undefined && frames < previousFrames));
-          const bitrateMbps =
-            previous && !countersReset && now > previous.at
-              ? ((outbound.bytesSent - previous.bytes) * 8) / ((now - previous.at) * 1000)
-              : undefined;
-          const progressed =
-            !previous ||
-            countersReset ||
-            (frames !== undefined && previousFrames !== undefined
-              ? frames > previousFrames
-              : outbound.bytesSent > previous.bytes);
-          stalledStatsSamplesRef.current = progressed ? 0 : stalledStatsSamplesRef.current + 1;
-          lastStatsRef.current = {
-            bytes: outbound.bytesSent,
-            ...(frames === undefined ? {} : { framesEncoded: frames }),
-            at: now,
-          };
-          setQuality((current) => ({
-            ...current,
-            ...(outbound.frameWidth === undefined ? {} : { width: outbound.frameWidth }),
-            ...(outbound.frameHeight === undefined ? {} : { height: outbound.frameHeight }),
-            ...(outbound.framesPerSecond === undefined ? {} : { fps: outbound.framesPerSecond }),
-            bitrateMbps,
-          }));
-          if (
-            stalledStatsSamplesRef.current >= stalledStatsSampleLimit &&
-            now >= stalledRecoveryAfterRef.current &&
-            acquiringReplacementGenerationRef.current === null
-          ) {
-            const deviceId = streamRef.current?.getVideoTracks()[0]?.getSettings().deviceId;
-            if (deviceId) {
+          const statsGeneration = statsGenerationRef.current;
+          const ownsStats = () =>
+            peerRef.current === peer &&
+            peer.connectionState === "connected" &&
+            senderRef.current === sender &&
+            sender?.track === track &&
+            !track?.muted &&
+            statsGenerationRef.current === statsGeneration;
+          pollPending = true;
+          let expired = false;
+          const deadline = window.setTimeout(() => {
+            expired = true;
+            if (ownsStats()) {
+              lastStatsRef.current = null;
               stalledStatsSamplesRef.current = 0;
-              stalledRecoveryAfterRef.current = now + stalledRecoveryCooldownMs;
-              void changeCameraRef.current(deviceId, "stalled");
+              setQuality(({ width, height }) =>
+                width === undefined || height === undefined ? {} : { width, height },
+              );
+            }
+          }, statsResponseTimeoutMs);
+          let report: RTCStatsReport;
+          try {
+            report = await runWebRtcSetupStep(signal, () => peer.getStats(track));
+          } catch {
+            // Optional statistics must not interrupt the stream or future polls.
+            return;
+          } finally {
+            window.clearTimeout(deadline);
+            pollPending = false;
+          }
+          if (expired || !ownsStats()) {
+            return;
+          }
+          const outbound = readOutboundVideoReport(report);
+          if (outbound) {
+            const now = performance.now();
+            const previous = lastStatsRef.current;
+            const frames = outbound.framesEncoded;
+            const previousFrames = previous?.framesEncoded;
+            const countersReset =
+              previous !== null &&
+              (outbound.bytesSent < previous.bytes ||
+                (frames !== undefined && previousFrames !== undefined && frames < previousFrames));
+            const bitrateMbps =
+              previous && !countersReset && now > previous.at
+                ? ((outbound.bytesSent - previous.bytes) * 8) / ((now - previous.at) * 1000)
+                : undefined;
+            const videoAdvanced =
+              previous !== null &&
+              !countersReset &&
+              outbound.bytesSent > previous.bytes &&
+              (frames === undefined || previousFrames === undefined || frames > previousFrames);
+            if (videoAdvanced) {
+              attemptedStallRefreshRef.current = false;
+            }
+            const progressed = !previous || countersReset || videoAdvanced;
+            stalledStatsSamplesRef.current = progressed ? 0 : stalledStatsSamplesRef.current + 1;
+            lastStatsRef.current = {
+              bytes: outbound.bytesSent,
+              ...(frames === undefined ? {} : { framesEncoded: frames }),
+              at: now,
+            };
+            setQuality((current) => ({
+              ...current,
+              ...(outbound.frameWidth === undefined ? {} : { width: outbound.frameWidth }),
+              ...(outbound.frameHeight === undefined ? {} : { height: outbound.frameHeight }),
+              ...(outbound.framesPerSecond === undefined ? {} : { fps: outbound.framesPerSecond }),
+              bitrateMbps,
+            }));
+            if (
+              stalledStatsSamplesRef.current >= stalledStatsSampleLimit &&
+              now >= stalledRecoveryAfterRef.current &&
+              acquiringReplacementGenerationRef.current === null
+            ) {
+              const deviceId = activeCameraIdRef.current;
+              if (!deviceId || attemptedStallRefreshRef.current) {
+                recoverSession(true, "Webcam video stopped advancing.");
+              } else {
+                attemptedStallRefreshRef.current = true;
+                stalledStatsSamplesRef.current = 0;
+                stalledRecoveryAfterRef.current = now + stalledRecoveryCooldownMs;
+                void changeCameraRef.current(deviceId, "stalled");
+              }
             }
           }
-        }
-      })();
-    }, 1000);
-  }, []);
+        })();
+      }, 1000);
+    },
+    [recoverSession],
+  );
 
   const scheduleCredentialRenewal = useCallback(
-    (expiresAt?: string | null) => {
+    (expiresAt?: string | null, relayCheckedAt?: string | null) => {
       window.clearTimeout(renewalTimerRef.current);
       if (!expiresAt || activePc.transportMode !== "relay") {
         return;
@@ -686,21 +1051,21 @@ export default function PhoneWebcamWorkspace({
       if (!Number.isFinite(expiry)) {
         return;
       }
-      const delay = expiry - Date.now() - 60_000;
+      const relayTime = relayCheckedAt ? Date.parse(relayCheckedAt) : Number.NaN;
+      const relayLifetime = expiry - relayTime;
+      const remaining =
+        relayLifetime > 0 && relayLifetime <= 24 * 60 * 60_000
+          ? relayLifetime
+          : expiry - Date.now();
+      const delay = remaining - 60_000;
       renewalTimerRef.current = window.setTimeout(
         () => {
-          if (document.visibilityState !== "visible" || !streamRef.current) {
-            resumeRef.current = true;
-            return;
-          }
-          releaseLocal(true, "Refreshing Relay credentials…");
-          resumeRef.current = true;
-          scheduleResume();
+          recoverSession(true, "Refreshing Relay credentials…");
         },
-        Math.max(1000, delay),
+        Math.max(5_000, delay),
       );
     },
-    [activePc.transportMode, releaseLocal, scheduleResume],
+    [activePc.transportMode, recoverSession],
   );
 
   const acceptOffer = useCallback(
@@ -713,15 +1078,22 @@ export default function PhoneWebcamWorkspace({
       startResponseTimerRef.current = undefined;
       const generation = generationRef.current;
       const isCurrent = () =>
-        generationRef.current === generation &&
-        pendingRef.current === pending &&
-        operationIdRef.current === message.operationId;
-      if (
-        !message.succeeded ||
-        !message.offerSdp ||
-        !message.hostSignature ||
-        !activePc.hostIdentityPublicKey
-      ) {
+        generationRef.current === generation && operationIdRef.current === message.operationId;
+      if (!message.succeeded) {
+        if (message.code === "microphone-unavailable" && pending.useMicrophone) {
+          recoverWithoutMicrophone(false, message.message);
+        } else if (
+          message.code &&
+          recoverableStartCodes.has(message.code) &&
+          (message.code !== "busy" || recoveryAttemptRef.current > 0)
+        ) {
+          recoverSession(false, message.message);
+        } else {
+          releaseLocal(false, message.message);
+        }
+        return;
+      }
+      if (!message.offerSdp || !message.hostSignature || !activePc.hostIdentityPublicKey) {
         releaseLocal(true, message.message);
         return;
       }
@@ -744,7 +1116,7 @@ export default function PhoneWebcamWorkspace({
       }
       const relayMode = activePc.transportMode === "relay";
       if (relayMode && (!message.iceServers || message.iceServers.length === 0)) {
-        releaseLocal(true, "Relay credentials are temporarily unavailable.");
+        recoverSession(true, "Relay credentials are temporarily unavailable.");
         return;
       }
       let peer: RTCPeerConnection;
@@ -764,18 +1136,19 @@ export default function PhoneWebcamWorkspace({
       peerSetupRef.current = setup;
       startResponseTimerRef.current = window.setTimeout(() => {
         if (isCurrent() && peerRef.current === peer) {
-          releaseRef.current(
-            true,
-            "The encrypted webcam connection timed out. Tap Start to try again.",
-          );
+          recoverSession(true, "The encrypted webcam connection timed out.");
         }
       }, peerSetupTimeoutMs);
       let negotiationStage = "applying the PC media offer";
-      peer.addEventListener("connectionstatechange", () => {
+      let answerSent = false;
+      const onConnectionStateChange = () => {
         if (peerRef.current !== peer) {
           return;
         }
         if (peer.connectionState === "connected") {
+          if (!answerSent) {
+            return;
+          }
           window.clearTimeout(startResponseTimerRef.current);
           startResponseTimerRef.current = undefined;
           window.clearTimeout(disconnectedTimerRef.current);
@@ -785,21 +1158,34 @@ export default function PhoneWebcamWorkspace({
           if (statsTimerRef.current === undefined) {
             beginStats(peer, setup.signal);
           }
+          if (recoveryAttemptRef.current > 0 && stableTimerRef.current === undefined) {
+            stableTimerRef.current = window.setTimeout(() => {
+              stableTimerRef.current = undefined;
+              recoveryAttemptRef.current = 0;
+            }, stableConnectionMs);
+          }
         } else if (peer.connectionState === "disconnected") {
+          window.clearTimeout(stableTimerRef.current);
+          stableTimerRef.current = undefined;
+          if (disconnectedTimerRef.current !== undefined) {
+            return;
+          }
           statsGenerationRef.current += 1;
           lastStatsRef.current = null;
           stalledStatsSamplesRef.current = 0;
+          setPhase("interrupted");
           setStatus("Webcam video interrupted. Reconnecting…");
-          window.clearTimeout(disconnectedTimerRef.current);
           disconnectedTimerRef.current = window.setTimeout(() => {
-            if (peerRef.current === peer && peer.connectionState === "disconnected") {
-              releaseRef.current(true, "Webcam video connection was lost. Tap Start to try again.");
+            disconnectedTimerRef.current = undefined;
+            if (peerRef.current === peer && peer.connectionState !== "connected") {
+              recoverSession(true, "Webcam video connection was lost.");
             }
           }, disconnectedRecoveryMs);
         } else if (peer.connectionState === "failed" || peer.connectionState === "closed") {
-          releaseLocal(false, "Webcam video connection was lost.");
+          recoverSession(true, "Webcam video connection was lost.");
         }
-      });
+      };
+      peer.addEventListener("connectionstatechange", onConnectionStateChange);
       try {
         await runWebRtcSetupStep(setup.signal, () =>
           peer.setRemoteDescription({ type: "offer", sdp: offerSdp }),
@@ -816,7 +1202,7 @@ export default function PhoneWebcamWorkspace({
         }
         transceiver.direction = "sendonly";
         const track = pending.stream.getVideoTracks()[0];
-        if (!track) {
+        if (!track || isEndedTrack(track)) {
           throw new Error("Missing camera track.");
         }
         await runWebRtcSetupStep(setup.signal, () => transceiver.sender.replaceTrack(track));
@@ -875,6 +1261,10 @@ export default function PhoneWebcamWorkspace({
           throw new Error("Invalid Phone webcam answer.");
         }
         if (relayMode && !hasOnlyRelayCandidates(answerSdp)) {
+          if (!/^a=candidate:/mu.test(answerSdp)) {
+            recoverSession(true, "The browser could not find a Relay route for webcam video.");
+            return;
+          }
           throw new Error("Relay-only candidates required.");
         }
         const answerHash = hashSessionDescription(answerSdp);
@@ -890,18 +1280,30 @@ export default function PhoneWebcamWorkspace({
           clientSignature: signature,
         });
         if (sent === false) {
-          releaseLocal(false, "The webcam answer could not be sent. Reconnect and try again.");
+          recoverSession(true, "The webcam answer could not be sent.");
           return;
         }
-        scheduleCredentialRenewal(message.turnExpiresAt);
+        if (!isCurrent()) {
+          return;
+        }
+        answerSent = true;
+        pendingRef.current = null;
+        scheduleCredentialRenewal(message.turnExpiresAt, message.relayUsageCheckedAt);
         setStatus(
           pending.useMicrophone
             ? "Connecting encrypted webcam video and audio…"
             : "Connecting encrypted webcam video…",
         );
+        if (peer.connectionState === "connected") {
+          onConnectionStateChange();
+        }
       } catch (error) {
         if (isCurrent()) {
-          releaseLocal(true, describeNegotiationFailure(negotiationStage, error));
+          if (error instanceof IceGatheringTimeoutError) {
+            recoverSession(true, "The browser timed out finding a route for webcam video.");
+          } else {
+            releaseLocal(true, describeNegotiationFailure(negotiationStage, error));
+          }
         }
       }
     },
@@ -911,6 +1313,8 @@ export default function PhoneWebcamWorkspace({
       activePc.transportMode,
       beginStats,
       clientId,
+      recoverSession,
+      recoverWithoutMicrophone,
       releaseLocal,
       scheduleCredentialRenewal,
       send,
@@ -928,15 +1332,39 @@ export default function PhoneWebcamWorkspace({
         message.operationId === operationIdRef.current
       ) {
         if (!message.succeeded) {
-          releaseLocal(true, message.message);
+          if (
+            message.code === "microphone-unavailable" &&
+            streamRef.current?.getAudioTracks().length
+          ) {
+            recoverWithoutMicrophone(true, message.message);
+          } else if (message.code === "offer-expired") {
+            recoverSession(true, message.message);
+          } else {
+            releaseLocal(true, message.message);
+          }
         }
         return;
       }
-      if (message.type === "phone.webcam.ended" && message.operationId === operationIdRef.current) {
-        releaseLocal(false, message.message);
+      if (message.type === "phone.webcam.ended") {
+        if (message.operationId !== operationIdRef.current) {
+          if (
+            recoveryVetoReasons.has(message.reason) &&
+            recoveringOperationIdsRef.current.has(message.operationId)
+          ) {
+            releaseLocal(true, message.message);
+          }
+          return;
+        }
+        if (message.reason === "audio-failed") {
+          recoverWithoutMicrophone(false, "The PC microphone output stopped. Restoring video…");
+        } else if (recoverableEndReasons.has(message.reason)) {
+          recoverSession(false, message.message);
+        } else {
+          releaseLocal(false, message.message);
+        }
       }
     },
-    [acceptOffer, releaseLocal],
+    [acceptOffer, recoverSession, recoverWithoutMicrophone, releaseLocal],
   );
 
   useEffect(() => subscribePhoneWebcamResults(handleResult), [handleResult]);
@@ -945,7 +1373,10 @@ export default function PhoneWebcamWorkspace({
     async (deviceId: string, reason: CameraChangeReason = "selection") => {
       if (reason === "selection") {
         window.clearTimeout(orientationTimerRef.current);
-      } else if (acquiringReplacementGenerationRef.current !== null) {
+      } else if (
+        acquiringReplacementGenerationRef.current !== null ||
+        streamRef.current?.getVideoTracks()[0]?.muted
+      ) {
         return;
       }
       const sender = senderRef.current;
@@ -954,8 +1385,7 @@ export default function PhoneWebcamWorkspace({
         setSelectedCameraId(deviceId);
         return;
       }
-      const previousCameraId =
-        streamRef.current?.getVideoTracks()[0]?.getSettings().deviceId ?? selectedCameraId;
+      const previousCameraId = activeCameraIdRef.current ?? selectedCameraId;
       setSelectedCameraId(deviceId);
       setStatus(
         reason === "orientation"
@@ -988,7 +1418,7 @@ export default function PhoneWebcamWorkspace({
       const updateSender = async (track: MediaStreamTrack | null) => {
         const deadline = window.setTimeout(() => {
           if (hasCurrentSender()) {
-            releaseRef.current(true, "The camera switch timed out. Tap Start to try again.");
+            recoverSession(true, "The camera switch timed out.");
           }
         }, senderUpdateTimeoutMs);
         try {
@@ -1052,9 +1482,13 @@ export default function PhoneWebcamWorkspace({
             }
             let retryTimer: number | undefined;
             try {
-              await runWebRtcSetupStep(capture.signal, () => new Promise<void>((resolve) => {
-                retryTimer = window.setTimeout(resolve, 200);
-              }));
+              await runWebRtcSetupStep(
+                capture.signal,
+                () =>
+                  new Promise<void>((resolve) => {
+                    retryTimer = window.setTimeout(resolve, 200);
+                  }),
+              );
             } finally {
               window.clearTimeout(retryTimer);
             }
@@ -1070,7 +1504,6 @@ export default function PhoneWebcamWorkspace({
         const stream = replacement;
         let stopped = false;
         const candidate: PendingReplacement = {
-          stream,
           updatingSender: false,
           stop: () => {
             if (stopped) {
@@ -1085,7 +1518,7 @@ export default function PhoneWebcamWorkspace({
         const nextTrack = stream.getVideoTracks()[0];
         if (!nextTrack || isEndedTrack(nextTrack)) {
           if (activeVideoLossRef.current !== null) {
-            releaseLocal(true, "The active camera stopped while switching cameras.");
+            recoverSession(true, "The active camera stopped while switching cameras.");
           } else {
             setSelectedCameraId(previousCameraId);
             setStatus("The selected camera did not provide video.");
@@ -1094,11 +1527,6 @@ export default function PhoneWebcamWorkspace({
         }
         nextTrack.contentHint = "motion";
         const settings = nextTrack.getSettings();
-        nextTrack.addEventListener(
-          "ended",
-          () => handleActiveVideoEnded(stream, generation),
-          { once: true },
-        );
         await serializeSenderUpdate(async () => {
           if (!ownsReplacement()) {
             return;
@@ -1114,13 +1542,14 @@ export default function PhoneWebcamWorkspace({
           const ended = isEndedTrack(nextTrack);
           if (!ownsReplacement() || ended) {
             try {
-              const currentTrack = activeVideoLossRef.current === null
-                ? streamRef.current?.getVideoTracks()[0] ?? null
-                : null;
+              const currentTrack =
+                activeVideoLossRef.current === null
+                  ? (streamRef.current?.getVideoTracks()[0] ?? null)
+                  : null;
               await updateSender(currentTrack);
             } catch {
               if (hasCurrentSender()) {
-                releaseLocal(true, "The camera connection could not be restored.");
+                recoverSession(true, "The camera connection could not be restored.");
               }
             }
             if (ended) {
@@ -1135,6 +1564,8 @@ export default function PhoneWebcamWorkspace({
           }
           const previousVideoWasReleased = activeVideoLossRef.current === "released";
           streamRef.current = stream;
+          activeCameraIdRef.current = deviceId;
+          watchActiveVideo(stream, generation);
           committed = true;
           statsGenerationRef.current += 1;
           lastStatsRef.current = null;
@@ -1143,7 +1574,7 @@ export default function PhoneWebcamWorkspace({
           setSelectedCameraId(deviceId);
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
-            void videoRef.current.play().catch(() => undefined);
+            requestPreviewPlayback();
           }
           if (!previousVideoWasReleased) {
             previous?.getVideoTracks().forEach((track) => track.stop());
@@ -1153,25 +1584,24 @@ export default function PhoneWebcamWorkspace({
             ...(settings.height === undefined ? {} : { height: settings.height }),
             ...(settings.frameRate === undefined ? {} : { fps: settings.frameRate }),
           });
-          setStatus(
-            activePc.transportMode === "relay"
-              ? "Streaming through Relay"
-              : "Streaming through Enhanced Direct",
-          );
+          if (peerRef.current?.connectionState === "connected") {
+            setStatus(
+              activePc.transportMode === "relay"
+                ? "Streaming through Relay"
+                : "Streaming through Enhanced Direct",
+            );
+          }
         });
       } catch (error) {
         if (!ownsReplacement()) {
           return;
         }
-        if (activeVideoLossRef.current === "ended") {
-          setSelectedCameraId(deviceId);
-          releaseLocal(true, "The active camera stopped while switching cameras.");
-          return;
-        }
-        if (activeVideoLossRef.current === "released" || !streamRef.current) {
-          releaseLocal(
+        if (activeVideoLossRef.current !== null || !streamRef.current) {
+          recoverSession(
             true,
-            "The selected camera could not be opened after releasing the previous camera.",
+            activeVideoLossRef.current === "ended"
+              ? "The active camera stopped while switching cameras."
+              : "The selected camera could not be opened after releasing the previous camera.",
           );
           return;
         }
@@ -1201,7 +1631,14 @@ export default function PhoneWebcamWorkspace({
         }
       }
     },
-    [activePc.transportMode, handleActiveVideoEnded, phase, releaseLocal, selectedCameraId],
+    [
+      activePc.transportMode,
+      phase,
+      recoverSession,
+      requestPreviewPlayback,
+      selectedCameraId,
+      watchActiveVideo,
+    ],
   );
 
   useEffect(() => {
@@ -1211,8 +1648,14 @@ export default function PhoneWebcamWorkspace({
     const refreshAfterRotation = () => {
       window.clearTimeout(orientationTimerRef.current);
       orientationTimerRef.current = window.setTimeout(() => {
-        const deviceId = streamRef.current?.getVideoTracks()[0]?.getSettings().deviceId;
-        if (deviceId && peerRef.current && senderRef.current) {
+        const deviceId = activeCameraIdRef.current;
+        if (
+          deviceId &&
+          peerRef.current &&
+          senderRef.current &&
+          !pageHiddenRef.current &&
+          document.visibilityState === "visible"
+        ) {
           void changeCameraRef.current(deviceId, "orientation");
         }
       }, 500);
@@ -1230,17 +1673,10 @@ export default function PhoneWebcamWorkspace({
     const pauseForBackground = () => {
       window.clearTimeout(restartTimerRef.current);
       restartTimerRef.current = undefined;
-      if (permissionLoadingRef.current) {
+      if (acquiringGenerationRef.current !== null || streamRef.current || operationIdRef.current) {
+        recoverSession(true, "Camera released while Voltura Air is in the background.");
+      } else if (permissionLoadingRef.current || microphoneCaptureRef.current) {
         releaseRef.current(true, "Camera access is paused while Voltura Air is in the background.");
-      }
-      if (
-        acquiringGenerationRef.current !== null ||
-        streamRef.current ||
-        pendingRef.current ||
-        peerRef.current
-      ) {
-        resumeRef.current = true;
-        releaseRef.current(true, "Camera released while Voltura Air is in the background.");
       }
     };
     const onVisibility = () => {
@@ -1250,51 +1686,90 @@ export default function PhoneWebcamWorkspace({
         scheduleResume();
       }
     };
+    const onPageHide = () => {
+      pageHiddenRef.current = true;
+      pauseForBackground();
+    };
+    const onPageShow = () => {
+      pageHiddenRef.current = false;
+      onVisibility();
+    };
     document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("pagehide", pauseForBackground);
-    window.addEventListener("pageshow", onVisibility);
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("pageshow", onPageShow);
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("pagehide", pauseForBackground);
-      window.removeEventListener("pageshow", onVisibility);
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("pageshow", onPageShow);
     };
-  }, [scheduleResume]);
+  }, [recoverSession, scheduleResume]);
 
   useEffect(() => {
     const previous = lastConnectionRef.current;
-    lastConnectionRef.current = { pcId: activePc.id, epoch: connectionEpoch };
-    if (previous.pcId !== activePc.id) {
-      resumeRef.current = false;
+    lastConnectionRef.current = {
+      pcId: activePc.id,
+      hostKey: activePc.hostIdentityPublicKey,
+      epoch: connectionEpoch,
+    };
+    if (previous.pcId !== activePc.id || previous.hostKey !== activePc.hostIdentityPublicKey) {
+      setUseMicrophone(false);
+      setMicrophonePermissionGranted(false);
       releaseLocal(false, initialStatus(capability));
       return;
     }
-    if (state === "paired" && previous.epoch === connectionEpoch) {
+    if (state === "needs-pairing" || state === "rejected") {
+      if (
+        operationIdRef.current ||
+        acquiringGenerationRef.current !== null ||
+        resumeRef.current ||
+        permissionCaptureRef.current ||
+        microphoneCaptureRef.current
+      ) {
+        setUseMicrophone(false);
+        setMicrophonePermissionGranted(false);
+        releaseLocal(false, "Pair with the PC to use Phone webcam.");
+      }
+      return;
+    }
+    const sameConnection = state === "paired" && previous.epoch === connectionEpoch;
+    if (sameConnection && capabilityConfirmed) {
       scheduleResume();
       return;
     }
     window.clearTimeout(restartTimerRef.current);
     restartTimerRef.current = undefined;
-    if (
-      permissionLoadingRef.current ||
-      acquiringGenerationRef.current !== null ||
-      streamRef.current ||
-      pendingRef.current ||
-      peerRef.current
-    ) {
-      resumeRef.current = true;
+    if (acquiringGenerationRef.current !== null || streamRef.current || operationIdRef.current) {
+      recoverSession(
+        sameConnection,
+        sameConnection
+          ? "Waiting for the PC to confirm Phone webcam…"
+          : "Waiting for the PC connection…",
+      );
+    } else if (permissionLoadingRef.current || microphoneCaptureRef.current) {
       releaseLocal(false, "Waiting for the PC connection…");
     }
     if (state === "paired") {
       scheduleResume();
     }
-  }, [activePc.id, capability, connectionEpoch, releaseLocal, scheduleResume, state]);
+  }, [
+    activePc.hostIdentityPublicKey,
+    activePc.id,
+    capability,
+    capabilityConfirmed,
+    connectionEpoch,
+    recoverSession,
+    releaseLocal,
+    scheduleResume,
+    state,
+  ]);
 
   useEffect(() => {
     microphoneAvailableRef.current = capability.microphoneAvailable;
-    if (capability.microphoneAvailable || phase !== "idle") {
+    if (capability.microphoneAvailable || (phase !== "idle" && phase !== "recovering")) {
       return;
     }
     microphoneRequestGenerationRef.current += 1;
+    microphoneCaptureRef.current?.abort();
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) {
@@ -1313,9 +1788,10 @@ export default function PhoneWebcamWorkspace({
     if (capability.canUse) {
       return;
     }
-    resumeRef.current = false;
     if (
+      resumeRef.current ||
       permissionLoadingRef.current ||
+      microphoneCaptureRef.current ||
       acquiringGenerationRef.current !== null ||
       streamRef.current ||
       replacementRef.current ||
@@ -1342,30 +1818,52 @@ export default function PhoneWebcamWorkspace({
     }
     const muted = track.enabled;
     track.enabled = !muted;
+    microphoneMutedRef.current = muted;
     setMicrophoneMuted(muted);
   }, [microphoneActive]);
+
+  const stop = () => {
+    setUseMicrophone(false);
+    setMicrophonePermissionGranted(false);
+    releaseLocal(true, "Ready to start.");
+  };
 
   const canStart =
     supportedTransport &&
     permissionGranted &&
+    !microphonePermissionLoading &&
     selectedCameraId &&
     capability.canUse &&
+    capabilityConfirmed &&
     state === "paired" &&
     phase === "idle";
+  const cameraAccessReady = permissionGranted && cameras.length > 0;
+  const visibleStatus = cameraPaused
+    ? "Camera paused by the browser."
+    : phase === "idle" && permissionGranted && !cameraAccessReady
+      ? "No camera is available."
+      : status;
+  const expandedStatus = phase !== "streaming" || cameraPaused;
   return (
     <section
       className={`phone-webcam-workspace${isCameraViewExpanded ? " camera-view-expanded" : ""}`}
       aria-labelledby="phone-webcam-title"
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && isCameraViewExpanded) {
+          event.stopPropagation();
+          event.preventDefault();
+          setIsCameraViewExpanded(false);
+        }
+      }}
     >
       <header className="phone-webcam-header">
         <button
           type="button"
           className="icon-button"
           aria-label="Back"
+          inert={isCameraViewExpanded}
           onClick={() => {
-            setUseMicrophone(false);
-            setMicrophonePermissionGranted(false);
-            releaseLocal(true, "Phone webcam stopped.");
+            stop();
             onBack();
           }}
         >
@@ -1378,7 +1876,14 @@ export default function PhoneWebcamWorkspace({
       </header>
 
       <div className="phone-webcam-preview" aria-label="Camera view">
-        <video ref={videoRef} muted playsInline autoPlay aria-label="Selected phone camera view" />
+        <video
+          ref={videoRef}
+          muted
+          playsInline
+          autoPlay
+          aria-label="Selected phone camera view"
+          onPause={resumePausedPreview}
+        />
         <button
           type="button"
           className="phone-webcam-expand"
@@ -1394,21 +1899,50 @@ export default function PhoneWebcamWorkspace({
             <Maximize2 aria-hidden="true" />
           )}
         </button>
-        {phase === "idle" && (
+        {phase === "idle" && !isCameraViewExpanded && (
           <div className="phone-webcam-placeholder">
             <Camera aria-hidden="true" />
             <span>Camera view appears when streaming starts</span>
           </div>
         )}
+        {isCameraViewExpanded && (
+          <div className="phone-webcam-preview-status">
+            {expandedStatus && (
+              <span className="phone-webcam-preview-status-text" role="status">
+                {(phase === "recovering" || phase === "interrupted") && (
+                  <strong>Reconnecting</strong>
+                )}
+                <span>{visibleStatus}</span>
+              </span>
+            )}
+            {phase === "idle" ? (
+              <button type="button" disabled={!canStart} onClick={() => void start()}>
+                Start
+              </button>
+            ) : (
+              <button type="button" onClick={stop}>
+                Stop
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      <div className="phone-webcam-controls">
-        {!permissionGranted && (
+      <div
+        className="phone-webcam-controls"
+        inert={isCameraViewExpanded}
+        aria-hidden={isCameraViewExpanded}
+      >
+        {!cameraAccessReady && phase === "idle" && (
           <button
             type="button"
             className="primary-button"
             disabled={
-              permissionLoading || !supportedTransport || !capability.canUse || state !== "paired"
+              permissionLoading ||
+              !supportedTransport ||
+              !capability.canUse ||
+              !capabilityConfirmed ||
+              state !== "paired"
             }
             onClick={() => {
               void loadCameras();
@@ -1417,12 +1951,12 @@ export default function PhoneWebcamWorkspace({
             {permissionLoading ? "Opening camera…" : "Allow camera access"}
           </button>
         )}
-        {permissionGranted && (
+        {cameraAccessReady && (
           <label>
             Camera
             <select
               value={selectedCameraId}
-              disabled={phase === "connecting"}
+              disabled={phase !== "idle" && phase !== "streaming"}
               onChange={(event) => {
                 void changeCamera(event.target.value);
               }}
@@ -1435,14 +1969,19 @@ export default function PhoneWebcamWorkspace({
             </select>
           </label>
         )}
-        {permissionGranted && (capability.microphoneAvailable || microphoneActive) && (
+        {cameraAccessReady && (capability.microphoneAvailable || microphoneActive) && (
           <div className="phone-webcam-microphone">
             {capability.microphoneAvailable && (
               <label>
                 <input
                   type="checkbox"
                   checked={useMicrophone}
-                  disabled={phase !== "idle" || microphonePermissionLoading}
+                  disabled={
+                    phase !== "idle" ||
+                    microphonePermissionLoading ||
+                    !capabilityConfirmed ||
+                    state !== "paired"
+                  }
                   onChange={(event) => {
                     void requestMicrophone(event.target.checked);
                   }}
@@ -1470,28 +2009,25 @@ export default function PhoneWebcamWorkspace({
             <Camera aria-hidden="true" />
             Start
           </button>
-          <button
-            type="button"
-            disabled={phase === "idle"}
-            onClick={() => {
-              resumeRef.current = false;
-              setUseMicrophone(false);
-              setMicrophonePermissionGranted(false);
-              releaseLocal(true, "Ready to start.");
-            }}
-          >
+          <button type="button" disabled={phase === "idle"} onClick={stop}>
             <CameraOff aria-hidden="true" />
             Stop
           </button>
         </div>
       </div>
 
-      <div className="phone-webcam-status" role="status">
+      <div className="phone-webcam-status" role="status" aria-hidden={isCameraViewExpanded}>
         <strong>
-          {phase === "streaming" ? "Streaming" : phase === "connecting" ? "Connecting" : "Ready"}
+          {phase === "streaming"
+            ? "Streaming"
+            : phase === "connecting"
+              ? "Connecting"
+              : phase === "idle"
+                ? "Ready"
+                : "Reconnecting"}
         </strong>
         <span>
-          {supportedTransport ? status : "Phone webcam requires Enhanced Direct or Relay."}
+          {supportedTransport ? visibleStatus : "Phone webcam requires Enhanced Direct or Relay."}
         </span>
         {quality.width && quality.height && (
           <span>
@@ -1612,36 +2148,41 @@ interface OutboundVideoStats {
 }
 
 function readOutboundVideoReport(report: RTCStatsReport): OutboundVideoStats | null {
-  const rows: OutboundVideoStats[] = [];
-  report.forEach((value: unknown) => {
+  let sample: OutboundVideoStats | null = null;
+  let area = -1;
+  let bytesSent = 0;
+  let framesEncoded: number | undefined = 0;
+  for (const value of report.values()) {
     const row = readOutboundVideoStats(value);
-    if (row) {
-      rows.push(row);
+    if (!row) {
+      continue;
     }
-  });
-  if (rows.length === 0) {
+    bytesSent += row.bytesSent;
+    framesEncoded =
+      framesEncoded !== undefined && row.framesEncoded !== undefined
+        ? framesEncoded + row.framesEncoded
+        : undefined;
+    const rowArea = (row.frameWidth ?? 0) * (row.frameHeight ?? 0);
+    if (rowArea > area) {
+      sample = row;
+      area = rowArea;
+    }
+  }
+  if (!sample) {
     return null;
   }
-  const allExposeFramesEncoded = rows.every((row) => row.framesEncoded !== undefined);
+  const { frameWidth, frameHeight, framesPerSecond } = sample;
   return {
-    bytesSent: rows.reduce((total, row) => total + row.bytesSent, 0),
-    ...(allExposeFramesEncoded
-      ? { framesEncoded: rows.reduce((total, row) => total + (row.framesEncoded ?? 0), 0) }
-      : {}),
-    ...maximumDefined(rows, "frameWidth"),
-    ...maximumDefined(rows, "frameHeight"),
-    ...maximumDefined(rows, "framesPerSecond"),
+    bytesSent,
+    ...(framesEncoded === undefined ? {} : { framesEncoded }),
+    ...(frameWidth === undefined ? {} : { frameWidth }),
+    ...(frameHeight === undefined ? {} : { frameHeight }),
+    ...(framesPerSecond === undefined ? {} : { framesPerSecond }),
   };
 }
 
-function maximumDefined<Key extends "frameWidth" | "frameHeight" | "framesPerSecond">(
-  rows: OutboundVideoStats[],
-  key: Key,
-): Pick<OutboundVideoStats, Key> | object {
-  const values = rows
-    .map((row) => row[key])
-    .filter((value): value is number => value !== undefined);
-  return values.length === 0 ? {} : { [key]: Math.max(...values) };
+function validStat(value: unknown, minimum = 0): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= minimum;
 }
 
 function readOutboundVideoStats(value: unknown): OutboundVideoStats | null {
@@ -1653,17 +2194,15 @@ function readOutboundVideoStats(value: unknown): OutboundVideoStats | null {
     record.type !== "outbound-rtp" ||
     (record.kind ?? record.mediaType) !== "video" ||
     record.active === false ||
-    typeof record.bytesSent !== "number"
+    !validStat(record.bytesSent)
   ) {
     return null;
   }
   return {
     bytesSent: record.bytesSent,
-    ...(typeof record.framesEncoded === "number" ? { framesEncoded: record.framesEncoded } : {}),
-    ...(typeof record.frameWidth === "number" ? { frameWidth: record.frameWidth } : {}),
-    ...(typeof record.frameHeight === "number" ? { frameHeight: record.frameHeight } : {}),
-    ...(typeof record.framesPerSecond === "number"
-      ? { framesPerSecond: record.framesPerSecond }
-      : {}),
+    ...(validStat(record.framesEncoded) ? { framesEncoded: record.framesEncoded } : {}),
+    ...(validStat(record.frameWidth, 1) ? { frameWidth: record.frameWidth } : {}),
+    ...(validStat(record.frameHeight, 1) ? { frameHeight: record.frameHeight } : {}),
+    ...(validStat(record.framesPerSecond) ? { framesPerSecond: record.framesPerSecond } : {}),
   };
 }

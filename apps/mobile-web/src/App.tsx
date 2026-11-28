@@ -3,7 +3,11 @@ import { getAvailableToolModeIds, toolModeDefinitions } from "./app/appModeTabs"
 import { createSettingsActions, SettingsDrawer } from "./features/settings";
 import { parsePairingLink } from "./foundation/pairing/pairingLink";
 import { getPcDisplayName } from "./foundation/pairing/pcDisplayName";
-import type { RemoteLaunchAction, ScreenViewCapability } from "./foundation/protocol/messages";
+import type {
+  PhoneWebcamCapability,
+  RemoteLaunchAction,
+  ScreenViewCapability,
+} from "./foundation/protocol/messages";
 import { buildMobileDiagnostics } from "./foundation/diagnostics/mobileDiagnostics";
 import type { RemoteSettings } from "./foundation/settings/remoteSettings";
 import { useVolturaAirConnection } from "./foundation/connection/useVolturaAirConnection";
@@ -132,9 +136,17 @@ export function App() {
       ? screenViewCapabilitySnapshot.capability
       : undefined);
   const [isPhoneWebcamOpen, setIsPhoneWebcamOpen] = useState(false);
-  const [phoneWebcamCapabilitySnapshot, setPhoneWebcamCapabilitySnapshot] =
-    useState(phoneWebcamCapability);
-  const activePhoneWebcamCapability = phoneWebcamCapability ?? phoneWebcamCapabilitySnapshot;
+  const [phoneWebcamCapabilitySnapshot, setPhoneWebcamCapabilitySnapshot] = useState<{
+    pcId: string;
+    capability: PhoneWebcamCapability;
+  } | null>(null);
+  const activePhoneWebcamCapability =
+    phoneWebcamCapability ??
+    (phoneWebcamCapabilitySnapshot?.pcId === activePc?.id
+      ? phoneWebcamCapabilitySnapshot?.capability
+      : undefined);
+  const showPhoneWebcamWorkspace =
+    isPhoneWebcamOpen && Boolean(activePc && activePhoneWebcamCapability);
   const [gyroSelected, setGyroSelected] = useState(false);
   const [gyroActivationRequest, setGyroActivationRequest] = useState<GyroActivationRequest | null>(
     null,
@@ -598,7 +610,7 @@ export function App() {
     !isAiAssistantOpen &&
     !isAppsOpen &&
     !isThirdPartyNoticesOpen &&
-    !isPhoneWebcamOpen &&
+    !showPhoneWebcamWorkspace &&
     !isScreenViewOpen &&
     activeCustomScreenId === null;
   const activeCustomScreenRevision = activeCustomScreenSummary?.revision;
@@ -777,7 +789,7 @@ export function App() {
           tab={tab}
         />
 
-        {!isPhoneWebcamOpen &&
+        {!showPhoneWebcamWorkspace &&
           !(
             isScreenViewOpen &&
             activePc?.transportMode === "relay" &&
@@ -845,7 +857,7 @@ export function App() {
             presentationSessionActive ||
             presentationConnectionIntent !== null ||
             isScreenViewOpen ||
-            isPhoneWebcamOpen ||
+            showPhoneWebcamWorkspace ||
             isAppsOpen ||
             isAiAssistantOpen ||
             livePairingScannerAttempt !== null ||
@@ -952,7 +964,11 @@ export function App() {
           }}
           onOpenPhoneWebcam={() => {
             requestPresentationExit(() => {
-              setPhoneWebcamCapabilitySnapshot(phoneWebcamCapability);
+              setPhoneWebcamCapabilitySnapshot(
+                activePc && phoneWebcamCapability
+                  ? { pcId: activePc.id, capability: phoneWebcamCapability }
+                  : null,
+              );
               setActiveCustomScreenId(null);
               setIsThirdPartyNoticesOpen(false);
               setIsDiagnosticsOpen(false);
@@ -1057,7 +1073,7 @@ export function App() {
 
         {activeCustomScreenId === null &&
           !isScreenViewOpen &&
-          !isPhoneWebcamOpen &&
+          !showPhoneWebcamWorkspace &&
           !isAiAssistantOpen &&
           !isAppsOpen &&
           tab !== "files" &&
@@ -1149,7 +1165,7 @@ export function App() {
               }}
             />
           </Suspense>
-        ) : isPhoneWebcamOpen && activePc && activePhoneWebcamCapability ? (
+        ) : showPhoneWebcamWorkspace && activePc && activePhoneWebcamCapability ? (
           <WorkspaceErrorBoundary
             featureName="Phone webcam"
             onBack={() => {
@@ -1160,6 +1176,7 @@ export function App() {
               <PhoneWebcamWorkspace
                 activePc={activePc}
                 capability={activePhoneWebcamCapability}
+                capabilityConfirmed={Boolean(phoneWebcamCapability)}
                 clientId={clientId}
                 connectionEpoch={connectionEpoch}
                 onBack={() => {
@@ -1440,7 +1457,7 @@ export function App() {
 
       {activeCustomScreenId === null &&
         !isScreenViewOpen &&
-        !isPhoneWebcamOpen &&
+        !showPhoneWebcamWorkspace &&
         !isAiAssistantOpen &&
         !isAppsOpen &&
         tab !== "files" &&

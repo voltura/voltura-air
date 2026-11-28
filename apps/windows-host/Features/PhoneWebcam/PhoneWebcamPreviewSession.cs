@@ -174,7 +174,13 @@ internal sealed class PhoneWebcamPreviewSession : IPhoneWebcamPreviewSession
                 out _);
             cancellationToken.ThrowIfCancellationRequested();
             ValidateCaptureFlags(flags);
-            if (sample is null || ++frameNumber % 2 != 0)
+            if (sample is null)
+            {
+                // Some readers return empty stream ticks without blocking on the next frame.
+                cancellationToken.WaitHandle.WaitOne(TimeSpan.FromMilliseconds(10));
+                continue;
+            }
+            if (++frameNumber % 2 != 0)
             {
                 continue;
             }

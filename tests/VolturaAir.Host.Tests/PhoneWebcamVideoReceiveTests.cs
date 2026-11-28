@@ -8,6 +8,16 @@ namespace VolturaAir.Host.Tests;
 
 public sealed class PhoneWebcamVideoReceiveTests
 {
+    [Theory]
+    [InlineData("a=candidate:1 1 UDP 1 192.0.2.1 5000 typ relay\r\n", true)]
+    [InlineData("a=candidate:1 1 TCP 1 192.0.2.1 5000 typ relay\r\na=candidate:2 1 UDP 1 192.0.2.2 5000 typ relay\r\n", true)]
+    [InlineData("", false)]
+    [InlineData("a=candidate:1 1 UDP 1 192.0.2.1 5000 typ relay\r\na=candidate:2 1 UDP 1 192.0.2.2 5000 typ host\r\n", false)]
+    public void PhoneWebcamRelayRequiresAtLeastOneCandidateAndEveryCandidateToBeRelay(string sdp, bool expected)
+    {
+        Assert.Equal(expected, PhoneWebcamWebRtcPeer.HasOnlyRelayCandidates(sdp));
+    }
+
     [Fact]
     public void KeyFrameRecoveryRequestsAreBoundedAcrossDecoderAndRtpCallbacks()
     {

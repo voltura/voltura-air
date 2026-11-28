@@ -13,6 +13,10 @@ internal sealed partial class MediaFoundationH264Decoder : IDisposable
     internal const int Height = 1080;
     internal const int FrameBytes = Width * Height * 3 / 2;
     private const int Maximum1080pDecoderBytes = Width * 1088 * 3 / 2;
+    private const int MaximumDecodedDimension = 4096;
+    private const int MaximumDecodedStride = 8192;
+    private const int MaximumDecodedBytes = MaximumDecodedStride * MaximumDecodedDimension * 3 / 2;
+    private const int MaximumConsecutiveFormatChanges = 8;
     private const uint ClsctxInprocServer = 1;
     private static readonly Guid MicrosoftH264Decoder = new("62CE7E72-4C71-4D20-B15D-452831A87D9D");
     private static readonly Guid H264VideoFormat = new(0x34363248, 0x0000, 0x0010, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71);
@@ -41,9 +45,10 @@ internal sealed partial class MediaFoundationH264Decoder : IDisposable
     {
         _allocateOutputBuffer = allocateOutputBuffer ?? (static length => MFCreateMemoryBuffer(length));
         MFStartup(true).CheckError();
+        IMFTransform? transform = null;
         try
         {
-            _decoder = CreateMicrosoftH264Decoder();
+            _decoder = transform = CreateMicrosoftH264Decoder();
             using (IMFAttributes decoderAttributes = _decoder.Attributes)
                 decoderAttributes.Set(SinkWriterAttributeKeys.LowLatency, 1u).CheckError();
             using IMFMediaType inputType = CreateH264InputType();
@@ -56,7 +61,8 @@ internal sealed partial class MediaFoundationH264Decoder : IDisposable
         }
         catch
         {
-            MFShutdown();
+            try { transform?.Dispose(); }
+            finally { MFShutdown(); }
             throw;
         }
     }
@@ -117,6 +123,7 @@ internal sealed partial class MediaFoundationH264Decoder : IDisposable
     private byte[]? DrainOutput()
     {
         byte[]? latestFrame = null;
+        int consecutiveFormatChanges = 0;
         try
         {
             while (true)
@@ -130,21 +137,22 @@ internal sealed partial class MediaFoundationH264Decoder : IDisposable
                     var output = new OutputDataBuffer { StreamID = 0, Sample = callerSample };
                     Result result = _decoder.ProcessOutput(ProcessOutputFlags.None, 1, ref output, out _);
                     using IMFCollection? events = output.Events;
-                    if (result == ResultCode.TransformNeedMoreInput) return latestFrame;
                     if (result == ResultCode.TransformStreamChange)
                     {
                         if (decoderProvidesSample) output.Sample?.Dispose();
+                        if (++consecutiveFormatChanges > MaximumConsecutiveFormatChanges)
+                            throw new InvalidOperationException("The H.264 decoder could not settle on an output format.");
                         using IMFMediaType outputType = GetNv12OutputType();
-                        _decoder.SetOutputType(0, outputType, 0);
                         UpdateDecodedLayout(outputType);
                         continue;
                     }
+                    using IMFSample? ownedSample = decoderProvidesSample ? output.Sample : null;
+                    if (result == ResultCode.TransformNeedMoreInput) return latestFrame;
                     result.CheckError();
+                    consecutiveFormatChanges = 0;
 
-                    IMFSample completedSample = decoderProvidesSample
-                        ? output.Sample ?? throw new InvalidOperationException("The H.264 decoder returned no output sample.")
-                        : callerSample!;
-                    try
+                    IMFSample completedSample = ownedSample ?? callerSample ??
+                        throw new InvalidOperationException("The H.264 decoder returned no output sample.");
                     {
                         using IMFMediaBuffer contiguous = completedSample.ConvertToContiguousBuffer();
                         int required = checked(_decodedStride * _decodedHeight * 3 / 2);
@@ -190,10 +198,6 @@ internal sealed partial class MediaFoundationH264Decoder : IDisposable
                         ReturnFrame(latestFrame);
                         latestFrame = frame;
                     }
-                    finally
-                    {
-                        if (decoderProvidesSample) completedSample.Dispose();
-                    }
                 }
             }
         }
@@ -211,6 +215,8 @@ internal sealed partial class MediaFoundationH264Decoder : IDisposable
 
     private IMFSample GetCallerOutputSample(int requiredBytes)
     {
+        if (requiredBytes > MaximumDecodedBytes)
+            throw new InvalidOperationException("The H.264 decoder requested an oversized output buffer.");
         if (_callerOutputBuffer is null || _callerOutputCapacity < requiredBytes)
         {
             IMFMediaBuffer buffer = _allocateOutputBuffer(requiredBytes);
@@ -243,31 +249,36 @@ internal sealed partial class MediaFoundationH264Decoder : IDisposable
 
     private void UpdateDecodedLayout(IMFMediaType outputType)
     {
-        int previousWidth = _decodedWidth;
-        int previousHeight = _decodedHeight;
         if (outputType.GetGUID(MediaTypeAttributeKeys.Subtype) != VideoFormatGuids.NV12)
             throw new InvalidOperationException("The H.264 decoder changed to a non-NV12 output type.");
         ulong packedSize = outputType.GetUInt64(MediaTypeAttributeKeys.FrameSize);
-        _decodedWidth = checked((int)(packedSize >> 32));
-        _decodedHeight = checked((int)(packedSize & uint.MaxValue));
-        if (_decodedWidth <= 0 || _decodedHeight <= 0 || (_decodedWidth & 1) != 0 || (_decodedHeight & 1) != 0)
+        uint width = (uint)(packedSize >> 32);
+        uint height = (uint)packedSize;
+        if (width is 0 or > MaximumDecodedDimension || height is 0 or > MaximumDecodedDimension ||
+            (width & 1) != 0 || (height & 1) != 0)
             throw new InvalidOperationException("The H.264 decoder returned invalid NV12 dimensions.");
+        uint stride;
         try
         {
-            _decodedStride = checked((int)outputType.GetUInt32(MediaTypeAttributeKeys.DefaultStride));
+            stride = outputType.GetUInt32(MediaTypeAttributeKeys.DefaultStride);
         }
         catch (SharpGenException)
         {
-            _decodedStride = _decodedWidth;
+            stride = width;
         }
-        if (_decodedStride < _decodedWidth)
+        if (stride < width || stride > MaximumDecodedStride)
             throw new InvalidOperationException("The H.264 decoder returned an invalid NV12 stride.");
-        (_visibleLeft, _visibleTop, _visibleWidth, _visibleHeight) = ReadDisplayAperture(outputType);
-        if (_decodedWidth != previousWidth || _decodedHeight != previousHeight)
+        (int left, int top, int visibleWidth, int visibleHeight) = ReadDisplayAperture(outputType, (int)width, (int)height);
+        _decoder.SetOutputType(0, outputType, 0);
+        if (width != _decodedWidth || height != _decodedHeight || stride != _decodedStride ||
+            visibleWidth != _visibleWidth || visibleHeight != _visibleHeight)
             _decodedLayoutReported = false;
+        (_decodedWidth, _decodedHeight, _decodedStride) = ((int)width, (int)height, (int)stride);
+        (_visibleLeft, _visibleTop, _visibleWidth, _visibleHeight) = (left, top, visibleWidth, visibleHeight);
     }
 
-    private (int Left, int Top, int Width, int Height) ReadDisplayAperture(IMFMediaType outputType)
+    private static (int Left, int Top, int Width, int Height) ReadDisplayAperture(
+        IMFMediaType outputType, int decodedWidth, int decodedHeight)
     {
         foreach (Guid key in new[]
                  {
@@ -286,14 +297,14 @@ internal sealed partial class MediaFoundationH264Decoder : IDisposable
                 int height = BinaryPrimitives.ReadInt32LittleEndian(value.AsSpan(12));
                 if (left >= 0 && top >= 0 && width > 0 && height > 0 &&
                     (left & 1) == 0 && (top & 1) == 0 && (width & 1) == 0 && (height & 1) == 0 &&
-                    left + width <= _decodedWidth && top + height <= _decodedHeight)
+                    width <= decodedWidth - left && height <= decodedHeight - top)
                 {
                     return (left, top, width, height);
                 }
             }
             catch (SharpGenException) { }
         }
-        return (0, 0, _decodedWidth, _decodedHeight);
+        return (0, 0, decodedWidth, decodedHeight);
     }
 
     private static IMFMediaType CreateH264InputType()

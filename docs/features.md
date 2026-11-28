@@ -424,14 +424,21 @@ failure keeps session state without a background retry loop.
 - Camera switching replaces the video track on the current healthy peer. After a
   device rotation, or when outbound encoded frames stop advancing while local
   capture remains live, the selected camera track is refreshed on that same peer
-  so the Windows consumer does not remain frozen. **Stop
-  webcam** and page hiding release every phone camera track immediately. If iOS
-  closes the backgrounded peer, returning to the visible paired PWA makes one
-  fresh authenticated session and uses a new peer for the same PC. If the browser
-  peer fails to connect within the setup deadline, the PWA releases the camera
-  and microphone and returns the workspace to idle. A brief media interruption
-  can recover on the existing peer. An interruption that lasts eight seconds
-  stops capture and returns the workspace to idle.
+  so the Windows consumer does not remain frozen. A brief connection interruption
+  can recover on the existing peer. If the camera stops, video stays stalled, or
+  the media connection fails or stays disconnected for eight seconds, the PWA
+  releases capture and tries a fresh authenticated session for the same PC.
+  Windows can request a fresh keyframe and end a session that still has no decoded
+  frames so the phone can recover. The expanded workspace stays open, shows
+  recovery progress, and provides **Stop**. Recovery uses up to four attempts with
+  increasing delays, including when the browser times out finding a route or
+  finishes setup without a Relay route. Camera permission denial, pairing or permission revocation,
+  or a deliberate stop ends recovery. A recovered session preserves microphone
+  mute. If the phone microphone or Windows audio output fails, the PWA recovers
+  with video only. If the browser pauses the camera, the PWA waits for it to
+  resume the existing track. A stalled preview can reattach to a live track
+  without restarting the webcam connection. Page hiding releases capture immediately.
+  Returning to the visible paired PWA resumes the requested session using a fresh peer.
 - Enhanced Direct sends DTLS-SRTP media on the selected private LAN and is free and
   unlimited. Relay uses relay-only candidates, the existing 15-minute TURN
   credentials and quota-derived 8/4/2 Mbps policy, and refreshes with a fresh

@@ -896,8 +896,8 @@ Start and answer SDP are bounded to 32 KiB, dimensions to 1 through 4096, frame 
 to 1 through 60, and operation/signature fields to the shared authenticated-message
 bounds. The current v2 shapes are exact and v1 shapes are rejected. `useMicrophone: true`
 requires the advertised local target and exactly one Opus 48 kHz stereo media section;
-false rejects audio. One pending or active producer exists per host. The offer expires after
-20 seconds. Busy, invalid proof, expired offer, invalid answer, permission denial,
+false rejects audio. One pending or active producer exists per host. The offer expires
+20 seconds after it is prepared. Busy, invalid proof, expired offer, invalid answer, permission denial,
 unavailable WebRTC/decoder, `microphone-unavailable`, and missing TURN credentials return bounded failure
 codes without closing the command channel.
 
@@ -927,7 +927,13 @@ terminal event correlated to the started operation with one current reason:
 
 Accepted reasons are `stopped`, `connection-lost`, `transport-lost`,
 `decoder-failed`, `audio-failed`, `permission-revoked`, `pairing-revoked`, `host-stopped`, and `offer-expired`.
-Clients ignore terminal events for an older operation. Stopping or retiring the
+Clients ignore terminal events for older operations except for a PC stop or a
+permission or pairing revocation of a recently replaced operation within the same start intent.
+If a valid answer loses its transport during host startup, the host returns the
+existing `offer-expired` code so the phone can try a fresh offer. For connection, transport,
+decoder, audio, and offer expiry interruptions, the visible PWA can start a fresh
+authenticated operation with a new peer. Audio failure retries with video only.
+Stopping or retiring the
 browser peer ends the wait for SDP, initial track setup, and ICE.
 Every terminal path releases the peer, decoder, bounded queues, local frame pipe input, and
 phone tracks, Opus decoder, audio queue, and WASAPI output. Mute changes the browser audio track's enabled state and has no protocol message. Camera switching, rotation recovery, and bounded outbound-stall

@@ -191,7 +191,8 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
             IAiAssistantClientFactory? aiAssistantClientFactory = null,
             IAppsWindowAdapter? appsWindowAdapter = null,
             IFileTransferWebRtcPeerFactory? fileTransferPeerFactory = null,
-            IScreenViewSystemAudioCaptureFactory? screenViewAudioCaptureFactory = null)
+            IScreenViewSystemAudioCaptureFactory? screenViewAudioCaptureFactory = null,
+            TimeProvider? phoneWebcamTimeProvider = null)
         {
             var store = new TempPairingStore();
             var inputInjector = new FakeInputInjector();
@@ -228,7 +229,8 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
                 aiAssistantClientFactory: aiAssistantClientFactory,
                 appsWindowAdapter: appsWindowAdapter,
                 fileTransferPeerFactory: fileTransferPeerFactory,
-                screenViewAudioCaptureFactory: screenViewAudioCaptureFactory);
+                screenViewAudioCaptureFactory: screenViewAudioCaptureFactory,
+                phoneWebcamTimeProvider: phoneWebcamTimeProvider);
             await webHost.StartAsync();
             return new WebHostFixture(store, inputInjector, manager, webHost);
         }

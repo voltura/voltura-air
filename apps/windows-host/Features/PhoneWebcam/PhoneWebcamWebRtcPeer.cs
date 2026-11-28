@@ -16,6 +16,7 @@ internal interface IPhoneWebcamWebRtcPeer : IAsyncDisposable
     event EventHandler? Stopped;
     Task TrackOpen { get; }
     Task MediaOpen => TrackOpen;
+    bool TransportStopped => false;
     Task<string> CreateOfferAsync(CancellationToken cancellationToken);
     void ApplyAnswer(string answerSdp);
     void RequestKeyFrame();
@@ -62,6 +63,7 @@ internal sealed class PhoneWebcamWebRtcPeer : IPhoneWebcamWebRtcPeer
     private int _audioTrack;
     private long _lastKeyFrameRequest = long.MinValue;
     private bool _receiveFailureReported;
+    private int _transportStopped;
     private bool _disposed;
 
     internal PhoneWebcamWebRtcPeer(RelayTurnConfiguration? relay = null, bool useMicrophone = false)
@@ -176,6 +178,7 @@ internal sealed class PhoneWebcamWebRtcPeer : IPhoneWebcamWebRtcPeer
     public Task MediaOpen => _audioTrackOpen is null
         ? _trackOpen.Task
         : Task.WhenAll(_trackOpen.Task, _audioTrackOpen.Task);
+    public bool TransportStopped => Volatile.Read(ref _transportStopped) != 0;
 
     public void RequestKeyFrame()
     {
@@ -337,7 +340,7 @@ internal sealed class PhoneWebcamWebRtcPeer : IPhoneWebcamWebRtcPeer
             string? sdp = result > 1 ? Marshal.PtrToStringUTF8(buffer) : null;
             if (string.IsNullOrWhiteSpace(sdp) || sdp.Length > MaximumSdpLength ||
                 !HasDistinctMediaSsrcs(sdp, _useMicrophone) ||
-                _turnTlsBridges.Count > 0 && !HasOnlyRelayCandidates(sdp))
+                _relayOnly && !HasOnlyRelayCandidates(sdp))
                 _offer.TrySetException(new InvalidOperationException("The generated offer was invalid."));
             else
                 _offer.TrySetResult(sdp);
@@ -345,11 +348,17 @@ internal sealed class PhoneWebcamWebRtcPeer : IPhoneWebcamWebRtcPeer
         finally { Marshal.FreeHGlobal(buffer); }
     }
 
-    private static bool HasOnlyRelayCandidates(string sdp)
+    internal static bool HasOnlyRelayCandidates(string sdp)
     {
-        string[] candidates = [.. sdp.Split('\n', StringSplitOptions.TrimEntries)
-            .Where(line => line.StartsWith("a=candidate:", StringComparison.Ordinal))];
-        return candidates.Length > 0 && candidates.All(line => line.Contains(" typ relay", StringComparison.Ordinal));
+        bool foundCandidate = false;
+        foreach (string line in sdp.Split('\n', StringSplitOptions.TrimEntries))
+        {
+            if (!line.StartsWith("a=candidate:", StringComparison.Ordinal)) continue;
+            string[] fields = line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+            if (fields.Length < 8 || fields[6] != "typ" || fields[7] != "relay") return false;
+            foundCandidate = true;
+        }
+        return foundCandidate;
     }
 
     private static uint CreateSsrc(uint excluded = 0)
@@ -434,11 +443,9 @@ internal sealed class PhoneWebcamWebRtcPeer : IPhoneWebcamWebRtcPeer
         _ = peer;
         PhoneWebcamWebRtcPeer? owner = From(pointer);
         if (owner is null) return;
-        if (state is LibDataChannelNative.PeerState.Failed or LibDataChannelNative.PeerState.Disconnected or LibDataChannelNative.PeerState.Closed)
+        if (state is LibDataChannelNative.PeerState.Failed or LibDataChannelNative.PeerState.Closed)
         {
-            owner._trackOpen.TrySetException(new InvalidOperationException("The Phone webcam WebRTC transport stopped."));
-            owner._audioTrackOpen?.TrySetException(new InvalidOperationException("The Phone webcam WebRTC transport stopped."));
-            owner.Stopped?.Invoke(owner, EventArgs.Empty);
+            owner.StopTransport("The Phone webcam WebRTC transport stopped.");
         }
     }
     private static void OnGathering(int peer, LibDataChannelNative.GatheringState state, nint pointer)
@@ -459,7 +466,7 @@ internal sealed class PhoneWebcamWebRtcPeer : IPhoneWebcamWebRtcPeer
         PhoneWebcamWebRtcPeer? owner = From(pointer);
         if (owner is not null && (id == owner._track || id == owner._audioTrack))
         {
-            owner.Stopped?.Invoke(owner, EventArgs.Empty);
+            owner.StopTransport("The Phone webcam media track closed.");
         }
     }
     private static void OnError(int id, nint message, nint pointer)
@@ -468,7 +475,15 @@ internal sealed class PhoneWebcamWebRtcPeer : IPhoneWebcamWebRtcPeer
         if (owner is null || id != owner._track && id != owner._audioTrack) return;
         string detail = Marshal.PtrToStringUTF8(message) ?? "unknown native error";
         TaskCompletionSource open = id == owner._track ? owner._trackOpen : owner._audioTrackOpen!;
-        ReportTrackError(open, () => owner.Stopped?.Invoke(owner, EventArgs.Empty), detail);
+        ReportTrackError(open, () => owner.StopTransport("The Phone webcam media track stopped."), detail);
+    }
+
+    private void StopTransport(string message)
+    {
+        if (Interlocked.Exchange(ref _transportStopped, 1) != 0) return;
+        _trackOpen.TrySetException(new InvalidOperationException(message));
+        _audioTrackOpen?.TrySetException(new InvalidOperationException(message));
+        Stopped?.Invoke(this, EventArgs.Empty);
     }
 
     internal static void ReportTrackError(TaskCompletionSource trackOpen, Action stopped, string detail)

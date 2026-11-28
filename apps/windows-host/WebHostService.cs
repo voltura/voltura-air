@@ -170,7 +170,8 @@ public sealed class WebHostService : IAsyncDisposable
         IAiAssistantClientFactory? aiAssistantClientFactory = null,
         IAppsWindowAdapter? appsWindowAdapter = null,
         IScreenViewSystemAudioCaptureFactory? screenViewAudioCaptureFactory = null,
-        bool useDevelopmentHostedApp = false)
+        bool useDevelopmentHostedApp = false,
+        TimeProvider? phoneWebcamTimeProvider = null)
     {
         _configureWebHost = configureWebHost;
 
@@ -439,7 +440,8 @@ public sealed class WebHostService : IAsyncDisposable
             phoneWebcamPeerFactory,
             resolvedPhoneWebcam is PhoneWebcamFeature phoneWebcamWithAudio
                 ? phoneWebcamWithAudio.AudioTarget
-                : null);
+                : null,
+            phoneWebcamTimeProvider);
         if (resolvedPhoneWebcam is PhoneWebcamFeature concretePhoneWebcam)
         {
             concretePhoneWebcam.SetSessionStopper(() => phoneWebcamCoordinator.StopAllAsync("host-stopped"));
@@ -447,7 +449,8 @@ public sealed class WebHostService : IAsyncDisposable
         _phoneWebcamCommands = new PhoneWebcamCommandHandler(
             phoneWebcamCoordinator,
             _transport,
-            GetRelayTurnConfigurationAsync);
+            GetRelayTurnConfigurationAsync,
+            _appLog);
         // An isolated browser may exercise the protocol, but it must never call
         // the native cursor API on the developer's Windows session.
         var resolvedApplyCustomPointer = isolatedTestMode ? null : applyCustomPointer;

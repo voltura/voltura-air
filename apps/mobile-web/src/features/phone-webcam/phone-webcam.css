@@ -102,6 +102,30 @@
   height: 2rem;
 }
 
+.phone-webcam-preview-status {
+  position: absolute;
+  inset: auto max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 1rem;
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.phone-webcam-preview-status:has(> button:only-child) {
+  inset-inline-start: auto;
+  padding: 0.5rem;
+}
+
+.phone-webcam-preview-status-text {
+  display: grid;
+  gap: 0.2rem;
+}
+
 .phone-webcam-controls,
 .phone-webcam-status {
   display: grid;

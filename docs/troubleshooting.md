@@ -46,6 +46,10 @@ Choose **Copy details** before closing.
 
 ## Add, repair, or remove Phone Webcam
 
+If Phone webcam drops during use, the mobile preview shows what happened and
+tries to reconnect while the page is visible. When Windows app logging is enabled,
+the `phone_webcam` event includes a reason for failed setup or a session ending.
+
 Open Windows **Installed apps**, choose **Voltura Air → Modify**, then check Phone
 Webcam to install or repair it, or uncheck it to remove it. This reuses the retained
 Voltura Air installer and leaves the main application installed.

@@ -6,19 +6,22 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
 {
     private readonly Lock _gate = new();
     private readonly Dictionary<WebSocket, PendingStart> _pendingStarts = [];
-    private readonly HashSet<Task> _pendingStops = [];
+    private readonly Dictionary<WebSocket, Task> _pendingStops = [];
     private readonly PhoneWebcamCoordinator _coordinator;
     private readonly WebSocketTransport _transport;
+    private readonly IAppLogWriter _appLog;
     private readonly Func<CancellationToken, Task<RelayTurnConfiguration?>> _getRelayTurnConfiguration;
     private int _disposed;
 
     internal PhoneWebcamCommandHandler(
         PhoneWebcamCoordinator coordinator,
         WebSocketTransport transport,
-        Func<CancellationToken, Task<RelayTurnConfiguration?>> getRelayTurnConfiguration)
+        Func<CancellationToken, Task<RelayTurnConfiguration?>> getRelayTurnConfiguration,
+        IAppLogWriter appLog)
     {
         _coordinator = coordinator;
         _transport = transport;
+        _appLog = appLog;
         _getRelayTurnConfiguration = getRelayTurnConfiguration;
         coordinator.Ended += OnEnded;
     }
@@ -62,6 +65,7 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
                 _pendingStarts.Add(socket, pending);
                 pending.Task = RunStartAsync(
                     pending,
+                    _pendingStops.GetValueOrDefault(socket),
                     socket,
                     clientId,
                     operationId,
@@ -84,6 +88,7 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
 
     private async Task RunStartAsync(
         PendingStart pending,
+        Task? precedingStop,
         WebSocket socket,
         string clientId,
         string operationId,
@@ -96,6 +101,11 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
         await Task.Yield();
         try
         {
+            if (precedingStop is not null)
+            {
+                await precedingStop.WaitAsync(pending.Token).ConfigureAwait(false);
+            }
+            pending.Token.ThrowIfCancellationRequested();
             await StartCoreAsync(
                 socket,
                 clientId,
@@ -149,21 +159,6 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
         string clientSignature,
         CancellationToken cancellationToken)
     {
-        RelayTurnConfiguration? relay = null;
-        if (socket is RelayVirtualWebSocket)
-        {
-            relay = await _getRelayTurnConfiguration(cancellationToken).ConfigureAwait(false);
-            if (relay is null)
-            {
-                await SendStartResultAsync(
-                    socket,
-                    operationId,
-                    new PhoneWebcamStartResult(false, "turn-unavailable", "Relay Phone webcam is temporarily unavailable."),
-                    cancellationToken).ConfigureAwait(false);
-                return;
-            }
-        }
-
         PhoneWebcamStartResult result = await _coordinator.StartAsync(
             socket,
             clientId,
@@ -173,8 +168,10 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
             captureFps,
             useMicrophone,
             clientSignature,
-            relay,
+            socket is RelayVirtualWebSocket ? _getRelayTurnConfiguration : null,
             cancellationToken).ConfigureAwait(false);
+        if (!result.Succeeded)
+            _appLog.Write(new AppLogEntry("phone_webcam", "windows_host", Action: "start_failed", Outcome: "failed", Code: result.Code));
         await SendStartResultAsync(socket, operationId, result, cancellationToken).ConfigureAwait(false);
     }
 
@@ -194,7 +191,7 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
             clientSignature).ConfigureAwait(false);
         if (!result.Succeeded)
         {
-            await Console.Error.WriteLineAsync($"Voltura Air Phone webcam answer rejected: {result.Code}.");
+            _appLog.Write(new AppLogEntry("phone_webcam", "windows_host", Action: "answer_failed", Outcome: "failed", Code: result.Code));
         }
         await _transport.SendAsync(socket, new
         {
@@ -220,8 +217,11 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
                 return Task.CompletedTask;
             }
 
-            stop = RunStopAsync(socket, clientId, operationId, cancellationToken);
-            _pendingStops.Add(stop);
+            PendingStart? pending = _pendingStarts.GetValueOrDefault(socket);
+            _pendingStarts.Remove(socket);
+            stop = RunStopAsync(socket, clientId, operationId, pending,
+                _pendingStops.GetValueOrDefault(socket), cancellationToken);
+            _pendingStops[socket] = stop;
         }
 
         _ = stop.ContinueWith(
@@ -229,7 +229,10 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
             {
                 lock (_gate)
                 {
-                    _pendingStops.Remove(completed);
+                    if (ReferenceEquals(_pendingStops.GetValueOrDefault(socket), completed))
+                    {
+                        _pendingStops.Remove(socket);
+                    }
                 }
             },
             CancellationToken.None,
@@ -242,13 +245,18 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
         WebSocket socket,
         string clientId,
         string operationId,
+        PendingStart? pending,
+        Task? precedingStop,
         CancellationToken cancellationToken)
     {
         await Task.Yield();
-        PendingStart? pending = GetPending(socket);
         pending?.Cancel();
         try
         {
+            if (precedingStop is not null)
+            {
+                await precedingStop.ConfigureAwait(false);
+            }
             if (pending is not null)
             {
                 await pending.Task.ConfigureAwait(false);
@@ -290,11 +298,21 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
 
     internal async Task ClientDisconnectedAsync(string clientId, WebSocket socket)
     {
-        PendingStart? pending = GetPending(socket);
+        PendingStart? pending;
+        Task? stop;
+        lock (_gate)
+        {
+            pending = _pendingStarts.GetValueOrDefault(socket);
+            stop = _pendingStops.GetValueOrDefault(socket);
+        }
         pending?.Cancel();
         if (pending is not null)
         {
             await pending.Task.ConfigureAwait(false);
+        }
+        if (stop is not null)
+        {
+            await stop.ConfigureAwait(false);
         }
 
         await _coordinator.StopAsync(clientId, "connection-lost", socket).ConfigureAwait(false);
@@ -322,7 +340,11 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
             maximumBitrate = result.MaximumBitrate
         }, cancellationToken);
 
-    private void OnEnded(object? sender, PhoneWebcamActivityChangedEventArgs args) => _ = NotifyEndedAsync(args);
+    private void OnEnded(object? sender, PhoneWebcamActivityChangedEventArgs args)
+    {
+        _appLog.Write(new AppLogEntry("phone_webcam", "windows_host", Action: "ended", Code: args.State));
+        _ = NotifyEndedAsync(args);
+    }
 
     private async Task NotifyEndedAsync(PhoneWebcamActivityChangedEventArgs args)
     {
@@ -336,9 +358,17 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
             type = "phone.webcam.ended",
             operationId = args.OperationId,
             reason = args.State,
-            message = args.State == "permission-revoked"
-                ? "The PC stopped Phone webcam because permission was revoked."
-                : "The Phone webcam session ended."
+            message = args.State switch
+            {
+                "transport-lost" => "The webcam video connection was interrupted.",
+                "decoder-failed" => "The PC stopped receiving usable webcam video.",
+                "audio-failed" => "The PC microphone output stopped.",
+                "offer-expired" => "The webcam connection offer expired.",
+                "permission-revoked" => "The PC stopped Phone webcam because permission was revoked.",
+                "pairing-revoked" => "The PC removed this phone pairing.",
+                "host-stopped" => "Phone webcam was stopped on the PC.",
+                _ => "The Phone webcam session ended."
+            }
         };
         if (!_transport.Snapshot().Any(connection =>
                 ReferenceEquals(connection.Socket, owner) &&
@@ -368,7 +398,7 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
         lock (_gate)
         {
             pending = [.. _pendingStarts.Values];
-            stops = [.. _pendingStops];
+            stops = [.. _pendingStops.Values];
         }
 
         foreach (PendingStart item in pending)
@@ -379,14 +409,6 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
         await Task.WhenAll(pending.Select(item => item.Task).Concat(stops)).ConfigureAwait(false);
         _coordinator.Ended -= OnEnded;
         await _coordinator.DisposeAsync().ConfigureAwait(false);
-    }
-
-    private PendingStart? GetPending(WebSocket socket)
-    {
-        lock (_gate)
-        {
-            return _pendingStarts.GetValueOrDefault(socket);
-        }
     }
 
     private sealed class PendingStart(CancellationTokenSource cancellation) : IDisposable

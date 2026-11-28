@@ -147,14 +147,19 @@ internal sealed class PhoneWebcamPageController : IDisposable
     internal void StopPreview()
     {
         StopAudioMonitor();
-        IPhoneWebcamPreviewSession? preview = DetachPreview();
-        if (preview is not null)
+        BeginPreviewRetirement(DetachPreview());
+    }
+
+    private void BeginPreviewRetirement(IPhoneWebcamPreviewSession? preview)
+    {
+        if (preview is null)
         {
-            _previewRetirement = RetirePreviewAsync(preview);
-            if (!_previewRetirement.IsCompleted)
-            {
-                _ = ResumePreviewAfterRetirementAsync(_previewRetirement);
-            }
+            return;
+        }
+        _previewRetirement = RetirePreviewAsync(preview);
+        if (!_previewRetirement.IsCompleted)
+        {
+            _ = ResumePreviewAfterRetirementAsync(_previewRetirement);
         }
     }
 
@@ -456,9 +461,16 @@ internal sealed class PhoneWebcamPageController : IDisposable
 
         _previewRequested = false;
         int generation = Volatile.Read(ref _previewGeneration);
-        _preview = _previewFactory(
-            frame => QueueFrame(generation, frame),
-            message => ReportPreviewFailure(generation, message));
+        try
+        {
+            _preview = _previewFactory(
+                frame => QueueFrame(generation, frame),
+                message => ReportPreviewFailure(generation, message));
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            ReportPreviewFailure(generation, "Voltura Air could not start its Windows camera preview.");
+        }
     }
 
     private void QueueFrame(int generation, PhoneWebcamPreviewFrame frame)
@@ -559,6 +571,7 @@ internal sealed class PhoneWebcamPageController : IDisposable
 
             Interlocked.Increment(ref _previewGeneration);
             DiscardPendingPreviewFrame();
+            BeginPreviewRetirement(Interlocked.Exchange(ref _preview, null));
             _currentView.ShowPreviewFailure(message);
         });
     }

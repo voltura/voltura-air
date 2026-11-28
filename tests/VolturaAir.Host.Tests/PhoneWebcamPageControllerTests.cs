@@ -196,6 +196,7 @@ public sealed partial class HostUiLayoutTests
             Assert.Null(view.PreviewImage.Source);
             Assert.Equal("The test reader closed.", view.PreviewEmptyMessage.Text);
             Assert.Throws<ObjectDisposedException>(() => _ = frame.Buffer);
+            Assert.True(active.StopStarted);
         });
     }
 

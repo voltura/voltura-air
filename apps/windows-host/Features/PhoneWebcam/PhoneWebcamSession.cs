@@ -41,6 +41,10 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
 {
     private static readonly TimeSpan SignalingLifetime = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan TransportOpenLifetime = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan VideoCheckInterval = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan VideoKeyFrameThreshold = TimeSpan.FromSeconds(4);
+    // Allow the phone's 10-second capture and 5-second sender update deadlines to finish.
+    private static readonly TimeSpan VideoIdleLimit = TimeSpan.FromSeconds(18);
     private const int DirectMaximumBitrate = 12_000_000;
     private readonly Lock _gate = new();
     private readonly PairingManager _pairingManager;
@@ -48,6 +52,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
     private readonly IPhoneWebcamFeature _feature;
     private readonly IPhoneWebcamWebRtcPeerFactory _peerFactory;
     private readonly IPhoneWebcamAudioTarget _audioTarget;
+    private readonly TimeProvider _timeProvider;
     private readonly PhoneWebcamFrameSequence _frameSequence = new();
     private PendingSession? _pending;
     private PendingSession? _answering;
@@ -60,13 +65,15 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         HostStatusPayloadFactory statusFactory,
         IPhoneWebcamFeature feature,
         IPhoneWebcamWebRtcPeerFactory? peerFactory = null,
-        IPhoneWebcamAudioTarget? audioTarget = null)
+        IPhoneWebcamAudioTarget? audioTarget = null,
+        TimeProvider? timeProvider = null)
     {
         _pairingManager = pairingManager;
         _statusFactory = statusFactory;
         _feature = feature;
         _peerFactory = peerFactory ?? new PhoneWebcamWebRtcPeerFactory();
         _audioTarget = audioTarget ?? new PhoneWebcamAudioTarget();
+        _timeProvider = timeProvider ?? TimeProvider.System;
         pairingManager.PairingRevoked += OnPairingRevoked;
         pairingManager.PermissionsChanged += OnPermissionsChanged;
         AppPermissionSettings.Changed += OnPermissionsChanged;
@@ -84,7 +91,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         int captureFps,
         bool useMicrophone,
         string clientSignature,
-        RelayTurnConfiguration? relay,
+        Func<CancellationToken, Task<RelayTurnConfiguration?>>? getRelayTurnConfiguration,
         CancellationToken cancellationToken,
         DateTimeOffset? now = null)
     {
@@ -109,66 +116,67 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             return Failure("invalid-proof", "The Phone webcam request could not be authenticated.");
         }
 
-        IPhoneWebcamWebRtcPeer peer;
-        try
-        {
-            peer = _peerFactory.Create(relay, useMicrophone);
-        }
-        catch (Exception exception) when (exception is InvalidOperationException or DllNotFoundException or BadImageFormatException or EntryPointNotFoundException)
-        {
-            return Failure("webrtc-unavailable", "The Phone webcam WebRTC receiver is unavailable on this PC.");
-        }
-
-        var createdAt = now ?? DateTimeOffset.UtcNow;
-        var pending = new PendingSession(
-            owner,
-            clientId,
-            operationId,
-            captureWidth,
-            captureHeight,
-            captureFps,
-            useMicrophone,
-            createdAt + SignalingLifetime,
-            peer,
-            relay is not null);
+        PendingSession? pending = null;
         PendingSession? expired;
-        bool busy;
         lock (_gate)
         {
-            expired = TakeExpiredPending(createdAt);
-            busy = _pending is not null || _answering is not null || _active is not null;
-            if (!busy)
+            expired = TakeExpiredPending(now ?? _timeProvider.GetUtcNow());
+            if (Volatile.Read(ref _disposed) == 0 && _pending is null && _answering is null && _active is null)
             {
-                pending.Generation = ++_sessionGeneration;
-                _pending = pending;
+                _pending = pending = new PendingSession(owner, clientId, operationId, useMicrophone)
+                {
+                    Generation = ++_sessionGeneration
+                };
             }
         }
 
-        if (expired is not null)
+        if (pending is null)
         {
-            await expired.DisposeAsync().ConfigureAwait(false);
-        }
-
-        if (busy)
-        {
-            await pending.DisposeAsync().ConfigureAwait(false);
+            if (expired is not null)
+                await FinishExpiredPendingAsync(expired).ConfigureAwait(false);
             return Failure("busy", "Another phone is already using Voltura Air Webcam.");
         }
 
+        var offerReady = false;
         try
         {
-            string offerSdp = await peer.CreateOfferAsync(cancellationToken).ConfigureAwait(false);
+            if (expired is not null)
+                await FinishExpiredPendingAsync(expired).ConfigureAwait(false);
+            using var offerLifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, pending.Lifetime);
+            offerLifetime.Token.ThrowIfCancellationRequested();
+            if (!CanStart(clientId))
+                return Failure("permission-denied", "Phone webcam is not enabled for this device on the PC.");
+            RelayTurnConfiguration? relay = null;
+            if (getRelayTurnConfiguration is not null)
+            {
+                relay = await getRelayTurnConfiguration(offerLifetime.Token).ConfigureAwait(false);
+                offerLifetime.Token.ThrowIfCancellationRequested();
+                if (relay is null)
+                    return Failure("turn-unavailable", "Relay Phone webcam is temporarily unavailable.");
+            }
+            IPhoneWebcamWebRtcPeer peer = _peerFactory.Create(relay, useMicrophone);
+            pending.AttachPeer(peer);
+            offerLifetime.Token.ThrowIfCancellationRequested();
+            string offerSdp = await peer.CreateOfferAsync(offerLifetime.Token).ConfigureAwait(false);
             string offerHash = HashSdp(offerSdp);
-            pending.OfferHash = offerHash;
             string offerTranscript = OfferTranscript(clientId, operationId, offerHash);
-            _ = ExpirePendingAsync(pending);
+            string signature = _pairingManager.HostIdentity.Sign(Encoding.UTF8.GetBytes(offerTranscript));
             ReportSessionActivity(pending.Generation, clientId, "connecting", captureWidth, captureHeight);
+            lock (_gate)
+            {
+                if (!ReferenceEquals(_pending, pending) || offerLifetime.IsCancellationRequested)
+                    return Failure("offer-expired", "The Phone webcam offer is no longer active.");
+                pending.OfferHash = offerHash;
+                pending.ExpiresAt = (now ?? _timeProvider.GetUtcNow()) + SignalingLifetime;
+                offerReady = true;
+            }
+            _ = ExpirePendingAsync(pending);
             return new PhoneWebcamStartResult(
                 true,
                 "accepted",
                 "The encrypted Phone webcam connection is ready.",
                 offerSdp,
-                _pairingManager.HostIdentity.Sign(Encoding.UTF8.GetBytes(offerTranscript)),
+                signature,
                 relay?.IceServers,
                 relay?.ExpiresAt,
                 relay?.UsageBytes,
@@ -176,11 +184,19 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
                 ToWireRelayQuality(relay?.EffectiveQuality),
                 relay?.MaximumBitrate ?? DirectMaximumBitrate);
         }
-        catch (Exception exception) when (exception is OperationCanceledException or InvalidOperationException or ObjectDisposedException)
+        catch (Exception exception) when (exception is OperationCanceledException or TimeoutException or InvalidOperationException or
+            DllNotFoundException or BadImageFormatException or EntryPointNotFoundException)
         {
-            RemovePending(pending);
-            await pending.DisposeAsync().ConfigureAwait(false);
             return Failure("webrtc-unavailable", "The PC could not create a Phone webcam offer.");
+        }
+        finally
+        {
+            pending.CompleteOfferCreation();
+            if (!offerReady)
+            {
+                RemovePending(pending);
+                await pending.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 
@@ -210,7 +226,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         PendingSession? expired;
         lock (_gate)
         {
-            expired = TakeExpiredPending(now ?? DateTimeOffset.UtcNow);
+            expired = TakeExpiredPending(now ?? _timeProvider.GetUtcNow());
             pending = _pending is { } candidate &&
                 ReferenceEquals(candidate.Owner, owner) &&
                 candidate.ClientId == clientId &&
@@ -227,7 +243,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
 
         if (expired is not null)
         {
-            await expired.DisposeAsync().ConfigureAwait(false);
+            await FinishExpiredPendingAsync(expired).ConfigureAwait(false);
         }
 
         if (pending is null)
@@ -260,6 +276,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             createdActive = await ActiveSession.CreateAsync(
                 pending, frame => PublishActiveFrame(generation, frame), _frameSequence, _audioTarget).ConfigureAwait(false);
             pending.DetachPeer();
+            await pending.DisposeAsync().ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
@@ -343,14 +360,14 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             return startupFailure switch
             {
                 "audio-failed" => new(false, "microphone-unavailable", "The PC could not start the VB-CABLE audio endpoint."),
-                "transport-lost" => new(false, "invalid-answer", "The Phone webcam transport stopped while starting."),
+                "transport-lost" => new(false, "offer-expired", "The Phone webcam transport stopped while starting."),
                 _ => new(false, "offer-expired", "The Phone webcam offer is no longer active.")
             };
         }
 
         pending.CompleteAnswering();
 
-        _ = MonitorTrackOpenAsync(active);
+        _ = MonitorVideoAsync(active);
         return new(true, "accepted", "Phone webcam is connecting to the PC.");
     }
 
@@ -374,24 +391,54 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         }
     }
 
-    private async Task MonitorTrackOpenAsync(ActiveSession active)
+    private async Task MonitorVideoAsync(ActiveSession active)
     {
+        CancellationToken retired = active.Retired;
         try
         {
-            await active.MediaOpen.WaitAsync(TransportOpenLifetime).ConfigureAwait(false);
+            await active.MediaOpen.WaitAsync(TransportOpenLifetime, _timeProvider, retired).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is TimeoutException or OperationCanceledException or ObjectDisposedException or InvalidOperationException)
         {
-            await StopSpecificAsync(active, "transport-lost").ConfigureAwait(false);
+            if (!retired.IsCancellationRequested)
+                await StopSpecificAsync(active, "transport-lost").ConfigureAwait(false);
+            return;
+        }
+
+        long openedAt = _timeProvider.GetTimestamp();
+        using var timer = new PeriodicTimer(VideoCheckInterval, _timeProvider);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(retired).ConfigureAwait(false))
+            {
+                long lastFrame = active.LastVideoTimestamp;
+                TimeSpan idle = _timeProvider.GetElapsedTime(Math.Max(lastFrame, openedAt));
+                if (idle >= VideoIdleLimit)
+                {
+                    await StopSpecificAsync(active, "decoder-failed", lastFrame).ConfigureAwait(false);
+                }
+                else if (idle >= VideoKeyFrameThreshold && !retired.IsCancellationRequested)
+                {
+                    active.RequestKeyFrame();
+                }
+            }
+        }
+        catch (OperationCanceledException) when (retired.IsCancellationRequested)
+        {
         }
     }
 
     private async Task ExpirePendingAsync(PendingSession pending)
     {
-        TimeSpan delay = pending.ExpiresAt - DateTimeOffset.UtcNow;
-        if (delay > TimeSpan.Zero)
+        TimeSpan delay = pending.ExpiresAt - _timeProvider.GetUtcNow();
+        try
         {
-            await Task.Delay(delay).ConfigureAwait(false);
+            if (delay > TimeSpan.Zero)
+                await Task.Delay(delay, _timeProvider, pending.Lifetime).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (pending.Lifetime.IsCancellationRequested)
+        {
+            return;
         }
 
         lock (_gate)
@@ -404,6 +451,11 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             _pending = null;
         }
 
+        await FinishExpiredPendingAsync(pending).ConfigureAwait(false);
+    }
+
+    private async Task FinishExpiredPendingAsync(PendingSession pending)
+    {
         await pending.DisposeAsync().ConfigureAwait(false);
         ReportTerminalActivity(pending.Generation, pending.ClientId, "offer-expired");
         Ended?.Invoke(this, new PhoneWebcamActivityChangedEventArgs(
@@ -485,11 +537,12 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         return pending is not null || answering is not null || active is not null;
     }
 
-    private async Task StopSpecificAsync(ActiveSession active, string reason)
+    private async Task StopSpecificAsync(ActiveSession active, string reason, long? stalledAt = null)
     {
         lock (_gate)
         {
-            if (!ReferenceEquals(_active, active))
+            if (!ReferenceEquals(_active, active) ||
+                (stalledAt is { } timestamp && active.LastVideoTimestamp != timestamp))
             {
                 return;
             }
@@ -514,7 +567,6 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
 
     private void OnActiveFailure(ActiveSession active, string reason)
     {
-        Console.Error.WriteLine("Voltura Air Phone webcam media stopped: {0}.", reason);
         active.RecordFailure(reason);
         _ = StopSpecificAsync(active, reason);
     }
@@ -616,8 +668,9 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
     {
         lock (_gate)
         {
-            if (_active?.Generation == generation)
+            if (_active is { } active && active.Generation == generation)
             {
+                active.NoteVideoPublished(_timeProvider.GetTimestamp());
                 _feature.Publish(frame);
                 return;
             }
@@ -688,31 +741,32 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
     }
 
     [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "The peer is disposed asynchronously by DisposeAsync or explicitly detached into ActiveSession.")]
-    private sealed class PendingSession(
-        object owner,
-        string clientId,
-        string operationId,
-        int captureWidth,
-        int captureHeight,
-        int captureFps,
-        bool useMicrophone,
-        DateTimeOffset expiresAt,
-        IPhoneWebcamWebRtcPeer peer,
-        bool relayOnly) : IAsyncDisposable
+    private sealed class PendingSession : IAsyncDisposable
     {
-        internal object Owner { get; } = owner;
-        private IPhoneWebcamWebRtcPeer? _peer = peer;
-        internal string ClientId { get; } = clientId;
-        internal string OperationId { get; } = operationId;
-        internal int CaptureWidth { get; } = captureWidth;
-        internal int CaptureHeight { get; } = captureHeight;
-        internal int CaptureFps { get; } = captureFps;
-        internal bool UseMicrophone { get; } = useMicrophone;
-        internal DateTimeOffset ExpiresAt { get; } = expiresAt;
-        internal bool RelayOnly { get; } = relayOnly;
+        private readonly CancellationTokenSource _lifetime = new();
+        private readonly TaskCompletionSource _offerCreationCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _answeringCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _cleanupCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private IPhoneWebcamWebRtcPeer? _peer;
+        private int _disposing;
+
+        internal PendingSession(object owner, string clientId, string operationId, bool useMicrophone)
+        {
+            Owner = owner;
+            ClientId = clientId;
+            OperationId = operationId;
+            UseMicrophone = useMicrophone;
+            Lifetime = _lifetime.Token;
+        }
+
+        internal object Owner { get; }
+        internal string ClientId { get; }
+        internal string OperationId { get; }
+        internal bool UseMicrophone { get; }
+        internal CancellationToken Lifetime { get; }
+        internal DateTimeOffset ExpiresAt { get; set; } = DateTimeOffset.MaxValue;
         internal string? OfferHash { get; set; }
         internal long Generation { get; set; }
-        private readonly TaskCompletionSource _answeringCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal Task AnsweringCompleted => _answeringCompleted.Task;
         internal bool StopRequested { get; private set; }
         internal IPhoneWebcamWebRtcPeer Peer => _peer ?? throw new ObjectDisposedException(nameof(PendingSession));
@@ -726,14 +780,29 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             StopRequested = true;
             return true;
         }
+        internal void AttachPeer(IPhoneWebcamWebRtcPeer peer) => _peer = peer;
+        internal void CompleteOfferCreation() => _offerCreationCompleted.TrySetResult();
         internal void CompleteAnswering() => _answeringCompleted.TrySetResult();
         internal void DetachPeer() => _peer = null;
         public async ValueTask DisposeAsync()
         {
-            IPhoneWebcamWebRtcPeer? released = Interlocked.Exchange(ref _peer, null);
-            if (released is not null)
+            if (Interlocked.Exchange(ref _disposing, 1) != 0)
             {
-                await DisposePeerAsync(released).ConfigureAwait(false);
+                await _cleanupCompleted.Task.ConfigureAwait(false);
+                return;
+            }
+            try
+            {
+                await _lifetime.CancelAsync().ConfigureAwait(false);
+                await _offerCreationCompleted.Task.ConfigureAwait(false);
+                IPhoneWebcamWebRtcPeer? released = Interlocked.Exchange(ref _peer, null);
+                if (released is not null)
+                    await DisposePeerAsync(released).ConfigureAwait(false);
+            }
+            finally
+            {
+                _lifetime.Dispose();
+                _cleanupCompleted.TrySetResult();
             }
         }
     }
@@ -743,6 +812,8 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         private readonly IPhoneWebcamWebRtcPeer _peer;
         private readonly EventHandler _stopped;
         private readonly PhoneWebcamAudioPipeline? _audioPipeline;
+        private readonly CancellationTokenSource _retired = new();
+        private long _lastVideoTimestamp = long.MinValue;
         private string? _failureReason;
         private int _disposed;
 
@@ -772,6 +843,8 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
                 PeerStopped?.Invoke(this, EventArgs.Empty);
             };
             _peer.Stopped += _stopped;
+            if (_peer.TransportStopped) RecordFailure("transport-lost");
+            Retired = _retired.Token;
         }
 
         internal static async Task<ActiveSession> CreateAsync(
@@ -804,6 +877,8 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         internal long Generation { get; }
         internal object Owner { get; }
         internal Task MediaOpen => _peer.MediaOpen;
+        internal CancellationToken Retired { get; }
+        internal long LastVideoTimestamp => Volatile.Read(ref _lastVideoTimestamp);
         internal PhoneWebcamVideoPipeline Pipeline { get; }
         internal bool HasMicrophone => _audioPipeline is not null;
         internal string? FailureReason => Volatile.Read(ref _failureReason);
@@ -812,6 +887,8 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         internal event EventHandler? AudioPipelineFailed;
 
         internal void StartAudioPipeline() => _audioPipeline?.Start();
+        internal void NoteVideoPublished(long timestamp) => Volatile.Write(ref _lastVideoTimestamp, timestamp);
+        internal void RequestKeyFrame() => _peer.RequestKeyFrame();
 
         internal void RecordFailure(string reason) =>
             Interlocked.CompareExchange(ref _failureReason, reason, null);
@@ -835,6 +912,9 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             {
                 return;
             }
+
+            await _retired.CancelAsync().ConfigureAwait(false);
+            _retired.Dispose();
 
             _peer.Stopped -= _stopped;
             _peer.AccessUnitReceived -= Pipeline.Submit;

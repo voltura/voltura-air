@@ -6,6 +6,16 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.5.7
+
+- Phone webcam stays fullscreen through recoverable interruptions and retries the
+  selected camera over Enhanced Direct or Relay. Fullscreen shows recovery status
+  and keeps Stop available.
+- A frozen phone preview can recover while the webcam keeps streaming. Windows
+  requests a fresh keyframe when video stalls and reports why a session ended.
+- Webcam recovery preserves microphone mute. If the microphone or its Windows
+  audio output fails, video can resume on its own.
+
 ## v1.5.6
 
 - View PC Screen recovers more reliably when Windows changes display modes,

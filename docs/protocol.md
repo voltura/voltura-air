@@ -686,12 +686,15 @@ applying the offer or rendering pixels.
 
 The offer contains exactly one send-only H.264 video media section, one
 send-only Opus/48000/2 audio media section, and the `screen-events` data channel;
-the answer contains matching receive-only media. Missing, extra, wrong-codec,
-disabled, or wrong-direction media is rejected. Both SDP hashes therefore bind
-the complete two-track contract without a separate audio command. Device mute is
-browser-local and starts enabled for each new viewing session. Relay renewal
-preserves it when audio is available and the browser allows playback. If the
-browser blocks sound on the replacement, the browser retries video muted.
+the answer contains matching receive-only media. The host's Opus offer includes
+the optional `sprop-stereo=1` hint because the host can send stereo audio.
+Offers without the hint and browser-generated answers remain valid. Missing,
+extra, wrong-codec, disabled, or wrong-direction media is rejected. Both SDP
+hashes bind the complete two-track contract without a separate audio command.
+Device mute is browser-local and starts enabled for each new viewing session.
+Relay renewal preserves it when audio is available and the browser allows
+playback. If the browser blocks sound on the replacement, the browser retries
+video muted.
 
 Capture remains 48 kHz stereo for all presets. The host configures Opus
 constrained VBR as High = nominal 96 kbps stereo, Standard = nominal 64 kbps
@@ -811,9 +814,13 @@ confined to loopback. DTLS-SRTP remains the media security boundary above TURN.
 The selected display is sent as H.264 RTP on a send-only video track, with
 DTLS-SRTP providing media confidentiality, integrity, and replay protection.
 The video sender advances its RTP clock from the most recent accepted send.
-Screen audio keeps the latest captured PCM blocks under queue pressure. A capture
-discontinuity or a gap in queued blocks discards unfinished audio before the next
-Opus frame. A block with an unreliable timestamp uses the running sample clock.
+Screen audio keeps the latest captured PCM blocks under queue pressure. Once
+anchored to the first block, its RTP clock advances by 960 samples per continuous
+20 ms Opus frame. Unreliable capture timestamps use the running sample clock.
+A capture discontinuity, dropped block, or sustained idle gap discards unfinished
+audio and advances the clock by any known missing samples before encoding resumes.
+The capture sample position counts dropped PCM even if its QPC timestamp is
+unavailable. Restarting capture on a new output device keeps the track clock moving forward.
 Cursor, terminal status, and audio availability use the ordered reliable `screen-events`
 WebRTC data channel, protected by DTLS. Capture starts only after the peer,
 video track, and event channel are connected. The data channel record types are:

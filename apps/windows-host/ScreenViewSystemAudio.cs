@@ -67,17 +67,19 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
     private const int FrameBytes = FrameSamples * SampleBytes;
     private const int MaximumQueuedFrames = 5;
     private const int MaximumOpusPacketBytes = 1275;
+    private const int CaptureGapTolerance = FrameSamples;
     private readonly Channel<bool> _defaultDeviceChanges = Channel.CreateBounded<bool>(
         new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropOldest, SingleReader = true });
+    private readonly AudioFrameClock _frameClock = new();
     private int _disposed;
 
-    internal static uint TimestampFromPosition(long qpcPosition)
+    internal static long TimestampFromPosition(long qpcPosition)
     {
         var (seconds, remainder) = Math.DivRem(qpcPosition, TimeSpan.TicksPerSecond);
-        return unchecked((uint)(seconds * SampleRate + remainder * SampleRate / TimeSpan.TicksPerSecond));
+        return seconds * SampleRate + remainder * SampleRate / TimeSpan.TicksPerSecond;
     }
 
-    internal static AudioBlock? CopyAudioBlock(ReadOnlySpan<byte> data, AudioClientBufferFlags flags, long qpcPosition, long sequence)
+    internal static AudioBlock? CopyAudioBlock(ReadOnlySpan<byte> data, AudioClientBufferFlags flags, long qpcPosition, long samplePosition)
     {
         int alignedLength = data.Length - data.Length % SampleBytes;
         int length = Math.Min(alignedLength, FrameBytes * MaximumQueuedFrames);
@@ -87,17 +89,31 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
         byte[] bytes = new byte[length];
         if ((flags & AudioClientBufferFlags.Silent) == 0)
             data.Slice(discarded, length).CopyTo(bytes);
-        uint? timestamp = qpcPosition >= 0 && (flags & AudioClientBufferFlags.TimestampError) == 0
-            ? unchecked(TimestampFromPosition(qpcPosition) + (uint)(discarded / SampleBytes))
+        long? timestamp = qpcPosition >= 0 && (flags & AudioClientBufferFlags.TimestampError) == 0
+            ? TimestampFromPosition(qpcPosition) + discarded / SampleBytes
             : null;
         bool discontinuity = discarded > 0 || (flags & AudioClientBufferFlags.DataDiscontinuity) != 0;
-        return new(bytes, timestamp, sequence, discontinuity);
+        return new(bytes, timestamp, samplePosition + discarded / SampleBytes, discontinuity);
     }
 
-    internal sealed record AudioBlock(byte[] Bytes, uint? Timestamp, long Sequence, bool Discontinuity)
+    internal sealed record AudioBlock(byte[] Bytes, long? Timestamp, long SamplePosition, bool Discontinuity);
+
+    // The same RTP track survives output-device changes, so each new run keeps this floor.
+    internal sealed class AudioFrameClock
     {
-        public bool Follows(long? previousSequence) =>
-            !Discontinuity && (previousSequence is null || Sequence == unchecked(previousSequence.Value + 1));
+        private long _nextTimestamp;
+
+        public void StartRun(long? captureTimestamp) => _nextTimestamp = Math.Max(_nextTimestamp,
+            captureTimestamp ?? TimestampFromPosition(TimeProvider.System.GetElapsedTime(0).Ticks));
+
+        public void Skip(long samples) => _nextTimestamp += samples;
+
+        public uint TakeFrame()
+        {
+            uint timestamp = unchecked((uint)_nextTimestamp);
+            _nextTimestamp += FrameSamples;
+            return timestamp;
+        }
     }
 
     internal static Channel<AudioBlock> CreatePendingAudioQueue() =>
@@ -122,6 +138,72 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
         ScreenViewSoundEncodingProfile profile = ScreenViewSoundQualityProfile.Encoding(soundQuality);
         encoder.Bitrate = profile.Bitrate;
         encoder.ForceChannels = profile.Channels;
+    }
+
+    internal static async Task EncodeAsync(
+        ChannelReader<AudioBlock> blocks,
+        AudioFrameClock frameClock,
+        Func<ScreenViewEncodedAudioFrame, bool> send,
+        Func<ScreenViewSoundQuality> getSoundQuality,
+        CancellationToken cancellationToken)
+    {
+        ScreenViewSoundQuality appliedSoundQuality = getSoundQuality();
+        using IOpusEncoder encoder = CreateEncoder(appliedSoundQuality);
+        // A full capture block can follow up to one unfinished Opus frame.
+        byte[] pending = new byte[FrameBytes * MaximumQueuedFrames + FrameBytes - SampleBytes];
+        short[] pcm = new short[FrameSamples * Channels];
+        byte[] encodedPacket = new byte[MaximumOpusPacketBytes];
+        int pendingLength = 0;
+        long? expectedCaptureTimestamp = null;
+        long? expectedSamplePosition = null;
+        await foreach (AudioBlock block in blocks.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+        {
+            // Count dropped PCM from the capture sample positions. Use QPC only for gaps in
+            // the capture itself, comparing adjacent blocks so ordinary clock drift stays local.
+            long droppedSamples = (block.SamplePosition - expectedSamplePosition) ?? 0;
+            long? predictedCaptureTimestamp = expectedCaptureTimestamp + droppedSamples;
+            long captureGap = (block.Timestamp - predictedCaptureTimestamp) ?? 0;
+            if (expectedSamplePosition is null)
+            {
+                frameClock.StartRun(block.Timestamp);
+            }
+            else if (block.Discontinuity || droppedSamples > 0 || captureGap >= CaptureGapTolerance)
+            {
+                frameClock.Skip(pendingLength / SampleBytes + droppedSamples + Math.Max(captureGap, 0));
+                pendingLength = 0;
+                encoder.ResetState();
+            }
+
+            // Keep predicting from the last usable observation when WASAPI reports a bad timestamp.
+            int samples = block.Bytes.Length / SampleBytes;
+            long? observedTimestamp = captureGap >= -CaptureGapTolerance ? block.Timestamp : null;
+            expectedCaptureTimestamp = (observedTimestamp ?? predictedCaptureTimestamp) + samples;
+            expectedSamplePosition = block.SamplePosition + samples;
+            block.Bytes.CopyTo(pending.AsSpan(pendingLength));
+            pendingLength += block.Bytes.Length;
+
+            int consumed = 0;
+            while (pendingLength - consumed >= FrameBytes)
+            {
+                ScreenViewSoundQuality soundQuality = getSoundQuality();
+                if (soundQuality != appliedSoundQuality)
+                {
+                    ApplyEncodingProfile(encoder, soundQuality);
+                    appliedSoundQuality = soundQuality;
+                }
+                Buffer.BlockCopy(pending, consumed, pcm, 0, FrameBytes);
+                int encoded = encoder.Encode(pcm, FrameSamples, encodedPacket, MaximumOpusPacketBytes);
+                uint timestamp = frameClock.TakeFrame();
+                if (encoded > 0)
+                {
+                    byte[] packet = encodedPacket.AsSpan(0, encoded).ToArray();
+                    _ = send(new(packet, timestamp));
+                }
+                consumed += FrameBytes;
+            }
+            pendingLength -= consumed;
+            if (consumed > 0 && pendingLength > 0) Buffer.BlockCopy(pending, consumed, pending, 0, pendingLength);
+        }
     }
 
     public async Task RunAsync(
@@ -189,6 +271,7 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
     {
         await using CaptureRun capture = await CaptureRun.CreateAsync(
             enumerator,
+            _frameClock,
             send,
             getSoundQuality,
             cancellationToken).ConfigureAwait(false);
@@ -249,12 +332,13 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
         private readonly CancellationTokenSource _stop;
         private readonly Channel<AudioBlock> _blocks;
         private readonly TaskCompletionSource _recordingStopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private long _blockSequence;
+        private long _samplePosition;
         private int _disposed;
 
         private CaptureRun(
             MMDevice endpoint,
             WasapiRecorder recorder,
+            AudioFrameClock frameClock,
             Func<ScreenViewEncodedAudioFrame, bool> send,
             Func<ScreenViewSoundQuality> getSoundQuality,
             CancellationToken cancellationToken)
@@ -265,13 +349,14 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
             _blocks = CreatePendingAudioQueue();
             _recorder.DataAvailable += OnDataAvailable;
             _recorder.RecordingStopped += OnRecordingStopped;
-            Completion = EncodeAsync(send, getSoundQuality, _stop.Token);
+            Completion = RunEncoderAsync(frameClock, send, getSoundQuality, _stop.Token);
         }
 
         public Task Completion { get; }
 
         public static async Task<CaptureRun> CreateAsync(
             MMDeviceEnumerator enumerator,
+            AudioFrameClock frameClock,
             Func<ScreenViewEncodedAudioFrame, bool> send,
             Func<ScreenViewSoundQuality> getSoundQuality,
             CancellationToken cancellationToken)
@@ -287,9 +372,10 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
                     .WithLoopbackCapture()
                     .WithFormat(new WaveFormat(SampleRate, 16, Channels))
                     .WithBufferLength(20)
+                    .WithMmcssThreadPriority("Audio")
                     .BuildAsync()
                     .ConfigureAwait(false);
-                var run = new CaptureRun(endpoint, recorder, send, getSoundQuality, cancellationToken);
+                var run = new CaptureRun(endpoint, recorder, frameClock, send, getSoundQuality, cancellationToken);
                 recorder.StartRecording();
                 return run;
             }
@@ -304,12 +390,10 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
         private void OnDataAvailable(ReadOnlySpan<byte> data, AudioClientBufferFlags flags, long devicePosition, long qpcPosition)
         {
             _ = devicePosition;
-            AudioBlock? block = CopyAudioBlock(data, flags, qpcPosition, _blockSequence);
+            AudioBlock? block = CopyAudioBlock(data, flags, qpcPosition, _samplePosition);
+            _samplePosition += data.Length / SampleBytes;
             if (block is not null)
-            {
-                _blockSequence = unchecked(_blockSequence + 1);
                 _blocks.Writer.TryWrite(block);
-            }
         }
 
         private void OnRecordingStopped(object? sender, StoppedEventArgs args)
@@ -319,51 +403,13 @@ internal sealed class ScreenViewSystemAudioCapture : IScreenViewSystemAudioCaptu
             _blocks.Writer.TryComplete(args.Exception);
         }
 
-        private async Task EncodeAsync(
+        private async Task RunEncoderAsync(
+            AudioFrameClock frameClock,
             Func<ScreenViewEncodedAudioFrame, bool> send,
             Func<ScreenViewSoundQuality> getSoundQuality,
             CancellationToken cancellationToken)
         {
-            ScreenViewSoundQuality appliedSoundQuality = getSoundQuality();
-            using IOpusEncoder encoder = CreateEncoder(appliedSoundQuality);
-            byte[] pending = new byte[FrameBytes * MaximumQueuedFrames];
-            short[] pcm = new short[FrameSamples * Channels];
-            byte[] encodedPacket = new byte[MaximumOpusPacketBytes];
-            int pendingLength = 0;
-            uint timestamp = TimestampFromPosition(TimeProvider.System.GetElapsedTime(0).Ticks);
-            long? previousSequence = null;
-            await foreach (AudioBlock block in _blocks.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
-            {
-                if (!block.Follows(previousSequence) || pendingLength + block.Bytes.Length > pending.Length)
-                {
-                    pendingLength = 0;
-                    encoder.ResetState();
-                }
-                previousSequence = block.Sequence;
-                if (pendingLength == 0 && block.Timestamp is uint capturedTimestamp) timestamp = capturedTimestamp;
-                block.Bytes.CopyTo(pending.AsSpan(pendingLength));
-                pendingLength += block.Bytes.Length;
-
-                while (pendingLength >= FrameBytes)
-                {
-                    ScreenViewSoundQuality soundQuality = getSoundQuality();
-                    if (soundQuality != appliedSoundQuality)
-                    {
-                        ApplyEncodingProfile(encoder, soundQuality);
-                        appliedSoundQuality = soundQuality;
-                    }
-                    Buffer.BlockCopy(pending, 0, pcm, 0, FrameBytes);
-                    int encoded = encoder.Encode(pcm, FrameSamples, encodedPacket, MaximumOpusPacketBytes);
-                    if (encoded > 0)
-                    {
-                        byte[] packet = encodedPacket.AsSpan(0, encoded).ToArray();
-                        _ = send(new(packet, timestamp));
-                    }
-                    timestamp = unchecked(timestamp + FrameSamples);
-                    pendingLength -= FrameBytes;
-                    if (pendingLength > 0) Buffer.BlockCopy(pending, FrameBytes, pending, 0, pendingLength);
-                }
-            }
+            await EncodeAsync(_blocks.Reader, frameClock, send, getSoundQuality, cancellationToken).ConfigureAwait(false);
             await _recordingStopped.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
 

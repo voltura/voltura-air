@@ -9,10 +9,10 @@ public sealed class ScreenViewSystemAudioTests
     public void AudioClockRetainsSamplePositionBeyondTheOldOverflowRange()
     {
         long ticks = TimeSpan.FromDays(365).Ticks + 12_345;
-        uint expected = unchecked((uint)((Int128)ticks * ScreenViewSystemAudioCapture.SampleRate / TimeSpan.TicksPerSecond));
+        long expected = (long)((Int128)ticks * ScreenViewSystemAudioCapture.SampleRate / TimeSpan.TicksPerSecond);
 
         Assert.Equal(expected, ScreenViewSystemAudioCapture.TimestampFromPosition(ticks));
-        Assert.Equal(0u, ScreenViewSystemAudioCapture.TimestampFromPosition(0));
+        Assert.Equal(0L, ScreenViewSystemAudioCapture.TimestampFromPosition(0));
     }
 
     [Fact]
@@ -29,8 +29,9 @@ public sealed class ScreenViewSystemAudioTests
         Assert.Equal(size, block.Bytes.Length);
         Assert.Equal(41, block.Bytes[0]);
         Assert.Equal(42, block.Bytes[^1]);
-        Assert.Equal(48_002u, block.Timestamp);
-        Assert.False(block.Follows(4));
+        Assert.Equal(48_002L, block.Timestamp);
+        Assert.Equal(7, block.SamplePosition);
+        Assert.True(block.Discontinuity);
     }
 
     [Fact]
@@ -46,7 +47,7 @@ public sealed class ScreenViewSystemAudioTests
         Assert.NotNull(block);
         Assert.Equal([0, 0, 0, 0], block.Bytes);
         Assert.Null(block.Timestamp);
-        Assert.False(block.Follows(2));
+        Assert.True(block.Discontinuity);
     }
 
     [Fact]
@@ -57,12 +58,109 @@ public sealed class ScreenViewSystemAudioTests
             Assert.True(queue.Writer.TryWrite(new([0, 0, 0, 0], 0, index, false)));
 
         Assert.True(queue.Reader.TryRead(out var first));
-        Assert.Equal(1, first.Sequence);
-        Assert.False(first.Follows(-1));
+        Assert.Equal(1, first.SamplePosition);
         Assert.True(queue.Reader.TryRead(out var second));
-        Assert.True(second.Follows(first.Sequence));
+        Assert.Equal(2, second.SamplePosition);
         queue.Writer.TryComplete();
         Assert.False(queue.Writer.TryWrite(first));
+    }
+
+    [Fact]
+    public async Task EncoderUsesUniformSampleTimingThroughCaptureJitterAndRtpWrap()
+    {
+        const long start = uint.MaxValue - 479L;
+        uint[] timestamps = await EncodeTimestampsAsync(
+            Block(960, start, 0),
+            Block(480, start + 964, 960),
+            Block(480, start + 1_436, 1_440),
+            Block(960, start + 1_917, 1_920),
+            Block(960, null, 2_880),
+            Block(960, start + 3_841, 3_840));
+
+        Assert.Equal([(uint)start, 480u, 1_440u, 2_400u, 3_360u], timestamps);
+    }
+
+    [Fact]
+    public async Task EncoderPreservesRealIdleGapsAndDropsUnfinishedAudioAcrossThem()
+    {
+        uint[] timestamps = await EncodeTimestampsAsync(
+            Block(960, 10_000, 0),
+            Block(480, 10_963, 960),
+            Block(480, 18_643, 1_440),
+            Block(960, 19_124, 1_920),
+            Block(480, 20_079, 2_880));
+
+        // The idle gap is derived from adjacent QPC positions. Samples on opposite sides
+        // of the gap are never combined into one frame.
+        Assert.Equal([10_000u, 18_640u, 19_600u], timestamps);
+    }
+
+    [Fact]
+    public async Task EncoderCountsShortQueueLossEvenWhenTheNextTimestampIsUnreliable()
+    {
+        uint[] timestamps = await EncodeTimestampsAsync(
+            Block(960, 10_000, 0),
+            Block(480, null, 1_440),
+            Block(480, 11_920, 1_920),
+            Block(960, 12_400, 2_400));
+
+        Assert.Equal([10_000u, 11_440u, 12_400u], timestamps);
+    }
+
+    [Fact]
+    public async Task EncoderContinuesForwardAcrossCaptureDiscontinuityAndEndpointReplacement()
+    {
+        var clock = new ScreenViewSystemAudioCapture.AudioFrameClock();
+        uint[] before = await EncodeTimestampsAsync(clock,
+            Block(960, 10_000, 0),
+            Block(480, 10_960, 960),
+            Block(960, 11_400, 1_440, discontinuity: true));
+        uint[] after = await EncodeTimestampsAsync(clock,
+            Block(960, 12_300, 0),
+            Block(960, 13_260, 960));
+
+        Assert.Equal([10_000u, 11_440u], before);
+        Assert.Equal([12_400u, 13_360u], after);
+    }
+
+    [Fact]
+    public async Task FullCaptureBlockFitsAlongsideAnUnfinishedFrame()
+    {
+        uint[] timestamps = await EncodeTimestampsAsync(
+            Block(480, 10_000, 0),
+            Block(4_800, 10_480, 480),
+            Block(480, 15_280, 5_280));
+
+        Assert.Equal([10_000u, 10_960u, 11_920u, 12_880u, 13_840u, 14_800u], timestamps);
+    }
+
+    private static ScreenViewSystemAudioCapture.AudioBlock Block(
+        int samples,
+        long? timestamp,
+        long samplePosition,
+        bool discontinuity = false) =>
+        new(new byte[samples * ScreenViewSystemAudioCapture.Channels * sizeof(short)], timestamp, samplePosition, discontinuity);
+
+    private static Task<uint[]> EncodeTimestampsAsync(params ScreenViewSystemAudioCapture.AudioBlock[] blocks) =>
+        EncodeTimestampsAsync(new ScreenViewSystemAudioCapture.AudioFrameClock(), blocks);
+
+    private static async Task<uint[]> EncodeTimestampsAsync(
+        ScreenViewSystemAudioCapture.AudioFrameClock clock,
+        params ScreenViewSystemAudioCapture.AudioBlock[] blocks)
+    {
+        var queue = Channel.CreateUnbounded<ScreenViewSystemAudioCapture.AudioBlock>();
+        foreach (var block in blocks)
+            Assert.True(queue.Writer.TryWrite(block));
+        queue.Writer.Complete();
+
+        List<uint> timestamps = [];
+        await ScreenViewSystemAudioCapture.EncodeAsync(queue.Reader, clock, frame =>
+        {
+            Assert.NotEmpty(frame.Bytes);
+            timestamps.Add(frame.RtpTimestamp);
+            return true;
+        }, () => ScreenViewSoundQuality.High, TestContext.Current.CancellationToken);
+        return [.. timestamps];
     }
 
     [Fact]

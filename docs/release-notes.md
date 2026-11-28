@@ -6,6 +6,12 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.5.9
+
+- Live mirror keeps PC sound on a steady playback clock, reducing robotic sound
+  and stutter when watching videos, including over Cloud Relay. It also
+  advertises its stereo capability to the browser.
+
 ## v1.5.8
 
 - Pairing shows recovery actions when the PC is unreachable and offers manual

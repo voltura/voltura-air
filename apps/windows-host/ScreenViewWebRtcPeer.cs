@@ -213,6 +213,7 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
             using var audioMid = new Utf8String("1");
             using var audioName = new Utf8String("screen-audio");
             using var audioTrackId = new Utf8String("screen-audio");
+            using var audioProfile = new Utf8String("sprop-stereo=1");
             uint audioSsrc;
             do { audioSsrc = RandomUInt32(); } while (audioSsrc == 0 || audioSsrc == ssrc);
             var audioInitialization = new LibDataChannelNative.TrackInit
@@ -224,7 +225,8 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
                 Mid = audioMid.Pointer,
                 Name = audioName.Pointer,
                 Msid = stream.Pointer,
-                TrackId = audioTrackId.Pointer
+                TrackId = audioTrackId.Pointer,
+                Profile = audioProfile.Pointer
             };
             _audioTrack = EnsureCreated(LibDataChannelNative.rtcAddTrackEx(_peer, in audioInitialization), "create the WebRTC audio track");
             LibDataChannelNative.rtcSetUserPointer(_audioTrack, pointer);

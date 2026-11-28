@@ -62,6 +62,7 @@ public sealed class ScreenViewWebRtcTests
         string offer = await peer.CreateOfferAsync(TestContext.Current.CancellationToken);
 
         Assert.True(ScreenViewWebRtcPeer.HasExpectedMedia(offer, "sendonly"));
+        Assert.Contains("a=fmtp:111 sprop-stereo=1", offer.Split('\n', StringSplitOptions.TrimEntries));
     }
 
     [Fact]

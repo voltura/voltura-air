@@ -27,10 +27,15 @@ vi.mock(import("../../foundation/file-transfer/fileTransferDeviceStorage"), asyn
   supportsDeviceFileStorage: () => true,
 }));
 
-const offer =
+const legacyOffer =
   "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=sendonly\r\n" +
   "m=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=rtpmap:111 opus/48000/2\r\na=sendonly\r\n" +
   "m=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\na=candidate:1 1 udp 1 192.0.2.1 50000 typ relay\r\n";
+const offer = legacyOffer.replace(
+  "a=rtpmap:111 opus/48000/2\r\n",
+  "a=rtpmap:111 opus/48000/2\r\na=fmtp:111 sprop-stereo=1\r\n",
+);
+const browserAnswerSdp = legacyOffer.replaceAll("a=sendonly", "a=recvonly");
 
 class Track extends EventTarget {
   muted = true;
@@ -86,7 +91,7 @@ class Peer extends EventTarget {
     return Promise.resolve();
   }
   createAnswer() {
-    return Promise.resolve({ type: "answer", sdp: offer.replaceAll("sendonly", "recvonly") });
+    return Promise.resolve({ type: "answer", sdp: browserAnswerSdp });
   }
   setLocalDescription(value: RTCSessionDescriptionInit) {
     this.localDescription = value;
@@ -280,6 +285,27 @@ function openScreenEvents(peer: Peer) {
 }
 
 describe("Relay screen renewal", () => {
+  it("answers stereo-hinted offers with the browser SDP for both start and renewal", async () => {
+    const view = await openView();
+    await advance(14 * 60_000);
+    await view.accept();
+
+    const [initial, renewal] = view.starts();
+    expect(renewal?.renewalOf).toBe(initial?.operationId);
+    expect(Peer.instances.map((peer) => peer.localDescription?.sdp)).toEqual([
+      browserAnswerSdp,
+      browserAnswerSdp,
+    ]);
+    const answers = view.send.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message.type === "screen.view.answer");
+    expect(answers.map(({ operationId }) => operationId)).toEqual([
+      initial?.operationId,
+      renewal?.operationId,
+    ]);
+    expect(answers.map(({ answerSdp }) => answerSdp)).toEqual([browserAnswerSdp, browserAnswerSdp]);
+  });
+
   it("ignores delayed media events while reconnecting and after the stream is detached", async () => {
     const view = await openView();
     act(() => {
